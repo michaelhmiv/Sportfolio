@@ -237,10 +237,10 @@ export function GameCommandCenterCard({
                   e.stopPropagation();
                   setShowBoostSelector(!showBoostSelector);
                 }}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border-2 transition-all ${
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-compact text-[10px] font-medium border-2 transition-all ${
                   showBoostSelector
                     ? "border-boost bg-boost text-boost-foreground"
-                    : "border-boost/40 bg-boost/10 text-boost hover:border-boost/60 hover:bg-boost/20"
+                    : "border-boost/40 bg-boost/10 text-boost hover:border-boost/60 hover:bg-hover"
                 }`}
               >
                 {showBoostSelector ? (
@@ -269,7 +269,7 @@ export function GameCommandCenterCard({
             {powerLeader && powerLeader.multiplier > 0 && (
               <Badge
                 variant="secondary"
-                className="gap-1 text-[10px] text-chart-4 border-border/80"
+                className="gap-1 text-[10px] text-category-stacking border-border/80"
               >
                 <Zap className="h-3 w-3" />
                 Multi {powerLeader.multiplier.toFixed(2)}x
@@ -296,7 +296,7 @@ export function GameCommandCenterCard({
                       key={tier}
                       type="button"
                       onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
-                      className={`px-2 py-1 rounded text-[10px] font-medium border-2 transition-all ${
+                      className={`px-2 py-1 rounded-compact text-[10px] font-medium border-2 transition-all ${
                         selectedTier === tier
                           ? "border-boost bg-boost text-boost-foreground"
                           : "border-border bg-background text-foreground hover:border-boost"
@@ -314,7 +314,7 @@ export function GameCommandCenterCard({
                   {userContext.topMultiplierPlayers.map((player, idx) => (
                     <div
                       key={`${player.playerId}-${idx}`}
-                      className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-background/80"
+                      className="flex items-center justify-between text-xs py-1.5 px-2 rounded-compact bg-background/80"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
@@ -331,7 +331,7 @@ export function GameCommandCenterCard({
                           {player.name}
                         </span>
                         <span className="text-muted-foreground text-[10px]">{player.team}</span>
-                        <span className="text-chart-4 font-mono text-[10px]">
+                        <span className="text-category-stacking font-mono text-[10px]">
                           {player.multiplier.toFixed(1)}x
                         </span>
                       </div>
@@ -363,7 +363,7 @@ export function GameCommandCenterCard({
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground text-center py-3 bg-background/50 rounded">
+                <div className="text-xs text-muted-foreground text-center py-3 bg-background/50 rounded-compact">
                   No eligible players to boost
                 </div>
               )}
@@ -394,7 +394,9 @@ export function GameCommandCenterCard({
                   >
                     {player.name}
                   </span>
-                  <span className="font-mono text-chart-4">{player.multiplier.toFixed(1)}x</span>
+                  <span className="font-mono text-category-stacking">
+                    {player.multiplier.toFixed(1)}x
+                  </span>
                 </div>
               ))}
               {userContext.topMultiplierPlayers.length > 3 && (

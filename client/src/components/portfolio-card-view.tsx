@@ -186,16 +186,17 @@ export function PortfolioCardView({
 
                 <div className="mb-1 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
                   <span>{group.totalShares} shr</span>
-                  {lpShares > 0 && <span className="text-chart-2">({lpShares}p)</span>}
+                  {lpShares > 0 && <span className="text-category-liquidity">({lpShares}p)</span>}
                   {hasStackedShares && (
-                    <span className="text-chart-4">Stacked {maxMultiplier}x</span>
+                    <span className="text-category-stacking">Stacked {maxMultiplier}x</span>
                   )}
                 </div>
 
                 <div className="text-center">
                   {canStackShares ? (
-                    <div
-                      className="inline-flex items-center gap-1 rounded bg-chart-4/10 px-1.5 py-0.5 text-[10px] text-chart-4"
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-compact border border-category-stacking/30 bg-category-stacking/10 px-3 py-1 text-[10px] text-category-stacking sm:min-h-8"
                       onClick={(event) => {
                         event.stopPropagation();
                         onStackShares(
@@ -206,7 +207,7 @@ export function PortfolioCardView({
                       }}
                     >
                       Stack
-                    </div>
+                    </button>
                   ) : (
                     <div className="text-[10px] text-muted-foreground">
                       {formatShareCount(availableToStack)}/4 unlocked
@@ -278,21 +279,21 @@ export function PortfolioCardView({
                       {selectedPlayer.stacked.map((share, index) => (
                         <div
                           key={share.id || index}
-                          className={`flex items-center justify-between rounded-compact border border-chart-4/30 p-3 ${getMultiplierTierBg(share.multiplier)}`}
+                          className={`flex items-center justify-between rounded-compact border border-category-stacking/30 p-3 ${getMultiplierTierBg(share.multiplier)}`}
                         >
                           <div className="flex items-center gap-3">
                             <div
                               className={`h-3 w-3 rounded-compact ${getMultiplierTierColor(share.multiplier).split(" ")[0]}`}
                             />
                             <div>
-                              <div className="font-medium text-chart-4">
+                              <div className="font-medium text-category-stacking">
                                 Stacked Share {share.multiplier}x
                               </div>
                               <div className="text-sm text-muted-foreground">1 share retained</div>
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-lg font-mono font-bold text-chart-4">
+                            <div className="text-lg font-mono font-bold text-category-stacking">
                               {formatShareCount(share.quantity)}
                             </div>
                             <div className="text-sm text-muted-foreground">
@@ -305,7 +306,8 @@ export function PortfolioCardView({
 
                     {regularHolding && regularHolding.availableQuantity >= 4 && (
                       <Button
-                        className="w-full bg-chart-4 hover:bg-chart-4"
+                        variant="outline"
+                        className="w-full border-category-stacking/40 bg-category-stacking/10 text-category-stacking hover:bg-hover hover:text-category-stacking"
                         onClick={() => {
                           onStackShares(
                             selectedPlayer.player.id,

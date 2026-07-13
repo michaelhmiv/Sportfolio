@@ -25,11 +25,13 @@ function extractBlock(selector: Theme) {
 }
 
 function token(theme: Theme, name: string): Hsl {
-  const match = extractBlock(theme).match(
-    new RegExp(`--${name}:\\s*([\\d.]+)\\s+([\\d.]+)%\\s+([\\d.]+)%`),
-  );
-  if (!match) throw new Error(`${theme} is missing a literal HSL value for --${name}`);
-  return [Number(match[1]), Number(match[2]) / 100, Number(match[3]) / 100];
+  const block = extractBlock(theme);
+  const match = block.match(new RegExp(`--${name}:\\s*([\\d.]+)\\s+([\\d.]+)%\\s+([\\d.]+)%`));
+  if (match) return [Number(match[1]), Number(match[2]) / 100, Number(match[3]) / 100];
+
+  const alias = block.match(new RegExp(`--${name}:\\s*var\\(--([\\w-]+)\\)`));
+  if (alias) return token(theme, alias[1]);
+  throw new Error(`${theme} is missing a literal or aliased HSL value for --${name}`);
 }
 
 function hslToRgb([h, s, l]: Hsl): Rgb {
@@ -116,6 +118,7 @@ const normalTextPairs = [
   ["category-market", "canvas"],
   ["category-liquidity", "canvas"],
   ["category-stacking", "canvas"],
+  ["category-stacking", "hover"],
   ["category-payout", "canvas"],
   ["category-scout", "canvas"],
   ["category-whale", "canvas"],
@@ -125,22 +128,151 @@ const normalTextPairs = [
   ["category-momentum", "canvas"],
   ["category-value", "canvas"],
   ["category-pool", "canvas"],
+  ["category-ownership", "canvas"],
 ] as const;
 
 const tintedSurfacePairs = [
-  ["boost", "boost", "surface"],
-  ["premium", "premium", "surface"],
-  ["category-boost", "category-boost", "surface"],
-  ["category-community", "category-community", "surface"],
-  ["category-payout", "category-payout", "surface"],
-  ["category-momentum", "category-momentum", "surface"],
-  ["category-value", "category-value", "surface"],
-  ["category-pool", "category-pool", "surface"],
-  ["category-thin-pool", "category-thin-pool", "surface"],
-  ["status-live", "status-live", "surface"],
+  ["boost", "boost", "surface", 0.1],
+  ["boost", "boost", "surface", 0.2],
+  ["boost", "boost", "canvas", 0.1],
+  ["premium", "premium", "surface", 0.1],
+  ["market-positive", "market-positive", "surface", 0.1],
+  ["market-positive", "market-positive", "canvas", 0.1],
+  ["category-boost", "category-boost", "surface", 0.1],
+  ["category-boost", "category-boost", "canvas", 0.1],
+  ["category-community", "category-community", "surface", 0.1],
+  ["category-community", "category-community", "canvas", 0.1],
+  ["category-liquidity", "category-liquidity", "surface", 0.1],
+  ["category-liquidity", "category-liquidity", "canvas", 0.1],
+  ["category-stacking", "category-stacking", "surface", 0.1],
+  ["category-stacking", "category-stacking", "canvas", 0.1],
+  ["category-payout", "category-payout", "surface", 0.1],
+  ["category-payout", "category-payout", "canvas", 0.1],
+  ["category-scout", "category-scout", "surface", 0.1],
+  ["category-scout", "category-scout", "canvas", 0.1],
+  ["category-whale", "category-whale", "surface", 0.1],
+  ["category-whale", "category-whale", "canvas", 0.1],
+  ["category-momentum", "category-momentum", "surface", 0.1],
+  ["category-momentum", "category-momentum", "canvas", 0.1],
+  ["category-value", "category-value", "surface", 0.1],
+  ["category-value", "category-value", "canvas", 0.1],
+  ["category-pool", "category-pool", "surface", 0.1],
+  ["category-pool", "category-pool", "canvas", 0.1],
+  ["category-ownership", "category-ownership", "surface", 0.1],
+  ["category-ownership", "category-ownership", "canvas", 0.1],
+  ["category-thin-pool", "category-thin-pool", "surface", 0.1],
+  ["category-thin-pool", "category-thin-pool", "canvas", 0.1],
+  ["status-live", "status-live", "surface", 0.1],
+  ["status-info", "status-info", "surface", 0.1],
+  ["status-warning", "status-warning", "surface", 0.1],
 ] as const;
 
+const renderedCoreSurfaces = [
+  "pages/dashboard.tsx",
+  "pages/marketplace.tsx",
+  "pages/portfolio.tsx",
+  "pages/boosts.tsx",
+  "pages/analytics.tsx",
+  "pages/leaderboards.tsx",
+  "pages/watchlists.tsx",
+  "pages/player.tsx",
+  "components/player-modal.tsx",
+  "components/portfolio-card-view.tsx",
+  "components/portfolio-activity-tab.tsx",
+  "components/portfolio-stacking-tab.tsx",
+  "components/market-mobile-home.tsx",
+  "components/market-mobile-pools-board.tsx",
+  "components/market-mobile-player-sheet.tsx",
+  "components/market-activity-ledger.tsx",
+  "components/game-command-center-card.tsx",
+  "components/game-command-center-modal.tsx",
+] as const;
+
+function hasThemeToken(theme: Theme, name: string) {
+  try {
+    token(theme, name);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function renderedCoreClassPairs(theme: Theme) {
+  const pairs: Array<{
+    file: string;
+    foreground: string;
+    background: string;
+    alpha: number;
+    classValue: string;
+  }> = [];
+
+  for (const file of renderedCoreSurfaces) {
+    const source = readFileSync(resolve(process.cwd(), "client/src", file), "utf8");
+    const classValues = [...source.matchAll(/["'`]([^"'`\n]*(?:bg-|text-)[^"'`\n]*)["'`]/g)].map(
+      (match) => match[1],
+    );
+
+    for (const classValue of classValues) {
+      const foregrounds = [...classValue.matchAll(/(?:^|\s)(?:[\w-]+:)*text-([a-z][\w-]*)/g)]
+        .map((match) => match[1])
+        .filter((name) => hasThemeToken(theme, name));
+      const backgrounds = [
+        ...classValue.matchAll(
+          /(?:^|\s)(?:[\w-]+:)*bg-([a-z][\w-]*)(?:\/\[?([\d.]+)\]?)?(?=\s|$)/g,
+        ),
+      ]
+        .map((match) => ({
+          name: match[1],
+          alpha: match[2] ? Number(match[2]) / (Number(match[2]) > 1 ? 100 : 1) : 1,
+        }))
+        .filter(({ name }) => hasThemeToken(theme, name));
+
+      for (const foreground of foregrounds) {
+        for (const background of backgrounds) {
+          pairs.push({
+            file,
+            foreground,
+            background: background.name,
+            alpha: background.alpha,
+            classValue,
+          });
+        }
+      }
+    }
+  }
+
+  return pairs;
+}
+
 describe("Sportfolio semantic color contrast", () => {
+  it.each([":root", ".dark"] as const)(
+    "keeps product category treatments visually distinct in %s",
+    (theme) => {
+      const categoryTokens = [
+        "category-liquidity",
+        "category-stacking",
+        "category-boost",
+        "category-scout",
+        "category-whale",
+        "category-thin-pool",
+        "category-community",
+        "category-momentum",
+        "category-ownership",
+      ];
+      const treatments = categoryTokens.map((name) => token(theme, name).join("/"));
+      expect(new Set(treatments).size).toBe(categoryTokens.length);
+
+      const hues = categoryTokens.map((name) => token(theme, name)[0]);
+      const hueDistances = hues.flatMap((hue, index) =>
+        hues.slice(index + 1).map((otherHue) => {
+          const distance = Math.abs(hue - otherHue);
+          return Math.min(distance, 360 - distance);
+        }),
+      );
+      expect(Math.min(...hueDistances)).toBeGreaterThanOrEqual(20);
+    },
+  );
+
   it.each([":root", ".dark"] as const)("meets WCAG AA text contrast in %s", (theme) => {
     for (const [foreground, background] of normalTextPairs) {
       expect(
@@ -160,12 +292,40 @@ describe("Sportfolio semantic color contrast", () => {
   it.each([":root", ".dark"] as const)(
     "meets WCAG AA after translucent semantic tints are rendered in %s",
     (theme) => {
-      for (const [foreground, tint, backdrop] of tintedSurfacePairs) {
-        expect(
-          renderedTintContrast(theme, foreground, tint, backdrop),
-          `${theme} --${foreground} on --${tint}/10 over --${backdrop}`,
-        ).toBeGreaterThanOrEqual(4.5);
+      const failures: string[] = [];
+      for (const [foreground, tint, backdrop, alpha] of tintedSurfacePairs) {
+        const ratio = renderedTintContrast(theme, foreground, tint, backdrop, alpha);
+        if (ratio < 4.5) {
+          failures.push(
+            `${theme} --${foreground} on --${tint}/${alpha * 100} over --${backdrop}: ${ratio.toFixed(3)}:1`,
+          );
+        }
       }
+      expect(failures).toEqual([]);
+    },
+  );
+
+  it.each([":root", ".dark"] as const)(
+    "keeps rendered semantic text/background classes at WCAG AA in %s",
+    (theme) => {
+      const failures = new Set<string>();
+      for (const pair of renderedCoreClassPairs(theme)) {
+        for (const backdrop of ["canvas", "surface"] as const) {
+          const ratio = renderedTintContrast(
+            theme,
+            pair.foreground,
+            pair.background,
+            backdrop,
+            pair.alpha,
+          );
+          if (ratio < 4.5) {
+            failures.add(
+              `${pair.file}: text-${pair.foreground} on bg-${pair.background}/${pair.alpha * 100} over ${backdrop} = ${ratio.toFixed(3)}:1 (${pair.classValue})`,
+            );
+          }
+        }
+      }
+      expect([...failures]).toEqual([]);
     },
   );
 });

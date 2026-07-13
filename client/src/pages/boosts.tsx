@@ -154,10 +154,10 @@ function formatCountdown(gameStartTime: string, now: Date): string | null {
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 const MULTIPLIER_SLOTS = [
-  { tier: 5, label: "5x", color: "bg-premium", icon: Flame },
-  { tier: 4, label: "4x", color: "bg-boost", icon: Zap },
-  { tier: 3, label: "3x", color: "bg-chart-4", icon: TrendingUp },
-  { tier: 2, label: "2x", color: "bg-chart-2", icon: TrendingUp },
+  { tier: 5, label: "5x", color: "bg-tier-mythic", icon: Flame },
+  { tier: 4, label: "4x", color: "bg-tier-legendary", icon: Zap },
+  { tier: 3, label: "3x", color: "bg-tier-elite", icon: TrendingUp },
+  { tier: 2, label: "2x", color: "bg-tier-boosted", icon: TrendingUp },
 ];
 
 const COMMUNITY_FILTER_SPORTS = ["All", ...GLOBAL_SPORTS.filter((sport) => sport !== "ALL")];
@@ -598,7 +598,7 @@ export default function BoostsPage() {
                               </div>
                               <div className="flex items-center gap-1.5 text-xs">
                                 <span className="terminal-label text-[10px]">Boosts</span>
-                                <span className="font-mono text-chart-4 font-medium">
+                                <span className="font-mono font-medium text-category-stacking">
                                   {boost.shareMultiplier}
                                 </span>
                               </div>
@@ -1020,7 +1020,7 @@ export default function BoostsPage() {
                                 {hasStackedShare && (
                                   <>
                                     <span>|</span>
-                                    <span className="font-mono text-[11px] text-chart-4">
+                                    <span className="font-mono text-[11px] text-category-stacking">
                                       MULTI {ep.bestShareMultiplier}/share
                                     </span>
                                   </>
@@ -1042,7 +1042,7 @@ export default function BoostsPage() {
                                   ep.gameStartTime && (
                                     <>
                                       <span>|</span>
-                                      <Badge className="h-4 border border-chart-2/30 bg-chart-2/10 px-1 font-mono text-[10px] uppercase text-chart-2">
+                                      <Badge className="h-4 border border-status-info/30 bg-status-info/10 px-1 font-mono text-[10px] uppercase text-status-info">
                                         {format(new Date(ep.gameStartTime), "h:mm a")}
                                       </Badge>
                                     </>

@@ -312,23 +312,35 @@ export function MarketMobilePlayerSheet({
                 </Badge>
               )}
               {(quickContext?.bestShareMultiplier || 1) > 1 && (
-                <Badge variant="outline" className="border-chart-2/30 bg-chart-2/10 text-chart-2">
+                <Badge
+                  variant="outline"
+                  className="border-category-stacking/30 bg-category-stacking/10 text-category-stacking"
+                >
                   Multi {quickContext?.bestShareMultiplier}x
                 </Badge>
               )}
               {(player.communityBoostCount || 0) > 0 && (
-                <Badge variant="outline" className="border-boost/30 bg-boost/10 text-boost">
+                <Badge
+                  variant="outline"
+                  className="border-category-community/30 bg-category-community/10 text-category-community"
+                >
                   Community +{player.communityBoostCount}
                 </Badge>
               )}
               {financials?.heatCheck.status === "fire" && (
-                <Badge variant="outline" className="border-boost/30 bg-boost/10 text-boost">
+                <Badge
+                  variant="outline"
+                  className="border-category-momentum/30 bg-category-momentum/10 text-category-momentum"
+                >
                   <Flame className="mr-1 h-3 w-3" />
                   Heat check
                 </Badge>
               )}
               {quickContext?.isWatchlisted && (
-                <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                <Badge
+                  variant="outline"
+                  className="border-selected-border bg-selected text-selected-foreground"
+                >
                   Watchlist
                 </Badge>
               )}

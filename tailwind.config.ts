@@ -102,6 +102,7 @@ export default {
           momentum: "hsl(var(--category-momentum) / <alpha-value>)",
           value: "hsl(var(--category-value) / <alpha-value>)",
           pool: "hsl(var(--category-pool) / <alpha-value>)",
+          ownership: "hsl(var(--category-ownership) / <alpha-value>)",
         },
         disabled: {
           DEFAULT: "hsl(var(--disabled) / <alpha-value>)",

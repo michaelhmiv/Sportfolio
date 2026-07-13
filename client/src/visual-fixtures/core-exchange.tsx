@@ -24,6 +24,45 @@ const tiers = [
   { name: "Mythic", className: "bg-tier-mythic" },
 ] as const;
 
+const productCategories = [
+  {
+    name: "Liquidity",
+    className: "border-category-liquidity/30 bg-category-liquidity/10 text-category-liquidity",
+  },
+  {
+    name: "Stacking",
+    className: "border-category-stacking/30 bg-category-stacking/10 text-category-stacking",
+  },
+  {
+    name: "Boost",
+    className: "border-category-boost/30 bg-category-boost/10 text-category-boost",
+  },
+  {
+    name: "Scout",
+    className: "border-category-scout/30 bg-category-scout/10 text-category-scout",
+  },
+  {
+    name: "Whale",
+    className: "border-category-whale/30 bg-category-whale/10 text-category-whale",
+  },
+  {
+    name: "Thin pool",
+    className: "border-category-thin-pool/30 bg-category-thin-pool/10 text-category-thin-pool",
+  },
+  {
+    name: "Community",
+    className: "border-category-community/30 bg-category-community/10 text-category-community",
+  },
+  {
+    name: "Momentum",
+    className: "border-category-momentum/30 bg-category-momentum/10 text-category-momentum",
+  },
+  {
+    name: "Ownership",
+    className: "border-category-ownership/30 bg-category-ownership/10 text-category-ownership",
+  },
+] as const;
+
 function MarketBoard() {
   return (
     <Card data-testid="market-board" className="overflow-hidden shadow-low">
@@ -121,6 +160,23 @@ function PortfolioBoard() {
                 className={`${tier.className} text-content-inverse`}
               >
                 {tier.name}
+              </Badge>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-subtle">
+            Product semantics
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {productCategories.map((category) => (
+              <Badge
+                key={category.name}
+                variant="outline"
+                data-category={category.name.toLowerCase().replace(" ", "-")}
+                className={category.className}
+              >
+                {category.name}
               </Badge>
             ))}
           </div>

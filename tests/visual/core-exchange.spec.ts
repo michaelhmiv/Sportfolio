@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("core exchange surfaces keep compact hierarchy and semantic movement cues", async ({
   page,
-}, testInfo) => {
+}) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/core-exchange-fixture.html", { waitUntil: "networkidle" });
 
@@ -33,16 +33,23 @@ test("core exchange surfaces keep compact hierarchy and semantic movement cues",
     );
   expect(new Set(tierColors).size).toBe(5);
 
+  const categoryTreatments = await page.locator("[data-category]").evaluateAll((elements) =>
+    elements.map((element) => {
+      const style = getComputedStyle(element);
+      return `${style.color}|${style.backgroundColor}|${style.borderColor}`;
+    }),
+  );
+  expect(categoryTreatments).toHaveLength(9);
+  expect(new Set(categoryTreatments).size).toBe(9);
+
   await expect(page).toHaveScreenshot("core-exchange-surfaces.png", {
     animations: "disabled",
     fullPage: true,
     maxDiffPixelRatio: 0.001,
   });
 
-  if (testInfo.project.name.startsWith("mobile")) {
-    const horizontalOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(horizontalOverflow).toBeLessThanOrEqual(0);
-  }
+  const horizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(horizontalOverflow).toBeLessThanOrEqual(0);
 });

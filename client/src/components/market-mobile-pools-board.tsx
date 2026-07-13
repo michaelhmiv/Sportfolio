@@ -301,17 +301,17 @@ function getPrimaryChip(
 function getChipClassName(label: MarketChipLabel | null) {
   switch (label) {
     case "Boost live today":
-      return "border-premium/30 bg-premium/10 text-premium";
+      return "border-category-boost/30 bg-category-boost/10 text-category-boost";
     case "Scouts surging":
-      return "border-chart-3/30 bg-chart-3/10 text-chart-3";
+      return "border-category-scout/30 bg-category-scout/10 text-category-scout";
     case "Whale trade":
-      return "border-chart-2/30 bg-chart-2/10 text-chart-2";
+      return "border-category-whale/30 bg-category-whale/10 text-category-whale";
     case "Thin pool":
-      return "border-market-negative/30 bg-market-negative/10 text-market-negative";
+      return "border-category-thin-pool/30 bg-category-thin-pool/10 text-category-thin-pool";
     case "Buy pressure":
       return "border-market-positive/30 bg-market-positive/10 text-market-positive";
     case "Heat check":
-      return "border-boost/30 bg-boost/10 text-boost";
+      return "border-category-momentum/30 bg-category-momentum/10 text-category-momentum";
     default:
       return "border-border/60 bg-muted/30 text-muted-foreground";
   }
@@ -658,7 +658,7 @@ function getCompactStatusToken(params: {
   if (quickContext?.isBoostEligible && player.gameStatus && player.gameStatus !== "none") {
     return {
       label: "Boost Ready",
-      className: "border-premium/30 bg-premium/10 text-premium",
+      className: "border-category-boost/30 bg-category-boost/10 text-category-boost",
     };
   }
 
@@ -672,28 +672,28 @@ function getCompactStatusToken(params: {
   if (hasLpPosition) {
     return {
       label: "LP",
-      className: "border-chart-2/30 bg-chart-2/10 text-chart-2",
+      className: "border-category-liquidity/30 bg-category-liquidity/10 text-category-liquidity",
     };
   }
 
   if (quickContext?.isWatchlisted) {
     return {
       label: "Watch",
-      className: "border-primary/30 bg-primary/10 text-primary",
+      className: "border-selected-border bg-selected text-selected-foreground",
     };
   }
 
   if ((quickContext?.bestShareMultiplier || 1) > 1) {
     return {
       label: `x${quickContext?.bestShareMultiplier}`,
-      className: "border-chart-3/30 bg-chart-3/10 text-chart-3",
+      className: "border-category-stacking/30 bg-category-stacking/10 text-category-stacking",
     };
   }
 
   if ((player.communityBoostCount || 0) > 0) {
     return {
       label: `C+${player.communityBoostCount}`,
-      className: "border-boost/30 bg-boost/10 text-boost",
+      className: "border-category-community/30 bg-category-community/10 text-category-community",
     };
   }
 

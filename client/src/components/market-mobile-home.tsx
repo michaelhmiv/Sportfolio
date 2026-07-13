@@ -299,17 +299,17 @@ function getPrimaryChip(
 function getChipClassName(label: MarketChipLabel | null) {
   switch (label) {
     case "Boost live today":
-      return "border-premium/30 bg-premium/10 text-premium";
+      return "border-category-boost/30 bg-category-boost/10 text-category-boost";
     case "Scouts surging":
-      return "border-chart-3/30 bg-chart-3/10 text-chart-3";
+      return "border-category-scout/30 bg-category-scout/10 text-category-scout";
     case "Whale trade":
-      return "border-chart-2/30 bg-chart-2/10 text-chart-2";
+      return "border-category-whale/30 bg-category-whale/10 text-category-whale";
     case "Thin pool":
-      return "border-market-negative/30 bg-market-negative/10 text-market-negative";
+      return "border-category-thin-pool/30 bg-category-thin-pool/10 text-category-thin-pool";
     case "Buy pressure":
       return "border-market-positive/30 bg-market-positive/10 text-market-positive";
     case "Heat check":
-      return "border-boost/30 bg-boost/10 text-boost";
+      return "border-category-momentum/30 bg-category-momentum/10 text-category-momentum";
     default:
       return "border-border/60 bg-muted/30 text-muted-foreground";
   }
@@ -671,7 +671,7 @@ export function MarketMobileHome({
         title: "Largest Pools",
         subtitle: "Deepest liquidity on the market.",
         emptyState: "Pool leaders are still loading.",
-        accentClassName: "bg-chart-2",
+        accentClassName: "bg-category-pool",
         items: overview?.leaderboards.topPools || [],
         action: "buy" as const,
       },
@@ -680,7 +680,7 @@ export function MarketMobileHome({
         title: "Most Active",
         subtitle: "Fresh prints and whale clips.",
         emptyState: "Trade tape is quiet right now.",
-        accentClassName: "bg-chart-3",
+        accentClassName: "bg-category-market",
         items: overview?.leaderboards.mostActive || [],
         action: "buy" as const,
       },
@@ -689,7 +689,7 @@ export function MarketMobileHome({
         title: "Boost in Play",
         subtitle: "Names with live slate leverage.",
         emptyState: "No boost-ready names on deck.",
-        accentClassName: "bg-premium",
+        accentClassName: "bg-category-boost",
         items: overview?.leaderboards.boostWindow || overview?.boostWindow || [],
         action: "boost" as const,
       },
@@ -879,7 +879,7 @@ export function MarketMobileHome({
       cards.push({
         key: "watchlist-mover",
         label: "Watchlist",
-        accentClassName: "bg-chart-3",
+        accentClassName: "bg-primary",
         title: (
           <PlayerName
             playerId={watchlistMover.playerId}
@@ -899,7 +899,7 @@ export function MarketMobileHome({
       cards.push({
         key: "lp-edge",
         label: "Pool Fees",
-        accentClassName: "bg-chart-2",
+        accentClassName: "bg-category-liquidity",
         title: (
           <PlayerName
             playerId={lpEdge.playerId}
@@ -1220,7 +1220,7 @@ export function MarketMobileHome({
                           {quickContext.isWatchlisted && (
                             <Badge
                               variant="outline"
-                              className="border-primary/30 bg-primary/10 text-primary"
+                              className="border-selected-border bg-selected text-selected-foreground"
                             >
                               Watchlist
                             </Badge>
@@ -1228,7 +1228,7 @@ export function MarketMobileHome({
                           {ownedPlayerIds.has(player.id) && (
                             <Badge
                               variant="outline"
-                              className="border-market-positive/30 bg-market-positive/10 text-market-positive"
+                              className="border-category-ownership/30 bg-category-ownership/10 text-category-ownership"
                             >
                               Own
                             </Badge>
@@ -1236,7 +1236,7 @@ export function MarketMobileHome({
                           {lpEdgeMap.has(player.id) && (
                             <Badge
                               variant="outline"
-                              className="border-chart-2/30 bg-chart-2/10 text-chart-2"
+                              className="border-category-liquidity/30 bg-category-liquidity/10 text-category-liquidity"
                             >
                               LP
                             </Badge>
@@ -1244,7 +1244,7 @@ export function MarketMobileHome({
                           {(quickContext.bestShareMultiplier || 1) > 1 && (
                             <Badge
                               variant="outline"
-                              className="border-chart-3/30 bg-chart-3/10 text-chart-3"
+                              className="border-category-stacking/30 bg-category-stacking/10 text-category-stacking"
                             >
                               x{quickContext.bestShareMultiplier}
                             </Badge>
@@ -1252,7 +1252,7 @@ export function MarketMobileHome({
                           {(player.communityBoostCount || 0) > 0 && (
                             <Badge
                               variant="outline"
-                              className="border-boost/30 bg-boost/10 text-boost"
+                              className="border-category-community/30 bg-category-community/10 text-category-community"
                             >
                               Com +{player.communityBoostCount}
                             </Badge>

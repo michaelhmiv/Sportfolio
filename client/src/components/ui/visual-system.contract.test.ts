@@ -81,6 +81,7 @@ const requiredThemeTokens = [
   "category-momentum",
   "category-value",
   "category-pool",
+  "category-ownership",
 ];
 
 const requiredGlobalTokens = [

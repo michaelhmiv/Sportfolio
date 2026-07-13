@@ -248,7 +248,7 @@ function ActivePositionsToday({
                       {isBoostEligible && (
                         <button
                           onClick={() => onBoost(holding.player.id)}
-                          className="inline-flex items-center gap-0.5 rounded-compact border border-premium/40 bg-premium/10 px-1 py-0 text-[10px] font-semibold uppercase text-premium hover:bg-premium/20 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-0.5 rounded-compact border border-premium/40 bg-premium/10 px-1 py-0 text-[10px] font-semibold uppercase text-premium transition-colors hover:bg-hover cursor-pointer"
                         >
                           <Zap className="h-2.5 w-2.5" />
                           Boost
@@ -689,7 +689,7 @@ export default function Dashboard() {
                   className={cn(
                     "flex items-center gap-1 rounded-pill border px-3 py-1.5 text-xs font-semibold uppercase whitespace-nowrap transition-colors",
                     isActive
-                      ? "border-primary/60 bg-primary/10 text-primary"
+                      ? "border-selected-border bg-selected text-selected-foreground"
                       : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -701,7 +701,7 @@ export default function Dashboard() {
               <>
                 {(data?.boosts?.slotsRemaining ?? 0) > 0 && (
                   <Link href="/boosts">
-                    <button className="flex items-center gap-1.5 whitespace-nowrap rounded-pill border border-status-warning/40 bg-status-warning/10 px-3 py-1.5 text-xs font-medium text-status-warning transition-colors hover:bg-status-warning/20">
+                    <button className="flex items-center gap-1.5 whitespace-nowrap rounded-pill border border-status-warning/40 bg-status-warning/10 px-3 py-1.5 text-xs font-medium text-status-warning transition-colors hover:bg-hover">
                       <Zap className="h-3 w-3" />
                       {data!.boosts!.slotsRemaining} boost slot
                       {data!.boosts!.slotsRemaining !== 1 ? "s" : ""} open
@@ -800,7 +800,7 @@ export default function Dashboard() {
                         {data?.user?.cashRank && data?.user.cashRank > 0 && (
                           <button
                             onClick={() => setLocation("/leaderboards#cashBalance")}
-                            className="inline-flex items-center gap-0.5 border border-border px-0.5 py-0 rounded text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-0.5"
+                            className="inline-flex items-center gap-0.5 border border-border px-0.5 py-0 rounded-compact text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-0.5"
                             data-testid="badge-cash-rank"
                           >
                             #{data?.user.cashRank}
@@ -845,7 +845,7 @@ export default function Dashboard() {
                               {formatSignedCurrency(change.amount)}
                             </div>
                             {change.rank !== null && change.rank > 0 && (
-                              <span className="inline-flex items-center border border-border px-0.5 rounded text-[8px] text-muted-foreground flex-shrink-0">
+                              <span className="inline-flex items-center border border-border px-0.5 rounded-compact text-[8px] text-muted-foreground flex-shrink-0">
                                 #{change.rank}
                               </span>
                             )}
@@ -994,7 +994,7 @@ export default function Dashboard() {
                         onClick={() => setSport(sportOption as typeof sport)}
                         className={`inline-flex items-center rounded-compact border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors ${
                           isActive
-                            ? "border-primary/60 bg-primary/10 text-primary"
+                            ? "border-selected-border bg-selected text-selected-foreground"
                             : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -1509,7 +1509,7 @@ export default function Dashboard() {
                               {data.boosts.communityBoostCount} active today
                             </div>
                           </div>
-                          <Badge className="bg-status-warning/20 text-status-warning border-status-warning/30">
+                          <Badge className="border-status-warning/30 bg-status-warning/10 text-status-warning">
                             +{data.boosts.communityBoostCount}x
                           </Badge>
                         </div>

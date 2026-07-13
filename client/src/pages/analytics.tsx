@@ -311,7 +311,7 @@ const metricDescriptors: Record<
     icon: Coins,
     accent: "primary",
     chartColor: "hsl(var(--chart-3))",
-    surfaceClass: "border-chart-3/30 bg-chart-3/5 text-chart-3",
+    surfaceClass: "border-category-market/30 bg-category-market/5 text-category-market",
   },
 };
 

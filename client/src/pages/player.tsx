@@ -778,7 +778,7 @@ export default function PlayerPage() {
                           content={({ active, payload }) => {
                             if (active && payload && payload.length) {
                               return (
-                                <div className="bg-background border rounded p-2 shadow-lg">
+                                <div className="bg-background border rounded-compact p-2 shadow-lg">
                                   <div className="font-mono font-bold">
                                     $
                                     {typeof payload[0].value === "number"
@@ -817,7 +817,7 @@ export default function PlayerPage() {
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-2">
-                    <Droplets className="w-4 h-4 text-chart-2" />
+                    <Droplets className="w-4 h-4 text-category-liquidity" />
                     <CardTitle className="text-sm font-medium uppercase tracking-wide">
                       AMM Pool
                     </CardTitle>
@@ -855,7 +855,7 @@ export default function PlayerPage() {
                   ) : poolData ? (
                     <>
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="p-2 bg-muted/50 rounded">
+                        <div className="p-2 bg-muted/50 rounded-compact">
                           <div className="text-[10px] text-muted-foreground uppercase">
                             Pool Shares
                           </div>
@@ -863,7 +863,7 @@ export default function PlayerPage() {
                             {poolData.shares.toLocaleString()}
                           </div>
                         </div>
-                        <div className="p-2 bg-muted/50 rounded">
+                        <div className="p-2 bg-muted/50 rounded-compact">
                           <div className="text-[10px] text-muted-foreground uppercase">
                             Pool TVL
                           </div>
@@ -875,7 +875,7 @@ export default function PlayerPage() {
                         </div>
                       </div>
 
-                      <div className="p-2 bg-muted/50 rounded">
+                      <div className="p-2 bg-muted/50 rounded-compact">
                         <div className="text-[10px] text-muted-foreground uppercase">
                           Total Volume
                         </div>
@@ -888,14 +888,14 @@ export default function PlayerPage() {
                       </div>
 
                       {!isPoolInitialized && (
-                        <div className="rounded border bg-status-warning/10 border-status-warning/30 p-2 text-xs text-status-warning">
+                        <div className="rounded-compact border bg-status-warning/10 border-status-warning/30 p-2 text-xs text-status-warning">
                           Pool uninitialized. First two-sided LP add sets the starting market price.
                         </div>
                       )}
 
                       {lpPosition && lpPosition.lpShares > 0 && (
-                        <div className="p-2 bg-chart-2/10 border border-chart-2/20 rounded">
-                          <div className="text-[10px] text-chart-2 uppercase font-semibold">
+                        <div className="rounded-compact border border-category-liquidity/20 bg-category-liquidity/10 p-2">
+                          <div className="text-[10px] font-semibold uppercase text-category-liquidity">
                             Your LP Position
                           </div>
                           <div className="flex justify-between items-center mt-1">

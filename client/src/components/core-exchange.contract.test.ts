@@ -29,14 +29,17 @@ const coreSurfaces = [
 ] as const;
 
 const hardcodedPalette =
-  /(?:bg|text|border|ring|fill|stroke|from|via|to)-(?:amber|black|blue|cyan|emerald|fuchsia|gray|green|indigo|lime|neutral|orange|pink|purple|red|rose|sky|slate|stone|teal|violet|white|yellow|zinc)(?:-\d+)?(?:\/\d+)?/g;
-const hardcodedRadius = /\brounded-(?:none|sm|md|lg|xl|2xl|3xl|full)\b/g;
+  /(?:accent|bg|border|caret|decoration|divide|fill|from|outline|ring|shadow|stroke|text|to|via)-(?:amber|black|blue|cyan|emerald|fuchsia|gray|green|indigo|lime|neutral|orange|pink|purple|red|rose|sky|slate|stone|teal|violet|white|yellow|zinc)(?:-\d+)?(?:\/[\d.\[\]]+)?/g;
+const hardcodedRadius =
+  /(?:\brounded(?!-)\b|\brounded-\[[^\]]+\]|\brounded-(?:none|sm|md|lg|xl|2xl|3xl|full)\b)/g;
+const emojiPresentation = /\p{Extended_Pictographic}/gu;
 
 describe("core exchange visual contract", () => {
   it.each(coreSurfaces)("uses semantic color roles in %s", (relativePath) => {
     const source = readFileSync(resolve(process.cwd(), "client/src", relativePath), "utf8");
     expect(source.match(hardcodedPalette) ?? []).toEqual([]);
     expect(source.match(hardcodedRadius) ?? []).toEqual([]);
+    expect(source.match(emojiPresentation) ?? []).toEqual([]);
   });
 
   it("preserves distinct semantic multiplier tiers instead of collapsing them to one color", () => {
@@ -47,6 +50,83 @@ describe("core exchange visual contract", () => {
     for (const tier of ["standard", "boosted", "elite", "legendary", "mythic"] as const) {
       expect(source).toContain(`bg-tier-${tier}`);
     }
+  });
+
+  it("keeps product badges, ownership, stacking, and boost chrome off chart-series aliases", () => {
+    const read = (relativePath: string) =>
+      readFileSync(resolve(process.cwd(), "client/src/components", relativePath), "utf8");
+    const chartAlias = /\b(?:bg|border|fill|stroke|text)-chart-\d\b/g;
+
+    for (const relativePath of [
+      "components/game-command-center-card.tsx",
+      "components/game-command-center-modal.tsx",
+      "components/player-modal.tsx",
+      "pages/boosts.tsx",
+      "pages/player.tsx",
+      "pages/portfolio.tsx",
+    ]) {
+      const source = readFileSync(resolve(process.cwd(), "client/src", relativePath), "utf8");
+      expect(
+        source.match(chartAlias) ?? [],
+        `${relativePath} reserves chart aliases for charts`,
+      ).toEqual([]);
+    }
+
+    for (const relativePath of ["market-mobile-home.tsx", "market-mobile-pools-board.tsx"]) {
+      const source = read(relativePath);
+      expect(source).not.toContain("chart-");
+      const chipMap = source.slice(
+        source.indexOf("function getChipClassName"),
+        source.indexOf("function getFreshnessClassName"),
+      );
+      expect(chipMap).not.toMatch(/(?:chart-|premium|market-negative)/);
+      expect(chipMap).toContain("category-boost");
+      expect(chipMap).toContain("category-scout");
+      expect(chipMap).toContain("category-whale");
+      expect(chipMap).toContain("category-thin-pool");
+      expect(chipMap).toContain("category-momentum");
+    }
+
+    const poolsBoard = read("market-mobile-pools-board.tsx");
+    const compactMap = poolsBoard.slice(
+      poolsBoard.indexOf("function getCompactStatusToken"),
+      poolsBoard.indexOf("function MarketPlayerCompactRow"),
+    );
+    expect(compactMap).not.toMatch(/(?:chart-|premium)/);
+    for (const role of ["boost", "liquidity", "stacking", "community"] as const) {
+      expect(compactMap).toContain(`category-${role}`);
+    }
+
+    const playerSheet = read("market-mobile-player-sheet.tsx");
+    expect(playerSheet).not.toContain("chart-");
+    const playerHeader = playerSheet.slice(
+      playerSheet.indexOf("{showBoostContext"),
+      playerSheet.indexOf("{quickContext?.isWatchlisted"),
+    );
+    expect(playerHeader).not.toContain("chart-");
+    expect(playerHeader).toContain("category-stacking");
+    expect(playerHeader).toContain("category-community");
+    expect(playerHeader).toContain("category-momentum");
+
+    const modal = read("game-command-center-modal.tsx");
+    expect(modal).not.toContain("chart-");
+    expect(modal).toContain("category-ownership");
+    expect(modal).toContain("aria-pressed={selectedTier === tier}");
+    const multiplierLeaders = modal.slice(
+      modal.indexOf("Your Multiplier Leaders"),
+      modal.indexOf("Quick Scout", modal.indexOf("Your Multiplier Leaders")),
+    );
+    expect(multiplierLeaders).not.toContain("chart-");
+    expect(multiplierLeaders).toContain("category-stacking");
+    for (const tier of ["boosted", "elite", "legendary", "mythic"] as const) {
+      expect(multiplierLeaders).toContain(`tier-${tier}`);
+    }
+
+    expect(read("portfolio-card-view.tsx")).not.toContain("chart-");
+    const stacking = read("portfolio-stacking-tab.tsx");
+    expect(stacking).not.toContain("chart-");
+    expect(stacking).toContain('gameStatus === "live") return "text-status-live"');
+    expect(stacking).toContain('gameStatus === "upcoming") return "text-status-info"');
   });
 
   it("orders MLB game detail by score, exposure, lineups, then collapsed scoring context", () => {

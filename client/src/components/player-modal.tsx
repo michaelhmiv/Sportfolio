@@ -286,7 +286,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className="flex items-center text-chart-2 cursor-help">
+                          <div className="flex cursor-help items-center text-status-info">
                             <Snowflake className="w-4 h-4" />
                           </div>
                         </TooltipTrigger>
@@ -422,9 +422,10 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                   {(financialMetrics.valueIndex || 0) < 100 ? (
                     <Badge
                       variant="default"
-                      className="bg-market-positive/15 text-market-positive hover:bg-market-positive/25 border-market-positive/20 text-[10px] px-1.5 h-5"
+                      className="h-5 border-market-positive/20 bg-market-positive/10 px-1.5 text-[10px] text-market-positive hover:bg-hover"
                     >
-                      🔥 Undervalued
+                      <Flame className="mr-1 h-3 w-3" />
+                      Undervalued
                     </Badge>
                   ) : (
                     <Badge
@@ -478,13 +479,13 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               {!isLoading && financialMetrics?.marketCapRank && (
                 <Badge
                   variant="secondary"
-                  className="text-[10px] h-4 font-normal bg-chart-2/10 text-chart-2 dark:text-chart-2"
+                  className="h-4 bg-category-market/10 text-[10px] font-normal text-category-market"
                 >
                   {financialMetrics.marketCapRank.tier === "blue_chip"
-                    ? "🐋 Blue Chip"
+                    ? "Blue Chip"
                     : financialMetrics.marketCapRank.tier === "mid_cap"
-                      ? "🏢 Mid Cap"
-                      : "🌑 Moonshot"}
+                      ? "Mid Cap"
+                      : "Moonshot"}
                 </Badge>
               )}
             </div>
@@ -616,7 +617,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                   {displayedGames.map((game: RecentGame, i: number) => (
                     <div
                       key={i}
-                      className="border rounded p-1.5 hover-elevate"
+                      className="border rounded-compact p-1.5 hover-elevate"
                       data-testid={`card-game-${i}`}
                     >
                       <div className="flex justify-between items-center gap-2">

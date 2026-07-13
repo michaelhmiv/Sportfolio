@@ -546,7 +546,7 @@ function MlbLifecycleCard({
       {
         badge: `${player.multiplier.toFixed(1)}x`,
         detail: `${player.totalShares.toFixed(1)} shares held`,
-        tone: "text-chart-4",
+        tone: "text-category-ownership",
       },
     ]),
   );
@@ -645,7 +645,7 @@ function MlbLifecycleCard({
                       name: player.name,
                       team: player.team,
                       playerId: player.playerId,
-                      className: "text-chart-4",
+                      className: "text-category-ownership",
                       label: formatCompactName(player.name),
                     })}
                     <span className="font-mono">{player.multiplier.toFixed(1)}x</span>
@@ -695,7 +695,7 @@ function MlbLifecycleCard({
                       name: player.name,
                       team: player.team,
                       playerId: player.playerId,
-                      className: "truncate text-xs font-medium text-chart-4",
+                      className: "truncate text-xs font-medium text-category-ownership",
                       label: formatCompactName(player.name),
                     })}
                     <div className="text-[10px] text-muted-foreground">
@@ -961,12 +961,12 @@ function MlbLifecycleCard({
                         const exposure = (
                           isPregame ? scheduledExposureByNameTeam : liveExposureByNameTeam
                         ).get(buildNameTeamKey(player.name, entry.team));
-                        const nameClass = `truncate font-medium ${exposure ? "text-chart-4" : "text-foreground"}`;
+                        const nameClass = `truncate font-medium ${exposure ? "text-category-ownership" : "text-foreground"}`;
 
                         return (
                           <div
                             key={`${entry.team}-${player.slot}-${player.playerId || player.name}`}
-                            className={`rounded-compact px-2 py-2 text-xs ${exposure ? "bg-chart-4/5" : ""}`}
+                            className={`rounded-compact px-2 py-2 text-xs ${exposure ? "bg-category-ownership/5" : ""}`}
                           >
                             <div className="flex items-center justify-between gap-3">
                               <div className="min-w-0">
@@ -2249,7 +2249,7 @@ export function GameCommandCenterModal({
                               team: player.team,
                               playerId: player.playerId,
                               className: ownedPlayerIds.has(player.playerId)
-                                ? "text-chart-4 font-medium"
+                                ? "text-category-ownership font-medium"
                                 : "",
                               label: `${idx + 1}. ${formatName(player.name)}`,
                             })}
@@ -2283,7 +2283,7 @@ export function GameCommandCenterModal({
                               team: player.team,
                               playerId: player.playerId,
                               className: ownedPlayerIds.has(player.playerId)
-                                ? "text-chart-4 font-medium"
+                                ? "text-category-ownership font-medium"
                                 : "",
                               label: `${idx + 1}. ${formatName(player.name)}`,
                             })}
@@ -2300,10 +2300,10 @@ export function GameCommandCenterModal({
                 </div>
 
                 {/* Your Multiplier Leaders - interactive quick-boost view */}
-                <div className="rounded-compact border-2 border-chart-4/40 bg-chart-4/5 p-3">
+                <div className="rounded-compact border-2 border-category-stacking/40 bg-category-stacking/5 p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-chart-4" />
+                      <Zap className="h-4 w-4 text-category-stacking" />
                       <div className="text-sm font-semibold">Your Multiplier Leaders</div>
                       {userContext?.topMultiplierPlayers?.length ? (
                         <Badge variant="secondary" className="text-[10px] border-border/80">
@@ -2318,8 +2318,8 @@ export function GameCommandCenterModal({
                         size="sm"
                         className={`h-7 px-3 text-[11px] font-medium border-2 ${
                           showBoostSelector
-                            ? "bg-chart-4 border-chart-4 hover:bg-chart-4 hover:border-chart-4"
-                            : "border-chart-4 text-chart-4 bg-chart-4 hover:bg-chart-4 hover:text-chart-4 hover:border-chart-4 dark:bg-chart-4/30 dark:text-chart-4 dark:border-chart-4/60"
+                            ? "border-boost bg-boost text-boost-foreground hover:bg-boost/90"
+                            : "border-boost/40 bg-boost/10 text-boost hover:border-boost hover:bg-hover hover:text-boost"
                         }`}
                         onClick={() => setShowBoostSelector(!showBoostSelector)}
                       >
@@ -2358,10 +2358,10 @@ export function GameCommandCenterModal({
                             name: player.name,
                             team: player.team,
                             playerId: player.playerId,
-                            className: "text-chart-4 font-medium",
+                            className: "text-category-ownership font-medium",
                             label: formatName(player.name),
                           })}
-                          <span className="text-chart-4 font-mono">
+                          <span className="text-category-stacking font-mono">
                             {player.multiplier.toFixed(1)}x
                           </span>
                         </Badge>
@@ -2384,29 +2384,40 @@ export function GameCommandCenterModal({
                   )}
 
                   {showBoostSelector && boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
-                    <div className="mt-3 rounded-compact border-2 border-chart-4 bg-background/80 p-3">
-                      <div className="mb-2 text-[11px] font-medium text-chart-4 dark:text-chart-4">
+                    <div className="mt-3 rounded-compact border-2 border-category-stacking bg-background/80 p-3">
+                      <div className="mb-2 text-[11px] font-medium text-category-stacking">
                         Select tier & player to boost:
                       </div>
 
                       <div className="mb-3 flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground font-medium">Tier:</span>
                         <div className="flex gap-1">
-                          {([5, 4, 3, 2] as const).map((tier) => (
-                            <Button
-                              key={tier}
-                              variant={selectedTier === tier ? "default" : "outline"}
-                              size="sm"
-                              className={`h-7 px-2.5 text-[11px] font-semibold border-2 ${
-                                selectedTier === tier
-                                  ? "bg-chart-4 border-chart-4 hover:bg-chart-4 hover:border-chart-4"
-                                  : "border-border hover:border-chart-4"
-                              }`}
-                              onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
-                            >
-                              {tier}x
-                            </Button>
-                          ))}
+                          {([5, 4, 3, 2] as const).map((tier) => {
+                            const selectedTierClass =
+                              tier === 5
+                                ? "border-tier-mythic bg-tier-mythic text-content-inverse hover:bg-tier-mythic/90"
+                                : tier === 4
+                                  ? "border-tier-legendary bg-tier-legendary text-content-inverse hover:bg-tier-legendary/90"
+                                  : tier === 3
+                                    ? "border-tier-elite bg-tier-elite text-content-inverse hover:bg-tier-elite/90"
+                                    : "border-tier-boosted bg-tier-boosted text-content-inverse hover:bg-tier-boosted/90";
+                            return (
+                              <Button
+                                key={tier}
+                                variant={selectedTier === tier ? "default" : "outline"}
+                                size="sm"
+                                className={`h-7 border-2 px-2.5 text-[11px] font-semibold ${
+                                  selectedTier === tier
+                                    ? selectedTierClass
+                                    : "border-border hover:border-category-stacking"
+                                }`}
+                                onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
+                                aria-pressed={selectedTier === tier}
+                              >
+                                {tier}x
+                              </Button>
+                            );
+                          })}
                         </div>
                       </div>
 
@@ -2416,7 +2427,7 @@ export function GameCommandCenterModal({
                           {userContext.topMultiplierPlayers.map((player, idx) => (
                             <div
                               key={`${player.playerId}-${idx}`}
-                              className="flex items-center justify-between text-xs py-2 px-2 rounded bg-muted/30 hover:bg-chart-4/10 transition-colors"
+                              className="flex items-center justify-between rounded-compact bg-muted/30 px-2 py-2 text-xs transition-colors hover:bg-category-stacking/10"
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 {renderModalPlayerName({
@@ -2429,7 +2440,7 @@ export function GameCommandCenterModal({
                                 <span className="text-muted-foreground text-[10px]">
                                   {player.team}
                                 </span>
-                                <span className="text-chart-4 font-mono text-[10px]">
+                                <span className="text-category-stacking font-mono text-[10px]">
                                   {player.multiplier.toFixed(1)}x
                                 </span>
                               </div>
@@ -2439,7 +2450,7 @@ export function GameCommandCenterModal({
                                 disabled={!selectedTier || assignBoostMutation.isPending}
                                 className={`h-6 px-2 text-[10px] border-2 ${
                                   selectedTier
-                                    ? "bg-chart-4 border-chart-4 hover:bg-chart-4 hover:border-chart-4"
+                                    ? "border-boost bg-boost text-boost-foreground hover:bg-boost/90"
                                     : "border-transparent"
                                 }`}
                                 onClick={() => {
@@ -2474,10 +2485,10 @@ export function GameCommandCenterModal({
                 </div>
 
                 {/* Quick Scout - mobile-first command center action */}
-                <div className="rounded-compact border-2 border-status-warning/40 bg-status-warning/5 p-3">
+                <div className="rounded-compact border-2 border-category-scout/40 bg-category-scout/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <Binoculars className="h-4 w-4 text-status-warning" />
+                      <Binoculars className="h-4 w-4 text-category-scout" />
                       <div className="text-sm font-semibold">Quick Scout</div>
                     </div>
                     {isAuthenticated && scoutData ? (
@@ -2515,7 +2526,7 @@ export function GameCommandCenterModal({
                                   name: player.name,
                                   team: player.team,
                                   playerId: player.playerId,
-                                  className: `truncate text-xs font-medium ${ownedData ? "text-chart-4" : ""}`,
+                                  className: `truncate text-xs font-medium ${ownedData ? "text-category-ownership" : ""}`,
                                   label: `${idx + 1}. ${formatName(player.name)}`,
                                 })}
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -2525,7 +2536,7 @@ export function GameCommandCenterModal({
                                   {ownedData ? (
                                     <>
                                       <span>•</span>
-                                      <span className="text-chart-4 font-medium">
+                                      <span className="text-category-ownership font-medium">
                                         Own {ownedData.multiplier.toFixed(1)}x
                                       </span>
                                     </>
@@ -2849,7 +2860,9 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-chart-4/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     const passLine = `${player.passingCompletions ?? 0}/${player.passingAttempts ?? 0}-${player.passingYards ?? 0}`;
                                     const rushLine = `${player.rushingAttempts ?? 0}/${player.rushingYards ?? 0}`;
                                     const recLine = `${player.receptions ?? 0}/${player.receivingTargets ?? 0}-${player.receivingYards ?? 0}`;
@@ -2861,7 +2874,7 @@ export function GameCommandCenterModal({
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-chart-4/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -2869,7 +2882,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-chart-4" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -2955,13 +2968,15 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-chart-4/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     const positionDiff = Number(player.positionDifferential || 0);
 
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-chart-4/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -2969,7 +2984,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-chart-4" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -3071,11 +3086,13 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-chart-4/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-chart-4/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -3083,7 +3100,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-chart-4" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -3193,12 +3210,14 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-chart-4/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
 
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-chart-4/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -3206,7 +3225,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-chart-4" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -3319,12 +3338,14 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-chart-4/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
 
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-chart-4/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -3332,7 +3353,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-chart-4" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -3472,7 +3493,7 @@ export function GameCommandCenterModal({
                                   name: player.name,
                                   team: player.team,
                                   playerId: player.playerId,
-                                  className: "truncate text-xs font-medium text-chart-4",
+                                  className: "truncate text-xs font-medium text-category-ownership",
                                   label: formatName(player.name),
                                 })}
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -3592,7 +3613,7 @@ export function GameCommandCenterModal({
                                 name: player.name,
                                 team: player.team,
                                 playerId: player.playerId,
-                                className: "truncate font-medium text-chart-4",
+                                className: "truncate font-medium text-category-ownership",
                                 label: formatName(player.name),
                               })}
                               <div className="text-[10px] text-muted-foreground">

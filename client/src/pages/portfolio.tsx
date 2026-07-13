@@ -494,7 +494,7 @@ export default function Portfolio() {
   const openStackSharesDialog = (playerId: string, playerName: string, availableShares: number) => {
     const safePlayerName = playerName?.trim() || "Selected player";
     setSelectedPlayerForStacking({ id: playerId, name: safePlayerName });
-    // Default to the maximum stackable shares (rounded down to nearest multiple of 2)
+    // Default to the maximum stackable shares (round down to nearest multiple of 2)
     const maxStackable = Math.floor(availableShares / 2) * 2;
     setSharesToStackInput(maxStackable.toString());
     setStackSharesDialogOpen(true);
@@ -1391,7 +1391,7 @@ export default function Portfolio() {
                                       Premium Share
                                     </div>
                                     {data.isPremium ? (
-                                      <span className="rounded border border-premium/30 bg-premium/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-premium">
+                                      <span className="rounded-compact border border-premium/30 bg-premium/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-premium">
                                         Active
                                       </span>
                                     ) : null}
@@ -1443,7 +1443,7 @@ export default function Portfolio() {
                                   onClick={() => redeemPremiumMutation.mutate()}
                                   disabled={redeemPremiumMutation.isPending || data.isPremium}
                                   variant="terminal"
-                                  className="border-premium/30 bg-premium/20 text-premium hover:bg-premium/25"
+                                  className="border-premium/40 bg-premium text-premium-foreground hover:bg-premium/90"
                                   data-testid="button-redeem-premium-desktop"
                                 >
                                   {data.isPremium ? "Active" : "Redeem"}
@@ -1519,7 +1519,7 @@ export default function Portfolio() {
                                                   <span className="shrink-0 rounded-compact border border-border/70 bg-muted/20 px-1.5 py-0.5 font-mono text-[10px]">
                                                     S {formatMobileCompactUnits(singlesCount)}
                                                   </span>
-                                                  <span className="shrink-0 rounded-compact border border-chart-4/30 bg-chart-4/10 px-1.5 py-0.5 font-mono text-[10px] text-chart-4">
+                                                  <span className="shrink-0 rounded-compact border border-category-stacking/30 bg-category-stacking/10 px-1.5 py-0.5 font-mono text-[10px] text-category-stacking">
                                                     P {formatMobileCompactUnits(stackPower)}p
                                                   </span>
                                                 </div>
@@ -1580,7 +1580,7 @@ export default function Portfolio() {
                                           {parseFloat(group.totalPower) > 0 && (
                                             <Badge
                                               variant="outline"
-                                              className="text-[10px] h-4 px-1 border-chart-4/50 text-chart-4 bg-chart-4/10"
+                                              className="text-[10px] h-4 px-1 border-category-stacking/50 text-category-stacking bg-category-stacking/10"
                                             >
                                               {group.totalPower} effective
                                             </Badge>
@@ -1675,7 +1675,9 @@ export default function Portfolio() {
                                     <div className="flex flex-col items-end gap-0.5">
                                       <span
                                         className={`font-semibold ${
-                                          stackPower > 0 ? "text-chart-4" : "text-muted-foreground"
+                                          stackPower > 0
+                                            ? "text-category-stacking"
+                                            : "text-muted-foreground"
                                         }`}
                                         title="Stack power"
                                       >
@@ -1844,7 +1846,7 @@ export default function Portfolio() {
                                                           clearSelection();
                                                         }
                                                       }}
-                                                      className="rounded border-input"
+                                                      className="rounded-compact border-input"
                                                     />
                                                   </th>
                                                   <th
@@ -1895,7 +1897,7 @@ export default function Portfolio() {
                                                   return (
                                                     <tr
                                                       key={holdingId}
-                                                      className={`${isRegular ? "bg-market-positive/5" : "bg-chart-4/5"} hover:bg-muted/50 transition-colors`}
+                                                      className={`${isRegular ? "bg-market-positive/5" : "bg-category-stacking/5"} hover:bg-muted/50 transition-colors`}
                                                     >
                                                       <td className="py-2 pl-1">
                                                         <input
@@ -1904,7 +1906,7 @@ export default function Portfolio() {
                                                           onChange={() =>
                                                             toggleHoldingSelection(holdingId)
                                                           }
-                                                          className="rounded border-input"
+                                                          className="rounded-compact border-input"
                                                         />
                                                       </td>
                                                       <td className="py-2">
@@ -1912,14 +1914,14 @@ export default function Portfolio() {
                                                           {share.quantity}
                                                         </span>
                                                         <span
-                                                          className={`ml-1 text-[10px] ${isRegular ? "text-muted-foreground" : "text-chart-4"}`}
+                                                          className={`ml-1 text-[10px] ${isRegular ? "text-muted-foreground" : "text-category-stacking"}`}
                                                         >
                                                           @ {share.multiplier}x
                                                         </span>
                                                       </td>
                                                       <td className="py-2">
                                                         <span
-                                                          className={`font-mono font-medium ${isRegular ? "text-muted-foreground" : "text-chart-4"}`}
+                                                          className={`font-mono font-medium ${isRegular ? "text-muted-foreground" : "text-category-stacking"}`}
                                                         >
                                                           {share.effectiveShares}
                                                         </span>
@@ -1929,7 +1931,7 @@ export default function Portfolio() {
                                                           <Button
                                                             size="sm"
                                                             variant="ghost"
-                                                            className="h-6 px-2 text-xs bg-market-positive/10 hover:bg-market-positive/20 text-market-positive"
+                                                            className="h-6 bg-market-positive/10 px-2 text-xs text-market-positive hover:bg-hover"
                                                             onClick={() =>
                                                               openStackSharesFromExpanded(
                                                                 group.player.id,
@@ -1945,7 +1947,7 @@ export default function Portfolio() {
                                                           <Button
                                                             size="sm"
                                                             variant="ghost"
-                                                            className="h-6 px-2 text-xs bg-chart-4/10 hover:bg-chart-4/20 text-chart-4"
+                                                            className="h-6 bg-category-stacking/10 px-2 text-xs text-category-stacking"
                                                             disabled
                                                           >
                                                             Stacked
@@ -1960,14 +1962,15 @@ export default function Portfolio() {
 
                                             {/* Selection summary */}
                                             {selectedHoldingIds.size > 0 && (
-                                              <div className="mt-3 flex items-center justify-between bg-muted/50 rounded p-2">
+                                              <div className="mt-3 flex items-center justify-between bg-muted/50 rounded-compact p-2">
                                                 <span className="text-xs text-muted-foreground">
                                                   {selectedHoldingIds.size} lot
                                                   {selectedHoldingIds.size > 1 ? "s" : ""} selected
                                                 </span>
                                                 <Button
                                                   size="sm"
-                                                  className="h-7 bg-chart-4 hover:bg-chart-4 text-xs"
+                                                  variant="outline"
+                                                  className="h-7 border-category-stacking/40 bg-category-stacking/10 text-xs text-category-stacking hover:bg-hover hover:text-category-stacking"
                                                   onClick={() =>
                                                     openStackSharesFromExpanded(
                                                       group.player.id,
@@ -2059,7 +2062,7 @@ export default function Portfolio() {
                           <Shimmer height="14px" width="60%" />
                           <Shimmer height="12px" width="80%" />
                         </div>
-                        <Shimmer height="32px" width="70px" className="rounded" />
+                        <Shimmer height="32px" width="70px" className="rounded-compact" />
                       </div>
                     ))}
                   </div>
@@ -2214,7 +2217,7 @@ export default function Portfolio() {
                       </div>
                       <div className="flex justify-between">
                         <span>Current Stack Power:</span>
-                        <span className="font-mono text-chart-4">
+                        <span className="font-mono text-category-stacking">
                           {formatPortfolioUnits(
                             Math.max(0, selectedStackingCandidate.bestStackedMultiplier),
                           )}
@@ -2272,21 +2275,21 @@ export default function Portfolio() {
                   const remainingShares = selectedStackingCandidate.regularShares - shares;
 
                   return (
-                    <div className="terminal-shell space-y-2 border-chart-4/20 bg-chart-4/10 p-3">
-                      <div className="text-sm font-medium text-chart-4">Stack Result</div>
+                    <div className="terminal-shell space-y-2 border-category-stacking/20 bg-category-stacking/10 p-3">
+                      <div className="text-sm font-medium text-category-stacking">Stack Result</div>
                       <div className="flex justify-between text-sm">
                         <span>Shares consumed:</span>
                         <span className="font-mono">-{shares}</span>
                       </div>
                       <div className="flex justify-between text-sm font-medium">
                         <span>Added stack power:</span>
-                        <span className="font-mono text-chart-4">
+                        <span className="font-mono text-category-stacking">
                           +{formatPortfolioUnits(powerAdded)}p
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>New stack power:</span>
-                        <span className="font-mono text-chart-4">
+                        <span className="font-mono text-category-stacking">
                           {formatPortfolioUnits(resultingStackPower)}p
                         </span>
                       </div>
@@ -2313,7 +2316,7 @@ export default function Portfolio() {
                 variant="terminal"
                 onClick={handleStackSharesFromDialog}
                 disabled={stackSharesMutation.isPending || !selectedStackingCandidate}
-                className="border-chart-4/30 bg-chart-4/20 text-chart-4 hover:bg-chart-4/25"
+                className="border-category-stacking/40"
               >
                 {stackSharesMutation.isPending ? "Stacking..." : "Stack Shares"}
               </Button>

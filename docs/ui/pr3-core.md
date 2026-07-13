@@ -6,7 +6,9 @@ This stacked change migrates Sportfolio's decision-heavy market, player, portfol
 
 - Replaced hardcoded Tailwind palettes and generic radius utilities across the production core surfaces with semantic market, status, category, chart, boost, premium, overlay, content, surface, border, and radius roles.
 - Added a source contract that rejects standard hardcoded Tailwind palette families and generic radii in the migrated core surfaces.
-- Added dedicated semantic category roles for market, liquidity, stacking, payout, scout, whale, thin-pool, boost, community, momentum, value, and pool activity instead of conflating categories with live/loss or chart-series state.
+- Added dedicated semantic category roles for market, liquidity, stacking, payout, scout, whale, thin-pool, boost, community, momentum, value, pool activity, and user ownership instead of conflating product states with live/loss or chart-series aliases. Their dark-mode treatments are contractually unique.
+- Removed chart-series aliases from mobile market chips, pool/LP context, Boosts, portfolio stacking, multiplier and stacking chrome, player market-cap/liquidity badges, game cards, community/heat signals, and owned-player highlights. Chart tokens are now reserved for actual data visualization.
+- Exposed multiplier-tier selection with `aria-pressed`, and kept owned-player highlights on the ownership role rather than stacking.
 - Preserved route paths, query keys, mutation paths, authentication gates, economics, haptics, and data behavior.
 - Kept positive and negative movement explicit through signed values and directional cues rather than color alone.
 
@@ -14,7 +16,7 @@ This stacked change migrates Sportfolio's decision-heavy market, player, portfol
 
 - Added five explicit multiplier-tier tokens: standard, boosted, elite, legendary, and mythic.
 - Kept every tier visually distinct in both themes instead of collapsing stacked holdings into one generic accent.
-- Added WCAG AA contrast checks for inverse text on tier backgrounds and for semantic text after its 10% tint is alpha-composited over real card surfaces.
+- Added WCAG AA contrast checks for inverse text on tier backgrounds and for semantic text after its interaction tint is alpha-composited over real card and canvas surfaces. A source-derived scanner exercises every semantic text/background class combination rendered by core surfaces, including hover states, and reports every failing pair in one run.
 
 ## Game hierarchy
 
@@ -38,9 +40,9 @@ Exposure is available during live/final states, posted lineups remain visible af
 
 ## Regression evidence
 
-- Deterministic token-and-density fixture covering compact market rows, portfolio movement, all five multiplier tiers, and the game-information hierarchy.
+- Deterministic token-and-density fixture covering compact market rows, portfolio movement, all five multiplier tiers, all nine product-semantic treatments, and the game-information hierarchy.
 - Desktop/mobile and dark/light screenshot baselines, with explicit class-based dark-mode activation and strict pixel thresholds.
-- Visual assertions for hierarchy order, tier distinction, positive/negative non-color cues, and measured document overflow.
+- Visual assertions for hierarchy order, tier and category-treatment distinction, positive/negative non-color cues, and measured document overflow.
 - Production MLB modal screenshots for live and final states, captured at a fixed clock, settled fonts, and reset scroll position. The strict 0.1% baselines passed 20/20 serial repetitions and 6/6 three-worker repetitions.
 - Production E2E coverage for live/final hierarchy, collapsed scoring content, score fallback, loading/error honesty, scheduled context, unavailable final data, and the mobile trade sheet.
 
@@ -51,10 +53,10 @@ Exposure is available during live/final states, posted lineups remain visible af
 | Prettier                |                                                    pass |
 | ESLint                  |                                                    pass |
 | TypeScript              |                                                    pass |
-| Unit/contract           |                           984/984 pass across 141 files |
+| Unit/contract           |                           989/989 pass across 141 files |
 | Production build        |                                                    pass |
 | Visual regression       |                                              16/16 pass |
-| Focused PR 3 E2E        |                                                7/7 pass |
+| Focused PR 3 E2E        |                                                8/8 pass |
 | Current full-E2E matrix | 18 pass / 9 documented cross-PR contract-drift failures |
 
 The remaining full-E2E failures are outside PR 3's core-surface contract: seven tests target the removed `/agent` workspace and belong to PR 4's Scout/Hermes work; two auth copy/transition expectations belong to PR 5. The reliable full run uses one worker because the host cannot launch seven Chromium workers without exhausting its thread limit.

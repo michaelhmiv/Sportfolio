@@ -53,7 +53,7 @@ function getCandidateStatusClasses(status: StackingCandidateStatus): string {
     case "almost-ready":
       return "border-status-warning/35 bg-status-warning/10 text-status-warning";
     case "already-stacked":
-      return "border-chart-3/35 bg-chart-3/10 text-chart-3";
+      return "border-category-stacking/35 bg-category-stacking/10 text-category-stacking";
     default:
       return "border-border bg-muted/40 text-foreground";
   }
@@ -70,9 +70,9 @@ function getGameStatusLabel(candidate: StackingCandidate): string {
 }
 
 function getGameStatusClassName(candidate: StackingCandidate): string {
-  if (candidate.gameStatus === "live") return "text-market-negative";
+  if (candidate.gameStatus === "live") return "text-status-live";
   if (candidate.gameStatus === "ended") return "text-content-muted";
-  if (candidate.gameStatus === "upcoming") return "text-chart-2";
+  if (candidate.gameStatus === "upcoming") return "text-status-info";
   return "text-muted-foreground";
 }
 
