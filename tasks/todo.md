@@ -39,7 +39,7 @@ Working branch: `codex/ui-overhaul-foundation`
 - [x] Migrate Dashboard, Player Pools, player page/modal/sheet, Portfolio, Boosts, Analytics, Leaderboards, Watchlists, game command center/cards, ticker/pulse/ledger/alerts, trade/liquidity/holding/stack/scout/boost interactions
 - [x] Standardize player/team/sport/game identity, market typography, compact row/card families, semantic buy/sell/positive/negative/live states, chart palette/non-color cues, and state layouts
 - [x] Preserve all queries, mutations, economics, auth gates, routing, real-time behavior, haptics, and native behavior
-- [ ] Validate desktop/mobile/light/dark and live/upcoming/completed/loading/empty/error/stale/offline fixtures; run full gates and prepare PR 3
+- [x] Validate desktop/mobile/light/dark and live/upcoming/completed/loading/empty/error/stale/offline fixtures; run full gates and prepare PR 3
 
 ### Phase 5 — PR 4: special features and native polish
 
