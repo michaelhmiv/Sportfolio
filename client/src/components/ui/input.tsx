@@ -8,9 +8,9 @@ const inputVariants = cva(
   {
     variants: {
       variant: {
-        default: "rounded-md border-border-subtle bg-surface text-base",
+        default: "rounded-control border-border-subtle bg-surface text-base",
         terminal:
-          "rounded-sm border-border bg-[hsl(var(--card)/0.85)] font-mono text-sm placeholder:font-mono placeholder:text-[11px] placeholder:uppercase placeholder:tracking-[0.08em]",
+          "rounded-compact border-border bg-[hsl(var(--card)/0.85)] font-mono text-sm placeholder:font-mono placeholder:text-[11px] placeholder:uppercase placeholder:tracking-[0.08em]",
       },
     },
     defaultVariants: {

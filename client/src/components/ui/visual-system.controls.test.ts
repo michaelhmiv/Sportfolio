@@ -50,8 +50,11 @@ describe("shared control visual-system contract", () => {
   it("loading buttons use semantic feedback colors and honor reduced motion", () => {
     const source = readUi("loading-button.tsx");
     expect(source).toContain("bg-market-positive");
-    expect(source).toContain("bg-market-negative");
+    expect(source).toContain("bg-destructive");
+    expect(source).toContain("disabled:bg-market-positive");
+    expect(source).toContain("disabled:bg-destructive");
     expect(source).toContain("useReducedMotion");
+    expect(source).toContain("if (shouldReduceMotion)");
     expect(source).not.toMatch(/(?:text|bg|ring|border)-(?:red|emerald)-/);
   });
 });

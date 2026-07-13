@@ -14,9 +14,13 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: "var(--radius-card)",
-        md: "var(--radius-control)",
-        sm: "var(--radius-control-sm)",
+        // Preserve established route-wide utilities; semantic aliases migrate deliberately.
+        lg: "0.25rem",
+        md: "0.125rem",
+        sm: "0rem",
+        panel: "var(--radius-card)",
+        control: "var(--radius-control)",
+        compact: "var(--radius-control-sm)",
         pill: "var(--radius-pill)",
         circle: "var(--radius-circle)",
       },

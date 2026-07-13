@@ -73,6 +73,11 @@
   --chart-series-6: 48 90% 38%;
   --chart-series-7: 160 75% 30%;
   --chart-series-8: 240 65% 55%;
+  --chart-series-positive: var(--market-positive);
+  --chart-series-negative: var(--market-negative);
+  --chart-series-live: var(--status-live);
+  --team-accent: var(--brand);
+  --team-accent-foreground: var(--brand-foreground);
 
   /* Shape, motion, and elevation contracts */
   --radius-control-sm: 0.375rem;
@@ -263,6 +268,11 @@
   --chart-series-6: 48 96% 62%;
   --chart-series-7: 160 84% 48%;
   --chart-series-8: 240 85% 72%;
+  --chart-series-positive: var(--market-positive);
+  --chart-series-negative: var(--market-negative);
+  --chart-series-live: var(--status-live);
+  --team-accent: var(--brand);
+  --team-accent-foreground: var(--brand-foreground);
 
   /* Compatibility tokens; migrate consumers to semantic aliases methodically. */
   --background: var(--canvas);

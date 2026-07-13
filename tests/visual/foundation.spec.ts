@@ -69,7 +69,16 @@ test("overlay primitives render deterministically", async ({ page }) => {
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Place order" })).toBeVisible();
 
+  const close = dialog.getByRole("button", { name: "Close" });
+  const closeBox = await close.boundingBox();
+  const isMobile = (await page.viewportSize())?.width === 390;
+  expect(closeBox?.height ?? 0).toBeGreaterThanOrEqual(isMobile ? 44 : 32);
+  expect(closeBox?.width ?? 0).toBeGreaterThanOrEqual(isMobile ? 44 : 32);
+
   await expect(page).toHaveScreenshot("foundation-dialog.png", {
     fullPage: true,
   });
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
 });

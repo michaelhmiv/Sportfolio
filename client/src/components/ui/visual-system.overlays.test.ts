@@ -27,6 +27,21 @@ describe("overlay visual-system contract", () => {
     expect(source).toContain("bg-content");
     expect(source).toContain("text-canvas");
   });
+
+  it.each(["dialog.tsx", "sheet.tsx"])(
+    "%s gives its dismiss control a 44px mobile target",
+    (file) => {
+      const source = readUi(file);
+      expect(source).toContain("h-11 w-11");
+      expect(source).toContain("sm:h-8 sm:w-8");
+    },
+  );
+
+  it("toast close has an accessible name and 44px mobile target", () => {
+    const source = readUi("toast.tsx");
+    expect(source).toContain('aria-label="Dismiss notification"');
+    expect(source).toContain("h-11 w-11");
+  });
 });
 
 describe("form control visual-system contract", () => {

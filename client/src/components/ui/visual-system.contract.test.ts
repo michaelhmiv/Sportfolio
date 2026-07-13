@@ -59,6 +59,11 @@ const requiredThemeTokens = [
   "chart-grid",
   "chart-axis",
   "chart-tooltip",
+  "chart-series-positive",
+  "chart-series-negative",
+  "chart-series-live",
+  "team-accent",
+  "team-accent-foreground",
 ];
 
 const requiredGlobalTokens = [
@@ -138,5 +143,14 @@ describe("Sportfolio visual-system token contract", () => {
 
     expect(tailwindConfig).not.toMatch(/positive:\s*["']#/);
     expect(tailwindConfig).not.toMatch(/negative:\s*["']#/);
+  });
+
+  it("preserves legacy generic radii and exposes semantic component aliases", () => {
+    expect(tailwindConfig).toContain('lg: "0.25rem"');
+    expect(tailwindConfig).toContain('md: "0.125rem"');
+    expect(tailwindConfig).toContain('sm: "0rem"');
+    expect(tailwindConfig).toContain('panel: "var(--radius-card)"');
+    expect(tailwindConfig).toContain('control: "var(--radius-control)"');
+    expect(tailwindConfig).toContain('compact: "var(--radius-control-sm)"');
   });
 });

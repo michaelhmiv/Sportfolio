@@ -9,8 +9,8 @@ const Tabs = TabsPrimitive.Root;
 const tabsListVariants = cva("inline-flex items-center justify-center text-muted-foreground", {
   variants: {
     variant: {
-      default: "h-10 rounded-md bg-muted p-1",
-      terminal: "h-auto rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] p-0.5",
+      default: "h-10 rounded-control bg-muted p-1",
+      terminal: "h-auto rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] p-0.5",
     },
   },
   defaultVariants: {
@@ -24,9 +24,9 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default:
-          "rounded-sm px-3 py-1.5 text-sm font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+          "rounded-compact px-3 py-1.5 text-sm font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
         terminal:
-          "rounded-sm border border-transparent px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground",
+          "rounded-compact border border-transparent px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground",
       },
     },
     defaultVariants: {

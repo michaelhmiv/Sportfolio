@@ -19,14 +19,15 @@ export const stateSurfaceVariants = cva(
   {
     variants: {
       kind: {
-        loading: "rounded-lg border-border-subtle bg-surface text-content-muted",
-        empty: "rounded-lg border-dashed border-border-strong bg-surface text-content-muted",
-        error: "rounded-lg border-destructive/35 bg-destructive-subtle text-destructive",
-        offline: "rounded-lg border-status-offline/35 bg-surface-raised text-status-offline",
-        stale: "rounded-lg border-status-warning/35 bg-status-warning-subtle text-status-warning",
-        reconnecting: "rounded-lg border-status-info/35 bg-surface-raised text-status-info",
+        loading: "rounded-panel border-border-subtle bg-surface text-content-muted",
+        empty: "rounded-panel border-dashed border-border-strong bg-surface text-content-muted",
+        error: "rounded-panel border-destructive/35 bg-destructive-subtle text-destructive",
+        offline: "rounded-panel border-status-offline/35 bg-surface-raised text-status-offline",
+        stale:
+          "rounded-panel border-status-warning/35 bg-status-warning-subtle text-status-warning",
+        reconnecting: "rounded-panel border-status-info/35 bg-surface-raised text-status-info",
         success:
-          "rounded-lg border-market-positive/35 bg-market-positive-subtle text-market-positive",
+          "rounded-panel border-market-positive/35 bg-market-positive-subtle text-market-positive",
       },
       compact: {
         true: "flex-row items-start justify-start px-4 py-3 text-left",
