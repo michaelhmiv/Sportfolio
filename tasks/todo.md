@@ -1,3 +1,71 @@
+## 2026-07-12 Complete UI Visual-System Overhaul
+
+Baseline: `origin/main` / production deployment `d579b43ffa7c03dba768940f5915c025d652d9ba`
+Working branch: `codex/ui-overhaul-foundation`
+
+### Phase 1 — Orientation, inventory, and baseline
+
+- [x] Read `AGENTS.md`, `CLAUDE.md`, `AGENT_GUIDE.md`, agent context docs, current task/lesson logs, package scripts, Tailwind config, global CSS, app router, shared primitives, navigation, sport context, native config, and screenshot/E2E entry points
+- [x] Check current GitHub issues and pull requests (none open at baseline)
+- [x] Create an isolated worktree from current `origin/main`; do not disturb `refactor/job-registry-foundation`
+- [x] Record clean baseline gates: `npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run` (132 files / 873 tests), and `npm run build`
+- [x] Resolve the baseline E2E startup blocker with a credential-free Vite middleware server; record the 11 passing and 14 contract-drift failures in `docs/ui/playwright-baseline.md`
+- [x] Capture sanitized, signed-out production baseline at the exact baseline SHA for 12 public route families, seven viewport classes (`360x800`, `390x844`, `412x915`, `768x1024`, `1280x800`, `1440x900`, `1920x1080`), and both themes (168 screenshots)
+- [x] Finish the exhaustive route, component, feature, state, overlay, chart, asset, native, and visual-utility inventory
+- [x] Create `docs/ui/ui-surface-matrix.md` with one accounted-for row per route and visual source file, including platform/auth/premium/theme, issue, action, implementation, validation, and exclusion/deferral rationale
+- [x] Create `docs/ui/ui-audit.md` with evidence-backed findings, baseline metrics, screenshot manifest, deliberate exclusions, and PR boundaries
+- [x] Create `docs/ui/visual-system.md` with the semantic token contract and usage rules
+- [ ] Add a deterministic fixture-backed screenshot path for authenticated, premium, admin, loading, empty, error, offline, live/upcoming/completed, movement, boost, and notification states without private data or a live database
+
+### Phase 2 — PR 1: audit, semantic tokens, and shared primitives
+
+- [x] Add failing contract tests for the semantic token categories and shared visual variants before production CSS/component changes
+- [x] Implement centralized light/dark semantic tokens for canvas/surfaces/text/borders/focus/actions/market movement/live/upcoming/warning/boost/premium/destructive/disabled/offline/stale/reconnecting/charts/grid/overlay/selection/interaction/skeleton/team accents/elevation/radii/spacing/type/motion/layers
+- [x] Map Tailwind semantic names to CSS variables; remove primitive-level dark-only and hardcoded semantic assumptions
+- [x] Refine Button, Card, Badge/status, Input/Textarea, Select, Tabs, Dialog, Drawer/Sheet, Popover, Tooltip, Toast, Progress, Skeleton/loading, and empty/error state primitives with typed variants and WCAG AA focus/contrast behavior
+- [x] Preserve existing variants until consumers migrate; avoid global-default breakage
+- [ ] Add focused tests, run full gates, capture primitive before/after evidence, and prepare an independently buildable reviewable PR
+
+### Phase 3 — PR 2: shell, navigation, sport iconography, and global states
+
+- [ ] Define one shared route-label/icon map for desktop and mobile; keep mobile discoverability for secondary destinations
+- [ ] Add coherent local SVG sport icons for NBA/NFL/MLB/NHL/NASCAR/All Sports and replace functional emoji/watermarks
+- [ ] Normalize active, notification, live, boost, premium, offline, stale, and reconnecting indicators without color-only meaning or badge collisions
+- [ ] Refine header/sidebar/bottom nav/footer/global banners/Scout entry points, 44px+ touch targets, focus order, safe areas, bottom clearance, route preloading, haptics, reduced motion, and native status bar
+- [ ] Add responsive/navigation regression tests and matched screenshots; run full gates and prepare PR 2
+
+### Phase 4 — PR 3: core sports-exchange surfaces
+
+- [ ] Migrate Dashboard, Player Pools, player page/modal/sheet, Portfolio, Boosts, Analytics, Leaderboards, Watchlists, game command center/cards, ticker/pulse/ledger/alerts, trade/liquidity/holding/stack/scout/boost interactions
+- [ ] Standardize player/team/sport/game identity, market typography, compact row/card families, semantic buy/sell/positive/negative/live states, chart palette/non-color cues, and state layouts
+- [ ] Preserve all queries, mutations, economics, auth gates, routing, real-time behavior, haptics, and native behavior
+- [ ] Validate desktop/mobile/light/dark and live/upcoming/completed/loading/empty/error/stale/offline fixtures; run full gates and prepare PR 3
+
+### Phase 5 — PR 4: special features and native polish
+
+- [ ] Migrate Scout/Hermes, premium, collections, milestones, boosts, ceremonies, ready banners, share popups, whale alerts, and celebratory overlays
+- [ ] Distinguish premium from boost; remove persistent gold/neon effects from routine chrome; keep celebrations finite and reduced-motion-safe
+- [ ] Validate overlay competition, focus/z-index, safe areas, keyboard/back behavior, status/splash/icon coordination, orientation, larger text, and lower-end mobile performance
+- [ ] Run web/native-focused gates and prepare PR 4
+
+### Phase 6 — PR 5: public/auth/editorial/legal/admin/accessibility cleanup
+
+- [ ] Migrate landing/login/auth callback/auth error/about/contact/how-it-works/blog/posts/news/wiki/articles/premium/checkout/privacy/terms/account deletion/SMS/Discord/not-found/public previews/footer and all admin surfaces
+- [ ] Preserve SEO metadata/schema/canonical links, auth and checkout behavior, admin authorization, and external-link behavior
+- [ ] Complete WCAG 2.2 AA checks: contrast, headings/landmarks, keyboard/focus, dialogs, forms, labels, accessible names, aria-current/live, tables, images, color independence, touch targets, reduced motion, 200% zoom, and narrow reflow
+- [ ] Run deterministic accessibility/visual regression coverage and prepare PR 5
+
+### Final validation and review
+
+- [ ] Re-run the surface matrix; every route/component must be completed, intentionally unchanged, or explicitly deferred with a reason
+- [ ] Search for obsolete hardcoded semantic colors, functional emoji, ad hoc radii/shadows/gradients/chips/buttons, dark-only text, and deprecated utilities; verify every remaining exception
+- [ ] Capture matched after screenshots using the baseline route/state/viewport/theme matrix
+- [ ] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, `npm run build`, `npm run e2e`, relevant smoke/native checks, and browser console/error/overflow/accessibility checks
+- [ ] Classify every failure as baseline/pre-existing or introduced; fix all introduced failures without suppression
+- [ ] Complete independent spec, UI quality, accessibility, performance, security/privacy, and integration reviews against the final stable tree
+- [ ] Update `docs/ui/ui-audit.md`, `docs/ui/visual-system.md`, this review section, and `tasks/lessons.md`; include concise before/after and limitations in every PR report
+- [ ] Verify no credentials/private data/generated build artifacts are included; use focused commits, push/open reviewable PRs, and leave every PR unmerged
+
 ## 2026-07-10 NHL First-Class Support — Two Stacked Draft PRs
 
 - [ ] Verify current repository/schema and establish NHL identity and no-migration path

@@ -1,4 +1,12 @@
 import type { Config } from "tailwindcss";
+import * as typographyModule from "@tailwindcss/typography";
+import * as animateModule from "tailwindcss-animate";
+
+type TailwindPlugin = NonNullable<Config["plugins"]>[number];
+const unwrapPlugin = (module: unknown): TailwindPlugin =>
+  ((module as { default?: TailwindPlugin }).default ?? module) as TailwindPlugin;
+const typography = unwrapPlugin(typographyModule);
+const animate = unwrapPlugin(animateModule);
 
 export default {
   darkMode: ["class"],
@@ -6,16 +14,94 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: "0.25rem" /* 4px */,
-        md: "0.125rem" /* 2px */,
-        sm: "0rem" /* 0px */,
+        lg: "var(--radius-card)",
+        md: "var(--radius-control)",
+        sm: "var(--radius-control-sm)",
+        pill: "var(--radius-pill)",
+        circle: "var(--radius-circle)",
       },
       colors: {
-        // Trading-specific colors (TradingView Palette)
-        positive: "#089981", // Teal-Green for gains
-        negative: "#f23645", // Bright Red for losses
+        // Backward-compatible market aliases. New code should prefer market-positive/negative.
+        positive: "hsl(var(--market-positive) / <alpha-value>)",
+        negative: "hsl(var(--market-negative) / <alpha-value>)",
 
-        // Flat / base colors (regular buttons)
+        brand: {
+          DEFAULT: "hsl(var(--brand) / <alpha-value>)",
+          foreground: "hsl(var(--brand-foreground) / <alpha-value>)",
+          subtle: "hsl(var(--brand-subtle) / <alpha-value>)",
+        },
+        canvas: "hsl(var(--canvas) / <alpha-value>)",
+        surface: "hsl(var(--surface) / <alpha-value>)",
+        "surface-raised": "hsl(var(--surface-raised) / <alpha-value>)",
+        content: {
+          DEFAULT: "hsl(var(--text) / <alpha-value>)",
+          muted: "hsl(var(--text-muted) / <alpha-value>)",
+          subtle: "hsl(var(--text-subtle) / <alpha-value>)",
+          inverse: "hsl(var(--text-inverse) / <alpha-value>)",
+        },
+        "border-subtle": "hsl(var(--border-subtle) / <alpha-value>)",
+        "border-strong": "hsl(var(--border-strong) / <alpha-value>)",
+        focus: "hsl(var(--focus-ring) / <alpha-value>)",
+        "action-primary": {
+          DEFAULT: "hsl(var(--action-primary) / <alpha-value>)",
+          foreground: "hsl(var(--action-primary-foreground) / <alpha-value>)",
+        },
+        "action-secondary": {
+          DEFAULT: "hsl(var(--action-secondary) / <alpha-value>)",
+          foreground: "hsl(var(--action-secondary-foreground) / <alpha-value>)",
+        },
+        "market-positive": {
+          DEFAULT: "hsl(var(--market-positive) / <alpha-value>)",
+          subtle: "hsl(var(--market-positive-subtle) / <alpha-value>)",
+        },
+        "market-negative": {
+          DEFAULT: "hsl(var(--market-negative) / <alpha-value>)",
+          subtle: "hsl(var(--market-negative-subtle) / <alpha-value>)",
+        },
+        "status-live": {
+          DEFAULT: "hsl(var(--status-live) / <alpha-value>)",
+          subtle: "hsl(var(--status-live-subtle) / <alpha-value>)",
+        },
+        "status-upcoming": "hsl(var(--status-upcoming) / <alpha-value>)",
+        "status-info": "hsl(var(--status-info) / <alpha-value>)",
+        "status-warning": {
+          DEFAULT: "hsl(var(--status-warning) / <alpha-value>)",
+          subtle: "hsl(var(--status-warning-subtle) / <alpha-value>)",
+        },
+        boost: {
+          DEFAULT: "hsl(var(--boost) / <alpha-value>)",
+          subtle: "hsl(var(--boost-subtle) / <alpha-value>)",
+          foreground: "hsl(var(--boost-foreground) / <alpha-value>)",
+        },
+        premium: {
+          DEFAULT: "hsl(var(--premium) / <alpha-value>)",
+          subtle: "hsl(var(--premium-subtle) / <alpha-value>)",
+          foreground: "hsl(var(--premium-foreground) / <alpha-value>)",
+        },
+        disabled: {
+          DEFAULT: "hsl(var(--disabled) / <alpha-value>)",
+          foreground: "hsl(var(--disabled-foreground) / <alpha-value>)",
+          border: "hsl(var(--disabled-border) / <alpha-value>)",
+        },
+        "status-offline": "hsl(var(--status-offline) / <alpha-value>)",
+        "status-stale": "hsl(var(--status-stale) / <alpha-value>)",
+        "status-reconnecting": "hsl(var(--status-reconnecting) / <alpha-value>)",
+        "status-connected": "hsl(var(--status-connected) / <alpha-value>)",
+        selected: {
+          DEFAULT: "hsl(var(--selected) / <alpha-value>)",
+          foreground: "hsl(var(--selected-foreground) / <alpha-value>)",
+          border: "hsl(var(--selected-border) / <alpha-value>)",
+        },
+        hover: "hsl(var(--hover) / <alpha-value>)",
+        pressed: "hsl(var(--pressed) / <alpha-value>)",
+        skeleton: {
+          DEFAULT: "hsl(var(--skeleton) / <alpha-value>)",
+          highlight: "hsl(var(--skeleton-highlight) / <alpha-value>)",
+        },
+        scrim: "hsl(var(--scrim) / <alpha-value>)",
+        overlay: "hsl(var(--overlay-surface) / <alpha-value>)",
+
+        // Compatibility aliases for the existing shadcn-style primitives.
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",
         border: "hsl(var(--border) / <alpha-value>)",
@@ -53,15 +139,22 @@ export default {
         destructive: {
           DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
           foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
+          subtle: "hsl(var(--destructive-subtle) / <alpha-value>)",
           border: "var(--destructive-border)",
         },
         ring: "hsl(var(--ring) / <alpha-value>)",
         chart: {
-          "1": "hsl(var(--chart-1) / <alpha-value>)",
-          "2": "hsl(var(--chart-2) / <alpha-value>)",
-          "3": "hsl(var(--chart-3) / <alpha-value>)",
-          "4": "hsl(var(--chart-4) / <alpha-value>)",
-          "5": "hsl(var(--chart-5) / <alpha-value>)",
+          "1": "hsl(var(--chart-series-1) / <alpha-value>)",
+          "2": "hsl(var(--chart-series-2) / <alpha-value>)",
+          "3": "hsl(var(--chart-series-3) / <alpha-value>)",
+          "4": "hsl(var(--chart-series-4) / <alpha-value>)",
+          "5": "hsl(var(--chart-series-5) / <alpha-value>)",
+          "6": "hsl(var(--chart-series-6) / <alpha-value>)",
+          "7": "hsl(var(--chart-series-7) / <alpha-value>)",
+          "8": "hsl(var(--chart-series-8) / <alpha-value>)",
+          grid: "hsl(var(--chart-grid) / <alpha-value>)",
+          axis: "hsl(var(--chart-axis) / <alpha-value>)",
+          tooltip: "hsl(var(--chart-tooltip) / <alpha-value>)",
         },
         sidebar: {
           ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
@@ -80,11 +173,37 @@ export default {
           border: "var(--sidebar-accent-border)",
         },
         status: {
-          online: "rgb(34 197 94)",
-          away: "rgb(245 158 11)",
-          busy: "rgb(239 68 68)",
-          offline: "rgb(156 163 175)",
+          online: "hsl(var(--status-connected) / <alpha-value>)",
+          away: "hsl(var(--status-stale) / <alpha-value>)",
+          busy: "hsl(var(--status-live) / <alpha-value>)",
+          offline: "hsl(var(--status-offline) / <alpha-value>)",
         },
+      },
+      boxShadow: {
+        none: "var(--shadow-none)",
+        low: "var(--shadow-low)",
+        medium: "var(--shadow-medium)",
+        overlay: "var(--shadow-overlay)",
+        celebration: "var(--shadow-celebration)",
+      },
+      transitionDuration: {
+        fast: "var(--motion-fast)",
+        standard: "var(--motion-standard)",
+        slow: "var(--motion-slow)",
+      },
+      transitionTimingFunction: {
+        standard: "var(--ease-standard)",
+        emphasized: "var(--ease-emphasized)",
+      },
+      zIndex: {
+        content: "var(--layer-content)",
+        sticky: "var(--layer-sticky)",
+        navigation: "var(--layer-navigation)",
+        popover: "var(--layer-popover)",
+        overlay: "var(--layer-overlay)",
+        confirmation: "var(--layer-confirmation)",
+        ceremony: "var(--layer-ceremony)",
+        toast: "var(--layer-toast)",
       },
       fontFamily: {
         sans: ["Inter", "var(--font-sans)"],
@@ -143,5 +262,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [animate, typography],
 } satisfies Config;
