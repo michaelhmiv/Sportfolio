@@ -138,9 +138,9 @@ export default function CheckoutSuccess() {
           <CardHeader className="text-center pb-2">
             <div className="terminal-avatar mx-auto mb-4 h-16 w-16">
               {state === "processing" && <Loader2 className="w-8 h-8 text-primary animate-spin" />}
-              {state === "credited" && <CheckCircle className="w-8 h-8 text-green-500" />}
-              {state === "pending" && <Clock3 className="w-8 h-8 text-amber-500" />}
-              {state === "error" && <AlertCircle className="w-8 h-8 text-red-500" />}
+              {state === "credited" && <CheckCircle className="w-8 h-8 text-market-positive" />}
+              {state === "pending" && <Clock3 className="w-8 h-8 text-status-warning" />}
+              {state === "error" && <AlertCircle className="w-8 h-8 text-market-negative" />}
             </div>
             <div className="terminal-kicker">Payment Status</div>
             <CardTitle className="terminal-heading text-xl">

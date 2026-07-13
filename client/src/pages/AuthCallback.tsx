@@ -91,20 +91,30 @@ export default function AuthCallback() {
         console.error("[AUTH_CALLBACK] Error:", error);
         const description =
           error instanceof Error ? error.message : "We could not complete your sign-in.";
+        const errorString = String(error);
+        const errorCode =
+          error && typeof error === "object" && "code" in error
+            ? String((error as Record<string, unknown>).code)
+            : "";
         const normalizedDescription = description.toLowerCase();
 
         if (
+          errorCode === "pkce_code_verifier_not_found" ||
+          errorString.includes("code verifier") ||
           normalizedDescription.includes("code verifier") ||
           normalizedDescription.includes("both auth code and code verifier should be non-empty")
         ) {
-          redirectToError("session_lost", description);
+          redirectToError("link_expired", description);
           return;
         }
 
         if (
-          normalizedDescription.includes("not found or already used") ||
+          errorCode === "invalid_grant" ||
+          errorString.includes("invalid_grant") ||
+          normalizedDescription.includes("already used") ||
           normalizedDescription.includes("already been used") ||
-          normalizedDescription.includes("authorization code not found")
+          normalizedDescription.includes("authorization code not found") ||
+          normalizedDescription.includes("not found")
         ) {
           redirectToError("link_expired", description);
           return;

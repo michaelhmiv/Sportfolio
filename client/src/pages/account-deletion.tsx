@@ -161,13 +161,13 @@ export default function AccountDeletion() {
   const statusTone = useMemo(() => {
     switch (requestInFlightStatus) {
       case "pending":
-        return "text-amber-400";
+        return "text-status-warning";
       case "processing":
-        return "text-blue-400";
+        return "text-status-info";
       case "completed":
-        return "text-green-400";
+        return "text-market-positive";
       case "failed":
-        return "text-red-400";
+        return "text-market-negative";
       case "cancelled":
         return "text-muted-foreground";
       default:
@@ -225,7 +225,7 @@ export default function AccountDeletion() {
                       </p>
                     </div>
                     {status.request.status === "completed" ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-400" />
+                      <CheckCircle2 className="h-5 w-5 text-market-positive" />
                     ) : null}
                   </div>
                   <div className="space-y-2 text-sm text-muted-foreground">

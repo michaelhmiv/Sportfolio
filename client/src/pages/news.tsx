@@ -113,8 +113,8 @@ function GeneralNewsTab({ newsLoading, news }: { newsLoading: boolean; news?: Ne
                       variant="secondary"
                       className={
                         item.sport === "NFL"
-                          ? "rounded-sm border border-orange-500/20 bg-orange-500/10 font-mono text-[11px] uppercase tracking-[0.08em] text-orange-500"
-                          : "rounded-sm border border-blue-500/20 bg-blue-500/10 font-mono text-[11px] uppercase tracking-[0.08em] text-blue-500"
+                          ? "rounded-compact border border-status-warning/20 bg-status-warning/10 font-mono text-[11px] uppercase tracking-[0.08em] text-status-warning"
+                          : "rounded-compact border border-status-info/20 bg-status-info/10 font-mono text-[11px] uppercase tracking-[0.08em] text-status-info"
                       }
                     >
                       {item.sport}
@@ -247,7 +247,7 @@ export default function NewsPage() {
                   size="sm"
                   onClick={() => triggerNewsFetch.mutate()}
                   disabled={triggerNewsFetch.isPending}
-                  className="gap-2 border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
+                  className="gap-2 border-status-warning/30 text-status-warning hover:bg-status-warning/10"
                 >
                   {triggerNewsFetch.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -283,7 +283,7 @@ export default function NewsPage() {
                 <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Daily Brief
                 {hasUnreadDigest && (
-                  <span className="ml-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />
+                  <span className="ml-1 inline-block h-2.5 w-2.5 rounded-compact bg-destructive" />
                 )}
               </TabsTrigger>
             </TabsList>

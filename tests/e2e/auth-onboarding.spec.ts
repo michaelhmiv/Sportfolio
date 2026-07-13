@@ -111,7 +111,7 @@ test("deep-link callback: used/expired code shows link_expired error page", asyn
   });
 
   // Supabase responds with invalid_grant (code already used or expired).
-  await page.route("**/mock-supabase/auth/v1/token**", async (route) => {
+  await page.route("**/mock-supabase/auth/v1/token", async (route) => {
     await route.fulfill({
       status: 400,
       contentType: "application/json",

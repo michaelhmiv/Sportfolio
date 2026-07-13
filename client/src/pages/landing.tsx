@@ -41,21 +41,21 @@ function HeroCard() {
         rotateX,
         transformStyle: "preserve-3d",
       }}
-      className="relative h-96 w-72 rounded-lg bg-card border shadow-xl p-1"
+      className="relative h-96 w-72 rounded-panel bg-card border shadow-xl p-1"
     >
       <div
         style={{
           transform: "translateZ(75px)",
           transformStyle: "preserve-3d",
         }}
-        className="absolute inset-4 grid place-content-center rounded-md bg-muted/20 border shadow-inner group overflow-hidden"
+        className="absolute inset-4 grid place-content-center rounded-panel bg-muted/20 border shadow-inner group overflow-hidden"
       >
         <div className="absolute top-4 left-4">
-          <Badge className="bg-primary text-black font-bold">LEGENDARY</Badge>
+          <Badge className="bg-tier-legendary text-content-inverse font-bold">LEGENDARY</Badge>
         </div>
 
         {/* Mock Player Image/Graphic */}
-        <div className="w-32 h-32 rounded-full bg-primary/20 flex items-center justify-center mb-4" />
+        <div className="w-32 h-32 rounded-pill bg-primary/20 flex items-center justify-center mb-4" />
         <Trophy
           style={{ transform: "translateZ(50px)" }}
           className="w-24 h-24 text-primary absolute"
@@ -64,7 +64,7 @@ function HeroCard() {
         <div className="absolute bottom-4 left-4 right-4 text-center">
           <h3
             style={{ transform: "translateZ(50px)" }}
-            className="text-xl font-black italic text-white uppercase tracking-tighter"
+            className="text-xl font-black italic text-content-inverse uppercase tracking-tighter"
           >
             Market Leader
           </h3>
@@ -75,7 +75,7 @@ function HeroCard() {
       </div>
 
       {/* Decorative border highlight */}
-      <div className="absolute inset-px rounded-md border border-primary/20 pointer-events-none" />
+      <div className="absolute inset-px rounded-panel border border-primary/20 pointer-events-none" />
     </motion.div>
   );
 }
@@ -103,7 +103,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-medium mb-4 sm:mb-6"
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-primary/10 text-primary text-xs sm:text-sm font-medium mb-4 sm:mb-6"
           >
             <motion.div
               animate={{ scale: [1, 1.2, 1] }}
@@ -131,7 +131,7 @@ export default function Landing() {
                 <Button
                   asChild
                   size="lg"
-                  className="w-full sm:w-auto text-lg h-14 px-10 rounded-md"
+                  className="w-full sm:w-auto text-lg h-14 px-10 rounded-panel"
                 >
                   <Link
                     href="/login"
@@ -154,19 +154,19 @@ export default function Landing() {
       {/* Stats Bar */}
       <div className="container px-4 py-4 sm:py-6">
         <div className="mx-auto max-w-4xl grid grid-cols-3 gap-3 sm:gap-6">
-          <div className="text-center p-3 sm:p-4 rounded-lg bg-card border border-border">
+          <div className="text-center p-3 sm:p-4 rounded-panel bg-card border border-border">
             <div className="text-lg sm:text-2xl md:text-3xl font-bold text-primary">100+</div>
             <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
               NBA Players
             </div>
           </div>
-          <div className="text-center p-3 sm:p-4 rounded-lg bg-card border border-border">
+          <div className="text-center p-3 sm:p-4 rounded-panel bg-card border border-border">
             <div className="text-lg sm:text-2xl md:text-3xl font-bold text-primary">24/7</div>
             <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
               Live Trading
             </div>
           </div>
-          <div className="text-center p-3 sm:p-4 rounded-lg bg-card border border-border">
+          <div className="text-center p-3 sm:p-4 rounded-panel bg-card border border-border">
             <div className="text-lg sm:text-2xl md:text-3xl font-bold text-primary">$10K</div>
             <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
               Starting Cash
@@ -183,7 +183,7 @@ export default function Landing() {
             <Card className="border-primary/20">
               <CardHeader className="pb-3 sm:pb-4">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-panel bg-primary/10">
                     <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                   </div>
                   <CardTitle className="text-base sm:text-lg">Trade Shares</CardTitle>
@@ -198,7 +198,7 @@ export default function Landing() {
             <Card className="border-primary/20">
               <CardHeader className="pb-3 sm:pb-4">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-panel bg-primary/10">
                     <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                   </div>
                   <CardTitle className="text-base sm:text-lg">Vest Players</CardTitle>
@@ -213,7 +213,7 @@ export default function Landing() {
             <Card className="border-primary/20 md:col-span-2 lg:col-span-1">
               <CardHeader className="pb-3 sm:pb-4">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-panel bg-primary/10">
                     <Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                   </div>
                   <CardTitle className="text-base sm:text-lg">Use Daily Boosts</CardTitle>
@@ -231,7 +231,7 @@ export default function Landing() {
       {/* CTA Section */}
       <div className="container px-4 py-6 sm:py-6 pb-12 sm:pb-20">
         <div className="mx-auto max-w-3xl">
-          <Card className="bg-primary text-primary-foreground border-0 overflow-hidden relative rounded-lg">
+          <Card className="bg-primary text-primary-foreground border-0 overflow-hidden relative rounded-panel">
             <CardHeader className="relative pb-3 sm:pb-4">
               <CardTitle className="text-lg sm:text-2xl text-center">
                 Start Building Your Portfolio
@@ -241,7 +241,7 @@ export default function Landing() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center pb-4 sm:pb-6 relative">
-              <Button variant="secondary" size="lg" asChild className="shadow-lg rounded-md">
+              <Button variant="secondary" size="lg" asChild className="shadow-lg rounded-panel">
                 <Link
                   href="/login"
                   data-testid="button-cta-login"

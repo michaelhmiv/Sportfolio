@@ -456,11 +456,11 @@ export default function Login() {
 
             <TabsContent value="signup" className="mt-4">
               {signupSuccessEmail ? (
-                <div className="terminal-shell space-y-4 rounded-sm border border-primary/20 bg-primary/5 p-4">
+                <div className="terminal-shell space-y-4 rounded-compact border border-primary/20 bg-primary/5 p-4">
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
                     <div>
-                      <p className="terminal-label text-primary">Verification Sent</p>
+                      <p className="terminal-label text-primary">Verification email sent</p>
                       <p className="terminal-value mt-1 break-all text-sm">{signupSuccessEmail}</p>
                     </div>
                   </div>

@@ -888,7 +888,7 @@ export default function Admin() {
       case "success":
         return <CheckCircle2 className="w-4 h-4 text-positive" />;
       case "degraded":
-        return <Activity className="w-4 h-4 text-yellow-500" />;
+        return <Activity className="w-4 h-4 text-status-warning" />;
       case "failed":
         return <XCircle className="w-4 h-4 text-destructive" />;
       default:
@@ -902,7 +902,7 @@ export default function Admin() {
         return <Badge className="bg-positive/10 text-positive border-positive/20">Success</Badge>;
       case "degraded":
         return (
-          <Badge className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20">
+          <Badge className="bg-status-warning/10 text-status-warning border-status-warning/20">
             Degraded
           </Badge>
         );
@@ -1007,7 +1007,7 @@ export default function Admin() {
                     <Label htmlFor="agent-managed-provider">Managed Provider</Label>
                     <select
                       id="agent-managed-provider"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className="flex h-10 w-full rounded-compact border border-input bg-background px-3 py-2 text-sm"
                       value={agentManagedProviderDraft}
                       onChange={(event) => {
                         const nextProvider = event.target.value as ManagedProviderKey;
@@ -1052,7 +1052,7 @@ export default function Admin() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border p-3 text-sm space-y-3">
+                <div className="rounded-panel border p-3 text-sm space-y-3">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
                       <div className="font-medium">Available models</div>
@@ -1085,7 +1085,7 @@ export default function Admin() {
                     </Button>
                   </div>
                   {agentProviderModelCatalog?.warning ? (
-                    <div className="text-xs text-yellow-600 dark:text-yellow-400">
+                    <div className="text-xs text-status-warning">
                       {agentProviderModelCatalog.warning}
                     </div>
                   ) : null}
@@ -1111,7 +1111,7 @@ export default function Admin() {
                   </div>
                 ) : null}
 
-                <div className="rounded-lg border p-3 text-sm">
+                <div className="rounded-panel border p-3 text-sm">
                   <div className="font-medium">
                     Active: {agentSystemSettings.managedProvider.label}
                   </div>
@@ -1196,7 +1196,7 @@ export default function Admin() {
                 <div className="flex flex-wrap items-center gap-2">
                   {getStatusBadge(apiHealth.report.status)}
                   {apiHealth.isStale && (
-                    <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
+                    <Badge className="bg-status-warning/10 text-status-warning border-status-warning/20">
                       Stale
                     </Badge>
                   )}
@@ -1209,29 +1209,29 @@ export default function Admin() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  <div className="rounded-lg border p-2">
+                  <div className="rounded-panel border p-2">
                     <div className="text-xs text-muted-foreground">Total checks</div>
                     <div className="text-lg font-semibold">{apiHealth.report.summary.total}</div>
                   </div>
-                  <div className="rounded-lg border p-2">
+                  <div className="rounded-panel border p-2">
                     <div className="text-xs text-muted-foreground">Success</div>
                     <div className="text-lg font-semibold text-positive">
                       {apiHealth.report.summary.success}
                     </div>
                   </div>
-                  <div className="rounded-lg border p-2">
+                  <div className="rounded-panel border p-2">
                     <div className="text-xs text-muted-foreground">Degraded</div>
-                    <div className="text-lg font-semibold text-yellow-600 dark:text-yellow-400">
+                    <div className="text-lg font-semibold text-status-warning">
                       {apiHealth.report.summary.degraded}
                     </div>
                   </div>
-                  <div className="rounded-lg border p-2">
+                  <div className="rounded-panel border p-2">
                     <div className="text-xs text-muted-foreground">Failed</div>
                     <div className="text-lg font-semibold text-destructive">
                       {apiHealth.report.summary.failed}
                     </div>
                   </div>
-                  <div className="rounded-lg border p-2">
+                  <div className="rounded-panel border p-2">
                     <div className="text-xs text-muted-foreground">Route checks</div>
                     <div className="text-lg font-semibold">
                       {apiHealth.report.summary.routeChecks}
@@ -1243,7 +1243,7 @@ export default function Admin() {
                   {apiHealth.report.checks.map((check) => (
                     <div
                       key={check.id}
-                      className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                      className="flex items-start justify-between gap-3 rounded-panel border p-3"
                       data-testid={`api-health-check-${check.id}`}
                     >
                       <div className="flex items-start gap-2">
@@ -1272,7 +1272,7 @@ export default function Admin() {
                       {apiHealth.recentRuns.slice(0, 5).map((run) => (
                         <div
                           key={run.id}
-                          className="flex items-center justify-between text-xs rounded border px-2 py-1.5"
+                          className="flex items-center justify-between text-xs rounded-compact border px-2 py-1.5"
                         >
                           <div className="flex items-center gap-2">
                             {getStatusIcon(run.status)}
@@ -1375,7 +1375,7 @@ export default function Admin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="p-4 rounded-lg border bg-muted/30">
+              <div className="p-4 rounded-panel border bg-muted/30">
                 <h4 className="font-semibold mb-2">What this does:</h4>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                   <li>Finds legacy game records (gameId starting with 18447)</li>
@@ -1403,7 +1403,7 @@ export default function Admin() {
                 )}
               </Button>
               {cleanupDuplicatesMutation.isSuccess && cleanupDuplicatesMutation.data && (
-                <div className="p-3 rounded-lg border bg-positive/10 text-positive">
+                <div className="p-3 rounded-panel border bg-positive/10 text-positive">
                   <div className="font-semibold">Cleanup Results:</div>
                   <div className="text-sm">{cleanupDuplicatesMutation.data.message}</div>
                   <div className="text-xs mt-1">
@@ -1428,7 +1428,7 @@ export default function Admin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="p-4 rounded-lg border bg-muted/30 text-sm text-muted-foreground">
+              <div className="p-4 rounded-panel border bg-muted/30 text-sm text-muted-foreground">
                 This does not create pools. It only normalizes active players without pools so they
                 remain at zero price until real market liquidity is added.
               </div>
@@ -1452,7 +1452,7 @@ export default function Admin() {
                 )}
               </Button>
               {seedMissingPoolsMutation.isSuccess && seedMissingPoolsMutation.data && (
-                <div className="p-3 rounded-lg border bg-positive/10 text-positive">
+                <div className="p-3 rounded-panel border bg-positive/10 text-positive">
                   <div className="font-semibold">Normalization Results:</div>
                   <div className="text-sm">{seedMissingPoolsMutation.data.message}</div>
                   <div className="text-xs mt-1">
@@ -1521,7 +1521,7 @@ export default function Admin() {
                   </>
                 )}
               </Button>
-              <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+              <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-panel">
                 <strong>Note:</strong> Backfilling is slow (~5-10 minutes for full season). Each
                 date requires a 5-second API call. The daily cron job completes in ~5 seconds since
                 it only fetches yesterday.
@@ -1558,7 +1558,7 @@ export default function Admin() {
             {Object.entries(jobDescriptions).map(([jobName, description]) => (
               <div
                 key={jobName}
-                className="flex items-center justify-between p-4 rounded-lg border"
+                className="flex items-center justify-between p-4 rounded-panel border"
               >
                 <div className="flex-1">
                   <div className="font-semibold font-mono text-sm mb-1">{jobName}</div>
@@ -1715,7 +1715,7 @@ export default function Admin() {
                 {blogPostsData.posts.map((post) => (
                   <div
                     key={post.id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
+                    className="flex items-center justify-between p-3 rounded-panel border hover-elevate"
                     data-testid={`blog-post-item-${post.id}`}
                   >
                     <div className="flex-1 min-w-0">
@@ -1960,7 +1960,7 @@ export default function Admin() {
 
               {/* Custom Draft Result */}
               {customDraft && (
-                <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+                <div className="p-3 rounded-panel border bg-muted/30 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold">AI Draft</span>
                     <Badge
@@ -2001,7 +2001,7 @@ export default function Admin() {
 
             {/* Tweet Preview */}
             {tweetPreview && (
-              <div className="p-3 rounded-lg border bg-muted/30">
+              <div className="p-3 rounded-panel border bg-muted/30">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold">Preview</span>
                   <Badge
@@ -2030,7 +2030,7 @@ export default function Admin() {
                   {tweetData.history.slice(0, 5).map((tweet) => (
                     <div
                       key={tweet.id}
-                      className="flex items-center justify-between p-2 rounded border text-xs"
+                      className="flex items-center justify-between p-2 rounded-compact border text-xs"
                     >
                       <div className="flex-1 min-w-0 mr-2">
                         <span className="truncate block">{tweet.content.slice(0, 60)}...</span>
@@ -2072,7 +2072,7 @@ export default function Admin() {
                 {stats.lastJobRuns.map((job) => (
                   <div
                     key={job.jobName}
-                    className="flex items-center justify-between p-3 rounded-lg border"
+                    className="flex items-center justify-between p-3 rounded-panel border"
                   >
                     <div className="flex items-center gap-3">
                       {getStatusIcon(job.status)}
