@@ -286,14 +286,14 @@ export function PortfolioCardView({
                               className={`h-3 w-3 rounded-compact ${getMultiplierTierColor(share.multiplier).split(" ")[0]}`}
                             />
                             <div>
-                              <div className="font-medium text-category-stacking">
+                              <div className="font-medium text-content">
                                 Stacked Share {share.multiplier}x
                               </div>
                               <div className="text-sm text-muted-foreground">1 share retained</div>
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-lg font-mono font-bold text-category-stacking">
+                            <div className="text-lg font-mono font-bold text-content">
                               {formatShareCount(share.quantity)}
                             </div>
                             <div className="text-sm text-muted-foreground">

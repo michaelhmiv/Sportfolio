@@ -230,7 +230,9 @@ function ActivityRow({ activity }: { activity: UserActivityItem }) {
                 <div
                   className={cn(
                     "font-mono text-xs font-semibold",
-                    (activity.shareDelta || 0) > 0 ? "text-market-positive" : "text-chart-4",
+                    (activity.shareDelta || 0) > 0
+                      ? "text-market-positive"
+                      : "text-market-negative",
                   )}
                 >
                   {signedShares}

@@ -93,7 +93,7 @@ export function MarketPulse({ children }: MarketPulseProps) {
       <div
         className={cn(
           "fixed inset-0 pointer-events-none z-0 opacity-[0.02]",
-          isEvening ? "bg-chart-4/10" : "bg-market-positive/10",
+          isEvening ? "bg-premium/10" : "bg-market-positive/10",
         )}
         style={{
           backgroundImage: `
@@ -138,8 +138,8 @@ export function ActivityIndicator({ className }: ActivityIndicatorProps) {
 
   const getActivityColor = () => {
     if (activityLevel < 20) return "bg-market-positive";
-    if (activityLevel < 50) return "bg-chart-2";
-    if (activityLevel < 80) return "bg-chart-4";
+    if (activityLevel < 50) return "bg-category-momentum";
+    if (activityLevel < 80) return "bg-category-community";
     return "bg-status-warning";
   };
 

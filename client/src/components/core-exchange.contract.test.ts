@@ -64,6 +64,9 @@ describe("core exchange visual contract", () => {
       "pages/boosts.tsx",
       "pages/player.tsx",
       "pages/portfolio.tsx",
+      "components/portfolio-activity-tab.tsx",
+      "components/market-activity-widget.tsx",
+      "components/market/market-pulse.tsx",
     ]) {
       const source = readFileSync(resolve(process.cwd(), "client/src", relativePath), "utf8");
       expect(
@@ -112,6 +115,15 @@ describe("core exchange visual contract", () => {
     expect(modal).not.toContain("chart-");
     expect(modal).toContain("category-ownership");
     expect(modal).toContain("aria-pressed={selectedTier === tier}");
+    expect(modal).not.toMatch(/hover:bg-tier-(?:boosted|elite|legendary|mythic)\//);
+
+    const card = read("game-command-center-card.tsx");
+    expect(card).toContain("aria-pressed={selectedTier === tier}");
+    expect(card).toContain("aria-label={`Open ${game.awayTeam} at ${game.homeTeam} game details`}");
+    expect(card).not.toContain(
+      'return (\n    <button\n      type="button"\n      onClick={onOpen}',
+    );
+
     const multiplierLeaders = modal.slice(
       modal.indexOf("Your Multiplier Leaders"),
       modal.indexOf("Quick Scout", modal.indexOf("Your Multiplier Leaders")),
@@ -123,6 +135,23 @@ describe("core exchange visual contract", () => {
     }
 
     expect(read("portfolio-card-view.tsx")).not.toContain("chart-");
+
+    const dashboard = readFileSync(
+      resolve(process.cwd(), "client/src/pages/dashboard.tsx"),
+      "utf8",
+    );
+    expect(dashboard).not.toContain(
+      'slateStatus === "scheduled"\n                          ? "bg-chart-',
+    );
+    expect(dashboard).not.toMatch(/(?:race|game)MarketStateClass[\s\S]{0,350}text-chart-/);
+    expect(dashboard).not.toContain("font-mono text-chart-4");
+
+    const mobileHome = read("market-mobile-home.tsx");
+    expect(mobileHome).toContain(
+      'label: "Boost Ready",\n        accentClassName: "bg-category-boost"',
+    );
+    expect(mobileHome).toContain('label: "Watchlist",\n        accentClassName: "bg-selected"');
+
     const stacking = read("portfolio-stacking-tab.tsx");
     expect(stacking).not.toContain("chart-");
     expect(stacking).toContain('gameStatus === "live") return "text-status-live"');

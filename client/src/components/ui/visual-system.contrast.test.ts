@@ -184,8 +184,13 @@ const renderedCoreSurfaces = [
   "components/market-mobile-pools-board.tsx",
   "components/market-mobile-player-sheet.tsx",
   "components/market-activity-ledger.tsx",
+  "components/market-activity-widget.tsx",
+  "components/market-ticker.tsx",
+  "components/market/market-pulse.tsx",
   "components/game-command-center-card.tsx",
   "components/game-command-center-modal.tsx",
+  "components/mlb-gameplay-signals.tsx",
+  "components/mlb-player-context-panel.tsx",
 ] as const;
 
 function hasThemeToken(theme: Theme, name: string) {
@@ -306,7 +311,7 @@ describe("Sportfolio semantic color contrast", () => {
   );
 
   it.each([":root", ".dark"] as const)(
-    "keeps rendered semantic text/background classes at WCAG AA in %s",
+    "keeps same-class semantic text/background combinations at WCAG AA in %s",
     (theme) => {
       const failures = new Set<string>();
       for (const pair of renderedCoreClassPairs(theme)) {
@@ -326,6 +331,18 @@ describe("Sportfolio semantic color contrast", () => {
         }
       }
       expect([...failures]).toEqual([]);
+    },
+  );
+
+  it.each([":root", ".dark"] as const)(
+    "keeps text-content readable on every translucent stacked-share tier in %s",
+    (theme) => {
+      for (const tier of ["standard", "boosted", "elite", "legendary", "mythic"] as const) {
+        expect(
+          renderedTintContrast(theme, "text", `tier-${tier}`, "surface", 0.2),
+          `${theme} --text on --tier-${tier}/20 over --surface`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     },
   );
 });

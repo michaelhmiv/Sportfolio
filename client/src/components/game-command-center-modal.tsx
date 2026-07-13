@@ -2395,12 +2395,12 @@ export function GameCommandCenterModal({
                           {([5, 4, 3, 2] as const).map((tier) => {
                             const selectedTierClass =
                               tier === 5
-                                ? "border-tier-mythic bg-tier-mythic text-content-inverse hover:bg-tier-mythic/90"
+                                ? "border-tier-mythic bg-tier-mythic text-content-inverse hover:brightness-105"
                                 : tier === 4
-                                  ? "border-tier-legendary bg-tier-legendary text-content-inverse hover:bg-tier-legendary/90"
+                                  ? "border-tier-legendary bg-tier-legendary text-content-inverse hover:brightness-105"
                                   : tier === 3
-                                    ? "border-tier-elite bg-tier-elite text-content-inverse hover:bg-tier-elite/90"
-                                    : "border-tier-boosted bg-tier-boosted text-content-inverse hover:bg-tier-boosted/90";
+                                    ? "border-tier-elite bg-tier-elite text-content-inverse hover:brightness-105"
+                                    : "border-tier-boosted bg-tier-boosted text-content-inverse hover:brightness-105";
                             return (
                               <Button
                                 key={tier}

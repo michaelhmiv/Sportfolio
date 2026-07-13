@@ -226,7 +226,7 @@ function ActivePositionsToday({
                       isLiveGame
                         ? "animate-pulse bg-market-positive"
                         : slateStatus === "scheduled"
-                          ? "bg-chart-2"
+                          ? "bg-status-info"
                           : "bg-muted-foreground/40",
                     )}
                   />
@@ -1079,7 +1079,7 @@ export default function Dashboard() {
                                         ? "text-market-positive"
                                         : race.status === "completed"
                                           ? "text-content-muted"
-                                          : "text-chart-2";
+                                          : "text-status-info";
                                     const leader = race.driverStandings?.[0];
                                     const hasRaceLapProgress =
                                       Boolean(race.lapInfo) &&
@@ -1261,7 +1261,7 @@ export default function Dashboard() {
                                         ? "text-content-muted"
                                         : effectiveStatus === "postponed"
                                           ? "text-status-warning"
-                                          : "text-chart-2";
+                                          : "text-status-info";
                                   const ownedTeams = new Set(
                                     [
                                       ...(game.userContext?.ownedPlayers || []).map(
@@ -1725,7 +1725,7 @@ export default function Dashboard() {
                             : ""}
                         </span>
                       </div>
-                      <div className="col-span-1 text-right font-mono text-chart-4">
+                      <div className="col-span-1 text-right font-mono text-content">
                         {driver.fantasyPoints?.toFixed(1)}
                       </div>
                     </div>

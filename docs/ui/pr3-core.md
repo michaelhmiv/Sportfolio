@@ -16,7 +16,7 @@ This stacked change migrates Sportfolio's decision-heavy market, player, portfol
 
 - Added five explicit multiplier-tier tokens: standard, boosted, elite, legendary, and mythic.
 - Kept every tier visually distinct in both themes instead of collapsing stacked holdings into one generic accent.
-- Added WCAG AA contrast checks for inverse text on tier backgrounds and for semantic text after its interaction tint is alpha-composited over real card and canvas surfaces. A source-derived scanner exercises every semantic text/background class combination rendered by core surfaces, including hover states, and reports every failing pair in one run.
+- Added WCAG AA contrast checks for inverse text on tier backgrounds and for semantic text after its interaction tint is alpha-composited over real card and canvas surfaces. A source-derived scanner exercises same-class semantic text/background combinations across the declared core surfaces, while explicit regression cases cover ancestor-provided translucent tier backgrounds and selected-tier interaction states.
 
 ## Game hierarchy
 

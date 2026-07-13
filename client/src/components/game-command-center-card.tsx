@@ -159,12 +159,13 @@ export function GameCommandCenterCard({
   });
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full text-left rounded-compact border-2 border-border/90 bg-card p-3 shadow-none transition-all hover:border-border hover:shadow-none"
-    >
-      <div className="rounded-control border border-border/70 bg-background/40 overflow-hidden">
+    <div className="w-full rounded-compact border-2 border-border/90 bg-card p-3 text-left shadow-none transition-all hover:border-border hover:shadow-none">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full overflow-hidden rounded-control border border-border/70 bg-background/40 text-left"
+        aria-label={`Open ${game.awayTeam} at ${game.homeTeam} game details`}
+      >
         <div
           className={`${listingGridClass} border-b border-border/60 px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-muted-foreground`}
         >
@@ -215,7 +216,7 @@ export function GameCommandCenterCard({
             </div>
           </div>
         </div>
-      </div>
+      </button>
 
       {game.sport?.toUpperCase() === "MLB" ? (
         <MlbSignalChips signals={game.mlbSignals} limit={3} />
@@ -296,6 +297,7 @@ export function GameCommandCenterCard({
                       key={tier}
                       type="button"
                       onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
+                      aria-pressed={selectedTier === tier}
                       className={`px-2 py-1 rounded-compact text-[10px] font-medium border-2 transition-all ${
                         selectedTier === tier
                           ? "border-boost bg-boost text-boost-foreground"
@@ -408,6 +410,6 @@ export function GameCommandCenterCard({
           )}
         </div>
       )}
-    </button>
+    </div>
   );
 }

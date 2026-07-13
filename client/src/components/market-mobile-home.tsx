@@ -839,7 +839,7 @@ export function MarketMobileHome({
       cards.push({
         key: "boost-ready",
         label: "Boost Ready",
-        accentClassName: "bg-premium",
+        accentClassName: "bg-category-boost",
         title: (
           <PlayerName
             playerId={boostReady.playerId}
@@ -879,7 +879,7 @@ export function MarketMobileHome({
       cards.push({
         key: "watchlist-mover",
         label: "Watchlist",
-        accentClassName: "bg-primary",
+        accentClassName: "bg-selected",
         title: (
           <PlayerName
             playerId={watchlistMover.playerId}
