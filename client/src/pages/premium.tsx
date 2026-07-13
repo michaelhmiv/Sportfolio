@@ -517,7 +517,7 @@ export default function Premium() {
       <div className="terminal-page">
         <div className="container max-w-4xl mx-auto p-4 md:p-6">
           <Card variant="terminal" className="p-8 text-center">
-            <Crown className="h-16 w-16 mx-auto mb-4 text-yellow-500" />
+            <Crown className="h-16 w-16 mx-auto mb-4 text-premium" />
             <CardTitle className="terminal-heading mb-4 text-lg">Unlock Premium Features</CardTitle>
             <CardDescription className="mb-6">
               Sign in to redeem Premium Shares or manage your scout boost access.
@@ -553,7 +553,7 @@ export default function Premium() {
       <div className="container max-w-4xl mx-auto space-y-6 p-4 md:p-6">
         <div className="terminal-shell mb-8 p-5 text-center">
           <div className="terminal-strip mx-auto w-fit">
-            <Crown className="h-3.5 w-3.5 text-yellow-400" />
+            <Crown className="h-3.5 w-3.5 text-premium" />
             Premium Desk
           </div>
           <h1 className="terminal-heading mt-4 text-3xl" data-testid="text-premium-title">
@@ -574,14 +574,14 @@ export default function Premium() {
             {premiumActive ? (
               <Badge
                 variant="default"
-                className="border-yellow-500/30 bg-yellow-500/20 font-mono text-[10px] uppercase text-yellow-200"
+                className="border-premium/30 bg-premium/20 font-mono text-[10px] uppercase text-premium"
                 data-testid="badge-premium-active"
               >
                 <Crown className="h-3 w-3 mr-1" />
                 Active
               </Badge>
             ) : rewardedScoutBoostActive ? (
-              <Badge className="border-amber-500/30 bg-amber-500/20 font-mono text-[10px] uppercase text-amber-200">
+              <Badge className="border-premium/30 bg-premium/20 font-mono text-[10px] uppercase text-premium">
                 <Zap className="h-3 w-3 mr-1" />
                 Scout Boost
               </Badge>
@@ -654,7 +654,9 @@ export default function Premium() {
                     <div className="terminal-label mb-1">Access Status</div>
                     {premiumActive ? (
                       <>
-                        <div className="text-lg font-semibold text-green-500">Premium Active</div>
+                        <div className="text-lg font-semibold text-market-positive">
+                          Premium Active
+                        </div>
                         {premiumStatus?.premiumExpiresAt ? (
                           <div className="mt-1 font-mono text-[11px] text-muted-foreground">
                             Expires{" "}
@@ -666,7 +668,7 @@ export default function Premium() {
                       </>
                     ) : rewardedScoutBoostActive ? (
                       <>
-                        <div className="text-lg font-semibold text-amber-500">Scout Boost Live</div>
+                        <div className="text-lg font-semibold text-premium">Scout Boost Live</div>
                         <div className="mt-1 font-mono text-[11px] text-muted-foreground">
                           Boosted scouts stay active until {rewardedScoutBoostCountdown}.
                         </div>
@@ -697,7 +699,7 @@ export default function Premium() {
                         </div>
                       </div>
                       {rewardedScoutBoostActive ? (
-                        <Badge className="border-amber-500/30 bg-amber-500/20 text-amber-200">
+                        <Badge className="border-premium/30 bg-premium/20 text-premium">
                           10 Scouts
                         </Badge>
                       ) : null}
@@ -724,7 +726,7 @@ export default function Premium() {
                               rewardedVerificationPending ||
                               !rewardedAdAvailable
                             }
-                            className="border-amber-500/40 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 disabled:text-amber-900/60 dark:text-amber-100 dark:disabled:text-amber-100/60"
+                            className="border-premium/40 bg-premium/15 text-premium hover:bg-premium/25 disabled:text-premium/60 dark:text-premium dark:disabled:text-premium/60"
                             data-testid="button-watch-rewarded-scout-boost"
                           >
                             {rewardedAdLoading || rewardedVerificationPending ? (
@@ -755,7 +757,7 @@ export default function Premium() {
                           disabled={
                             rewardedAdLoading || rewardedVerificationPending || !rewardedAdAvailable
                           }
-                          className="border-amber-500/40 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 disabled:text-amber-900/60 dark:text-amber-100 dark:disabled:text-amber-100/60"
+                          className="border-premium/40 bg-premium/15 text-premium hover:bg-premium/25 disabled:text-premium/60 dark:text-premium dark:disabled:text-premium/60"
                           data-testid="button-watch-rewarded-scout-boost"
                         >
                           {rewardedAdLoading || rewardedVerificationPending ? (
@@ -786,7 +788,7 @@ export default function Premium() {
                   onClick={() => redeemMutation.mutate()}
                   disabled={redeemMutation.isPending || premiumActive}
                   data-testid="button-redeem-premium"
-                  className="border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
+                  className="border-premium/30 bg-premium/20 text-premium hover:bg-premium/25"
                 >
                   {redeemMutation.isPending ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -880,7 +882,7 @@ export default function Premium() {
           <Card variant="terminal">
             <CardHeader>
               <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                <AlertTriangle className="h-5 w-5 text-premium" />
                 iOS Purchase Availability
               </CardTitle>
               <CardDescription>
@@ -996,8 +998,8 @@ export default function Premium() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {benefits.map((benefit) => (
                 <div key={benefit.title} className="terminal-shell flex items-start gap-3 p-3">
-                  <div className="terminal-avatar border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
-                    <benefit.icon className="h-5 w-5 text-yellow-500" />
+                  <div className="terminal-avatar border-premium/20 bg-premium/10 text-premium">
+                    <benefit.icon className="h-5 w-5 text-premium" />
                   </div>
                   <div>
                     <div className="font-medium">{benefit.title}</div>
@@ -1042,7 +1044,7 @@ export default function Premium() {
                         </div>
                         <Badge
                           variant="outline"
-                          className="font-mono text-[10px] uppercase text-green-500"
+                          className="font-mono text-[10px] uppercase text-market-positive"
                         >
                           <Check className="h-3 w-3 mr-1" />
                           Completed

@@ -17,19 +17,19 @@ const milestoneIcons: Record<string, typeof Trophy> = {
 
 const milestoneColors: Record<string, { bg: string; border: string; text: string }> = {
   netWorth: {
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/30",
-    text: "text-emerald-500",
+    bg: "bg-market-positive/10",
+    border: "border-market-positive/30",
+    text: "text-market-positive",
   },
   portfolioValue: {
-    bg: "bg-violet-500/10",
-    border: "border-violet-500/30",
-    text: "text-violet-500",
+    bg: "bg-category-scout/10",
+    border: "border-category-scout/30",
+    text: "text-category-scout",
   },
   totalTrades: {
-    bg: "bg-blue-500/10",
-    border: "border-blue-500/30",
-    text: "text-blue-500",
+    bg: "bg-status-info/10",
+    border: "border-status-info/30",
+    text: "text-status-info",
   },
 };
 
@@ -65,7 +65,7 @@ export function MilestoneBadge({ milestone, size = "md", onClick }: MilestoneBad
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
       className={cn(
-        "relative rounded-sm flex items-center justify-center cursor-pointer",
+        "relative rounded-compact flex items-center justify-center cursor-pointer",
         "border-2 transition-all duration-200",
         sizeClasses[size],
         colors.bg,
@@ -83,7 +83,7 @@ export function MilestoneBadge({ milestone, size = "md", onClick }: MilestoneBad
 
       {/* Shine effect */}
       <motion.div
-        className="absolute inset-0 rounded-sm pointer-events-none"
+        className="absolute inset-0 rounded-compact pointer-events-none"
         animate={{
           background: [
             "linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.2) 50%, transparent 60%)",
@@ -144,7 +144,7 @@ export function MilestoneBadgeList({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className={cn(
-            "flex items-center justify-center rounded-sm bg-muted font-medium text-muted-foreground",
+            "flex items-center justify-center rounded-compact bg-muted font-medium text-muted-foreground",
             size === "sm" && "w-8 h-8 text-xs",
             size === "md" && "w-10 h-10 text-sm",
             size === "lg" && "w-12 h-12 text-base",

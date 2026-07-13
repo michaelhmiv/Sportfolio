@@ -35,7 +35,7 @@ function getStatusTone(status: string | null | undefined) {
     normalized.includes("completed") ||
     normalized.includes("tracking")
   ) {
-    return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
+    return "border-market-positive/25 bg-market-positive/10 text-market-positive";
   }
   if (
     normalized.includes("wait") ||
@@ -43,45 +43,45 @@ function getStatusTone(status: string | null | undefined) {
     normalized.includes("paused") ||
     normalized.includes("warning")
   ) {
-    return "border-amber-500/25 bg-amber-500/10 text-amber-200";
+    return "border-brand/25 bg-brand/10 text-brand";
   }
   if (
     normalized.includes("failed") ||
     normalized.includes("blocked") ||
     normalized.includes("error")
   ) {
-    return "border-red-500/25 bg-red-500/10 text-red-200";
+    return "border-market-negative/25 bg-market-negative/10 text-market-negative";
   }
-  return "border-white/[0.06] bg-white/[0.02] text-white/80";
+  return "border-border/60 bg-surface-raised/40 text-content";
 }
 
 function getToneTextClass(tone: AgentUiTone | null | undefined) {
   switch (tone) {
     case "accent":
-      return "text-sky-200";
+      return "text-status-info";
     case "positive":
-      return "text-emerald-300";
+      return "text-market-positive";
     case "warning":
-      return "text-amber-200";
+      return "text-brand";
     case "negative":
-      return "text-red-300";
+      return "text-market-negative";
     default:
-      return "text-white/90";
+      return "text-content";
   }
 }
 
 function getTonePillClass(tone: AgentUiTone | null | undefined) {
   switch (tone) {
     case "accent":
-      return "border-sky-500/20 bg-sky-500/10 text-sky-200";
+      return "border-status-info/20 bg-status-info/10 text-status-info";
     case "positive":
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
+      return "border-market-positive/20 bg-market-positive/10 text-market-positive";
     case "warning":
-      return "border-amber-500/20 bg-amber-500/10 text-amber-200";
+      return "border-brand/20 bg-brand/10 text-brand";
     case "negative":
-      return "border-red-500/20 bg-red-500/10 text-red-200";
+      return "border-market-negative/20 bg-market-negative/10 text-market-negative";
     default:
-      return "border-white/[0.08] bg-white/[0.04] text-white/60";
+      return "border-border/60 bg-surface-raised/40 text-content/60";
   }
 }
 
@@ -111,7 +111,10 @@ function BlockShell({
   return (
     <section
       {...props}
-      className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 sm:p-4", className)}
+      className={cn(
+        "rounded-panel border border-border/60 bg-surface-raised/40 p-3 sm:p-4",
+        className,
+      )}
     >
       {children}
     </section>
@@ -121,7 +124,7 @@ function BlockShell({
 function Kicker({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={cn("text-[10px] font-medium uppercase tracking-wider text-white/40", className)}
+      className={cn("text-[10px] font-medium uppercase tracking-wider text-content/40", className)}
     >
       {children}
     </div>
@@ -130,7 +133,9 @@ function Kicker({ children, className }: { children: ReactNode; className?: stri
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">{children}</div>
+    <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
+      {children}
+    </div>
   );
 }
 
@@ -146,7 +151,7 @@ function Pill({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium",
+        "inline-flex items-center rounded-pill border px-2.5 py-1 text-[10px] font-medium",
         getTonePillClass(tone),
         className,
       )}
@@ -185,12 +190,12 @@ function EntityCellButton({
     <>
       <span className={cn("font-medium", getToneTextClass(cell.tone))}>{cell.text}</span>
       {cell.badge ? (
-        <span className="ml-2 inline-flex rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/55">
+        <span className="ml-2 inline-flex rounded-pill border border-border/60 bg-surface-raised/40 px-2 py-0.5 text-[10px] font-medium text-content/55">
           {cell.badge}
         </span>
       ) : null}
       {cell.secondaryText ? (
-        <div className="mt-0.5 text-[11px] leading-4 text-white/45">{cell.secondaryText}</div>
+        <div className="mt-0.5 text-[11px] leading-4 text-content/45">{cell.secondaryText}</div>
       ) : null}
     </>
   );
@@ -200,7 +205,7 @@ function EntityCellButton({
       <button
         type="button"
         onClick={() => onOpenPlayer(playerId)}
-        className="w-full text-left text-sky-200 transition-colors hover:text-sky-100"
+        className="w-full text-left text-status-info transition-colors hover:text-status-info"
       >
         {content}
       </button>
@@ -209,7 +214,7 @@ function EntityCellButton({
 
   if (cell.href) {
     return (
-      <a href={cell.href} className="block transition-colors hover:text-white">
+      <a href={cell.href} className="block transition-colors hover:text-content">
         {content}
       </a>
     );
@@ -236,12 +241,12 @@ function CompactField({
   return (
     <div
       className={cn(
-        "rounded-lg border border-white/[0.06] bg-black/10 px-3 py-2.5",
+        "rounded-panel border border-border/60 bg-canvas px-3 py-2.5",
         wide && "col-span-2",
       )}
     >
       <FieldLabel>{label}</FieldLabel>
-      <div className="mt-1 text-sm leading-5 text-white/85">
+      <div className="mt-1 text-sm leading-5 text-content/85">
         <TableCellContent cell={cell} onOpenPlayer={onOpenPlayer} />
       </div>
     </div>
@@ -263,12 +268,12 @@ function TableCellContent({
     <div>
       <span className={cn("font-medium", getToneTextClass(cell.tone))}>{cell.text}</span>
       {cell.badge ? (
-        <span className="ml-2 inline-flex rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/55">
+        <span className="ml-2 inline-flex rounded-pill border border-border/60 bg-surface-raised/40 px-2 py-0.5 text-[10px] font-medium text-content/55">
           {cell.badge}
         </span>
       ) : null}
       {cell.secondaryText ? (
-        <div className="mt-0.5 text-[11px] leading-4 text-white/45">{cell.secondaryText}</div>
+        <div className="mt-0.5 text-[11px] leading-4 text-content/45">{cell.secondaryText}</div>
       ) : null}
     </div>
   );
@@ -281,19 +286,19 @@ function GoalStripBlock({ block }: { block: Extract<AgentUiBlock, { type: "goal_
         <div className="min-w-0 flex-1">
           <Kicker>{block.props.eyebrow || "Goal"}</Kicker>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold tracking-tight text-white/90 sm:text-lg">
+            <h2 className="text-base font-semibold tracking-tight text-content sm:text-lg">
               {block.props.title}
             </h2>
             {block.props.badge ? <Pill>{block.props.badge}</Pill> : null}
           </div>
           {block.props.summary ? (
-            <p className="mt-2 text-sm leading-6 text-white/50">{block.props.summary}</p>
+            <p className="mt-2 text-sm leading-6 text-content/50">{block.props.summary}</p>
           ) : null}
         </div>
         {block.props.status ? (
           <Badge
             className={cn(
-              "rounded-full text-[10px] font-medium",
+              "rounded-pill text-[10px] font-medium",
               getStatusTone(block.props.status),
             )}
           >
@@ -302,9 +307,9 @@ function GoalStripBlock({ block }: { block: Extract<AgentUiBlock, { type: "goal_
         ) : null}
       </div>
       {block.props.nextStep ? (
-        <div className="mt-3 border-t border-white/[0.06] pt-3">
+        <div className="mt-3 border-t border-border/60 pt-3">
           <FieldLabel>Next</FieldLabel>
-          <div className="mt-1 text-sm text-white/80">{block.props.nextStep}</div>
+          <div className="mt-1 text-sm text-content">{block.props.nextStep}</div>
         </div>
       ) : null}
     </BlockShell>
@@ -317,26 +322,24 @@ function PendingDecisionBlock({
   block: Extract<AgentUiBlock, { type: "pending_decision" }>;
 }) {
   return (
-    <BlockShell className="border-amber-500/20 bg-amber-500/5">
+    <BlockShell className="border-brand/20 bg-brand/5">
       <div className="flex flex-wrap items-center gap-2">
-        <Kicker className="text-amber-200/70">{block.props.title}</Kicker>
+        <Kicker className="text-brand/70">{block.props.title}</Kicker>
         {block.props.risk ? (
           <Badge
-            className={cn("rounded-full text-[10px] font-medium", getStatusTone(block.props.risk))}
+            className={cn("rounded-pill text-[10px] font-medium", getStatusTone(block.props.risk))}
           >
             {block.props.risk} risk
           </Badge>
         ) : null}
       </div>
-      <div className="mt-2 text-sm font-medium text-white/90">{block.props.summary}</div>
+      <div className="mt-2 text-sm font-medium text-content">{block.props.summary}</div>
       {block.props.helper ? (
-        <div className="mt-2 text-sm leading-6 text-white/50">{block.props.helper}</div>
+        <div className="mt-2 text-sm leading-6 text-content/50">{block.props.helper}</div>
       ) : null}
       {block.props.actionLabel ? (
         <div className="mt-3">
-          <Pill className="border-amber-500/20 bg-amber-500/10 text-amber-200">
-            {block.props.actionLabel}
-          </Pill>
+          <Pill className="border-brand/20 bg-brand/10 text-brand">{block.props.actionLabel}</Pill>
         </div>
       ) : null}
     </BlockShell>
@@ -349,11 +352,13 @@ function ClarificationBlock({
   block: Extract<AgentUiBlock, { type: "clarification_card" }>;
 }) {
   return (
-    <BlockShell className="border-sky-500/20 bg-sky-500/5">
-      <Kicker className="text-sky-200/70">{block.props.title || "One detail is missing"}</Kicker>
-      <div className="mt-2 text-sm leading-6 text-white/90">{block.props.prompt}</div>
+    <BlockShell className="border-status-info/20 bg-status-info/5">
+      <Kicker className="text-status-info/70">
+        {block.props.title || "One detail is missing"}
+      </Kicker>
+      <div className="mt-2 text-sm leading-6 text-content">{block.props.prompt}</div>
       {block.props.helper ? (
-        <div className="mt-2 text-sm text-white/50">{block.props.helper}</div>
+        <div className="mt-2 text-sm text-content/50">{block.props.helper}</div>
       ) : null}
       {block.props.choices && block.props.choices.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -376,27 +381,27 @@ function StrategyStatusBlock({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <Kicker>Strategy</Kicker>
-          <div className="mt-2 text-base font-semibold text-white/90">{block.props.title}</div>
+          <div className="mt-2 text-base font-semibold text-content">{block.props.title}</div>
         </div>
         <Badge
-          className={cn("rounded-full text-[10px] font-medium", getStatusTone(block.props.status))}
+          className={cn("rounded-pill text-[10px] font-medium", getStatusTone(block.props.status))}
         >
           {block.props.status.replace(/_/g, " ")}
         </Badge>
       </div>
       {block.props.summary ? (
-        <div className="mt-3 text-sm leading-6 text-white/50">{block.props.summary}</div>
+        <div className="mt-3 text-sm leading-6 text-content/50">{block.props.summary}</div>
       ) : null}
-      <div className="mt-3 grid gap-3 border-t border-white/[0.06] pt-3 sm:grid-cols-2">
+      <div className="mt-3 grid gap-3 border-t border-border/60 pt-3 sm:grid-cols-2">
         <div>
           <FieldLabel>Next run</FieldLabel>
-          <div className="mt-1 text-sm text-white/80">
+          <div className="mt-1 text-sm text-content">
             {formatDateTime(block.props.nextRunAt) || "Not scheduled"}
           </div>
         </div>
         <div>
           <FieldLabel>Latest result</FieldLabel>
-          <div className="mt-1 text-sm text-white/80">
+          <div className="mt-1 text-sm text-content">
             {block.props.lastResult || "No run recorded yet"}
           </div>
         </div>
@@ -413,9 +418,9 @@ function StrategyDraftBlock({
   return (
     <BlockShell>
       <Kicker>Draft strategy</Kicker>
-      <div className="mt-2 text-base font-semibold text-white/90">{block.props.title}</div>
+      <div className="mt-2 text-base font-semibold text-content">{block.props.title}</div>
       {block.props.summary ? (
-        <div className="mt-2 text-sm leading-6 text-white/50">{block.props.summary}</div>
+        <div className="mt-2 text-sm leading-6 text-content/50">{block.props.summary}</div>
       ) : null}
       {block.props.schedule ? (
         <div className="mt-3">
@@ -430,11 +435,11 @@ function StrategyDraftBlock({
         </div>
       ) : null}
       {block.props.missingDetails && block.props.missingDetails.length > 0 ? (
-        <div className="mt-3 border-t border-white/[0.06] pt-3">
+        <div className="mt-3 border-t border-border/60 pt-3">
           <FieldLabel>Still needs</FieldLabel>
           <div className="mt-2 flex flex-wrap gap-2">
             {block.props.missingDetails.map((item) => (
-              <Pill key={item} className="border-amber-500/15 text-amber-200/70">
+              <Pill key={item} className="border-brand/15 text-brand/70">
                 {item}
               </Pill>
             ))}
@@ -457,20 +462,20 @@ function StatHighlightStripBlock({
         {block.props.items.map((item) => (
           <div
             key={`${item.label}-${item.value}`}
-            className="rounded-lg border border-white/[0.06] bg-black/10 px-3 py-2.5"
+            className="rounded-panel border border-border/60 bg-canvas px-3 py-2.5"
           >
             <FieldLabel>{item.label}</FieldLabel>
             <div className={cn("mt-1 text-sm font-semibold", getToneTextClass(item.tone))}>
               {item.value}
             </div>
             {item.helper ? (
-              <div className="mt-1 text-[11px] leading-4 text-white/45">{item.helper}</div>
+              <div className="mt-1 text-[11px] leading-4 text-content/45">{item.helper}</div>
             ) : null}
           </div>
         ))}
       </div>
       {block.props.helper ? (
-        <div className="text-xs leading-5 text-white/45">{block.props.helper}</div>
+        <div className="text-xs leading-5 text-content/45">{block.props.helper}</div>
       ) : null}
     </BlockShell>
   );
@@ -487,7 +492,7 @@ function LeaderboardTableBlock({
     return (
       <BlockShell>
         <Kicker>{block.props.title || "Leaderboard"}</Kicker>
-        <div className="mt-3 text-sm text-white/50">
+        <div className="mt-3 text-sm text-content/50">
           {block.props.emptyState || "No leaders available."}
         </div>
       </BlockShell>
@@ -499,10 +504,10 @@ function LeaderboardTableBlock({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Kicker>{block.props.title || "Leaderboard"}</Kicker>
-          <div className="mt-1 text-sm font-semibold text-white/90">{block.props.statLabel}</div>
+          <div className="mt-1 text-sm font-semibold text-content">{block.props.statLabel}</div>
         </div>
         {block.props.helper ? (
-          <div className="max-w-sm text-right text-[11px] leading-5 text-white/45">
+          <div className="max-w-sm text-right text-[11px] leading-5 text-content/45">
             {block.props.helper}
           </div>
         ) : null}
@@ -514,18 +519,18 @@ function LeaderboardTableBlock({
           return (
             <div
               key={leader.id}
-              className="rounded-lg border border-white/[0.06] bg-black/10 px-3 py-3"
+              className="rounded-panel border border-border/60 bg-canvas px-3 py-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
                     Rank #{leader.rank}
                   </div>
                   {playerId ? (
                     <button
                       type="button"
                       onClick={() => onOpenPlayer(playerId)}
-                      className="mt-1 text-left text-sm font-semibold text-sky-200 transition-colors hover:text-sky-100"
+                      className="mt-1 text-left text-sm font-semibold text-status-info transition-colors hover:text-status-info"
                     >
                       {leader.playerName}
                     </button>
@@ -536,13 +541,13 @@ function LeaderboardTableBlock({
                       {leader.playerName}
                     </div>
                   )}
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-white/45">
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-content/45">
                     {leader.team ? <span>{leader.team}</span> : null}
                     {leader.secondaryText ? <span>{leader.secondaryText}</span> : null}
                     {leader.badge ? <Pill className="py-0.5">{leader.badge}</Pill> : null}
                   </div>
                   {leader.note ? (
-                    <div className="mt-1 text-[11px] leading-5 text-white/45">{leader.note}</div>
+                    <div className="mt-1 text-[11px] leading-5 text-content/45">{leader.note}</div>
                   ) : null}
                 </div>
                 <div className="text-right">
@@ -550,7 +555,7 @@ function LeaderboardTableBlock({
                     {leader.primaryValue}
                   </div>
                   {block.props.secondaryStatLabel ? (
-                    <div className="mt-1 text-[11px] text-white/45">
+                    <div className="mt-1 text-[11px] text-content/45">
                       {block.props.secondaryStatLabel}: {leader.secondaryValue || "-"}
                     </div>
                   ) : null}
@@ -564,7 +569,7 @@ function LeaderboardTableBlock({
       <div className="-mx-3 mt-3 hidden overflow-x-auto px-3 sm:block">
         <table className="w-full min-w-[34rem] border-collapse text-left text-[12px]">
           <thead>
-            <tr className="border-y border-white/[0.06] bg-white/[0.03] text-white/55">
+            <tr className="border-y border-border/60 bg-surface-raised/40 text-content/55">
               <th className="px-3 py-2 font-medium">#</th>
               <th className="px-3 py-2 font-medium">Player</th>
               <th className="px-3 py-2 font-medium">Team</th>
@@ -580,20 +585,20 @@ function LeaderboardTableBlock({
             {block.props.leaders.map((leader) => {
               const playerId = extractPlayerId(leader.href, leader.playerId);
               return (
-                <tr key={leader.id} className="border-b border-white/[0.05] align-top">
-                  <td className="px-3 py-2.5 font-mono text-white/45">{leader.rank}</td>
+                <tr key={leader.id} className="border-b border-border/60 align-top">
+                  <td className="px-3 py-2.5 font-mono text-content/45">{leader.rank}</td>
                   <td className="px-3 py-2.5">
                     {playerId ? (
                       <button
                         type="button"
                         onClick={() => onOpenPlayer(playerId)}
-                        className="text-left text-sky-200 transition-colors hover:text-sky-100"
+                        className="text-left text-status-info transition-colors hover:text-status-info"
                       >
                         <div className={cn("font-medium", getToneTextClass(leader.tone))}>
                           {leader.playerName}
                         </div>
                         {(leader.secondaryText || leader.note || leader.badge) && (
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-white/45">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-content/45">
                             {leader.badge ? <Pill className="py-0.5">{leader.badge}</Pill> : null}
                             {leader.secondaryText ? <span>{leader.secondaryText}</span> : null}
                             {leader.note ? <span>{leader.note}</span> : null}
@@ -606,7 +611,7 @@ function LeaderboardTableBlock({
                           {leader.playerName}
                         </div>
                         {(leader.secondaryText || leader.note || leader.badge) && (
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-white/45">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-content/45">
                             {leader.badge ? <Pill className="py-0.5">{leader.badge}</Pill> : null}
                             {leader.secondaryText ? <span>{leader.secondaryText}</span> : null}
                             {leader.note ? <span>{leader.note}</span> : null}
@@ -615,7 +620,7 @@ function LeaderboardTableBlock({
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-white/65">{leader.team || "-"}</td>
+                  <td className="px-3 py-2.5 text-content/65">{leader.team || "-"}</td>
                   <td
                     className={cn(
                       "px-3 py-2.5 text-right font-semibold",
@@ -625,7 +630,7 @@ function LeaderboardTableBlock({
                     {leader.primaryValue}
                   </td>
                   {block.props.secondaryStatLabel ? (
-                    <td className="px-3 py-2.5 text-right text-white/65">
+                    <td className="px-3 py-2.5 text-right text-content/65">
                       {leader.secondaryValue || "-"}
                     </td>
                   ) : null}
@@ -650,7 +655,7 @@ function EntityTableBlock({
     return (
       <BlockShell>
         <Kicker>{block.props.title || "Table"}</Kicker>
-        <div className="mt-3 text-sm text-white/50">
+        <div className="mt-3 text-sm text-content/50">
           {block.props.emptyState || "No rows available."}
         </div>
       </BlockShell>
@@ -665,7 +670,7 @@ function EntityTableBlock({
         <div>
           <Kicker>{block.props.title || "Results"}</Kicker>
           {block.props.helper ? (
-            <div className="mt-1 text-[11px] leading-5 text-white/45">{block.props.helper}</div>
+            <div className="mt-1 text-[11px] leading-5 text-content/45">{block.props.helper}</div>
           ) : null}
         </div>
       </div>
@@ -679,19 +684,16 @@ function EntityTableBlock({
           );
 
           return (
-            <div
-              key={row.id}
-              className="rounded-lg border border-white/[0.06] bg-black/10 px-3 py-3"
-            >
+            <div key={row.id} className="rounded-panel border border-border/60 bg-canvas px-3 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   {row.rank != null ? (
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
                       Rank #{row.rank}
                     </div>
                   ) : null}
                   {primaryCell ? (
-                    <div className="mt-1 text-sm leading-5 text-white/90">
+                    <div className="mt-1 text-sm leading-5 text-content">
                       <TableCellContent cell={primaryCell} onOpenPlayer={onOpenPlayer} />
                     </div>
                   ) : null}
@@ -724,7 +726,7 @@ function EntityTableBlock({
       <div className="-mx-3 mt-3 hidden overflow-x-auto px-3 sm:block">
         <table className="w-full min-w-[34rem] border-collapse text-left text-[12px]">
           <thead>
-            <tr className="border-y border-white/[0.06] bg-white/[0.03] text-white/55">
+            <tr className="border-y border-border/60 bg-surface-raised/40 text-content/55">
               {hasRank ? <th className="px-3 py-2 font-medium">#</th> : null}
               {block.props.columns.map((column) => (
                 <th
@@ -738,9 +740,9 @@ function EntityTableBlock({
           </thead>
           <tbody>
             {block.props.rows.map((row) => (
-              <tr key={row.id} className="border-b border-white/[0.05] align-top">
+              <tr key={row.id} className="border-b border-border/60 align-top">
                 {hasRank ? (
-                  <td className="px-3 py-2.5 font-mono text-white/45">{row.rank ?? "-"}</td>
+                  <td className="px-3 py-2.5 font-mono text-content/45">{row.rank ?? "-"}</td>
                 ) : null}
                 {block.props.columns.map((column) => {
                   const cell = row.cells[column.key] || { text: "-" };
@@ -771,7 +773,7 @@ function ScheduleBoardBlock({
     return (
       <BlockShell>
         <Kicker>{block.props.title || "Schedule"}</Kicker>
-        <div className="mt-3 text-sm text-white/50">
+        <div className="mt-3 text-sm text-content/50">
           {block.props.emptyState || "No games available."}
         </div>
       </BlockShell>
@@ -784,18 +786,18 @@ function ScheduleBoardBlock({
         <div>
           <Kicker>{block.props.title || "Schedule"}</Kicker>
           {block.props.helper ? (
-            <div className="mt-1 text-[11px] leading-5 text-white/45">{block.props.helper}</div>
+            <div className="mt-1 text-[11px] leading-5 text-content/45">{block.props.helper}</div>
           ) : null}
         </div>
       </div>
       <div className="mt-3 space-y-2">
         {block.props.rows.map((row) => {
           const content = (
-            <div className="rounded-lg border border-white/[0.06] bg-black/10 px-3 py-3">
+            <div className="rounded-panel border border-border/60 bg-canvas px-3 py-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-white/90">{row.matchup}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-white/45">
+                  <div className="text-sm font-semibold text-content">{row.matchup}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-content/45">
                     {row.startTime ? <span>{row.startTime}</span> : null}
                     {row.status ? <span>{row.status}</span> : null}
                     {row.venue ? <span>{row.venue}</span> : null}
@@ -810,23 +812,23 @@ function ScheduleBoardBlock({
                 ) : null}
               </div>
               {(row.probableAwayPitcher || row.probableHomePitcher) && (
-                <div className="mt-2 grid gap-2 text-[11px] text-white/55 sm:grid-cols-2">
+                <div className="mt-2 grid gap-2 text-[11px] text-content/55 sm:grid-cols-2">
                   <div>
                     <FieldLabel>Away probable</FieldLabel>
-                    <div className="mt-1 text-sm text-white/85">
+                    <div className="mt-1 text-sm text-content/85">
                       {row.probableAwayPitcher || "-"}
                     </div>
                   </div>
                   <div>
                     <FieldLabel>Home probable</FieldLabel>
-                    <div className="mt-1 text-sm text-white/85">
+                    <div className="mt-1 text-sm text-content/85">
                       {row.probableHomePitcher || "-"}
                     </div>
                   </div>
                 </div>
               )}
               {row.note ? (
-                <div className="mt-2 text-[11px] leading-5 text-white/45">{row.note}</div>
+                <div className="mt-2 text-[11px] leading-5 text-content/45">{row.note}</div>
               ) : null}
             </div>
           );
@@ -835,7 +837,7 @@ function ScheduleBoardBlock({
             <a
               key={row.id}
               href={row.href}
-              className="block transition-colors hover:bg-white/[0.02]"
+              className="block transition-colors hover:bg-surface-raised/40"
             >
               {content}
             </a>
@@ -857,20 +859,20 @@ function ExecutionChecklistBlock({
     <BlockShell data-testid="agent-ui-execution-checklist">
       <Kicker>{block.props.title || "Execution"}</Kicker>
       {block.props.summary ? (
-        <div className="mt-2 text-sm leading-6 text-white/50">{block.props.summary}</div>
+        <div className="mt-2 text-sm leading-6 text-content/50">{block.props.summary}</div>
       ) : null}
       <div className="mt-3 space-y-2">
         {block.props.items.map((item, index) => (
           <div
             key={item.id}
-            className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-black/10 px-3 py-2.5"
+            className="flex items-start gap-3 rounded-panel border border-border/60 bg-canvas px-3 py-2.5"
           >
-            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-[11px] font-medium text-white/55">
+            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-pill border border-border/60 bg-surface-raised/40 text-[11px] font-medium text-content/55">
               {index + 1}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-sm font-medium text-white/90">{item.label}</div>
+                <div className="text-sm font-medium text-content">{item.label}</div>
                 <Pill
                   className="py-0.5"
                   tone={
@@ -887,7 +889,7 @@ function ExecutionChecklistBlock({
                 </Pill>
               </div>
               {item.detail ? (
-                <div className="mt-1 text-[11px] leading-5 text-white/45">{item.detail}</div>
+                <div className="mt-1 text-[11px] leading-5 text-content/45">{item.detail}</div>
               ) : null}
             </div>
           </div>
@@ -906,31 +908,33 @@ function ToolCatalogSummaryBlock({
     <BlockShell data-testid="agent-ui-tool-catalog-summary">
       <Kicker>{block.props.title || "Tool catalog"}</Kicker>
       {block.props.helper ? (
-        <div className="mt-2 text-sm leading-6 text-white/50">{block.props.helper}</div>
+        <div className="mt-2 text-sm leading-6 text-content/50">{block.props.helper}</div>
       ) : null}
       <div className="mt-3 space-y-3">
         {block.props.groups.map((group) => (
-          <div key={group.id} className="rounded-lg border border-white/[0.06] bg-black/10 p-3">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-white/40">
+          <div key={group.id} className="rounded-panel border border-border/60 bg-canvas p-3">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-content/40">
               {group.label}
             </div>
             <div className="mt-2 space-y-2">
               {group.tools.map((tool) => (
                 <div
                   key={`${group.id}-${tool.name}`}
-                  className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5"
+                  className="rounded-panel border border-border/60 bg-surface-raised/40 px-3 py-2.5"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold text-white/90">{tool.name}</div>
+                    <div className="text-sm font-semibold text-content">{tool.name}</div>
                     {tool.riskLevel ? <Pill>{tool.riskLevel} risk</Pill> : null}
                     {tool.presentationProfile ? (
                       <Pill tone="accent">{tool.presentationProfile}</Pill>
                     ) : null}
                     {tool.primaryEntityType ? <Pill>{tool.primaryEntityType}</Pill> : null}
                   </div>
-                  <div className="mt-1 text-[11px] leading-5 text-white/45">{tool.description}</div>
+                  <div className="mt-1 text-[11px] leading-5 text-content/45">
+                    {tool.description}
+                  </div>
                   {tool.examplePrompt ? (
-                    <div className="mt-2 text-[11px] leading-5 text-sky-200/80">
+                    <div className="mt-2 text-[11px] leading-5 text-status-info/80">
                       Example: {tool.examplePrompt}
                     </div>
                   ) : null}
@@ -956,7 +960,7 @@ function ScheduleSummaryBlock({
         <Pill>{block.props.scheduleLabel}</Pill>
       </div>
       {block.props.helper ? (
-        <div className="mt-2 text-sm leading-6 text-white/50">{block.props.helper}</div>
+        <div className="mt-2 text-sm leading-6 text-content/50">{block.props.helper}</div>
       ) : null}
     </BlockShell>
   );
@@ -973,7 +977,7 @@ function RulesSummaryBlock({ block }: { block: Extract<AgentUiBlock, { type: "ru
             className="flex items-center justify-between gap-3"
           >
             <FieldLabel>{item.label}</FieldLabel>
-            <div className="text-sm font-semibold text-white/90">{item.value}</div>
+            <div className="text-sm font-semibold text-content">{item.value}</div>
           </div>
         ))}
       </div>
@@ -993,19 +997,19 @@ function PerformanceSummaryBlock({
         {block.props.metrics.map((metric) => (
           <div
             key={`${metric.label}-${metric.value}`}
-            className="min-w-[9rem] flex-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+            className="min-w-[9rem] flex-1 rounded-panel border border-border/60 bg-surface-raised/40 px-3 py-2.5"
           >
             <FieldLabel>{metric.label}</FieldLabel>
             <div
               className={cn(
                 "mt-1 text-sm font-semibold sm:text-base",
                 metric.tone === "positive"
-                  ? "text-emerald-300"
+                  ? "text-market-positive"
                   : metric.tone === "negative"
-                    ? "text-red-300"
+                    ? "text-market-negative"
                     : metric.tone === "warning"
-                      ? "text-amber-200"
-                      : "text-white/90",
+                      ? "text-brand"
+                      : "text-content",
               )}
             >
               {metric.value}
@@ -1026,18 +1030,18 @@ function SourceListBlock({ block }: { block: Extract<AgentUiBlock, { type: "sour
           const body = (
             <>
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-white/90">{source.title}</div>
-                <div className="text-[10px] text-white/30">
+                <div className="text-sm font-medium text-content">{source.title}</div>
+                <div className="text-[10px] text-content/30">
                   {formatDateTime(source.retrievedAt) || "Recent"}
                 </div>
               </div>
               {source.sourceName ? (
-                <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-white/35">
+                <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-content/35">
                   {source.sourceName}
                 </div>
               ) : null}
               {source.factSummary ? (
-                <div className="mt-2 text-sm leading-6 text-white/50">{source.factSummary}</div>
+                <div className="mt-2 text-sm leading-6 text-content/50">{source.factSummary}</div>
               ) : null}
             </>
           );
@@ -1048,14 +1052,14 @@ function SourceListBlock({ block }: { block: Extract<AgentUiBlock, { type: "sour
               href={source.url}
               target="_blank"
               rel="noreferrer"
-              className="block rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 transition-colors hover:bg-white/[0.04]"
+              className="block rounded-panel border border-border/60 bg-surface-raised/40 p-3 transition-colors hover:bg-surface-raised/40"
             >
               {body}
             </a>
           ) : (
             <div
               key={source.id}
-              className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+              className="rounded-panel border border-border/60 bg-surface-raised/40 p-3"
             >
               {body}
             </div>
@@ -1074,7 +1078,7 @@ function RunSummaryBlock({ block }: { block: Extract<AgentUiBlock, { type: "run_
         {block.props.status ? (
           <Badge
             className={cn(
-              "rounded-full text-[10px] font-medium",
+              "rounded-pill text-[10px] font-medium",
               getStatusTone(block.props.status),
             )}
           >
@@ -1082,7 +1086,7 @@ function RunSummaryBlock({ block }: { block: Extract<AgentUiBlock, { type: "run_
           </Badge>
         ) : null}
       </div>
-      <div className="mt-2 text-sm leading-6 text-white/90">{block.props.summary}</div>
+      <div className="mt-2 text-sm leading-6 text-content">{block.props.summary}</div>
       {(block.props.trigger || block.props.transport || block.props.createdAt) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {block.props.trigger ? <Pill>{block.props.trigger.replace(/_/g, " ")}</Pill> : null}
@@ -1161,15 +1165,17 @@ export function AgentUiBlockList({
           </div>
         ))}
       </div>
-      <PlayerModal
-        playerId={activePlayerId}
-        open={Boolean(activePlayerId)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setActivePlayerId(null);
-          }
-        }}
-      />
+      {activePlayerId ? (
+        <PlayerModal
+          playerId={activePlayerId}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setActivePlayerId(null);
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }

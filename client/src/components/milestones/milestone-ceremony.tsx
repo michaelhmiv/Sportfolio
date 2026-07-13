@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 import { X, Trophy, TrendingUp, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,23 +20,23 @@ const milestoneConfig: Record<
   netWorth: {
     title: "Net Worth Milestone",
     icon: TrendingUp,
-    color: "text-emerald-500",
-    bgColor: "bg-emerald-500/10",
-    borderColor: "border-emerald-500/30",
+    color: "text-market-positive",
+    bgColor: "bg-market-positive/10",
+    borderColor: "border-market-positive/30",
   },
   portfolioValue: {
     title: "Portfolio Value Milestone",
     icon: Trophy,
-    color: "text-violet-500",
-    bgColor: "bg-violet-500/10",
-    borderColor: "border-violet-500/30",
+    color: "text-category-scout",
+    bgColor: "bg-category-scout/10",
+    borderColor: "border-category-scout/30",
   },
   totalTrades: {
     title: "Trading Milestone",
     icon: Trophy,
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10",
-    borderColor: "border-blue-500/30",
+    color: "text-status-info",
+    bgColor: "bg-status-info/10",
+    borderColor: "border-status-info/30",
   },
 };
 
@@ -66,6 +66,7 @@ export function MilestoneCeremony({
   const [phase, setPhase] = useState<"intro" | "count" | "reveal" | "complete">("intro");
   const [displayValue, setDisplayValue] = useState(0);
   const startTimeRef = useRef<number>(0);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (isOpen && milestone) {
@@ -73,17 +74,31 @@ export function MilestoneCeremony({
       setDisplayValue(0);
       startTimeRef.current = Date.now();
 
+      if (prefersReducedMotion) {
+        const targetValue = parseFloat(milestone.threshold);
+        setDisplayValue(targetValue);
+        setPhase("complete");
+        const closeTimer = window.setTimeout(onClose, 5000);
+        return () => window.clearTimeout(closeTimer);
+      }
+
       // Trigger massive confetti explosion
       const duration = 4000;
       const end = Date.now() + duration;
 
+      let frameId = 0;
       const frame = () => {
         confetti({
           particleCount: 5,
           angle: 60,
           spread: 55,
           origin: { x: 0 },
-          colors: ["#10B981", "#F59E0B", "#8B5CF6", "#3B82F6"],
+          colors: [
+            "hsl(var(--market-positive))",
+            "hsl(var(--boost))",
+            "hsl(var(--category-scout))",
+            "hsl(var(--status-info))",
+          ],
           scalar: 1.2,
         });
         confetti({
@@ -91,12 +106,17 @@ export function MilestoneCeremony({
           angle: 120,
           spread: 55,
           origin: { x: 1 },
-          colors: ["#10B981", "#F59E0B", "#8B5CF6", "#3B82F6"],
+          colors: [
+            "hsl(var(--market-positive))",
+            "hsl(var(--boost))",
+            "hsl(var(--category-scout))",
+            "hsl(var(--status-info))",
+          ],
           scalar: 1.2,
         });
 
         if (Date.now() < end) {
-          requestAnimationFrame(frame);
+          frameId = requestAnimationFrame(frame);
         }
       };
 
@@ -109,9 +129,12 @@ export function MilestoneCeremony({
         setTimeout(() => onClose(), 5000),
       ];
 
-      return () => timers.forEach(clearTimeout);
+      return () => {
+        cancelAnimationFrame(frameId);
+        timers.forEach(clearTimeout);
+      };
     }
-  }, [isOpen, milestone, onClose]);
+  }, [isOpen, milestone, onClose, prefersReducedMotion]);
 
   // Animate number counting
   useEffect(() => {
@@ -161,13 +184,17 @@ export function MilestoneCeremony({
         transition={{ duration: 0.3 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm"
         onClick={handleSkip}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="milestone-ceremony-title"
       >
         {/* Close button */}
         <motion.button
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="absolute top-4 right-4 rounded-sm border border-border/60 p-2 text-muted-foreground transition-colors hover:text-foreground"
+          className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-control border border-border/60 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Close milestone ceremony"
           onClick={(e) => {
             e.stopPropagation();
             handleSkip();
@@ -186,9 +213,9 @@ export function MilestoneCeremony({
           >
             <motion.div
               animate={phase === "complete" ? { scale: [1, 1.1, 1] } : {}}
-              transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+              transition={{ duration: 0.5, repeat: prefersReducedMotion ? 0 : 2, repeatDelay: 1 }}
               className={cn(
-                "inline-flex items-center gap-2 rounded-sm px-4 py-2 border",
+                "inline-flex items-center gap-2 rounded-compact px-4 py-2 border",
                 config.bgColor,
                 config.borderColor,
               )}
@@ -207,7 +234,7 @@ export function MilestoneCeremony({
             }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             className={cn(
-              "relative overflow-hidden rounded-sm border-2 p-8 text-center",
+              "relative overflow-hidden rounded-compact border-2 p-8 text-center",
               config.bgColor,
               config.borderColor,
             )}
@@ -217,12 +244,12 @@ export function MilestoneCeremony({
               className="absolute inset-0 pointer-events-none opacity-30"
               animate={{
                 background: [
-                  "radial-gradient(circle at 30% 30%, rgba(16, 185, 129, 0.3), transparent 50%)",
-                  "radial-gradient(circle at 70% 70%, rgba(16, 185, 129, 0.3), transparent 50%)",
-                  "radial-gradient(circle at 30% 30%, rgba(16, 185, 129, 0.3), transparent 50%)",
+                  "radial-gradient(circle at 30% 30%, hsl(var(--market-positive) / 0.3), transparent 50%)",
+                  "radial-gradient(circle at 70% 70%, hsl(var(--market-positive) / 0.3), transparent 50%)",
+                  "radial-gradient(circle at 30% 30%, hsl(var(--market-positive) / 0.3), transparent 50%)",
                 ],
               }}
-              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              transition={{ duration: 4, repeat: prefersReducedMotion ? 0 : 2, ease: "linear" }}
             />
 
             {/* User name */}
@@ -242,6 +269,7 @@ export function MilestoneCeremony({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: phase === "complete" ? 1 : 0, y: phase === "complete" ? 0 : 10 }}
               transition={{ delay: 0.6 }}
+              id="milestone-ceremony-title"
               className="text-3xl font-bold mb-4"
             >
               {milestoneName}
@@ -270,7 +298,7 @@ export function MilestoneCeremony({
                 }}
                 transition={{ type: "spring", stiffness: 200, damping: 20, delay: 0.3 }}
                 className={cn(
-                  "absolute -top-4 -right-4 flex h-16 w-16 items-center justify-center rounded-sm",
+                  "absolute -top-4 -right-4 flex h-16 w-16 items-center justify-center rounded-compact",
                   config.bgColor,
                   config.borderColor,
                   "border-2",

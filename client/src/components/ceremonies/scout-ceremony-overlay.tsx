@@ -45,14 +45,14 @@ function DataParticle({
 }) {
   return (
     <motion.div
-      className="absolute w-2 h-2 rounded-sm"
+      className="absolute w-2 h-2 rounded-compact"
       style={{ backgroundColor: color }}
       initial={{ opacity: 0, scale: 0 }}
       animate={{
         opacity: [0, 1, 1, 0],
         scale: [0, 1, 1, 0.5],
         y: [0, -20, -40, -60],
-        x: [0, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 20, 0],
+        x: [0, ((delay * 100) % 30) - 15, ((duration * 100) % 20) - 10, 0],
       }}
       transition={{
         duration,
@@ -76,10 +76,10 @@ function ScoutPlayerCard({
   const prefersReducedMotion = useReducedMotion();
   const efficiencyColor =
     distribution.efficiency < 20
-      ? "#F59E0B" // Amber
+      ? "hsl(var(--boost))" // Amber
       : distribution.efficiency < 50
-        ? "#10B981" // Emerald
-        : "#8B5CF6"; // Violet
+        ? "hsl(var(--market-positive))" // Emerald
+        : "hsl(var(--category-scout))"; // Violet
 
   return (
     <motion.div
@@ -100,19 +100,19 @@ function ScoutPlayerCard({
             }
       }
       className={cn(
-        "relative rounded-sm border bg-card p-2 sm:p-3",
-        isHighlight && "ring-2 ring-emerald-500/50",
+        "relative rounded-compact border bg-card p-2 sm:p-3",
+        isHighlight && "ring-2 ring-market-positive/50",
       )}
     >
       {/* Efficiency indicator */}
       <div
-        className="absolute top-2 right-2 h-2 w-2 rounded-sm"
+        className="absolute top-2 right-2 h-2 w-2 rounded-compact"
         style={{ backgroundColor: efficiencyColor }}
       />
 
       {/* Player info */}
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded bg-primary/10 flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-compact bg-primary/10 flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
           {distribution.playerName
             .split(" ")
             .map((n) => n[0])
@@ -133,7 +133,7 @@ function ScoutPlayerCard({
         animate={{ opacity: 1 }}
         transition={{ delay: prefersReducedMotion ? 0 : 0.3 + index * 0.05 }}
       >
-        <span className="text-base sm:text-lg font-bold text-emerald-500">
+        <span className="text-base sm:text-lg font-bold text-market-positive">
           +{distribution.sharesEarned.toFixed(2)}
         </span>
         <span className="text-[10px] sm:text-xs text-muted-foreground ml-1">shares</span>
@@ -157,8 +157,13 @@ function ScoutPlayerCard({
 // Animated counter component
 function AnimatedCounter({ value, duration = 2 }: { value: number; duration?: number }) {
   const [displayValue, setDisplayValue] = useState(0);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      setDisplayValue(value);
+      return;
+    }
     let startTime: number;
     let animationFrame: number;
 
@@ -179,7 +184,7 @@ function AnimatedCounter({ value, duration = 2 }: { value: number; duration?: nu
 
     animationFrame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationFrame);
-  }, [value, duration]);
+  }, [value, duration, prefersReducedMotion]);
 
   return <span className="font-mono font-bold">{displayValue.toFixed(2)}</span>;
 }
@@ -243,6 +248,9 @@ export function ScoutCeremonyOverlay({
         transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm overflow-y-auto"
         onClick={handleSkip}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scout-ceremony-title"
       >
         {/* Close button */}
         {showSkip && (
@@ -250,7 +258,8 @@ export function ScoutCeremonyOverlay({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
-            className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-foreground transition-colors z-10"
+            className="absolute right-4 top-4 z-10 flex min-h-11 min-w-11 items-center justify-center rounded-control border border-border/60 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Close scout ceremony"
             onClick={(e) => {
               e.stopPropagation();
               handleSkip();
@@ -268,9 +277,11 @@ export function ScoutCeremonyOverlay({
             transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
             className="text-center mb-6"
           >
-            <div className="inline-flex items-center gap-2 rounded-sm border border-amber-500/20 bg-amber-500/10 px-4 py-2">
-              <Binoculars className="w-4 h-4 text-amber-500" />
-              <span className="text-sm font-medium text-amber-500">Scout Data Harvested</span>
+            <div className="inline-flex items-center gap-2 rounded-compact border border-category-scout/20 bg-category-scout/10 px-4 py-2">
+              <Binoculars className="w-4 h-4 text-category-scout" />
+              <span id="scout-ceremony-title" className="text-sm font-medium text-category-scout">
+                Scout Data Harvested
+              </span>
             </div>
           </motion.div>
 
@@ -289,7 +300,7 @@ export function ScoutCeremonyOverlay({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="flex items-center justify-center rounded-sm border bg-card/50 p-2 sm:p-3"
+                className="flex items-center justify-center rounded-compact border bg-card/50 p-2 sm:p-3"
               >
                 <span className="text-xs sm:text-sm text-muted-foreground">
                   +{data.distributions.length - 8} more
@@ -312,9 +323,9 @@ export function ScoutCeremonyOverlay({
             }
             className="text-center"
           >
-            <div className="inline-flex flex-col items-center rounded-sm border border-emerald-500/20 bg-emerald-500/10 p-6">
+            <div className="inline-flex flex-col items-center rounded-compact border border-market-positive/20 bg-market-positive/10 p-6">
               <span className="text-sm text-muted-foreground mb-1">Total Shares Earned</span>
-              <div className="text-4xl font-bold text-emerald-500">
+              <div className="text-4xl font-bold text-market-positive">
                 <AnimatedCounter value={data.totalShares} duration={2} />
               </div>
               <span className="text-xs text-muted-foreground mt-2">

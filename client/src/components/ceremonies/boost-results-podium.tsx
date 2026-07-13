@@ -25,42 +25,42 @@ function getTierVisuals(tier: number) {
   switch (tier) {
     case 5:
       return {
-        color: "#EF4444",
-        bgColor: "bg-red-500/10",
-        borderColor: "border-red-500/30",
-        textColor: "text-red-500",
-        glowColor: "shadow-red-500/30",
+        color: "hsl(var(--market-negative))",
+        bgColor: "bg-market-negative/10",
+        borderColor: "border-market-negative/30",
+        textColor: "text-market-negative",
+        glowColor: "shadow-market-negative/30",
         label: "5x",
         icon: Flame,
       };
     case 4:
       return {
-        color: "#F97316",
-        bgColor: "bg-orange-500/10",
-        borderColor: "border-orange-500/30",
-        textColor: "text-orange-500",
-        glowColor: "shadow-orange-500/30",
+        color: "hsl(var(--status-warning))",
+        bgColor: "bg-boost/10",
+        borderColor: "border-boost/30",
+        textColor: "text-boost",
+        glowColor: "shadow-boost/30",
         label: "4x",
         icon: Zap,
       };
     case 3:
       return {
-        color: "#8B5CF6",
-        bgColor: "bg-violet-500/10",
-        borderColor: "border-violet-500/30",
-        textColor: "text-violet-500",
-        glowColor: "shadow-violet-500/30",
+        color: "hsl(var(--category-scout))",
+        bgColor: "bg-category-scout/10",
+        borderColor: "border-category-scout/30",
+        textColor: "text-category-scout",
+        glowColor: "shadow-category-scout/30",
         label: "3x",
         icon: TrendingUp,
       };
     case 2:
     default:
       return {
-        color: "#3B82F6",
-        bgColor: "bg-blue-500/10",
-        borderColor: "border-blue-500/30",
-        textColor: "text-blue-500",
-        glowColor: "shadow-blue-500/30",
+        color: "hsl(var(--status-info))",
+        bgColor: "bg-status-info/10",
+        borderColor: "border-status-info/30",
+        textColor: "text-status-info",
+        glowColor: "shadow-status-info/30",
         label: "2x",
         icon: TrendingUp,
       };
@@ -90,7 +90,7 @@ function ResultCard({
         delay,
       }}
       className={cn(
-        "flex flex-col items-center rounded-sm border p-4",
+        "flex flex-col items-center rounded-compact border p-4",
         visuals.bgColor,
         visuals.borderColor,
       )}
@@ -101,7 +101,7 @@ function ResultCard({
         animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 400, damping: 20, delay: delay + 0.2 }}
         className={cn(
-          "mb-3 flex h-12 w-12 items-center justify-center rounded-sm",
+          "mb-3 flex h-12 w-12 items-center justify-center rounded-compact",
           "bg-card border-2",
           visuals.borderColor,
         )}
@@ -117,11 +117,11 @@ function ResultCard({
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-2 w-full text-center">
-        <div className="rounded-sm bg-card/50 p-2">
+        <div className="rounded-compact bg-card/50 p-2">
           <p className="text-[10px] text-muted-foreground">FP</p>
           <p className="font-mono font-bold text-sm">{result.fantasyPoints.toFixed(1)}</p>
         </div>
-        <div className="rounded-sm bg-card/50 p-2">
+        <div className="rounded-compact bg-card/50 p-2">
           <p className="text-[10px] text-muted-foreground">Mult</p>
           <p className={cn("font-mono font-bold text-sm", visuals.textColor)}>
             {result.multiplier}x
@@ -139,7 +139,7 @@ function ResultCard({
         <p
           className={cn(
             "text-2xl font-bold font-mono",
-            result.payout > 0 ? "text-emerald-500" : "text-muted-foreground",
+            result.payout > 0 ? "text-market-positive" : "text-muted-foreground",
           )}
         >
           ${result.payout.toFixed(2)}
@@ -186,9 +186,9 @@ export function BoostResultsPodium({
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-8"
           >
-            <div className="mb-4 inline-flex items-center gap-2 rounded-sm border border-emerald-500/20 bg-emerald-500/10 px-4 py-2">
-              <Trophy className="w-5 h-5 text-emerald-500" />
-              <span className="font-medium text-emerald-500">Boost Results</span>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-compact border border-market-positive/20 bg-market-positive/10 px-4 py-2">
+              <Trophy className="w-5 h-5 text-market-positive" />
+              <span className="font-medium text-market-positive">Boost Results</span>
             </div>
             <h2 className="text-2xl font-bold">Today's Performance</h2>
           </motion.div>
@@ -208,9 +208,9 @@ export function BoostResultsPodium({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 className={cn(
-                  "rounded-sm border p-6 text-center",
+                  "rounded-compact border p-6 text-center",
                   totalPayout > 0
-                    ? "bg-emerald-500/10 border-emerald-500/30"
+                    ? "bg-market-positive/10 border-market-positive/30"
                     : "bg-muted border-border",
                 )}
               >
@@ -221,7 +221,7 @@ export function BoostResultsPodium({
                   transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.2 }}
                   className={cn(
                     "text-5xl font-bold font-mono",
-                    totalPayout > 0 ? "text-emerald-500" : "text-muted-foreground",
+                    totalPayout > 0 ? "text-market-positive" : "text-muted-foreground",
                   )}
                 >
                   ${totalPayout.toFixed(2)}
@@ -232,7 +232,7 @@ export function BoostResultsPodium({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
-                    className="mt-4 flex items-center justify-center gap-2 text-sm text-emerald-400"
+                    className="mt-4 flex items-center justify-center gap-2 text-sm text-market-positive"
                   >
                     <Zap className="w-4 h-4" />
                     <span>Great job! Your boosts paid off.</span>

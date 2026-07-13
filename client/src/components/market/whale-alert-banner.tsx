@@ -128,8 +128,8 @@ export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBanner
             "backdrop-blur-sm shadow-2xl",
             "cursor-pointer",
             isBuy
-              ? "border-emerald-500/50 shadow-emerald-500/20"
-              : "border-red-500/50 shadow-red-500/20",
+              ? "border-market-positive/50 shadow-market-positive/20"
+              : "border-market-negative/50 shadow-market-negative/20",
           )}
           role="button"
           tabIndex={0}
@@ -145,7 +145,10 @@ export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBanner
         >
           {/* Animated background wave */}
           <motion.div
-            className={cn("absolute inset-0 opacity-10", isBuy ? "bg-emerald-500" : "bg-red-500")}
+            className={cn(
+              "absolute inset-0 opacity-10",
+              isBuy ? "bg-market-positive" : "bg-market-negative",
+            )}
             animate={{
               x: ["-100%", "100%"],
             }}
@@ -170,14 +173,14 @@ export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBanner
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
                 className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border sm:h-12 sm:w-12",
-                  isBuy ? "bg-emerald-500/20" : "bg-red-500/20",
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-compact border sm:h-12 sm:w-12",
+                  isBuy ? "bg-market-positive/20" : "bg-market-negative/20",
                 )}
               >
                 <Waves
                   className={cn(
                     "h-5 w-5 sm:h-6 sm:w-6",
-                    isBuy ? "text-emerald-500" : "text-red-500",
+                    isBuy ? "text-market-positive" : "text-market-negative",
                   )}
                 />
               </motion.div>
@@ -195,8 +198,8 @@ export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBanner
                     animate={{ scale: [1, 1.2, 1] }}
                     transition={{ duration: 1, repeat: 3 }}
                     className={cn(
-                      "h-2 w-2 shrink-0 rounded-sm",
-                      isBuy ? "bg-emerald-500" : "bg-red-500",
+                      "h-2 w-2 shrink-0 rounded-compact",
+                      isBuy ? "bg-market-positive" : "bg-market-negative",
                     )}
                   />
                 </motion.div>
@@ -223,15 +226,15 @@ export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBanner
                   <span
                     className={cn(
                       "font-mono text-base font-bold sm:text-lg",
-                      isBuy ? "text-emerald-500" : "text-red-500",
+                      isBuy ? "text-market-positive" : "text-market-negative",
                     )}
                   >
                     {formatAdaptiveCurrency(currentAlert.tradeValue)}
                   </span>
                   {isBuy ? (
-                    <TrendingUp className="h-4 w-4 text-emerald-500" />
+                    <TrendingUp className="h-4 w-4 text-market-positive" />
                   ) : (
-                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <TrendingDown className="h-4 w-4 text-market-negative" />
                   )}
                 </motion.div>
               </div>
@@ -256,8 +259,8 @@ export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBanner
                   className={cn(
                     "h-7 sm:h-8 text-xs gap-1 px-2 sm:px-3",
                     isBuy
-                      ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
-                      : "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300",
+                      ? "border-market-positive/30 text-market-positive hover:bg-market-positive/10 hover:text-market-positive"
+                      : "border-market-negative/30 text-market-negative hover:bg-market-negative/10 hover:text-market-negative",
                   )}
                 >
                   <span className="hidden sm:inline">View</span>
@@ -274,7 +277,7 @@ export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBanner
                   event.stopPropagation();
                   dismissAlert();
                 }}
-                className="shrink-0 border border-border p-1 transition-colors hover:bg-white/10 sm:p-1.5"
+                className="shrink-0 border border-border p-1 transition-colors hover:bg-surface-raised/40 sm:p-1.5"
               >
                 <X className="w-4 h-4 text-muted-foreground" />
               </motion.button>
@@ -285,7 +288,7 @@ export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBanner
           <motion.div
             className={cn(
               "absolute bottom-0 left-0 h-0.5",
-              isBuy ? "bg-emerald-500" : "bg-red-500",
+              isBuy ? "bg-market-positive" : "bg-market-negative",
             )}
             initial={{ width: "100%" }}
             animate={{ width: "0%" }}

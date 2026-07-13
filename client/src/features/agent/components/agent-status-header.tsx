@@ -133,7 +133,7 @@ export function AgentStatusHeader({
         ? "Waiting"
         : "Ready";
   const statusColor =
-    !enabled || !canAnalyze ? "bg-slate-500" : waitingOnYou ? "bg-amber-400" : "bg-emerald-400";
+    !enabled || !canAnalyze ? "bg-muted" : waitingOnYou ? "bg-brand" : "bg-market-positive";
 
   const blocks = buildChatHeaderBlocks({ activeThread, messages, runtimeDetails });
   const inlineBlocks = blocks.filter((b) => b.type !== "goal_strip");
@@ -146,31 +146,31 @@ export function AgentStatusHeader({
 
   return (
     <div className="space-y-2">
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 md:px-4 md:py-3">
+      <div className="rounded-panel border border-border/60 bg-surface-raised/40 px-3 py-2.5 md:px-4 md:py-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/20 to-amber-600/10">
-            <Bot className="h-4 w-4 text-amber-300" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-pill bg-gradient-to-br from-brand/20 to-brand/10">
+            <Bot className="h-4 w-4 text-brand" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium text-white/90">
+              <span className="truncate text-sm font-medium text-content">
                 {objective?.title || activeThread?.title || "General conversation"}
               </span>
               <span
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+                  "inline-flex items-center gap-1.5 rounded-pill px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
                   !enabled || !canAnalyze
-                    ? "bg-slate-500/10 text-slate-400"
+                    ? "bg-muted/10 text-content-muted"
                     : waitingOnYou
-                      ? "bg-amber-500/10 text-amber-300"
-                      : "bg-emerald-500/10 text-emerald-300",
+                      ? "bg-brand/10 text-brand"
+                      : "bg-market-positive/10 text-market-positive",
                 )}
               >
                 <Circle className={cn("h-1.5 w-1.5 fill-current", statusColor)} />
                 {statusLabel}
               </span>
             </div>
-            <p className="mt-0.5 truncate text-xs text-white/40">{headline}</p>
+            <p className="mt-0.5 truncate text-xs text-content/40">{headline}</p>
           </div>
         </div>
       </div>

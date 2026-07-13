@@ -22,15 +22,15 @@ export function AgentStatusPill({
 }) {
   const toneClassName =
     tone === "warning"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+      ? "border-brand/30 bg-brand/10 text-brand"
       : tone === "muted"
-        ? "border-white/[0.08] bg-white/[0.03] text-white/40"
-        : "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
+        ? "border-border/60 bg-surface-raised/40 text-content/40"
+        : "border-market-positive/25 bg-market-positive/10 text-market-positive";
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",
+        "inline-flex items-center rounded-pill border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",
         toneClassName,
         className,
       )}
@@ -50,13 +50,13 @@ export function AgentErrorState({
   onRetry: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-red-500/20 bg-red-950/20 p-4 text-red-100">
+    <div className="rounded-panel border border-market-negative/20 bg-market-negative/20 p-4 text-market-negative">
       <div className="text-sm font-semibold">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-red-100/80">
+      <div className="mt-2 text-sm leading-6 text-market-negative/80">
         {getReadableAgentError(error, "The agent request failed.")}
       </div>
       <Button
-        className="mt-3 h-8 rounded-xl border-red-400/30 bg-red-900/20 px-3 text-xs text-red-100 hover:bg-red-900/35"
+        className="mt-3 h-8 rounded-panel border-market-negative/30 bg-market-negative/20 px-3 text-xs text-market-negative hover:bg-market-negative/35"
         variant="outline"
         onClick={onRetry}
       >
@@ -87,20 +87,20 @@ export function AgentThreadPanel({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-white/[0.06] bg-white/[0.02] px-4 py-4">
+      <div className="border-b border-border/60 bg-surface-raised/40 px-4 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/20 to-amber-600/10 ring-1 ring-white/[0.08]">
-            <MessageSquare className="h-4 w-4 text-amber-300" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill bg-gradient-to-br from-brand/20 to-brand/10 ring-1 ring-border/60">
+            <MessageSquare className="h-4 w-4 text-brand" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-white/90">Conversations</div>
-            <div className="text-[11px] text-white/40">
+            <div className="text-sm font-semibold text-content">Conversations</div>
+            <div className="text-[11px] text-content/40">
               Recent asks, staged plans, and active threads.
             </div>
           </div>
         </div>
         <Button
-          className="mt-4 h-9 w-full rounded-xl border-white/[0.08] bg-white/[0.04] px-3 text-xs font-medium text-white/70 hover:bg-white/[0.08]"
+          className="mt-4 h-9 w-full rounded-panel border-border/60 bg-surface-raised/40 px-3 text-xs font-medium text-content hover:bg-surface-raised/40"
           variant="outline"
           onClick={() => {
             onStartFresh();
@@ -120,12 +120,12 @@ export function AgentThreadPanel({
             onRetry={onRetry}
           />
         ) : isLoading && threads.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-white/40">
+          <div className="flex items-center justify-center gap-2 rounded-panel border border-border/60 bg-surface-raised/40 p-4 text-xs text-content/40">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading conversation history...
           </div>
         ) : threads.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-3 py-4 text-xs text-white/30">
+          <div className="rounded-panel border border-dashed border-border/60 bg-surface-raised/40 px-3 py-4 text-xs text-content/30">
             Your chats will show up here after your first message.
           </div>
         ) : (
@@ -143,38 +143,38 @@ export function AgentThreadPanel({
                     onClose();
                   }}
                   className={cn(
-                    "w-full rounded-xl border px-3 py-3 text-left transition-all",
+                    "w-full rounded-panel border px-3 py-3 text-left transition-all",
                     isActive
-                      ? "border-amber-500/30 bg-amber-500/5 text-white"
-                      : "border-white/[0.06] bg-white/[0.02] text-white/80 hover:border-white/[0.1] hover:bg-white/[0.04]",
+                      ? "border-brand/30 bg-brand/5 text-content"
+                      : "border-border/60 bg-surface-raised/40 text-content hover:border-border/60 hover:bg-surface-raised/40",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-[13px] font-semibold text-white/90">
+                      <div className="truncate text-[13px] font-semibold text-content">
                         {getThreadTitle(thread, index)}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
                         {thread.pendingActionBundle ? (
-                          <Badge className="rounded-full bg-amber-500/15 text-[10px] text-amber-200 hover:bg-amber-500/15">
+                          <Badge className="rounded-pill bg-brand/15 text-[10px] text-brand hover:bg-brand/15">
                             Plan Ready
                           </Badge>
                         ) : (
-                          <span className="text-[10px] font-medium uppercase tracking-wider text-white/30">
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-content/30">
                             {formatDomainLabel(thread.domain)}
                           </span>
                         )}
-                        <span className="text-[10px] text-white/20">
+                        <span className="text-[10px] text-content/20">
                           {thread.channel === "sms" ? "Legacy SMS" : "In app"}
                         </span>
                       </div>
                     </div>
-                    <div className="shrink-0 text-[10px] text-white/25">
+                    <div className="shrink-0 text-[10px] text-content/25">
                       {formatThreadTimestamp(thread.lastMessageAt || thread.updatedAt)}
                     </div>
                   </div>
                   {preview && (
-                    <div className="mt-2 border-l-2 border-white/[0.06] pl-3 text-[11px] leading-5 text-white/35">
+                    <div className="mt-2 border-l-2 border-border/60 pl-3 text-[11px] leading-5 text-content/35">
                       {preview}
                     </div>
                   )}

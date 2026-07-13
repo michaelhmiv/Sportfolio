@@ -68,20 +68,20 @@ export default function AgentShell() {
 
   return (
     <>
-      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden overscroll-none bg-[#0a0e1a] text-white">
+      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden overscroll-none bg-canvas text-content">
         <div className="mx-auto flex h-full min-h-0 min-w-0 w-full max-w-[96rem] flex-col">
           {/* ── Top Bar ── */}
-          <header className="shrink-0 border-b border-white/[0.06] bg-white/[0.02] px-3 py-2.5 sm:px-5 sm:py-3">
+          <header className="shrink-0 border-b border-border/60 bg-surface-raised/40 px-3 py-2.5 sm:px-5 sm:py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/20 to-amber-600/10 ring-1 ring-white/[0.08]">
-                  <Bot className="h-4.5 w-4.5 text-amber-300" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill bg-gradient-to-br from-brand/20 to-brand/10 ring-1 ring-border/60">
+                  <Bot className="h-4.5 w-4.5 text-brand" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-content/30">
                     Hermes
                   </p>
-                  <p className="truncate text-sm font-semibold text-white/90">{activeTitle}</p>
+                  <p className="truncate text-sm font-semibold text-content">{activeTitle}</p>
                 </div>
               </div>
 
@@ -91,7 +91,7 @@ export default function AgentShell() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 gap-1.5 rounded-lg text-white/50 hover:bg-white/[0.06] hover:text-white/80"
+                    className="h-8 gap-1.5 rounded-panel text-content/50 hover:bg-surface-raised/40 hover:text-content"
                     onClick={() => void shell.handleStartFreshChat()}
                     disabled={shell.isCreatingChat}
                   >
@@ -107,7 +107,7 @@ export default function AgentShell() {
                   variant="ghost"
                   size="sm"
                   asChild
-                  className="h-8 gap-1.5 rounded-lg text-white/50 hover:bg-white/[0.06] hover:text-white/80"
+                  className="h-8 gap-1.5 rounded-panel text-content/50 hover:bg-surface-raised/40 hover:text-content"
                 >
                   <Link href="/">
                     <ArrowLeft className="h-3.5 w-3.5" />
@@ -122,8 +122,9 @@ export default function AgentShell() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-lg text-white/40 hover:bg-white/[0.06]"
+                    className="min-h-11 min-w-11 rounded-control text-content-muted hover:bg-surface-raised/40"
                     onClick={() => shell.setDrawerOpen("threads")}
+                    aria-label="Open chat threads"
                   >
                     <SquarePen className="h-4 w-4" />
                   </Button>
@@ -133,45 +134,46 @@ export default function AgentShell() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 rounded-lg text-white/40 hover:bg-white/[0.06]"
+                      className="min-h-11 min-w-11 rounded-control text-content-muted hover:bg-surface-raised/40"
                       data-testid="agent-shell-more-menu-trigger"
+                      aria-label="Open Hermes menu"
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
-                    className="min-w-[180px] rounded-xl border-white/[0.08] bg-[#141824] p-1 text-white/80"
+                    className="min-w-[180px] rounded-panel border-border/60 bg-overlay p-1 text-content"
                   >
                     {shell.workspaceTab === "chat" && (
                       <DropdownMenuItem
-                        className="gap-2 rounded-lg px-3 py-2.5 text-sm focus:bg-white/[0.06]"
+                        className="gap-2 rounded-panel px-3 py-2.5 text-sm focus:bg-surface-raised/40"
                         onSelect={() => void shell.handleStartFreshChat()}
                         data-testid="agent-shell-new-chat-menu-item"
                       >
-                        <SquarePen className="h-4 w-4 text-white/40" />
+                        <SquarePen className="h-4 w-4 text-content/40" />
                         New chat
                       </DropdownMenuItem>
                     )}
                     {shell.workspaceTab === "chat" && (
                       <DropdownMenuItem
-                        className="gap-2 rounded-lg px-3 py-2.5 text-sm focus:bg-white/[0.06]"
+                        className="gap-2 rounded-panel px-3 py-2.5 text-sm focus:bg-surface-raised/40"
                         onSelect={() => shell.handleSaveCurrentChatAsStrategy()}
                         disabled={
                           !shell.activeChatThreadId || shell.createStrategyMutation.isPending
                         }
                         data-testid="agent-shell-save-as-strategy-menu-item"
                       >
-                        <Sparkles className="h-4 w-4 text-white/40" />
+                        <Sparkles className="h-4 w-4 text-content/40" />
                         Save as strategy
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
                       asChild
-                      className="gap-2 rounded-lg px-3 py-2.5 text-sm focus:bg-white/[0.06]"
+                      className="gap-2 rounded-panel px-3 py-2.5 text-sm focus:bg-surface-raised/40"
                     >
                       <Link href="/">
-                        <ArrowLeft className="h-4 w-4 text-white/40" />
+                        <ArrowLeft className="h-4 w-4 text-content/40" />
                         Dashboard
                       </Link>
                     </DropdownMenuItem>
@@ -188,10 +190,10 @@ export default function AgentShell() {
                   type="button"
                   onClick={() => shell.setWorkspaceTab(tab.id)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
+                    "flex min-h-11 items-center gap-1.5 rounded-control px-3 py-2 text-xs font-medium transition-all",
                     shell.workspaceTab === tab.id
-                      ? "bg-white/[0.08] text-white shadow-sm"
-                      : "text-white/40 hover:bg-white/[0.04] hover:text-white/60",
+                      ? "bg-surface-raised/40 text-content shadow-sm"
+                      : "text-content/40 hover:bg-surface-raised/40 hover:text-content/60",
                   )}
                   data-testid={`agent-workspace-${tab.id}`}
                 >
@@ -231,7 +233,7 @@ export default function AgentShell() {
                 >
                   <div className="flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[17rem_minmax(0,1fr)] md:gap-0">
                     {/* Thread sidebar — desktop only */}
-                    <aside className="hidden min-h-0 border-r border-white/[0.06] bg-white/[0.01] md:block">
+                    <aside className="hidden min-h-0 border-r border-border/60 bg-surface-raised/40 md:block">
                       <AgentThreadPanel
                         threads={shell.chatThreads || []}
                         activeThreadId={shell.activeChatThreadId}
@@ -251,7 +253,7 @@ export default function AgentShell() {
                     {/* Chat main */}
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                       {/* Status header */}
-                      <div className="shrink-0 border-b border-white/[0.04] px-3 py-2 sm:px-4 md:px-5">
+                      <div className="shrink-0 border-b border-border/60 px-3 py-2 sm:px-4 md:px-5">
                         <AgentStatusHeader
                           activeThread={shell.activeChatThread}
                           messages={shell.chatMessages}
@@ -289,7 +291,7 @@ export default function AgentShell() {
                               {shell.isLoadingChatMessages &&
                               !shell.chatMessages &&
                               shell.activeChatThreadId ? (
-                                <div className="flex min-h-[12rem] items-center justify-center gap-2 text-sm text-white/40">
+                                <div className="flex min-h-[12rem] items-center justify-center gap-2 text-sm text-content/40">
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                   Loading chat...
                                 </div>
@@ -330,7 +332,7 @@ export default function AgentShell() {
                             </div>
 
                             {/* Composer */}
-                            <div className="shrink-0 border-t border-white/[0.06] bg-white/[0.02] px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:px-4 sm:py-2.5 md:px-5">
+                            <div className="shrink-0 border-t border-border/60 bg-surface-raised/40 px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:px-4 sm:py-2.5 md:px-5">
                               <AgentComposer
                                 value={shell.chatComposerValue}
                                 onChange={shell.setChatComposerValue}
@@ -522,7 +524,7 @@ export default function AgentShell() {
       >
         <SheetContent
           side="left"
-          className="w-full border-white/[0.08] bg-[#0f1320] p-0 text-white md:max-w-md"
+          className="w-full border-border/60 bg-[hsl(var(--canvas))] p-0 text-content md:max-w-md"
         >
           <AgentThreadPanel
             threads={shell.chatThreads || []}

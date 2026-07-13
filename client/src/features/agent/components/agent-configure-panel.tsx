@@ -91,12 +91,12 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-white/[0.06] to-white/[0.02] ring-1 ring-white/[0.08]">
-        <Icon className="h-4 w-4 text-white/50" />
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-pill bg-gradient-to-br from-surface-raised to-surface ring-1 ring-border/60">
+        <Icon className="h-4 w-4 text-content/50" />
       </div>
-      <div className="text-sm font-semibold text-white/90">{title}</div>
+      <div className="text-sm font-semibold text-content">{title}</div>
       {badge && (
-        <Badge className="rounded-full bg-white/[0.06] text-[10px] text-white/40 hover:bg-white/[0.06]">
+        <Badge className="rounded-pill bg-surface-raised/40 text-[10px] text-content/40 hover:bg-surface-raised/40">
           {badge}
         </Badge>
       )}
@@ -117,30 +117,30 @@ function BuiltInDataSection({ profileData }: { profileData: AgentProfileResponse
     : "Loading";
   const mlbBadgeClass = mlb
     ? mlb.available
-      ? "bg-emerald-500/20 text-emerald-300"
+      ? "bg-market-positive/20 text-market-positive"
       : mlb.enabled
-        ? "bg-amber-500/20 text-amber-300"
-        : "bg-white/[0.06] text-white/40"
-    : "bg-white/[0.06] text-white/40";
+        ? "bg-brand/20 text-brand"
+        : "bg-surface-raised/40 text-content/40"
+    : "bg-surface-raised/40 text-content/40";
 
   return (
     <div className="space-y-3">
       <SectionHeader icon={Database} title="Built-in Intelligence" />
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-white/70">MLB Data Feed</span>
+            <span className="text-sm text-content">MLB Data Feed</span>
             {projectedToolCount != null && mlb?.available && (
-              <span className="text-[10px] text-white/30">{projectedToolCount} tools</span>
+              <span className="text-[10px] text-content/30">{projectedToolCount} tools</span>
             )}
           </div>
-          <Badge className={cn("rounded-full text-[10px]", mlbBadgeClass)}>{mlbStatus}</Badge>
+          <Badge className={cn("rounded-pill text-[10px]", mlbBadgeClass)}>{mlbStatus}</Badge>
         </div>
         {mlb?.capabilitySummary && (
-          <p className="mt-1.5 text-[11px] text-white/30">{mlb.capabilitySummary}</p>
+          <p className="mt-1.5 text-[11px] text-content/30">{mlb.capabilitySummary}</p>
         )}
         {mlb && !mlb.available && mlb.enabled && (
-          <p className="mt-1.5 text-[11px] text-white/30">
+          <p className="mt-1.5 text-[11px] text-content/30">
             The MLB enrichment service is starting up or offline. Native Sportfolio MLB tools still
             remain primary.
           </p>
@@ -219,21 +219,21 @@ function DataSourcesSection() {
         title="Data Sources"
         badge={sources ? `${externalSourceCount}/5 external` : undefined}
       />
-      <p className="text-xs leading-5 text-white/35">
+      <p className="text-xs leading-5 text-content/35">
         Native Sportfolio tools stay primary for portfolio and gameplay state. Built-in and external
         MCP sources are optional enrichment that Hermes uses only when native tools do not already
         cover the request cleanly.
       </p>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-white/40">
+        <div className="flex items-center gap-2 rounded-panel border border-border/60 bg-surface-raised/40 p-4 text-xs text-content/40">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading sources...
         </div>
       ) : (
         <>
           {sourceList.length === 0 && !isAdding && (
-            <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-white/30">
+            <div className="rounded-panel border border-dashed border-border/60 bg-surface-raised/40 p-4 text-center text-xs text-content/30">
               No data sources connected yet.
             </div>
           )}
@@ -241,35 +241,35 @@ function DataSourcesSection() {
           {sourceList.map((source) => (
             <div
               key={source.id}
-              className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
+              className="flex items-center gap-3 rounded-panel border border-border/60 bg-surface-raised/40 px-4 py-3"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-white/90">{source.name}</span>
+                  <span className="text-sm font-medium text-content">{source.name}</span>
                   {source.kind === "built_in" && (
-                    <Badge className="rounded-full bg-sky-500/10 text-[10px] text-sky-300 hover:bg-sky-500/10">
+                    <Badge className="rounded-pill bg-status-info/10 text-[10px] text-status-info hover:bg-status-info/10">
                       Built-in
                     </Badge>
                   )}
                   {source.lastError ? (
-                    <Badge className="rounded-full bg-red-500/10 text-[10px] text-red-300 hover:bg-red-500/10">
+                    <Badge className="rounded-pill bg-market-negative/10 text-[10px] text-market-negative hover:bg-market-negative/10">
                       Error
                     </Badge>
                   ) : !source.enabled ? (
-                    <Badge className="rounded-full bg-white/[0.06] text-[10px] text-white/40 hover:bg-white/[0.06]">
+                    <Badge className="rounded-pill bg-surface-raised/40 text-[10px] text-content/40 hover:bg-surface-raised/40">
                       Disabled
                     </Badge>
                   ) : source.available ? (
-                    <Badge className="rounded-full bg-emerald-500/10 text-[10px] text-emerald-300 hover:bg-emerald-500/10">
+                    <Badge className="rounded-pill bg-market-positive/10 text-[10px] text-market-positive hover:bg-market-positive/10">
                       Connected
                     </Badge>
                   ) : (
-                    <Badge className="rounded-full bg-amber-500/10 text-[10px] text-amber-300 hover:bg-amber-500/10">
+                    <Badge className="rounded-pill bg-brand/10 text-[10px] text-brand hover:bg-brand/10">
                       Unavailable
                     </Badge>
                   )}
                 </div>
-                <div className="mt-0.5 text-[11px] leading-4 text-white/30">
+                <div className="mt-0.5 text-[11px] leading-4 text-content/30">
                   {source.url || source.description || "Hermes-managed data source"}
                 </div>
               </div>
@@ -283,7 +283,7 @@ function DataSourcesSection() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-white/20 hover:bg-red-500/10 hover:text-red-300"
+                  className="h-8 w-8 text-content/20 hover:bg-market-negative/10 hover:text-market-negative"
                   onClick={() => deleteMutation.mutate(source.id)}
                   disabled={deleteMutation.isPending}
                 >
@@ -298,24 +298,24 @@ function DataSourcesSection() {
       )}
 
       {isAdding ? (
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 space-y-3">
+        <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-4 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-white/50 text-xs">Name</Label>
+              <Label className="text-content/50 text-xs">Name</Label>
               <Input
-                className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90"
+                className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="FanGraphs Projections"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/50 text-xs">Auth Type</Label>
+              <Label className="text-content/50 text-xs">Auth Type</Label>
               <Select value={newAuthType} onValueChange={setNewAuthType}>
-                <SelectTrigger className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90">
+                <SelectTrigger className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="border-white/[0.08] bg-[#141824] text-white/90">
+                <SelectContent className="border-border/60 bg-overlay text-content">
                   <SelectItem value="none">None</SelectItem>
                   <SelectItem value="bearer">Bearer Token</SelectItem>
                   <SelectItem value="api_key">API Key</SelectItem>
@@ -324,9 +324,9 @@ function DataSourcesSection() {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/50 text-xs">URL (HTTPS)</Label>
+            <Label className="text-content/50 text-xs">URL (HTTPS)</Label>
             <Input
-              className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90"
+              className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content"
               value={newUrl}
               onChange={(e) => setNewUrl(e.target.value)}
               placeholder="https://your-mcp-server.example.com"
@@ -334,11 +334,11 @@ function DataSourcesSection() {
           </div>
           {newAuthType !== "none" && (
             <div className="space-y-1.5">
-              <Label className="text-white/50 text-xs">
+              <Label className="text-content/50 text-xs">
                 {newAuthType === "bearer" ? "Bearer Token" : "API Key"}
               </Label>
               <Input
-                className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90"
+                className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content"
                 type="password"
                 value={newAuthToken}
                 onChange={(e) => setNewAuthToken(e.target.value)}
@@ -348,7 +348,7 @@ function DataSourcesSection() {
           )}
           <div className="flex gap-2">
             <Button
-              className="h-9 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 text-xs font-medium text-black hover:from-amber-400 hover:to-amber-500"
+              className="h-9 rounded-panel bg-gradient-to-r from-brand to-brand px-4 text-xs font-medium text-brand-foreground hover:from-brand hover:to-brand"
               onClick={() => createMutation.mutate()}
               disabled={createMutation.isPending || !newName.trim() || !newUrl.trim()}
             >
@@ -357,7 +357,7 @@ function DataSourcesSection() {
             </Button>
             <Button
               variant="ghost"
-              className="h-9 rounded-xl text-xs text-white/40 hover:bg-white/[0.06]"
+              className="h-9 rounded-panel text-xs text-content/40 hover:bg-surface-raised/40"
               onClick={() => setIsAdding(false)}
             >
               Cancel
@@ -367,7 +367,7 @@ function DataSourcesSection() {
       ) : (
         <Button
           variant="ghost"
-          className="h-9 w-full rounded-xl border border-dashed border-white/[0.08] text-xs text-white/40 hover:bg-white/[0.04] hover:text-white/60"
+          className="h-9 w-full rounded-panel border border-dashed border-border/60 text-xs text-content/40 hover:bg-surface-raised/40 hover:text-content/60"
           onClick={() => setIsAdding(true)}
           disabled={externalSourceCount >= 5}
         >
@@ -383,7 +383,7 @@ function SchedulesSection({ schedules }: { schedules: AgentScheduleSummary[] | u
   return (
     <div className="space-y-3">
       <SectionHeader icon={Clock} title="Schedules" />
-      <p className="text-xs leading-5 text-white/35">
+      <p className="text-xs leading-5 text-content/35">
         Recurring proactive check-ins. Hermes runs these automatically and posts insights to your
         chat.
       </p>
@@ -399,27 +399,27 @@ function SchedulesSection({ schedules }: { schedules: AgentScheduleSummary[] | u
             <div
               key={template.jobType}
               className={cn(
-                "rounded-xl border px-4 py-3 transition-colors",
+                "rounded-panel border px-4 py-3 transition-colors",
                 isActive
-                  ? "border-emerald-500/20 bg-emerald-500/5"
-                  : "border-white/[0.06] bg-white/[0.02]",
+                  ? "border-market-positive/20 bg-market-positive/5"
+                  : "border-border/60 bg-surface-raised/40",
               )}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-white/90">{template.title}</span>
+                    <span className="text-sm font-medium text-content">{template.title}</span>
                     {isActive && (
-                      <Badge className="rounded-full bg-emerald-500/15 text-[10px] text-emerald-300 hover:bg-emerald-500/15">
+                      <Badge className="rounded-pill bg-market-positive/15 text-[10px] text-market-positive hover:bg-market-positive/15">
                         Active
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-0.5 text-[11px] leading-4 text-white/35">
+                  <div className="mt-0.5 text-[11px] leading-4 text-content/35">
                     {template.description}
                   </div>
                   {activeSchedule?.nextRunAt && (
-                    <div className="mt-1 text-[10px] text-white/25">
+                    <div className="mt-1 text-[10px] text-content/25">
                       Next:{" "}
                       {new Date(activeSchedule.nextRunAt).toLocaleString(undefined, {
                         month: "short",
@@ -432,11 +432,11 @@ function SchedulesSection({ schedules }: { schedules: AgentScheduleSummary[] | u
                 </div>
                 <div className="shrink-0">
                   {isActive ? (
-                    <Badge className="rounded-full bg-emerald-500/10 px-2 text-[10px] text-emerald-300 hover:bg-emerald-500/10">
+                    <Badge className="rounded-pill bg-market-positive/10 px-2 text-[10px] text-market-positive hover:bg-market-positive/10">
                       On
                     </Badge>
                   ) : (
-                    <Badge className="rounded-full bg-white/[0.04] px-2 text-[10px] text-white/25 hover:bg-white/[0.04]">
+                    <Badge className="rounded-pill bg-surface-raised/40 px-2 text-[10px] text-content/25 hover:bg-surface-raised/40">
                       Off
                     </Badge>
                   )}
@@ -447,7 +447,7 @@ function SchedulesSection({ schedules }: { schedules: AgentScheduleSummary[] | u
         })}
       </div>
 
-      <p className="text-[10px] text-white/20">
+      <p className="text-[10px] text-content/20">
         To enable or disable schedules, ask Hermes in chat: "Set up a daily setup review for me"
       </p>
     </div>
@@ -458,32 +458,32 @@ function MemorySkillsSection() {
   return (
     <div className="space-y-3">
       <SectionHeader icon={Brain} title="Memory & Skills" />
-      <p className="text-xs leading-5 text-white/35">
+      <p className="text-xs leading-5 text-content/35">
         Hermes keeps limited Sportfolio-specific memory and can reuse successful workflow patterns.
       </p>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+        <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-4">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
             Memory
           </div>
-          <div className="mt-2 text-sm text-white/70">
+          <div className="mt-2 text-sm text-content">
             Hermes stores compact user-scoped preferences, goals, and interaction notes that help
             with future Sportfolio turns.
           </div>
-          <div className="mt-3 text-[10px] text-white/20">
+          <div className="mt-3 text-[10px] text-content/20">
             To manage: "What do you remember about me?" or "Forget my risk tolerance preference"
           </div>
         </div>
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+        <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-4">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
             Skills
           </div>
-          <div className="mt-2 text-sm text-white/70">
+          <div className="mt-2 text-sm text-content">
             When Hermes solves a repeatable Sportfolio workflow cleanly, it can save that pattern as
             a reusable skill without widening backend access.
           </div>
-          <div className="mt-3 text-[10px] text-white/20">
+          <div className="mt-3 text-[10px] text-content/20">
             To manage: "What skills have you learned?" or "List my runtime skills"
           </div>
         </div>
@@ -545,7 +545,7 @@ function GeneralSettingsSection({
 }) {
   if (isLoadingProfile) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-white/40">
+      <div className="flex items-center gap-2 rounded-panel border border-border/60 bg-surface-raised/40 p-4 text-xs text-content/40">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading settings...
       </div>
@@ -554,10 +554,10 @@ function GeneralSettingsSection({
 
   if (profileError) {
     return (
-      <div className="rounded-xl border border-red-500/20 bg-red-950/20 p-4">
-        <div className="text-sm font-semibold text-red-100">Couldn't load settings</div>
+      <div className="rounded-panel border border-market-negative/20 bg-market-negative/20 p-4">
+        <div className="text-sm font-semibold text-market-negative">Couldn't load settings</div>
         <Button
-          className="mt-2 h-8 rounded-xl border-red-400/30 bg-red-900/20 px-3 text-xs text-red-100 hover:bg-red-900/35"
+          className="mt-2 h-8 rounded-panel border-market-negative/30 bg-market-negative/20 px-3 text-xs text-market-negative hover:bg-market-negative/35"
           variant="outline"
           onClick={onRetry}
         >
@@ -570,17 +570,17 @@ function GeneralSettingsSection({
   return (
     <div className="space-y-4">
       {/* Availability */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold text-white/90">Availability</div>
-            <div className="mt-1 text-xs leading-5 text-white/40">
+            <div className="text-sm font-semibold text-content">Availability</div>
+            <div className="mt-1 text-xs leading-5 text-content/40">
               Pause new plans without removing your configuration.
             </div>
           </div>
           <Switch checked={enabled} onCheckedChange={onEnabledChange} />
         </div>
-        <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-xs leading-5 text-emerald-100">
+        <div className="mt-3 rounded-panel border border-market-positive/20 bg-market-positive/5 p-2.5 text-xs leading-5 text-market-positive">
           <div className="flex items-center gap-2 font-semibold">
             <ShieldCheck className="h-4 w-4" />
             Hosted web research
@@ -596,34 +596,34 @@ function GeneralSettingsSection({
       </div>
 
       {/* Model Source */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-        <div className="text-sm font-semibold text-white/90">Model Source</div>
-        <div className="mt-1 text-xs leading-5 text-white/40">
+      <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-4">
+        <div className="text-sm font-semibold text-content">Model Source</div>
+        <div className="mt-1 text-xs leading-5 text-content/40">
           Choose between the platform-managed runtime or your own compatible provider.
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-white/50 text-xs">AI Source</Label>
+            <Label className="text-content/50 text-xs">AI Source</Label>
             <Select
               value={providerMode}
               onValueChange={(value) => onProviderModeChange(value as ProviderMode)}
             >
-              <SelectTrigger className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90">
+              <SelectTrigger className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="border-white/[0.08] bg-[#141824] text-white/90">
+              <SelectContent className="border-border/60 bg-overlay text-content">
                 <SelectItem value="managed">Sportfolio AI</SelectItem>
                 <SelectItem value="byok">Bring Your Own API</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/50 text-xs">Focus Sport</Label>
+            <Label className="text-content/50 text-xs">Focus Sport</Label>
             <Select value={defaultSport} onValueChange={onDefaultSportChange}>
-              <SelectTrigger className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90">
+              <SelectTrigger className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="border-white/[0.08] bg-[#141824] text-white/90">
+              <SelectContent className="border-border/60 bg-overlay text-content">
                 <SelectItem value="ALL">All Sports</SelectItem>
                 <SelectItem value="NBA">NBA</SelectItem>
                 <SelectItem value="NFL">NFL</SelectItem>
@@ -634,7 +634,7 @@ function GeneralSettingsSection({
           </div>
         </div>
         <Button
-          className="mt-3 h-9 w-full rounded-xl bg-white/90 text-xs font-medium text-black hover:bg-white"
+          className="mt-3 h-9 w-full rounded-panel bg-surface-raised/40 text-xs font-medium text-brand-foreground hover:bg-surface-raised/40"
           onClick={onSaveProfile}
           disabled={isSavingProfile}
         >
@@ -644,15 +644,15 @@ function GeneralSettingsSection({
       </div>
 
       {/* Playbook */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-        <div className="text-sm font-semibold text-white/90">Playbook</div>
-        <div className="mt-1 text-xs leading-5 text-white/40">
+      <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-4">
+        <div className="text-sm font-semibold text-content">Playbook</div>
+        <div className="mt-1 text-xs leading-5 text-content/40">
           Shape tone and preferences. Keep it concise.
         </div>
         <div className="mt-3 space-y-1.5">
-          <Label className="text-white/50 text-xs">Agent Playbook</Label>
+          <Label className="text-content/50 text-xs">Agent Playbook</Label>
           <Textarea
-            className="rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90"
+            className="rounded-panel border-border/60 bg-surface-raised/40 text-content"
             value={userPromptTemplate}
             onChange={(event) => onUserPromptTemplateChange(event.target.value)}
             rows={7}
@@ -661,22 +661,22 @@ function GeneralSettingsSection({
       </div>
 
       {/* Connection Details */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-        <div className="text-sm font-semibold text-white/90">Connection Details</div>
-        <div className="mt-1 text-xs leading-5 text-white/40">
+      <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-4">
+        <div className="text-sm font-semibold text-content">Connection Details</div>
+        <div className="mt-1 text-xs leading-5 text-content/40">
           Managed mode uses the platform default. BYOK credentials are behind the advanced section.
         </div>
 
         {providerMode === "managed" ? (
-          <div className="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/5 p-2.5 text-sm text-sky-100">
+          <div className="mt-3 rounded-panel border border-status-info/20 bg-status-info/5 p-2.5 text-sm text-status-info">
             Managed mode is using {profileData?.profile.model || "the configured default"}.
           </div>
         ) : (
-          <Collapsible className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
+          <Collapsible className="mt-3 rounded-panel border border-brand/20 bg-brand/5 p-2.5">
             <CollapsibleTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-8 w-full justify-start rounded-lg px-2 text-xs text-amber-100 hover:bg-amber-500/10 hover:text-amber-50"
+                className="h-8 w-full justify-start rounded-panel px-2 text-xs text-brand hover:bg-brand/10 hover:text-brand"
               >
                 <KeyRound className="mr-2 h-4 w-4" />
                 Advanced BYOK Settings
@@ -686,31 +686,31 @@ function GeneralSettingsSection({
             <CollapsibleContent className="space-y-3 px-2 pt-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-white/50 text-xs">Base URL</Label>
+                  <Label className="text-content/50 text-xs">Base URL</Label>
                   <Input
-                    className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90"
+                    className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content"
                     value={baseUrl}
                     onChange={(event) => onBaseUrlChange(event.target.value)}
                     placeholder="https://api.openai.com/v1"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-white/50 text-xs">Model</Label>
+                  <Label className="text-content/50 text-xs">Model</Label>
                   <Input
-                    className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90"
+                    className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content"
                     value={model}
                     onChange={(event) => onModelChange(event.target.value)}
                     placeholder="gpt-4o-mini"
                   />
-                  <p className="text-[11px] leading-4 text-white/35">
+                  <p className="text-[11px] leading-4 text-content/35">
                     OpenRouter example: <span className="font-mono">minimax/minimax-m2.7</span>
                   </p>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-white/50 text-xs">API Key</Label>
+                <Label className="text-content/50 text-xs">API Key</Label>
                 <Input
-                  className="h-9 rounded-lg border-white/[0.08] bg-white/[0.03] text-white/90"
+                  className="h-9 rounded-panel border-border/60 bg-surface-raised/40 text-content"
                   type="password"
                   value={apiKey}
                   onChange={(event) => onApiKeyChange(event.target.value)}
@@ -723,7 +723,7 @@ function GeneralSettingsSection({
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
-                  className="h-9 rounded-xl bg-white/90 text-xs font-medium text-black hover:bg-white"
+                  className="h-9 rounded-panel bg-surface-raised/40 text-xs font-medium text-brand-foreground hover:bg-surface-raised/40"
                   onClick={onSaveByok}
                   disabled={isSavingByok || !apiKey.trim() || !baseUrl.trim() || !model.trim()}
                 >
@@ -733,7 +733,7 @@ function GeneralSettingsSection({
                 {profileData?.secret.configured && (
                   <Button
                     variant="ghost"
-                    className="h-9 rounded-xl text-xs text-white/40 hover:bg-white/[0.06]"
+                    className="h-9 rounded-panel text-xs text-content/40 hover:bg-surface-raised/40"
                     onClick={onClearByok}
                     disabled={isClearingByok}
                   >
@@ -808,19 +808,19 @@ export function AgentConfigurePanel({
       <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6">
         <BuiltInDataSection profileData={profileData} />
 
-        <div className="border-t border-white/[0.04]" />
+        <div className="border-t border-border/60" />
 
         <DataSourcesSection />
 
-        <div className="border-t border-white/[0.04]" />
+        <div className="border-t border-border/60" />
 
         <SchedulesSection schedules={schedules} />
 
-        <div className="border-t border-white/[0.04]" />
+        <div className="border-t border-border/60" />
 
         <MemorySkillsSection />
 
-        <div className="border-t border-white/[0.04]" />
+        <div className="border-t border-border/60" />
 
         <div className="space-y-3">
           <SectionHeader icon={KeyRound} title="General Settings" />

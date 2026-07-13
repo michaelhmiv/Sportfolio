@@ -11,11 +11,15 @@ interface CollectionProgressProps {
 }
 
 const colorClasses: Record<string, { bg: string; fill: string; text: string }> = {
-  emerald: { bg: "bg-emerald-500/20", fill: "bg-emerald-500", text: "text-emerald-500" },
-  blue: { bg: "bg-blue-500/20", fill: "bg-blue-500", text: "text-blue-500" },
-  violet: { bg: "bg-violet-500/20", fill: "bg-violet-500", text: "text-violet-500" },
-  amber: { bg: "bg-amber-500/20", fill: "bg-amber-500", text: "text-amber-500" },
-  red: { bg: "bg-red-500/20", fill: "bg-red-500", text: "text-red-500" },
+  emerald: {
+    bg: "bg-market-positive/20",
+    fill: "bg-market-positive",
+    text: "text-market-positive",
+  },
+  blue: { bg: "bg-status-info/20", fill: "bg-status-info", text: "text-status-info" },
+  violet: { bg: "bg-category-scout/20", fill: "bg-category-scout", text: "text-category-scout" },
+  amber: { bg: "bg-premium/20", fill: "bg-premium", text: "text-premium" },
+  red: { bg: "bg-market-negative/20", fill: "bg-market-negative", text: "text-market-negative" },
 };
 
 export function CollectionProgress({
@@ -43,7 +47,7 @@ export function CollectionProgress({
 
   return (
     <div className={cn("w-full", className)}>
-      <div className={cn("w-full rounded-sm overflow-hidden", heightClasses[size], colors.bg)}>
+      <div className={cn("w-full rounded-compact overflow-hidden", heightClasses[size], colors.bg)}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
@@ -53,7 +57,7 @@ export function CollectionProgress({
             damping: 20,
             delay: 0.1,
           }}
-          className={cn("h-full rounded-sm", colors.fill)}
+          className={cn("h-full rounded-compact", colors.fill)}
         />
       </div>
 

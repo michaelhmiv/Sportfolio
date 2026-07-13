@@ -5,43 +5,43 @@ const QUICK_ACTIONS = [
     label: "Review my setup",
     prompt: "Review my setup for today.",
     icon: Eye,
-    color: "from-blue-500/20 to-blue-600/10",
-    iconColor: "text-blue-300",
+    color: "from-status-info/20 to-status-info/10",
+    iconColor: "text-status-info",
   },
   {
     label: "Stage a trade",
     prompt: "Stage a trade plan for my idle cash.",
     icon: TrendingUp,
-    color: "from-emerald-500/20 to-emerald-600/10",
-    iconColor: "text-emerald-300",
+    color: "from-market-positive/20 to-market-positive/10",
+    iconColor: "text-market-positive",
   },
   {
     label: "Check boosts",
     prompt: "Check my boost slots and recommend assignments.",
     icon: Rocket,
-    color: "from-amber-500/20 to-amber-600/10",
-    iconColor: "text-amber-300",
+    color: "from-brand/20 to-brand/10",
+    iconColor: "text-brand",
   },
   {
     label: "Run strategy",
     prompt: "Run my top strategy now.",
     icon: Play,
-    color: "from-purple-500/20 to-purple-600/10",
-    iconColor: "text-purple-300",
+    color: "from-category-scout/20 to-category-scout/10",
+    iconColor: "text-category-scout",
   },
   {
     label: "Scout players",
     prompt: "What should I be watching right now?",
     icon: Search,
-    color: "from-cyan-500/20 to-cyan-600/10",
-    iconColor: "text-cyan-300",
+    color: "from-status-info/20 to-status-info/10",
+    iconColor: "text-status-info",
   },
   {
     label: "Performance",
     prompt: "Show me my portfolio performance summary.",
     icon: BarChart3,
-    color: "from-rose-500/20 to-rose-600/10",
-    iconColor: "text-rose-300",
+    color: "from-market-negative/20 to-market-negative/10",
+    iconColor: "text-market-negative",
   },
 ];
 
@@ -53,14 +53,14 @@ export function AgentCommandBar({ onAction }: { onAction: (prompt: string) => vo
           key={action.label}
           type="button"
           onClick={() => onAction(action.prompt)}
-          className="group flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center transition-all hover:border-white/[0.12] hover:bg-white/[0.04] active:scale-[0.97]"
+          className="group flex flex-col items-center gap-2 rounded-panel border border-border/60 bg-surface-raised/40 px-3 py-4 text-center transition-all hover:border-border/60 hover:bg-surface-raised/40 active:scale-[0.97]"
         >
           <div
-            className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${action.color}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-pill bg-gradient-to-br ${action.color}`}
           >
             <action.icon className={`h-5 w-5 ${action.iconColor}`} />
           </div>
-          <span className="text-xs font-medium text-white/70 group-hover:text-white/90">
+          <span className="text-xs font-medium text-content group-hover:text-content">
             {action.label}
           </span>
         </button>

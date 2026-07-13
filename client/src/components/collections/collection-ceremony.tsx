@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { X, Trophy, Users, Star, Target, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,60 +31,78 @@ const collectionTypeColors: Record<
   { bg: string; border: string; text: string; gradient: string }
 > = {
   team: {
-    bg: "bg-blue-500/10",
-    border: "border-blue-500/30",
-    text: "text-blue-500",
-    gradient: "from-blue-500/20 to-blue-600/10",
+    bg: "bg-status-info/10",
+    border: "border-status-info/30",
+    text: "text-status-info",
+    gradient: "from-status-info/20 to-status-info/10",
   },
   rookie: {
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/30",
-    text: "text-emerald-500",
-    gradient: "from-emerald-500/20 to-emerald-600/10",
+    bg: "bg-market-positive/10",
+    border: "border-market-positive/30",
+    text: "text-market-positive",
+    gradient: "from-market-positive/20 to-market-positive/10",
   },
   position: {
-    bg: "bg-violet-500/10",
-    border: "border-violet-500/30",
-    text: "text-violet-500",
-    gradient: "from-violet-500/20 to-violet-600/10",
+    bg: "bg-category-scout/10",
+    border: "border-category-scout/30",
+    text: "text-category-scout",
+    gradient: "from-category-scout/20 to-category-scout/10",
   },
   allstar: {
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
-    text: "text-amber-500",
-    gradient: "from-amber-500/20 to-amber-600/10",
+    bg: "bg-premium/10",
+    border: "border-premium/30",
+    text: "text-premium",
+    gradient: "from-premium/20 to-premium/10",
   },
 };
 
 export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCeremonyProps) {
   const [phase, setPhase] = useState<"intro" | "reveal" | "complete">("intro");
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (isOpen && collection) {
       setPhase("intro");
 
+      if (prefersReducedMotion) {
+        setPhase("complete");
+        const closeTimer = window.setTimeout(onClose, 4000);
+        return () => window.clearTimeout(closeTimer);
+      }
+
       // Trigger confetti explosion
       const duration = 3000;
       const end = Date.now() + duration;
 
+      let frameId = 0;
       const frame = () => {
         confetti({
           particleCount: 3,
           angle: 60,
           spread: 55,
           origin: { x: 0 },
-          colors: ["#10B981", "#3B82F6", "#8B5CF6", "#F59E0B"],
+          colors: [
+            "hsl(var(--market-positive))",
+            "hsl(var(--status-info))",
+            "hsl(var(--category-scout))",
+            "hsl(var(--boost))",
+          ],
         });
         confetti({
           particleCount: 3,
           angle: 120,
           spread: 55,
           origin: { x: 1 },
-          colors: ["#10B981", "#3B82F6", "#8B5CF6", "#F59E0B"],
+          colors: [
+            "hsl(var(--market-positive))",
+            "hsl(var(--status-info))",
+            "hsl(var(--category-scout))",
+            "hsl(var(--boost))",
+          ],
         });
 
         if (Date.now() < end) {
-          requestAnimationFrame(frame);
+          frameId = requestAnimationFrame(frame);
         }
       };
 
@@ -96,9 +114,12 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
         setTimeout(() => onClose(), 4000),
       ];
 
-      return () => timers.forEach(clearTimeout);
+      return () => {
+        cancelAnimationFrame(frameId);
+        timers.forEach(clearTimeout);
+      };
     }
-  }, [isOpen, collection, onClose]);
+  }, [isOpen, collection, onClose, prefersReducedMotion]);
 
   const handleSkip = () => {
     onClose();
@@ -118,13 +139,17 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
         transition={{ duration: 0.3 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm"
         onClick={handleSkip}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="collection-ceremony-title"
       >
         {/* Close button */}
         <motion.button
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="absolute top-4 right-4 rounded-sm border border-border/60 p-2 text-muted-foreground transition-colors hover:text-foreground"
+          className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-control border border-border/60 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Close collection ceremony"
           onClick={(e) => {
             e.stopPropagation();
             handleSkip();
@@ -143,9 +168,9 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
           >
             <motion.div
               animate={phase === "complete" ? { scale: [1, 1.1, 1] } : {}}
-              transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+              transition={{ duration: 0.5, repeat: prefersReducedMotion ? 0 : 2, repeatDelay: 1 }}
               className={cn(
-                "inline-flex items-center gap-2 rounded-sm px-4 py-2 border",
+                "inline-flex items-center gap-2 rounded-compact px-4 py-2 border",
                 colors.bg,
                 colors.border,
               )}
@@ -171,7 +196,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
               }}
               style={{ transformStyle: "preserve-3d" }}
               className={cn(
-                "relative overflow-hidden rounded-sm border-2 bg-card p-8 text-center",
+                "relative overflow-hidden rounded-compact border-2 bg-card p-8 text-center",
                 colors.border,
               )}
             >
@@ -180,13 +205,13 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                 className="absolute inset-0 pointer-events-none"
                 animate={{
                   background: [
-                    "linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)",
-                    "linear-gradient(45deg, transparent 70%, rgba(255,255,255,0.1) 90%, transparent 110%)",
+                    "linear-gradient(45deg, transparent 30%, hsl(var(--highlight) / 0.1) 50%, transparent 70%)",
+                    "linear-gradient(45deg, transparent 70%, hsl(var(--highlight) / 0.1) 90%, transparent 110%)",
                   ],
                 }}
                 transition={{
                   duration: 2,
-                  repeat: Infinity,
+                  repeat: prefersReducedMotion ? 0 : 2,
                   ease: "linear",
                 }}
                 style={{
@@ -200,7 +225,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                 animate={{ scale: phase === "complete" ? 1 : 0 }}
                 transition={{ type: "spring", stiffness: 500, damping: 30, delay: 0.5 }}
                 className={cn(
-                  "mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-sm",
+                  "mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-compact",
                   colors.bg,
                   colors.border,
                   "border-2",
@@ -217,6 +242,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                   y: phase === "complete" ? 0 : 10,
                 }}
                 transition={{ delay: 0.6 }}
+                id="collection-ceremony-title"
                 className="text-2xl font-bold mb-2"
               >
                 {collectionTypeLabels[collection.collectionType] || collection.collectionType}
@@ -240,7 +266,10 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                   scale: phase === "complete" ? 1 : 0.9,
                 }}
                 transition={{ delay: 0.8 }}
-                className={cn("inline-flex items-center gap-2 rounded-sm px-4 py-2", colors.bg)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-compact px-4 py-2",
+                  colors.bg,
+                )}
               >
                 <span className={cn("font-bold", colors.text)}>
                   {collection.progress}/{collection.total}

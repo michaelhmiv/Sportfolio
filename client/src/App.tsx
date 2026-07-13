@@ -79,6 +79,7 @@ const loadSmsLinkPage = () => import("@/pages/sms-link");
 const loadDiscordLinkPage = () => import("@/pages/discord-link");
 const loadAnalyticsPage = () => import("@/pages/analytics");
 const loadNewsPage = () => import("@/pages/news");
+const loadAgentPage = () => import("@/pages/agent");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
 const loadBoostsPage = () => import("@/pages/boosts");
@@ -132,6 +133,7 @@ const SmsLink = lazy(loadSmsLinkPage);
 const DiscordLink = lazy(loadDiscordLinkPage);
 const Analytics = lazy(loadAnalyticsPage);
 const News = lazy(loadNewsPage);
+const Agent = lazy(loadAgentPage);
 const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
 const Boosts = lazy(loadBoostsPage);
@@ -216,16 +218,6 @@ function LegacyMarketplaceRedirect() {
   useEffect(() => {
     const search = window.location.search || "";
     setLocation(`/pools${search}`, { replace: true });
-  }, [setLocation]);
-
-  return null;
-}
-
-function LegacyAgentRedirect() {
-  const [, setLocation] = useLocation();
-
-  useEffect(() => {
-    setLocation("/", { replace: true });
   }, [setLocation]);
 
   return null;
@@ -621,8 +613,8 @@ function Router() {
           void CapacitorApp.minimizeApp();
           return;
         }
-        // Otherwise navigate back
-        history.back();
+        // A deep link can have no WebView history. Fall back to the app home instead of no-oping.
+        navigate("/");
       });
     };
 
@@ -630,22 +622,9 @@ function Router() {
     return () => {
       void listener?.remove();
     };
-  }, [isNativeAndroid, location]);
+  }, [isNativeAndroid, location, navigate]);
 
-  // P1 — 1.1: StatusBar — set to match app's dark theme, enable edge-to-edge
-  useEffect(() => {
-    if (!isNativePlatform) return;
-
-    void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
-      void StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined);
-      if (isNativeAndroid) {
-        void StatusBar.setBackgroundColor({ color: "#0f1420" }).catch(() => undefined);
-        void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
-      }
-    });
-  }, [isNativeAndroid, isNativePlatform]);
-
-  // P3 — 5.2: Update StatusBar when theme changes (dark/light)
+  // Keep native system chrome readable as the web theme changes.
   const [isDark, setIsDark] = useState(() =>
     typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true,
   );
@@ -660,24 +639,29 @@ function Router() {
     if (!isNativePlatform) return;
     void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
       void StatusBar.setStyle({
-        style: isDark ? Style.Dark : Style.Light,
+        // Dark canvases need light system icons; light canvases need dark icons.
+        style: isDark ? Style.Light : Style.Dark,
       }).catch(() => undefined);
       if (isNativeAndroid) {
         void StatusBar.setBackgroundColor({
           color: isDark ? "#0f1420" : "#ffffff",
         }).catch(() => undefined);
+        void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
       }
     });
   }, [isDark, isNativeAndroid, isNativePlatform]);
 
-  // P1 — 1.1: Keyboard — resize body instead of overlapping content
+  // Keep iOS keyboard appearance and resize behavior aligned with the active theme.
   useEffect(() => {
     if (!isNativeIOS) return;
 
-    void import("@capacitor/keyboard").then(({ Keyboard, KeyboardResize }) => {
+    void import("@capacitor/keyboard").then(({ Keyboard, KeyboardResize, KeyboardStyle }) => {
       void Keyboard.setResizeMode({ mode: KeyboardResize.Body }).catch(() => undefined);
+      void Keyboard.setStyle({
+        style: isDark ? KeyboardStyle.Dark : KeyboardStyle.Light,
+      }).catch(() => undefined);
     });
-  }, [isNativeIOS]);
+  }, [isDark, isNativeIOS]);
 
   // P3 — 7.1: Splash screen — hide after auth resolves
   useEffect(() => {
@@ -860,7 +844,9 @@ function Router() {
               <Route path="/discord/link" component={DiscordLink} />
               <Route path="/analytics" component={Analytics} />
               <Route path="/news" component={News} />
-              <Route path="/agent" component={LegacyAgentRedirect} />
+
+              {/* Hermes workspace - requires authentication */}
+              <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <Dashboard />}</Route>
 
               {/* Boosts - requires authentication */}
               <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>

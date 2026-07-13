@@ -22,14 +22,16 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     StatusBar: {
-      // Set in JS after the app loads (P1 — 1.1)
-      style: "DARK",
+      // Runtime theme coordination in App.tsx applies readable icon and background colors.
+      style: "DEFAULT",
       backgroundColor: "#0f1420",
       overlaysWebView: true,
     },
     Keyboard: {
       resize: "body",
-      style: "dark",
+      resizeOnFullScreen: true,
+      // Runtime theme coordination in App.tsx applies the active light/dark keyboard style.
+      style: "DEFAULT",
     },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
