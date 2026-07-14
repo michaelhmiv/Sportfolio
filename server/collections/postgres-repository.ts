@@ -82,7 +82,7 @@ function mapAward(row: typeof userCollectionAwards.$inferSelect): CollectionAwar
   };
 }
 
-class PostgresCollectionTransaction implements CollectionTransaction {
+export class PostgresCollectionTransaction implements CollectionTransaction {
   constructor(private readonly tx: DatabaseTransaction) {}
 
   async lockUser(userId: string): Promise<void> {
@@ -359,11 +359,21 @@ class PostgresCollectionTransaction implements CollectionTransaction {
   ): Promise<Array<{ requiredQuantity: string; allocatedQuantity: string }>> {
     if (context.kind === "master") {
       const prerequisiteState = alias(userCollectionStates, "prerequisite_state");
+      const prerequisiteVersion = alias(collectionDefinitionVersions, "prerequisite_version");
+      const prerequisiteDefinition = alias(collectionDefinitions, "prerequisite_definition");
       const rows = await this.tx
         .select({
-          allocatedQuantity: sql<string>`CASE WHEN ${prerequisiteState.assemblyState} = 'active' THEN '1.0000' ELSE '0.0000' END`,
+          allocatedQuantity: sql<string>`CASE WHEN ${prerequisiteState.assemblyState} = 'active' AND ${prerequisiteDefinition.lifecycleStatus} <> 'disabled' THEN '1.0000' ELSE '0.0000' END`,
         })
         .from(collectionPrerequisites)
+        .innerJoin(
+          prerequisiteVersion,
+          eq(prerequisiteVersion.id, collectionPrerequisites.prerequisiteVersionId),
+        )
+        .innerJoin(
+          prerequisiteDefinition,
+          eq(prerequisiteDefinition.id, prerequisiteVersion.definitionId),
+        )
         .leftJoin(
           prerequisiteState,
           and(

@@ -410,6 +410,80 @@ describe("CollectionBackendService", () => {
     expect(publish).toHaveBeenCalledTimes(1);
   });
 
+  it("reconciles only supplied candidates with the membership-change reason", async () => {
+    const { service, repository, transaction, publish } = createHarness();
+
+    const result = await service.reconcileCandidates(
+      [{ userId: "user-1", versionId: definition.versionId }],
+      "membership_changed",
+    );
+
+    expect(result).toEqual({ scanned: 1, repaired: 1, errors: 0, publishedEvents: 1 });
+    expect(repository.listReconciliationCandidates).not.toHaveBeenCalled();
+    expect(transaction.appendStateEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "membership_changed" }),
+    );
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1", reason: "membership_changed" }),
+    );
+  });
+
+  it("forces a disabled collection inactive even when all requirements remain qualified", async () => {
+    const { service, transaction } = createHarness();
+    vi.mocked(transaction.getDefinitionForVersion).mockResolvedValueOnce({
+      ...definition,
+      kind: "master",
+      lifecycleStatus: "disabled",
+      versionState: "final",
+    });
+    vi.mocked(transaction.getState).mockResolvedValueOnce({
+      ...readyState,
+      assemblyState: "active",
+      activatedAt: now,
+    });
+    vi.mocked(transaction.getRequirements).mockResolvedValueOnce([
+      { requiredQuantity: "1.0000", allocatedQuantity: "1.0000" },
+    ]);
+
+    const result = await service.reconcileCandidatesInTransaction(
+      transaction,
+      [{ userId: "user-1", versionId: definition.versionId }],
+      "membership_changed",
+      now,
+    );
+
+    expect(result.states[0]).toMatchObject({
+      assemblyState: "inactive",
+      deactivatedAt: now,
+    });
+    expect(transaction.appendStateEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "deactivated", nextState: "inactive" }),
+    );
+  });
+
+  it("can reconcile locked candidates inside an existing transaction without publishing early", async () => {
+    const { service, repository, transaction, publish } = createHarness();
+    const candidates = [
+      { userId: "second-user", versionId: definition.versionId },
+      { userId: "affected-user", versionId: definition.versionId },
+      { userId: "affected-user", versionId: definition.versionId },
+    ];
+
+    const result = await service.reconcileCandidatesInTransaction(
+      transaction,
+      candidates,
+      "membership_changed",
+      now,
+    );
+
+    expect(repository.transaction).not.toHaveBeenCalled();
+    expect(transaction.lockUser).toHaveBeenNthCalledWith(1, "affected-user");
+    expect(transaction.lockUser).toHaveBeenNthCalledWith(2, "second-user");
+    expect(result).toMatchObject({ scanned: 2, repaired: 2, errors: 0, publishedEvents: 2 });
+    expect(result.events).toHaveLength(2);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("preserves machine-readable domain errors", async () => {
     const { service, transaction } = createHarness();
     vi.mocked(transaction.assertAvailableShares).mockRejectedValueOnce(

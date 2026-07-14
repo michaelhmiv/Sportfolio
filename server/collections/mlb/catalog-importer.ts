@@ -142,6 +142,9 @@ async function importAwardsRule(
   const byPlayer = new Map<number, ImportedCollectionMember>();
   for (const awardId of rule.awardIds) {
     const recipients = await source.fetchAwardRecipients(awardId, rule.season);
+    if (recipients.length === 0) {
+      throw new Error(`MLB award source ${awardId} returned no recipients for ${rule.season}`);
+    }
     for (const recipient of recipients) {
       const current = byPlayer.get(recipient.player.id);
       const awardIds = current

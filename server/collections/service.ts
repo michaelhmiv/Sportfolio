@@ -383,20 +383,82 @@ export class CollectionBackendService {
     return committed.value;
   }
 
-  async reconcileAll(limit = 500): Promise<{
+  async reconcileCandidatesInTransaction(
+    tx: CollectionTransaction,
+    candidates: CollectionReconciliationCandidate[],
+    reason = "reconciliation",
+    now = this.clock(),
+  ): Promise<{
+    scanned: number;
+    repaired: number;
+    errors: 0;
+    publishedEvents: number;
+    events: CollectionEventPayload[];
+    states: CollectionProgressSnapshot[];
+  }> {
+    const ordered = Array.from(
+      new Map(
+        candidates.map((candidate) => [
+          `${candidate.userId}\u0000${candidate.versionId}`,
+          candidate,
+        ]),
+      ).values(),
+    ).sort(
+      (left, right) =>
+        left.userId.localeCompare(right.userId) || left.versionId.localeCompare(right.versionId),
+    );
+    const events: CollectionEventPayload[] = [];
+    const states: CollectionProgressSnapshot[] = [];
+    let repaired = 0;
+    let lockedUserId: string | null = null;
+
+    for (const candidate of ordered) {
+      if (candidate.userId !== lockedUserId) {
+        await tx.lockUser(candidate.userId);
+        lockedUserId = candidate.userId;
+      }
+      const context = await tx.getDefinitionForVersion(candidate.versionId);
+      if (!context) {
+        throw new CollectionDomainError(
+          "COLLECTION_VERSION_NOT_FOUND",
+          "Collection version was not found",
+          404,
+          { versionId: candidate.versionId },
+        );
+      }
+      const previousEventCount = events.length;
+      states.push(
+        await this.evaluateVersion(tx, candidate.userId, context, reason, now, events, new Set()),
+      );
+      if (events.length > previousEventCount) repaired += 1;
+    }
+
+    return {
+      scanned: ordered.length,
+      repaired,
+      errors: 0,
+      publishedEvents: events.length,
+      events,
+      states,
+    };
+  }
+
+  async reconcileCandidates(
+    candidates: CollectionReconciliationCandidate[],
+    reason = "reconciliation",
+  ): Promise<{
     scanned: number;
     repaired: number;
     errors: number;
     publishedEvents: number;
   }> {
-    const candidates = await this.repository.listReconciliationCandidates(limit);
     let repaired = 0;
     let errors = 0;
     let publishedEvents = 0;
 
     for (const candidate of candidates) {
       try {
-        const committed = await this.reconcileCandidate(candidate, "reconciliation");
+        const committed = await this.reconcileCandidate(candidate, reason);
         repaired += committed.events.length > 0 ? 1 : 0;
         publishedEvents += committed.events.length;
         await this.publishCommittedEvents(committed.events);
@@ -406,6 +468,16 @@ export class CollectionBackendService {
     }
 
     return { scanned: candidates.length, repaired, errors, publishedEvents };
+  }
+
+  async reconcileAll(limit = 500): Promise<{
+    scanned: number;
+    repaired: number;
+    errors: number;
+    publishedEvents: number;
+  }> {
+    const candidates = await this.repository.listReconciliationCandidates(limit);
+    return this.reconcileCandidates(candidates);
   }
 
   async reconcile(limit = 500): Promise<{
@@ -501,7 +573,15 @@ export class CollectionBackendService {
     const previous = await tx.getState(userId, context.versionId);
     const requirements = await tx.getRequirements(userId, context);
     const evaluated = evaluateCollectionProgress({ previous, requirements, now });
-    const state = await tx.upsertState(userId, context, evaluated, now);
+    const next =
+      context.lifecycleStatus === "disabled"
+        ? {
+            ...evaluated,
+            assemblyState: "inactive" as const,
+            deactivatedAt: previous?.deactivatedAt ?? now,
+          }
+        : evaluated;
+    const state = await tx.upsertState(userId, context, next, now);
     const derivedEvent = deriveEvaluationEvent(previous, state, reason);
     if (derivedEvent) {
       events.push(

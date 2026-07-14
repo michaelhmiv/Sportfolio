@@ -119,6 +119,22 @@ describe("MLB collection catalog importer", () => {
     expect(fetchAwardRecipients).toHaveBeenNthCalledWith(2, "NLSS", 2025);
   });
 
+  it("rejects a composite award source when any configured award is empty", async () => {
+    const fetchAwardRecipients = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { awardId: "ALSS", player: { id: 10, fullName: "A Player" }, position: "OF" },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await expect(
+      importCollectionMembers(
+        { type: "awards", season: 2025, awardIds: ["ALSS", "NLSS"] },
+        source({ fetchAwardRecipients }),
+      ),
+    ).rejects.toThrow("MLB award source NLSS returned no recipients for 2025");
+  });
+
   it("rejects malformed or non-numeric stat values instead of silently selecting them", async () => {
     await expect(
       importCollectionMembers(
