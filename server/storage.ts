@@ -138,7 +138,11 @@ import { pickRegularBoostHolding } from "./boost-share-selection";
 import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
 import { resolveUserEntitlements } from "./services/user-entitlements";
 import { normalizeHoldingLockQuantity } from "./holding-lock-quantity";
-import { loadPlayerIdentityContext, loadPlayerIdentityContexts } from "./player-identity";
+import {
+  holdingReservationDomain,
+  loadPlayerIdentityContext,
+  loadPlayerIdentityContexts,
+} from "./player-identity";
 
 export interface PlayerFinancialMetrics {
   peRatio: number;
@@ -2714,6 +2718,10 @@ export class DatabaseStorage implements IStorage {
       const identity =
         assetType === "player" ? await loadPlayerIdentityContext(tx, assetId) : undefined;
       const identityIds = identity?.allIds.length ? identity.allIds : [assetId];
+      const reservationDomain = holdingReservationDomain(userId, assetType, identityIds);
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+      );
       const holdingRows = await tx
         .select({ id: holdings.id })
         .from(holdings)

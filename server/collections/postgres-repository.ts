@@ -13,7 +13,7 @@ import {
 import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db";
-import { loadPlayerIdentityContext } from "../player-identity";
+import { holdingReservationDomain, loadPlayerIdentityContext } from "../player-identity";
 import {
   CollectionDomainError,
   compareCollectionQuantities,
@@ -82,11 +82,17 @@ function mapAward(row: typeof userCollectionAwards.$inferSelect): CollectionAwar
   };
 }
 
-class PostgresCollectionTransaction implements CollectionTransaction {
+export class PostgresCollectionTransaction implements CollectionTransaction {
   constructor(private readonly tx: DatabaseTransaction) {}
 
   async lockUser(userId: string): Promise<void> {
     await this.tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`collections:${userId}`}))`);
+  }
+
+  async lockCatalogMembership(): Promise<void> {
+    await this.tx.execute(
+      sql`SELECT pg_advisory_xact_lock_shared(hashtextextended('sportfolio_mlb_catalog_admin', 0))`,
+    );
   }
 
   async getDefinitionBySlug(slug: string): Promise<CollectionDefinitionContext | null> {
@@ -178,6 +184,13 @@ class PostgresCollectionTransaction implements CollectionTransaction {
   }): Promise<void> {
     const identity = await loadPlayerIdentityContext(this.tx, input.playerId);
     const identityIds = identity.allIds;
+    const reservationDomain = holdingReservationDomain(input.userId, "player", identityIds);
+
+    // A stable transaction lock serializes reservations even when the user has no
+    // holding rows yet. SELECT ... FOR UPDATE on an empty result locks nothing.
+    await this.tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+    );
 
     await this.tx
       .select({ id: holdings.id })
@@ -359,11 +372,21 @@ class PostgresCollectionTransaction implements CollectionTransaction {
   ): Promise<Array<{ requiredQuantity: string; allocatedQuantity: string }>> {
     if (context.kind === "master") {
       const prerequisiteState = alias(userCollectionStates, "prerequisite_state");
+      const prerequisiteVersion = alias(collectionDefinitionVersions, "prerequisite_version");
+      const prerequisiteDefinition = alias(collectionDefinitions, "prerequisite_definition");
       const rows = await this.tx
         .select({
-          allocatedQuantity: sql<string>`CASE WHEN ${prerequisiteState.assemblyState} = 'active' THEN '1.0000' ELSE '0.0000' END`,
+          allocatedQuantity: sql<string>`CASE WHEN ${prerequisiteState.assemblyState} = 'active' AND ${prerequisiteDefinition.lifecycleStatus} <> 'disabled' THEN '1.0000' ELSE '0.0000' END`,
         })
         .from(collectionPrerequisites)
+        .innerJoin(
+          prerequisiteVersion,
+          eq(prerequisiteVersion.id, collectionPrerequisites.prerequisiteVersionId),
+        )
+        .innerJoin(
+          prerequisiteDefinition,
+          eq(prerequisiteDefinition.id, prerequisiteVersion.definitionId),
+        )
         .leftJoin(
           prerequisiteState,
           and(

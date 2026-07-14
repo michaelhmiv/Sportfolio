@@ -527,6 +527,78 @@ export async function fetchAllPlayers(season?: number): Promise<MlbPlayer[]> {
   return response.people;
 }
 
+export interface MlbSeasonStatSplit {
+  season: string;
+  stat: Record<string, number | string | null | undefined>;
+  player: { id: number; fullName: string };
+  rank?: number;
+  team?: { id: number; name: string };
+  position?: { abbreviation?: string; name?: string };
+}
+
+export interface MlbAwardRecipient {
+  awardId: string;
+  awardDate?: string;
+  player: { id: number; fullName: string };
+  position?: string;
+  teamId?: number;
+}
+
+export async function fetchSeasonStatSplits(input: {
+  season: number;
+  group: "hitting" | "pitching";
+  sortStat: string;
+  qualified?: boolean;
+  gameType?: "R" | "P";
+  limit?: number;
+}): Promise<MlbSeasonStatSplit[]> {
+  const limit = Math.min(Math.max(input.limit ?? 1000, 1), 1000);
+  const response = await apiFetch<{ stats?: Array<{ splits?: MlbSeasonStatSplit[] }> }>("/stats", {
+    stats: "season",
+    group: input.group,
+    season: input.season,
+    sportIds: 1,
+    sortStat: input.sortStat,
+    playerPool: input.qualified ? "QUALIFIED" : undefined,
+    gameType: input.gameType,
+    limit,
+  });
+  return response.stats?.[0]?.splits || [];
+}
+
+export async function fetchAwardRecipients(
+  awardId: string,
+  season: number,
+): Promise<MlbAwardRecipient[]> {
+  if (!/^[A-Za-z0-9_-]+$/.test(awardId)) {
+    throw new MlbStatsApiError("MLB award ID is invalid");
+  }
+  const response = await apiFetch<{
+    awards?: Array<{
+      id: string;
+      date?: string;
+      team?: { id: number };
+      player?: {
+        id: number;
+        fullName?: string;
+        nameFirstLast?: string;
+        primaryPosition?: { abbreviation?: string };
+      };
+    }>;
+  }>(`/awards/${encodeURIComponent(awardId)}/recipients`, { season });
+
+  return (response.awards || []).map((row) => ({
+    awardId: row.id || awardId,
+    awardDate: row.date,
+    player: {
+      id: row.player!.id,
+      fullName: row.player!.fullName || row.player!.nameFirstLast || `MLB ${row.player!.id}`,
+    },
+    position: row.player?.primaryPosition?.abbreviation,
+    teamId: row.team?.id,
+  }));
+}
+
 /**
  * Fetch a specific player's profile by MLBAM ID.
  */

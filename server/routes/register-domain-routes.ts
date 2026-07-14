@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { registerCollectionRoutes } from "../collections/routes";
+import { registerMlbCollectionAdminRoutes } from "../collections/mlb/admin-routes";
+import { mlbCatalogAdminService } from "../collections/mlb/catalog-admin-service";
 import { collectionService } from "../collections/runtime";
 import { registerAccountDeletionRoutes } from "./account-deletion";
 import { registerAmmRoutes } from "./amm";
@@ -18,7 +20,10 @@ import { registerSmsRoutes } from "./sms";
  * primary app/API endpoints.
  */
 export function registerDomainRoutes(app: Express): void {
+  // Collection routes are split by authorization level: users mutate allocations;
+  // only admins may preview, publish, or disable catalog content.
   registerCollectionRoutes(app, collectionService);
+  registerMlbCollectionAdminRoutes(app, mlbCatalogAdminService);
   registerAccountDeletionRoutes(app);
   registerAmmRoutes(app);
   registerLpRoutes(app);

@@ -7,6 +7,7 @@ const source = readFileSync(
   "utf8",
 );
 const serviceSource = readFileSync(resolve(process.cwd(), "server/collections/service.ts"), "utf8");
+const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
 
 describe("Postgres collection repository contract", () => {
   it("serializes every collection write per user and locks the backing ledger", () => {
@@ -33,6 +34,15 @@ describe("Postgres collection repository contract", () => {
   it("expands collection availability across transitive alias identities", () => {
     expect(source).toContain("loadPlayerIdentityContext(this.tx, input.playerId)");
     expect(source).toContain("const identityIds = identity.allIds");
+  });
+
+  it("shares a stable reservation-domain lock with ordinary holdings reservations", () => {
+    expect(source).toContain('holdingReservationDomain(input.userId, "player", identityIds)');
+    expect(storageSource).toContain("holdingReservationDomain(userId, assetType, identityIds)");
+    expect(source).toContain("pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))");
+    expect(storageSource).toContain(
+      "pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))",
+    );
   });
 
   it("resolves only explicitly preferred, currently active badges in preference order", () => {

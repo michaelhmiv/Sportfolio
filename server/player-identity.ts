@@ -13,6 +13,15 @@ export interface PlayerIdentityContext {
   allIds: string[];
 }
 
+export function holdingReservationDomain(
+  userId: string,
+  assetType: string,
+  identityIds: string[],
+): string {
+  const sortedIds = Array.from(new Set(identityIds)).sort();
+  return `${userId}\u0000${assetType}\u0000${sortedIds.join("\u0000")}`;
+}
+
 export function buildPlayerIdentityContexts(
   playerIds: string[],
   edges: PlayerAliasEdge[],
