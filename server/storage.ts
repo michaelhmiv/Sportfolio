@@ -2841,50 +2841,71 @@ export class DatabaseStorage implements IStorage {
     quantity: number,
   ): Promise<HoldingsLock> {
     const normalizedQuantity = normalizeHoldingLockQuantity(quantity);
-    const normalizedQuantityValue = Number(normalizedQuantity);
 
-    // CRITICAL: Use transaction with row-level lock to prevent race conditions
+    // Use every ordinary holding in a player identity as the shared serialization
+    // point. Collection, order, stacking, and boost locks must not be able to
+    // reserve canonical and alias rows independently.
     return await db.transaction(async (tx) => {
-      // Step 1: Lock the holdings row to prevent concurrent modifications
-      const [holding] = await tx
-        .select()
+      const identity =
+        assetType === "player" ? await loadPlayerIdentityContext(tx, assetId) : undefined;
+      const identityIds = identity?.allIds.length ? identity.allIds : [assetId];
+      const holdingRows = await tx
+        .select({ id: holdings.id })
         .from(holdings)
         .where(
           and(
             eq(holdings.userId, userId),
             eq(holdings.assetType, assetType),
-            eq(holdings.assetId, assetId),
+            inArray(holdings.assetId, identityIds),
           ),
         )
-        .for("update"); // SELECT ... FOR UPDATE - prevents concurrent reservations
+        .orderBy(asc(holdings.id))
+        .for("update");
 
-      if (!holding) {
+      if (holdingRows.length === 0) {
         throw new Error(`No holdings found for user ${userId}, asset ${assetId}`);
       }
 
-      // Step 2: Calculate currently locked shares within the same transaction
-      const lockedResult = await tx
-        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
-        .from(holdingsLocks)
-        .where(
-          and(
-            eq(holdingsLocks.userId, userId),
-            eq(holdingsLocks.assetType, assetType),
-            eq(holdingsLocks.assetId, assetId),
-          ),
-        );
-
-      const totalLocked = Number(lockedResult[0]?.total || 0);
-      const available = parseFloat(holding.quantity) - totalLocked;
-
-      // Step 3: Check the canonical quantity that will actually be persisted.
-      if (available < normalizedQuantityValue) {
+      const totals = await tx.execute(sql`
+        SELECT
+          COALESCE((
+            SELECT SUM(quantity)
+            FROM holdings
+            WHERE user_id = ${userId}
+              AND asset_type = ${assetType}
+              AND asset_id IN (${sql.join(
+                identityIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})
+          ), 0)::text AS held_quantity,
+          COALESCE((
+            SELECT SUM(locked_quantity)
+            FROM holdings_locks
+            WHERE user_id = ${userId}
+              AND asset_type = ${assetType}
+              AND asset_id IN (${sql.join(
+                identityIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})
+          ), 0)::text AS locked_quantity
+      `);
+      const total = totals.rows[0] as { held_quantity: string; locked_quantity: string };
+      const availability = await tx.execute(sql`
+        SELECT
+          (${total.held_quantity}::numeric - ${total.locked_quantity}::numeric) >=
+            ${normalizedQuantity}::numeric AS enough,
+          GREATEST(
+            ${total.held_quantity}::numeric - ${total.locked_quantity}::numeric,
+            0::numeric
+          )::text AS available
+      `);
+      const available = availability.rows[0] as { enough: boolean; available: string };
+      if (!available.enough) {
         throw new Error(
-          `Insufficient available shares: have ${available}, need ${normalizedQuantity}`,
+          `Insufficient available shares: have ${available.available}, need ${normalizedQuantity}`,
         );
       }
 
-      // Step 4: Create an exact decimal lock (holdings and allocations use 4 decimal places)
       const [lock] = await tx
         .insert(holdingsLocks)
         .values({

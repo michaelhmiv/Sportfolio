@@ -3799,6 +3799,33 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
     notes:
       "MCP source deletion remains web-only until the public capability model includes first-class external data source configuration.",
   },
+  {
+    capabilityId: "collection_allocation_set_web_only",
+    kind: "excluded",
+    status: "excluded",
+    domain: "collections",
+    source: "/api/me/collections/:slug/slots/:slotId/allocation",
+    notes:
+      "Collection allocation mutation remains web-only until a stable staged public-tool workflow ships.",
+  },
+  {
+    capabilityId: "collection_allocation_release_web_only",
+    kind: "excluded",
+    status: "excluded",
+    domain: "collections",
+    source: "/api/me/collections/:slug/slots/:slotId/allocation",
+    notes:
+      "Collection allocation release remains web-only until a stable staged public-tool workflow ships.",
+  },
+  {
+    capabilityId: "collection_completion_web_only",
+    kind: "excluded",
+    status: "excluded",
+    domain: "collections",
+    source: "/api/me/collections/:slug/complete",
+    notes:
+      "Collection completion remains web-only until a stable staged public-tool workflow ships.",
+  },
 ];
 
 const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
@@ -3828,6 +3855,21 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "GET",
     path: "/api/collections/:type/:targetId",
     capabilityIds: ["get_collection_detail"],
+  },
+  {
+    method: "PUT",
+    path: "/api/me/collections/:slug/slots/:slotId/allocation",
+    excludedCapabilityId: "collection_allocation_set_web_only",
+  },
+  {
+    method: "DELETE",
+    path: "/api/me/collections/:slug/slots/:slotId/allocation",
+    excludedCapabilityId: "collection_allocation_release_web_only",
+  },
+  {
+    method: "POST",
+    path: "/api/me/collections/:slug/complete",
+    excludedCapabilityId: "collection_completion_web_only",
   },
   { method: "GET", path: "/api/milestones", capabilityIds: ["list_milestones"] },
   {

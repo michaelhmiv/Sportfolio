@@ -14,6 +14,7 @@ const ROUTE_FILES = [
   path.resolve("server/routes/mobile-rewarded-scout-boost.ts"),
   path.resolve("server/routes/sms.ts"),
   path.resolve("server/routes/cli.ts"),
+  path.resolve("server/collections/routes.ts"),
 ];
 
 function extractAuthenticatedSiteRoutes() {
@@ -52,9 +53,9 @@ describe("public site route coverage", () => {
     const actualRoutes = extractAuthenticatedSiteRoutes();
     const parity = evaluateAuthenticatedSiteRouteCoverage(actualRoutes);
 
-    expect(parity.ok).toBe(true);
     expect(parity.missingFromAudit).toEqual([]);
     expect(parity.extraInAudit).toEqual([]);
+    expect(parity.ok).toBe(true);
     expect(parity.invalidCapabilityRefs).toEqual([]);
     expect(parity.invalidExcludedRefs).toEqual([]);
   });

@@ -1,4 +1,6 @@
 import type { Express } from "express";
+import { registerCollectionRoutes } from "../collections/routes";
+import { collectionService } from "../collections/runtime";
 import { registerAccountDeletionRoutes } from "./account-deletion";
 import { registerAmmRoutes } from "./amm";
 import { registerCliRoutes } from "./cli";
@@ -15,7 +17,8 @@ import { registerSmsRoutes } from "./sms";
  * Registers secondary route modules so `server/routes.ts` can stay focused on
  * primary app/API endpoints.
  */
-export function registerDomainRoutes(app: Express) {
+export function registerDomainRoutes(app: Express): void {
+  registerCollectionRoutes(app, collectionService);
   registerAccountDeletionRoutes(app);
   registerAmmRoutes(app);
   registerLpRoutes(app);
