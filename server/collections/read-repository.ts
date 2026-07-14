@@ -13,7 +13,7 @@ import {
 import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db";
-import { loadPlayerIdentityContext } from "../player-identity";
+import { loadPlayerIdentityContexts } from "../player-identity";
 import type {
   CollectionAssemblyState,
   CollectionDetailResponse,
@@ -556,9 +556,14 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
     if (playerIds.length === 0) return new Map();
 
     // Resolve canonical identities for all distinct player IDs
-    const identityContexts = await Promise.all(
-      playerIds.map((pid) => loadPlayerIdentityContext(db, pid)),
-    );
+    const identityContextMap = await loadPlayerIdentityContexts(db, playerIds);
+    const identityContexts = playerIds.map((playerId) => {
+      const context = identityContextMap.get(playerId);
+      if (!context) {
+        throw new Error(`Player identity context missing for ${playerId}`);
+      }
+      return context;
+    });
     const playerIdToAllIds = new Map<string, Set<string>>();
     for (const ctx of identityContexts) {
       playerIdToAllIds.set(ctx.requestedId, new Set(ctx.allIds));

@@ -40,6 +40,21 @@ function buildDetailQueryKey(userId: string, slug: string) {
   return ["/api/me/collections", userId, slug] as const;
 }
 
+const STALE_PROJECTION_ERROR_CODES = new Set([
+  "DEFINITION_VERSION_CHANGED",
+  "SLOT_UNAVAILABLE",
+  "INSUFFICIENT_AVAILABLE_SHARES",
+  "COLLECTION_UNAVAILABLE",
+  "IDEMPOTENCY_CONFLICT",
+]);
+
+export function mutationErrorRequiresProjectionRefresh(error: {
+  code: string;
+  status: number;
+}): boolean {
+  return error.status === 409 || STALE_PROJECTION_ERROR_CODES.has(error.code);
+}
+
 async function fetchDetail(slug: string): Promise<CollectionDetailResponse> {
   const res = await authenticatedFetch(`/api/me/collections/${encodeURIComponent(slug)}`);
   if (!res.ok) {
@@ -161,6 +176,13 @@ export default function CollectionDetailPage() {
     enabled: isAuthenticated && slug.length > 0 && userId.length > 0,
   });
 
+  const refreshCollectionProjection = useCallback(() => {
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: buildListQueryKey(userId) }),
+      queryClient.invalidateQueries({ queryKey: buildDetailQueryKey(userId, slug) }),
+    ]);
+  }, [queryClient, slug, userId]);
+
   // ── completion ──────────────────────────────────────────────────────────
   const completeMutation = useMutation({
     mutationFn: async () => {
@@ -198,6 +220,7 @@ export default function CollectionDetailPage() {
     },
     onError: (err) => {
       const parsed = parseCollectionFetchError(err);
+      if (mutationErrorRequiresProjectionRefresh(parsed)) refreshCollectionProjection();
       toast({
         title: "Completion failed",
         description: parsed.message,
@@ -238,6 +261,7 @@ export default function CollectionDetailPage() {
     },
     onError: (err) => {
       const parsed = parseCollectionFetchError(err);
+      if (mutationErrorRequiresProjectionRefresh(parsed)) refreshCollectionProjection();
       toast({
         title: "Allocation failed",
         description: parsed.message,
@@ -275,6 +299,7 @@ export default function CollectionDetailPage() {
     },
     onError: (err) => {
       const parsed = parseCollectionFetchError(err);
+      if (mutationErrorRequiresProjectionRefresh(parsed)) refreshCollectionProjection();
       toast({
         title: "Release failed",
         description: parsed.message,

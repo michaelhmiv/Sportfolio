@@ -7,6 +7,7 @@ import {
   parseUserQuantityInput,
   looksLikeCanonicalQuantity,
 } from "@/lib/collection-format";
+import { mutationErrorRequiresProjectionRefresh } from "./collection-detail";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -258,6 +259,25 @@ describe("Progress computation with exact decimals", () => {
     expect(formatCanonicalQuantity("0.5000")).toBe("0.5");
     expect(formatCanonicalQuantity("99.0001")).toBe("99.0001");
     expect(formatCanonicalQuantity("0")).toBe("0");
+  });
+});
+
+describe("mutation conflict recovery", () => {
+  it.each([
+    ["DEFINITION_VERSION_CHANGED", 409],
+    ["SLOT_UNAVAILABLE", 409],
+    ["INSUFFICIENT_AVAILABLE_SHARES", 400],
+    ["COLLECTION_UNAVAILABLE", 409],
+    ["IDEMPOTENCY_CONFLICT", 409],
+  ])("refreshes the projection after %s", (code, status) => {
+    expect(mutationErrorRequiresProjectionRefresh({ code, status })).toBe(true);
+  });
+
+  it("does not refetch for local validation or transport errors", () => {
+    expect(mutationErrorRequiresProjectionRefresh({ code: "INVALID_QUANTITY", status: 400 })).toBe(
+      false,
+    );
+    expect(mutationErrorRequiresProjectionRefresh({ code: "FETCH_ERROR", status: 0 })).toBe(false);
   });
 });
 
