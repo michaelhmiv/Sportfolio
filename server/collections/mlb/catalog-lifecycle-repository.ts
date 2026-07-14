@@ -198,6 +198,9 @@ async function withLockedParticipants<T>(
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       return await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended('sportfolio_mlb_catalog_admin', 0))`,
+        );
         const collectionTx = new PostgresCollectionTransaction(tx);
         const expectedUserIds = new Set(expected.map((participant) => participant.userId));
         for (const userId of Array.from(expectedUserIds).sort()) {

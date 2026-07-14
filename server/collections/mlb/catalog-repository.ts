@@ -4,7 +4,7 @@ import {
   collectionPrerequisites,
   collectionSlots,
 } from "@shared/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db";
 import type { MlbCatalogPreview } from "./catalog-preview";
 
@@ -210,6 +210,9 @@ export async function publishInitialMlbCatalog(
   const slugs = previews.map((preview) => preview.definition.slug);
 
   return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended('sportfolio_mlb_catalog_admin', 0))`,
+    );
     const existing = await tx
       .select({ id: collectionDefinitions.id, slug: collectionDefinitions.slug })
       .from(collectionDefinitions)
