@@ -13,7 +13,7 @@ import {
 import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db";
-import { loadPlayerIdentityContext } from "../player-identity";
+import { holdingReservationDomain, loadPlayerIdentityContext } from "../player-identity";
 import {
   CollectionDomainError,
   compareCollectionQuantities,
@@ -87,6 +87,12 @@ export class PostgresCollectionTransaction implements CollectionTransaction {
 
   async lockUser(userId: string): Promise<void> {
     await this.tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`collections:${userId}`}))`);
+  }
+
+  async lockCatalogMembership(): Promise<void> {
+    await this.tx.execute(
+      sql`SELECT pg_advisory_xact_lock_shared(hashtextextended('sportfolio_mlb_catalog_admin', 0))`,
+    );
   }
 
   async getDefinitionBySlug(slug: string): Promise<CollectionDefinitionContext | null> {
@@ -178,6 +184,13 @@ export class PostgresCollectionTransaction implements CollectionTransaction {
   }): Promise<void> {
     const identity = await loadPlayerIdentityContext(this.tx, input.playerId);
     const identityIds = identity.allIds;
+    const reservationDomain = holdingReservationDomain(input.userId, "player", identityIds);
+
+    // A stable transaction lock serializes reservations even when the user has no
+    // holding rows yet. SELECT ... FOR UPDATE on an empty result locks nothing.
+    await this.tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+    );
 
     await this.tx
       .select({ id: holdings.id })

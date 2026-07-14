@@ -134,6 +134,31 @@ describe("MLB collection admin routes", () => {
     expect(service.publishInitial).toHaveBeenCalledWith("admin-1", catalogSha256);
   });
 
+  it("maps persisted publication manifest drift to a catalog conflict", async () => {
+    service.publishInitial.mockRejectedValueOnce(
+      new Error(
+        "Refusing initial MLB catalog retry; catalog-test does not match the confirmed persisted manifest",
+      ),
+    );
+    const response = await fetch(`${baseUrl}/api/admin/collections/mlb/catalog/publish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": "admin-1",
+        "x-admin": "true",
+      },
+      body: JSON.stringify({
+        confirm: "PUBLISH_INITIAL_MLB_CATALOG",
+        catalogSha256: "f".repeat(64),
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "CATALOG_CONFLICT" },
+    });
+  });
+
   it("soft-disables a published definition with an audit reason and explicit confirmation", async () => {
     const rejected = await fetch(`${baseUrl}/api/admin/collections/catalog-test/disable`, {
       method: "POST",

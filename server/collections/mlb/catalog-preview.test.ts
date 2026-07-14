@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MlbCollectionSource } from "./catalog-importer";
-import { catalogConfirmationSha256, previewMlbCatalogDefinition } from "./catalog-preview";
+import {
+  bindMasterPrerequisiteVersions,
+  catalogConfirmationSha256,
+  previewMlbCatalogDefinition,
+} from "./catalog-preview";
 import { INITIAL_MLB_CATALOG } from "./initial-catalog";
 
 function sourceWithTenHitters(): MlbCollectionSource {
@@ -134,6 +138,12 @@ describe("MLB catalog preview", () => {
 
     expect(basePlayer.sourceSnapshot.sha256).not.toBe(changedQuantity.sourceSnapshot.sha256);
     expect(baseMaster.sourceSnapshot.sha256).not.toBe(changedPrerequisite.sourceSnapshot.sha256);
+    const reboundMaster = bindMasterPrerequisiteVersions(
+      baseMaster,
+      master.prerequisiteSlugs.map((slug, index) => ({ slug, version: index === 0 ? 2 : 1 })),
+    );
+    expect(reboundMaster.sourceSnapshot.sha256).not.toBe(baseMaster.sourceSnapshot.sha256);
+    expect(reboundMaster.sourceSnapshot.prerequisiteVersions?.[0]?.version).toBe(2);
     expect(catalogConfirmationSha256([basePlayer, baseMaster])).not.toBe(
       catalogConfirmationSha256([changedQuantity, changedPrerequisite]),
     );

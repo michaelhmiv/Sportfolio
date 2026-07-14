@@ -23,6 +23,7 @@ export interface MlbCatalogPreview {
     importedAt: string;
     memberCount: number;
     sha256: string;
+    prerequisiteVersions?: Array<{ slug: string; version: number }>;
   };
 }
 
@@ -35,11 +36,95 @@ export interface CatalogPreviewDependencies {
   now?: () => Date;
 }
 
-function snapshot(
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, child]) => child !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function canonicalSha256(value: unknown): string {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+export function initialDefinitionManifest(preview: MlbCatalogPreview): Record<string, unknown> {
+  const { definition, sourceSnapshot } = preview;
+  return {
+    definition: {
+      slug: definition.slug,
+      season: definition.season,
+      family: definition.family,
+      kind: definition.kind,
+      sport: definition.sport,
+      league: definition.league,
+      lifecycle: definition.lifecycle,
+      currentVersion: 1,
+    },
+    version: {
+      state: definition.lifecycle === "tracking" ? "tracking" : "final",
+      title: definition.title,
+      description: definition.description,
+      qualificationDescription: definition.description,
+      qualificationRules:
+        definition.kind === "player_slots"
+          ? definition.rule
+          : { prerequisiteSlugs: definition.prerequisiteSlugs },
+      sourceType:
+        definition.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites",
+      sourceUri: definition.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null,
+      sourceMetadata: sourceSnapshot,
+      points: definition.points,
+      artKey: definition.slug,
+    },
+    slots:
+      definition.kind === "player_slots"
+        ? preview.members.map((member, index) => ({
+            playerId: member.playerId,
+            slotKey: `mlbam:${member.mlbamId}`,
+            slotLabel: member.playerName,
+            requiredQuantity: definition.slotQuantity.toFixed(4),
+            isRequired: true,
+            status: "active",
+            rank: member.rank,
+            statKey: member.statKey,
+            qualificationValue:
+              member.qualificationValue === null
+                ? null
+                : Number(member.qualificationValue).toFixed(6),
+            qualificationMetadata: {
+              mlbamId: member.mlbamId,
+              position: member.position,
+              ...member.sourceMetadata,
+            },
+            displayOrder: index,
+          }))
+        : [],
+    prerequisites:
+      definition.kind === "master"
+        ? definition.prerequisiteSlugs.map((slug, index) => ({
+            slug,
+            version:
+              sourceSnapshot.prerequisiteVersions?.find((item) => item.slug === slug)?.version ?? 1,
+            isRequired: true,
+            displayOrder: index,
+          }))
+        : [],
+  };
+}
+
+export function initialDefinitionManifestSha256(preview: MlbCatalogPreview): string {
+  return canonicalSha256(initialDefinitionManifest(preview));
+}
+
+function snapshotSha256(
   definition: MlbCatalogDefinition,
   members: ResolvedCollectionMember[],
-  importedAt: Date,
-): MlbCatalogPreview["sourceSnapshot"] {
+  prerequisiteVersions: Array<{ slug: string; version: number }> = [],
+): string {
   const payload = JSON.stringify({
     definition: {
       slug: definition.slug,
@@ -62,11 +147,40 @@ function snapshot(
           : { prerequisiteSlugs: definition.prerequisiteSlugs },
     },
     members,
+    prerequisiteVersions,
   });
+  return createHash("sha256").update(payload).digest("hex");
+}
+
+function snapshot(
+  definition: MlbCatalogDefinition,
+  members: ResolvedCollectionMember[],
+  importedAt: Date,
+): MlbCatalogPreview["sourceSnapshot"] {
+  const prerequisiteVersions =
+    definition.kind === "master"
+      ? definition.prerequisiteSlugs.map((slug) => ({ slug, version: 1 }))
+      : undefined;
   return {
     importedAt: importedAt.toISOString(),
     memberCount: members.length,
-    sha256: createHash("sha256").update(payload).digest("hex"),
+    sha256: snapshotSha256(definition, members, prerequisiteVersions),
+    ...(prerequisiteVersions ? { prerequisiteVersions } : {}),
+  };
+}
+
+export function bindMasterPrerequisiteVersions(
+  preview: MlbCatalogPreview,
+  prerequisiteVersions: Array<{ slug: string; version: number }>,
+): MlbCatalogPreview {
+  if (preview.definition.kind !== "master") return preview;
+  return {
+    ...preview,
+    sourceSnapshot: {
+      ...preview.sourceSnapshot,
+      prerequisiteVersions,
+      sha256: snapshotSha256(preview.definition, preview.members, prerequisiteVersions),
+    },
   };
 }
 

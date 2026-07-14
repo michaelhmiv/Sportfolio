@@ -112,12 +112,12 @@ function sendAdminError(res: Response, error: unknown): void {
         "COLLECTION_NOT_FOUND",
       ],
       [
-        /source snapshot changed|stale source|current version changed|no longer matches the confirmed preview manifest/i,
+        /source snapshot changed|stale source|current version changed|prerequisite graph no longer matches|no longer matches the confirmed preview manifest/i,
         409,
         "SOURCE_SNAPSHOT_CHANGED",
       ],
       [
-        /refusing partial|is not tracking|is not final|does not change the source snapshot|kind does not match|requires a player-slot|not a player-slot definition/i,
+        /refusing partial|does not match the confirmed persisted manifest|is not tracking|is not final|does not change the source snapshot|kind does not match|requires a player-slot|not a player-slot definition/i,
         409,
         "CATALOG_CONFLICT",
       ],

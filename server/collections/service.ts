@@ -63,6 +63,7 @@ export interface CollectionEventPayload extends CollectionStateEventInput {
 
 export interface CollectionTransaction {
   lockUser(userId: string): Promise<void>;
+  lockCatalogMembership?(): Promise<void>;
   getDefinitionBySlug(slug: string): Promise<CollectionDefinitionContext | null>;
   getDefinitionForVersion(versionId: string): Promise<CollectionDefinitionContext | null>;
   getSlot(slotId: string): Promise<CollectionSlotContext | null>;
@@ -195,6 +196,7 @@ export class CollectionBackendService {
       const now = this.clock();
       const events: CollectionEventPayload[] = [];
       await tx.lockUser(input.userId);
+      await tx.lockCatalogMembership?.();
       const context = requireDefinition(await tx.getDefinitionBySlug(input.slug), input.slug);
       assertDefinitionAvailable(context);
       const slot = await tx.getSlot(input.slotId);
@@ -269,6 +271,7 @@ export class CollectionBackendService {
       const now = this.clock();
       const events: CollectionEventPayload[] = [];
       await tx.lockUser(input.userId);
+      await tx.lockCatalogMembership?.();
       const currentContext = requireDefinition(
         await tx.getDefinitionBySlug(input.slug),
         input.slug,

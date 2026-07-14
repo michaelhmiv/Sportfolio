@@ -35,6 +35,7 @@ const readyState: CollectionProgressSnapshot = {
 function createHarness() {
   const transaction: CollectionTransaction = {
     lockUser: vi.fn().mockResolvedValue(undefined),
+    lockCatalogMembership: vi.fn().mockResolvedValue(undefined),
     getDefinitionBySlug: vi.fn().mockResolvedValue(definition),
     getDefinitionForVersion: vi.fn().mockResolvedValue(definition),
     getSlot: vi.fn().mockResolvedValue({
@@ -100,6 +101,10 @@ describe("CollectionBackendService", () => {
     });
 
     expect(transaction.lockUser).toHaveBeenCalledWith("user-1");
+    expect(transaction.lockCatalogMembership).toHaveBeenCalledOnce();
+    expect(vi.mocked(transaction.lockUser).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(transaction.lockCatalogMembership!).mock.invocationCallOrder[0],
+    );
     expect(transaction.assertAvailableShares).toHaveBeenCalledWith({
       userId: "user-1",
       playerId: "mlb_1",

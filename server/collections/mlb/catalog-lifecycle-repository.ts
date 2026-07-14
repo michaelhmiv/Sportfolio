@@ -16,7 +16,7 @@ import type {
   CollectionEventPayload,
   CollectionReconciliationCandidate,
 } from "../service";
-import type { MlbCatalogPreview } from "./catalog-preview";
+import { bindMasterPrerequisiteVersions, type MlbCatalogPreview } from "./catalog-preview";
 import { planMembershipRefresh } from "./membership-plan";
 
 type CatalogTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -27,6 +27,31 @@ type AtomicCollectionReconciler = Pick<
 type AtomicReconciliationResult = Awaited<
   ReturnType<CollectionBackendService["reconcileCandidatesInTransaction"]>
 >;
+
+export async function bindCurrentMasterPrerequisiteVersions(
+  previews: MlbCatalogPreview[],
+): Promise<MlbCatalogPreview[]> {
+  const slugs = previews.flatMap((preview) =>
+    preview.definition.kind === "master" ? preview.definition.prerequisiteSlugs : [],
+  );
+  if (slugs.length === 0) return previews;
+  const rows = await db
+    .select({ slug: collectionDefinitions.slug, version: collectionDefinitions.currentVersion })
+    .from(collectionDefinitions)
+    .where(inArray(collectionDefinitions.slug, Array.from(new Set(slugs))));
+  const versionBySlug = new Map(rows.map((row) => [row.slug, row.version]));
+  return previews.map((preview) =>
+    preview.definition.kind === "master"
+      ? bindMasterPrerequisiteVersions(
+          preview,
+          preview.definition.prerequisiteSlugs.map((slug) => ({
+            slug,
+            version: versionBySlug.get(slug) ?? 1,
+          })),
+        )
+      : preview,
+  );
+}
 
 export interface DisableResult {
   slug: string;
@@ -198,14 +223,14 @@ async function withLockedParticipants<T>(
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       return await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended('sportfolio_mlb_catalog_admin', 0))`,
-        );
         const collectionTx = new PostgresCollectionTransaction(tx);
         const expectedUserIds = new Set(expected.map((participant) => participant.userId));
         for (const userId of Array.from(expectedUserIds).sort()) {
           await collectionTx.lockUser(userId);
         }
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended('sportfolio_mlb_catalog_admin', 0))`,
+        );
 
         const context = await loadCurrentContext(tx, slug);
         const participants = await listParticipants(tx, context.versionId);
@@ -395,6 +420,33 @@ async function masterPrerequisitesAreCurrent(
     )
     .where(inArray(collectionDefinitions.slug, expectedSlugs));
   return prerequisiteLinksMatchCurrent(actual, current, expectedSlugs);
+}
+
+async function assertMasterPreviewPrerequisitesCurrent(
+  tx: CatalogTransaction,
+  preview: MlbCatalogPreview,
+): Promise<void> {
+  if (preview.definition.kind !== "master") return;
+  const definition = preview.definition;
+  const expected = preview.sourceSnapshot.prerequisiteVersions;
+  if (!expected || expected.length !== definition.prerequisiteSlugs.length) {
+    throw new Error(`Collection ${definition.slug} preview lacks prerequisite versions`);
+  }
+  const current = await tx
+    .select({ slug: collectionDefinitions.slug, version: collectionDefinitions.currentVersion })
+    .from(collectionDefinitions)
+    .where(inArray(collectionDefinitions.slug, definition.prerequisiteSlugs));
+  const versionBySlug = new Map(current.map((row) => [row.slug, row.version]));
+  if (
+    expected.some(
+      ({ slug, version }, index) =>
+        slug !== definition.prerequisiteSlugs[index] || versionBySlug.get(slug) !== version,
+    )
+  ) {
+    throw new Error(
+      `Collection ${definition.slug} prerequisite graph no longer matches the confirmed preview`,
+    );
+  }
 }
 
 async function applyTrackingMembership(
@@ -631,6 +683,7 @@ export async function createFinalCorrectionVersion(
       if (context.kind !== preview.definition.kind) {
         throw new Error(`Collection ${preview.definition.slug} kind does not match the correction`);
       }
+      await assertMasterPreviewPrerequisitesCurrent(tx, preview);
 
       const existingSourceSha256 = sourceMetadataSha256(context.sourceMetadata);
       const masterLinksAreCurrent =
@@ -880,17 +933,64 @@ export async function disableCollectionDefinition(
   });
 }
 
-export async function inspectMlbCatalog(): Promise<unknown[]> {
-  const result = await db.execute(sql`
+function buildMlbCatalogInspectionQuery() {
+  return sql`
     SELECT
       definition.slug,
       definition.season,
       definition.family,
       definition.kind,
+      definition.sport,
+      definition.league,
       definition.lifecycle_status,
       definition.current_version,
       version.id AS version_id,
       version.state AS version_state,
+      version.title,
+      version.description,
+      version.qualification_description,
+      version.qualification_rules,
+      version.source_type,
+      version.source_uri,
+      version.points,
+      version.art_key,
+      COALESCE((
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'playerId', slot.player_id,
+            'slotKey', slot.slot_key,
+            'slotLabel', slot.slot_label,
+            'requiredQuantity', slot.required_quantity::text,
+            'isRequired', slot.is_required,
+            'status', slot.status,
+            'rank', slot.rank,
+            'statKey', slot.stat_key,
+            'qualificationValue', slot.qualification_value::text,
+            'qualificationMetadata', slot.qualification_metadata,
+            'displayOrder', slot.display_order
+          )
+          ORDER BY slot.display_order
+        )
+        FROM collection_slots slot
+        WHERE slot.collection_version_id = version.id
+      ), '[]'::jsonb) AS manifest_slots,
+      COALESCE((
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'slug', prerequisite_definition.slug,
+            'version', prerequisite_version.version,
+            'isRequired', prerequisite.is_required,
+            'displayOrder', prerequisite.display_order
+          )
+          ORDER BY prerequisite.display_order
+        )
+        FROM collection_prerequisites prerequisite
+        INNER JOIN collection_definition_versions prerequisite_version
+          ON prerequisite_version.id = prerequisite.prerequisite_version_id
+        INNER JOIN collection_definitions prerequisite_definition
+          ON prerequisite_definition.id = prerequisite_version.definition_id
+        WHERE prerequisite.master_version_id = version.id
+      ), '[]'::jsonb) AS manifest_prerequisites,
       version.source_metadata,
       COUNT(DISTINCT slot.id) FILTER (WHERE slot.status = 'active')::integer AS active_slot_count,
       COUNT(DISTINCT prerequisite.id)::integer AS prerequisite_count,
@@ -905,8 +1005,20 @@ export async function inspectMlbCatalog(): Promise<unknown[]> {
     WHERE definition.sport = 'MLB'
     GROUP BY definition.id, version.id
     ORDER BY definition.season, definition.family, definition.slug
-  `);
-  return result.rows;
+  `;
+}
+
+export async function inspectMlbCatalog(): Promise<unknown[]> {
+  return (await db.execute(buildMlbCatalogInspectionQuery())).rows;
+}
+
+export async function inspectMlbCatalogForInitialRetry(): Promise<unknown[]> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended('sportfolio_mlb_catalog_admin', 0))`,
+    );
+    return (await tx.execute(buildMlbCatalogInspectionQuery())).rows;
+  });
 }
 
 export function buildCollectionParticipationQuery(slug: string) {

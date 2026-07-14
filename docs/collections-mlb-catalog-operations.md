@@ -174,10 +174,11 @@ If the corrected definition is a prerequisite of a master, correct each affected
 
 ## Soft-disable
 
-Disable removes a definition from active product resolution without deleting its history. It requires a confirmation token, audit reason, expected current version, and the exact current source hash from a fresh selected preview.
+Disable removes a definition from active product resolution without deleting its history. It requires a confirmation token, audit reason, expected current version, and the persisted source hash for that current version from catalog inspection. Do not substitute a fresh upstream preview hash: upstream drift does not change the persisted disable precondition.
 
 ```bash
 EXPECTED_VERSION='<current version from catalog inspection>'
+SOURCE_SHA256='<persisted current-version source_metadata.sha256 from catalog inspection>'
 curl --fail-with-body \
   -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \

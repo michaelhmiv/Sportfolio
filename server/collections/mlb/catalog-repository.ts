@@ -4,9 +4,14 @@ import {
   collectionPrerequisites,
   collectionSlots,
 } from "@shared/schema";
+import { isDeepStrictEqual } from "node:util";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db";
-import type { MlbCatalogPreview } from "./catalog-preview";
+import {
+  canonicalSha256,
+  initialDefinitionManifestSha256,
+  type MlbCatalogPreview,
+} from "./catalog-preview";
 
 export interface InitialCatalogPublicationResult {
   status: "published" | "already_published";
@@ -40,6 +45,19 @@ function snapshotSha256(metadata: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+export function persistedInitialManifestMatchesExpected(
+  persistedManifest: unknown,
+  initialCatalogSha256: unknown,
+  initialDefinitionManifestSha256: unknown,
+  expectedCatalogSha256: string,
+): boolean {
+  return (
+    initialCatalogSha256 === expectedCatalogSha256 &&
+    typeof initialDefinitionManifestSha256 === "string" &&
+    canonicalSha256(persistedManifest) === initialDefinitionManifestSha256
+  );
+}
+
 export function existingSlotMatchesExpected(
   actual: {
     playerId: string | null;
@@ -62,6 +80,7 @@ export function existingSlotMatchesExpected(
 async function validateCompleteExistingCatalog(
   tx: CatalogTransaction,
   previews: MlbCatalogPreview[],
+  expectedCatalogSha256: string,
 ): Promise<Omit<InitialCatalogPublicationResult, "status">> {
   const slugs = previews.map((preview) => preview.definition.slug);
   const rows = await tx
@@ -78,6 +97,14 @@ async function validateCompleteExistingCatalog(
       versionId: collectionDefinitionVersions.id,
       version: collectionDefinitionVersions.version,
       versionState: collectionDefinitionVersions.state,
+      title: collectionDefinitionVersions.title,
+      description: collectionDefinitionVersions.description,
+      qualificationDescription: collectionDefinitionVersions.qualificationDescription,
+      qualificationRules: collectionDefinitionVersions.qualificationRules,
+      sourceType: collectionDefinitionVersions.sourceType,
+      sourceUri: collectionDefinitionVersions.sourceUri,
+      points: collectionDefinitionVersions.points,
+      artKey: collectionDefinitionVersions.artKey,
       sourceMetadata: collectionDefinitionVersions.sourceMetadata,
     })
     .from(collectionDefinitions)
@@ -111,6 +138,21 @@ async function validateCompleteExistingCatalog(
       actual.currentVersion !== 1 ||
       actual.version !== 1 ||
       actual.versionState !== expectedState ||
+      actual.title !== expected.title ||
+      actual.description !== expected.description ||
+      actual.qualificationDescription !== expected.description ||
+      !isDeepStrictEqual(
+        actual.qualificationRules,
+        expected.kind === "player_slots"
+          ? expected.rule
+          : { prerequisiteSlugs: expected.prerequisiteSlugs },
+      ) ||
+      actual.sourceType !==
+        (expected.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites") ||
+      actual.sourceUri !==
+        (expected.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null) ||
+      actual.points !== expected.points ||
+      actual.artKey !== expected.slug ||
       snapshotSha256(actual.sourceMetadata) !== preview.sourceSnapshot.sha256
     ) {
       throw new Error(
@@ -125,9 +167,15 @@ async function validateCompleteExistingCatalog(
       versionId: collectionSlots.collectionVersionId,
       playerId: collectionSlots.playerId,
       slotKey: collectionSlots.slotKey,
+      slotLabel: collectionSlots.slotLabel,
       requiredQuantity: collectionSlots.requiredQuantity,
       isRequired: collectionSlots.isRequired,
       status: collectionSlots.status,
+      rank: collectionSlots.rank,
+      statKey: collectionSlots.statKey,
+      qualificationValue: collectionSlots.qualificationValue,
+      qualificationMetadata: collectionSlots.qualificationMetadata,
+      displayOrder: collectionSlots.displayOrder,
     })
     .from(collectionSlots)
     .where(inArray(collectionSlots.collectionVersionId, versionIds));
@@ -168,6 +216,7 @@ async function validateCompleteExistingCatalog(
       masterVersionId: collectionPrerequisites.masterVersionId,
       prerequisiteVersionId: collectionPrerequisites.prerequisiteVersionId,
       isRequired: collectionPrerequisites.isRequired,
+      displayOrder: collectionPrerequisites.displayOrder,
     })
     .from(collectionPrerequisites)
     .where(inArray(collectionPrerequisites.masterVersionId, versionIds));
@@ -194,6 +243,67 @@ async function validateCompleteExistingCatalog(
     );
   }
 
+  const prerequisitesByMasterVersion = new Map<string, typeof prerequisiteRows>();
+  for (const prerequisite of prerequisiteRows) {
+    const prerequisites = prerequisitesByMasterVersion.get(prerequisite.masterVersionId) ?? [];
+    prerequisites.push(prerequisite);
+    prerequisitesByMasterVersion.set(prerequisite.masterVersionId, prerequisites);
+  }
+  for (const actual of rows) {
+    const metadata =
+      actual.sourceMetadata && typeof actual.sourceMetadata === "object"
+        ? (actual.sourceMetadata as Record<string, unknown>)
+        : {};
+    const { initialCatalogSha256, initialDefinitionManifestSha256, ...sourceMetadata } = metadata;
+    const persistedManifest = {
+      definition: {
+        slug: actual.slug,
+        season: actual.season,
+        family: actual.family,
+        kind: actual.kind,
+        sport: actual.sport,
+        league: actual.league,
+        lifecycle: actual.lifecycleStatus,
+        currentVersion: actual.currentVersion,
+      },
+      version: {
+        state: actual.versionState,
+        title: actual.title,
+        description: actual.description,
+        qualificationDescription: actual.qualificationDescription,
+        qualificationRules: actual.qualificationRules,
+        sourceType: actual.sourceType,
+        sourceUri: actual.sourceUri,
+        sourceMetadata,
+        points: actual.points,
+        artKey: actual.artKey,
+      },
+      slots: [...(slotsByVersion.get(actual.versionId) ?? [])]
+        .sort((left, right) => left.displayOrder - right.displayOrder)
+        .map(({ versionId: _versionId, ...slot }) => slot),
+      prerequisites: [...(prerequisitesByMasterVersion.get(actual.versionId) ?? [])]
+        .sort((left, right) => left.displayOrder - right.displayOrder)
+        .map((prerequisite) => ({
+          slug: slugByVersionId.get(prerequisite.prerequisiteVersionId),
+          version: 1,
+          isRequired: prerequisite.isRequired,
+          displayOrder: prerequisite.displayOrder,
+        })),
+    };
+    if (
+      !persistedInitialManifestMatchesExpected(
+        persistedManifest,
+        initialCatalogSha256,
+        initialDefinitionManifestSha256,
+        expectedCatalogSha256,
+      )
+    ) {
+      throw new Error(
+        `Refusing partial initial MLB catalog publication; ${actual.slug} does not match the confirmed persisted manifest`,
+      );
+    }
+  }
+
   return {
     definitionCount: rows.length,
     versionCount: rows.length,
@@ -205,6 +315,7 @@ async function validateCompleteExistingCatalog(
 export async function publishInitialMlbCatalog(
   previews: MlbCatalogPreview[],
   actorUserId: string,
+  expectedCatalogSha256: string,
 ): Promise<InitialCatalogPublicationResult> {
   assertPublishable(previews);
   const slugs = previews.map((preview) => preview.definition.slug);
@@ -220,7 +331,7 @@ export async function publishInitialMlbCatalog(
       .for("update");
 
     if (existing.length === previews.length) {
-      const validated = await validateCompleteExistingCatalog(tx, previews);
+      const validated = await validateCompleteExistingCatalog(tx, previews, expectedCatalogSha256);
       return {
         status: "already_published" as const,
         ...validated,
@@ -272,7 +383,11 @@ export async function publishInitialMlbCatalog(
               definition.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites",
             sourceUri:
               definition.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null,
-            sourceMetadata: sourceSnapshot,
+            sourceMetadata: {
+              ...sourceSnapshot,
+              initialCatalogSha256: expectedCatalogSha256,
+              initialDefinitionManifestSha256: initialDefinitionManifestSha256(preview),
+            },
             points: definition.points,
             artKey: definition.slug,
             state: "draft",
