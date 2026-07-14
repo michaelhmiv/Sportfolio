@@ -5,7 +5,6 @@ import {
   collectionSlots,
   holdings,
   holdingsLocks,
-  playerIdAliases,
   userCollectionAllocations,
   userCollectionAwards,
   userCollectionStateEvents,
@@ -14,6 +13,7 @@ import {
 import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db";
+import { loadPlayerIdentityContext } from "../player-identity";
 import {
   CollectionDomainError,
   compareCollectionQuantities,
@@ -176,18 +176,8 @@ class PostgresCollectionTransaction implements CollectionTransaction {
     quantity: string;
     excludingLockReferenceId: string | null;
   }): Promise<void> {
-    const [aliasRow] = await this.tx
-      .select({ canonicalId: playerIdAliases.canonicalPlayerId })
-      .from(playerIdAliases)
-      .where(eq(playerIdAliases.aliasPlayerId, input.playerId));
-    const canonicalId = aliasRow?.canonicalId || input.playerId;
-    const aliases = await this.tx
-      .select({ aliasId: playerIdAliases.aliasPlayerId })
-      .from(playerIdAliases)
-      .where(eq(playerIdAliases.canonicalPlayerId, canonicalId));
-    const identityIds = Array.from(
-      new Set([canonicalId, input.playerId, ...aliases.map((row) => row.aliasId)]),
-    );
+    const identity = await loadPlayerIdentityContext(this.tx, input.playerId);
+    const identityIds = identity.allIds;
 
     await this.tx
       .select({ id: holdings.id })

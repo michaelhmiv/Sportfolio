@@ -390,6 +390,26 @@ describe("CollectionBackendService", () => {
     });
   });
 
+  it("does not reject a committed mutation when a publisher throws synchronously", async () => {
+    const { service, transaction, publish } = createHarness();
+    publish.mockImplementationOnce(() => {
+      throw new Error("websocket send failed");
+    });
+
+    await expect(
+      service.setAllocation({
+        userId: "user-1",
+        slug: definition.slug,
+        slotId: "slot-1",
+        quantity: "1",
+      }),
+    ).resolves.toMatchObject({
+      state: { assemblyState: "in_progress", allocatedQuantity: "1.0000" },
+    });
+    expect(transaction.upsertAllocation).toHaveBeenCalledTimes(1);
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves machine-readable domain errors", async () => {
     const { service, transaction } = createHarness();
     vi.mocked(transaction.assertAvailableShares).mockRejectedValueOnce(

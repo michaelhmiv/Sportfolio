@@ -18,4 +18,17 @@ describe("collection reconciliation job", () => {
     });
     expect(reconcileAll).toHaveBeenCalledWith(250);
   });
+
+  it("fails the scheduler tick when reconciliation reports partial errors", async () => {
+    const reconcileAll = vi.fn().mockResolvedValue({
+      scanned: 12,
+      repaired: 2,
+      errors: 1,
+      publishedEvents: 3,
+    });
+
+    await expect(runCollectionReconciliation({ reconcileAll }, 250)).rejects.toThrow(
+      "Collection reconciliation completed with 1 error(s)",
+    );
+  });
 });

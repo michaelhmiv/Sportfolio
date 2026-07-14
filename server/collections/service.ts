@@ -563,6 +563,8 @@ export class CollectionBackendService {
   }
 
   private async publishCommittedEvents(events: CollectionEventPayload[]): Promise<void> {
-    await Promise.allSettled(events.map((event) => Promise.resolve(this.publisher.publish(event))));
+    await Promise.allSettled(
+      events.map((event) => Promise.resolve().then(() => this.publisher.publish(event))),
+    );
   }
 }

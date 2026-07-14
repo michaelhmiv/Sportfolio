@@ -20,5 +20,40 @@ describe("ordinary holding reservation concurrency contract", () => {
     expect(reserveSharesSource).toContain("${normalizedQuantity}::numeric AS enough");
     expect(reserveSharesSource).toContain("GREATEST(");
     expect(reserveSharesSource).not.toContain("parseFloat(");
+    expect(storageSource).not.toContain("Promise.all(normalizedRequests.map");
+  });
+
+  it("serializes lock adjustments and stacking across the full player identity", () => {
+    const adjustStart = storageSource.indexOf("async adjustLockQuantity");
+    const stackStart = storageSource.indexOf("async stackShares");
+    const adjustSection = storageSource.slice(
+      adjustStart,
+      storageSource.indexOf("async getLockedQuantity", adjustStart),
+    );
+    const stackSection = storageSource.slice(
+      stackStart,
+      storageSource.indexOf("async getPlayerShareBreakdown", stackStart),
+    );
+
+    expect(adjustSection).toContain("db.transaction");
+    expect(adjustSection).toContain("loadPlayerIdentityContext");
+    expect(adjustSection).toContain("orderBy(asc(holdings.id))");
+    expect(adjustSection).toContain("ne(holdingsLocks.lockReferenceId, lockReferenceId)");
+    expect(stackSection).toContain("loadPlayerIdentityContext");
+    expect(stackSection).toContain("buildIdentityMatchSql(holdings.assetId, identity.allIds)");
+    expect(stackSection).toContain("buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds)");
+    expect(stackSection).toContain("orderBy(asc(holdings.id))");
+    expect(stackSection).toContain("orderBy(asc(holdingsLocks.id))");
+  });
+
+  it("uses deterministic holding lock order for boost transactions", () => {
+    const boostStart = storageSource.indexOf("async lockBoostShares");
+    const boostSection = storageSource.slice(
+      boostStart,
+      storageSource.indexOf("async stackShares", boostStart),
+    );
+
+    expect(boostSection).toContain("orderBy(asc(holdings.id))");
+    expect(boostSection).toContain("orderBy(asc(holdingsLocks.id))");
   });
 });

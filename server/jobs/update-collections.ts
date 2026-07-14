@@ -18,7 +18,11 @@ export async function runCollectionReconciliation(
   errors: number;
   publishedEvents: number;
 }> {
-  return service.reconcileAll(limit);
+  const result = await service.reconcileAll(limit);
+  if (result.errors > 0) {
+    throw new Error(`Collection reconciliation completed with ${result.errors} error(s)`);
+  }
+  return result;
 }
 
 /**

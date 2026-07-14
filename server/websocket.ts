@@ -207,7 +207,14 @@ export function broadcastToUser(
     }
 
     if (client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(payload);
+      client.ws.send(payload, (error) => {
+        if (error) {
+          logger.warn(
+            { error, type: message.type, userId },
+            "[WebSocket] Failed to broadcast to user",
+          );
+        }
+      });
       sent++;
     }
   });

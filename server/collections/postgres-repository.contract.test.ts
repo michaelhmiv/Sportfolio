@@ -30,6 +30,11 @@ describe("Postgres collection repository contract", () => {
     );
   });
 
+  it("expands collection availability across transitive alias identities", () => {
+    expect(source).toContain("loadPlayerIdentityContext(this.tx, input.playerId)");
+    expect(source).toContain("const identityIds = identity.allIds");
+  });
+
   it("resolves only explicitly preferred, currently active badges in preference order", () => {
     expect(source).toMatch(/FROM user_badge_preferences p/);
     expect(source).not.toMatch(/LEFT JOIN user_badge_preferences/);
