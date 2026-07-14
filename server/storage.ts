@@ -137,6 +137,7 @@ import { choosePreferredDailyGame } from "./lib/daily-game-dedupe";
 import { pickRegularBoostHolding } from "./boost-share-selection";
 import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
 import { resolveUserEntitlements } from "./services/user-entitlements";
+import { normalizeHoldingLockQuantity } from "./holding-lock-quantity";
 
 export interface PlayerFinancialMetrics {
   peRatio: number;
@@ -2839,6 +2840,9 @@ export class DatabaseStorage implements IStorage {
     lockReferenceId: string,
     quantity: number,
   ): Promise<HoldingsLock> {
+    const normalizedQuantity = normalizeHoldingLockQuantity(quantity);
+    const normalizedQuantityValue = Number(normalizedQuantity);
+
     // CRITICAL: Use transaction with row-level lock to prevent race conditions
     return await db.transaction(async (tx) => {
       // Step 1: Lock the holdings row to prevent concurrent modifications
@@ -2873,12 +2877,14 @@ export class DatabaseStorage implements IStorage {
       const totalLocked = Number(lockedResult[0]?.total || 0);
       const available = parseFloat(holding.quantity) - totalLocked;
 
-      // Step 3: Check if sufficient shares are available
-      if (available < quantity) {
-        throw new Error(`Insufficient available shares: have ${available}, need ${quantity}`);
+      // Step 3: Check the canonical quantity that will actually be persisted.
+      if (available < normalizedQuantityValue) {
+        throw new Error(
+          `Insufficient available shares: have ${available}, need ${normalizedQuantity}`,
+        );
       }
 
-      // Step 4: Create the lock (round quantity to nearest integer)
+      // Step 4: Create an exact decimal lock (holdings and allocations use 4 decimal places)
       const [lock] = await tx
         .insert(holdingsLocks)
         .values({
@@ -2887,7 +2893,7 @@ export class DatabaseStorage implements IStorage {
           assetId,
           lockType,
           lockReferenceId,
-          lockedQuantity: Math.round(quantity),
+          lockedQuantity: normalizedQuantity,
         })
         .returning();
 
@@ -3059,12 +3065,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async adjustLockQuantity(lockReferenceId: string, newQuantity: number): Promise<void> {
-    if (newQuantity <= 0) {
+    if (Number.isFinite(newQuantity) && newQuantity <= 0) {
       await this.releaseSharesByReference(lockReferenceId);
     } else {
+      const normalizedQuantity = normalizeHoldingLockQuantity(newQuantity);
       await db
         .update(holdingsLocks)
-        .set({ lockedQuantity: Math.round(newQuantity) })
+        .set({ lockedQuantity: normalizedQuantity })
         .where(eq(holdingsLocks.lockReferenceId, lockReferenceId));
     }
   }
