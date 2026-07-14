@@ -51,11 +51,14 @@ function getSelectResult(table: unknown): unknown[] {
 }
 
 function makeWhereResult(result: unknown[]) {
-  return {
+  const query = {
     for: async () => result,
+    orderBy: () => query,
+    limit: async (count: number) => result.slice(0, count),
     then: (resolve: (value: unknown[]) => unknown, reject: (reason: unknown) => unknown) =>
       Promise.resolve(result).then(resolve, reject),
   };
+  return query;
 }
 
 function makeTx() {

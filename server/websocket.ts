@@ -17,6 +17,7 @@ export type SubscriptionType =
   | "portfolio" // User's portfolio changes
   | "scouts" // Scout assignment changes
   | "trade" // Order/trade updates
+  | "collections" // Collection progress and completion lifecycle
   | "liveStats" // Game stats updates
   | "marketActivity" // Market-wide activity
   | "scout_payout" // Scout distribution notifications
@@ -206,7 +207,14 @@ export function broadcastToUser(
     }
 
     if (client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(payload);
+      client.ws.send(payload, (error) => {
+        if (error) {
+          logger.warn(
+            { err: error, type: message.type, userId },
+            "[WebSocket] Failed to broadcast to user",
+          );
+        }
+      });
       sent++;
     }
   });

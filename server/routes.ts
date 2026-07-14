@@ -4935,7 +4935,8 @@ ${items}
 
   registerMarketMobileRoutes(app);
 
-  // User collections endpoint
+  // User collections endpoint. Keep the legacy read surface available until PR 3
+  // replaces it atomically with the versioned catalog.
   app.get("/api/collections", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -5001,7 +5002,7 @@ ${items}
           )
           .where(and(eq(players.team, targetId), eq(players.isActive, true)));
 
-        ownedPlayers = teamPlayers.filter((p) => parseFloat(p.quantity || "0") > 0);
+        ownedPlayers = teamPlayers.filter((player) => parseFloat(player.quantity || "0") > 0);
       }
 
       res.json({

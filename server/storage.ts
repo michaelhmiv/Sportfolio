@@ -138,6 +138,7 @@ import { pickRegularBoostHolding } from "./boost-share-selection";
 import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
 import { resolveUserEntitlements } from "./services/user-entitlements";
 import { normalizeHoldingLockQuantity } from "./holding-lock-quantity";
+import { loadPlayerIdentityContext, loadPlayerIdentityContexts } from "./player-identity";
 
 export interface PlayerFinancialMetrics {
   peRatio: number;
@@ -839,142 +840,6 @@ function formatActivityQuantity(value: number): string {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
     maximumFractionDigits: 2,
   });
-}
-
-type DbExecutor = typeof db | any;
-
-interface PlayerIdentityContext {
-  requestedId: string;
-  canonicalId: string;
-  aliasIds: string[];
-  allIds: string[];
-}
-
-async function loadPlayerIdentityContext(
-  executor: DbExecutor,
-  playerId: string,
-): Promise<PlayerIdentityContext> {
-  const requestedId = (playerId || "").trim();
-  if (!requestedId) {
-    return {
-      requestedId,
-      canonicalId: requestedId,
-      aliasIds: [],
-      allIds: requestedId ? [requestedId] : [],
-    };
-  }
-
-  let canonicalId = requestedId;
-  const seen = new Set<string>();
-
-  while (!seen.has(canonicalId)) {
-    seen.add(canonicalId);
-    const [directAlias] = await executor
-      .select()
-      .from(playerIdAliases)
-      .where(eq(playerIdAliases.aliasPlayerId, canonicalId))
-      .limit(1);
-    if (!directAlias || directAlias.canonicalPlayerId === canonicalId) {
-      break;
-    }
-    canonicalId = directAlias.canonicalPlayerId;
-  }
-
-  const aliasRows = await executor
-    .select()
-    .from(playerIdAliases)
-    .where(eq(playerIdAliases.canonicalPlayerId, canonicalId));
-  const aliasIds = aliasRows
-    .map((row: PlayerIdAlias) => row.aliasPlayerId)
-    .filter((aliasId: string) => aliasId !== canonicalId);
-
-  return {
-    requestedId,
-    canonicalId,
-    aliasIds,
-    allIds: Array.from(new Set([canonicalId, ...aliasIds])),
-  };
-}
-
-async function loadPlayerIdentityContexts(
-  executor: DbExecutor,
-  playerIds: string[],
-): Promise<Map<string, PlayerIdentityContext>> {
-  const requestedIds = Array.from(
-    new Set(playerIds.map((playerId) => String(playerId || "").trim()).filter(Boolean)),
-  );
-  const contextMap = new Map<string, PlayerIdentityContext>();
-
-  if (requestedIds.length === 0) {
-    return contextMap;
-  }
-
-  const directAliasRows = await executor
-    .select({
-      aliasPlayerId: playerIdAliases.aliasPlayerId,
-      canonicalPlayerId: playerIdAliases.canonicalPlayerId,
-    })
-    .from(playerIdAliases)
-    .where(inArray(playerIdAliases.aliasPlayerId, requestedIds));
-
-  const directAliasMap = new Map<string, string>();
-  for (const row of directAliasRows) {
-    directAliasMap.set(row.aliasPlayerId, row.canonicalPlayerId);
-  }
-
-  const canonicalIds = new Set<string>();
-  const requestedToCanonical = new Map<string, string>();
-
-  for (const requestedId of requestedIds) {
-    let canonicalId = requestedId;
-    const seen = new Set<string>();
-
-    while (!seen.has(canonicalId)) {
-      seen.add(canonicalId);
-      const nextCanonicalId = directAliasMap.get(canonicalId);
-      if (!nextCanonicalId || nextCanonicalId === canonicalId) {
-        break;
-      }
-      canonicalId = nextCanonicalId;
-    }
-
-    requestedToCanonical.set(requestedId, canonicalId);
-    canonicalIds.add(canonicalId);
-  }
-
-  const canonicalAliasRows = await executor
-    .select({
-      canonicalPlayerId: playerIdAliases.canonicalPlayerId,
-      aliasPlayerId: playerIdAliases.aliasPlayerId,
-    })
-    .from(playerIdAliases)
-    .where(inArray(playerIdAliases.canonicalPlayerId, Array.from(canonicalIds)));
-
-  const aliasIdsByCanonical = new Map<string, string[]>();
-  for (const canonicalId of canonicalIds) {
-    aliasIdsByCanonical.set(canonicalId, []);
-  }
-
-  for (const row of canonicalAliasRows) {
-    const existing = aliasIdsByCanonical.get(row.canonicalPlayerId) || [];
-    if (row.aliasPlayerId !== row.canonicalPlayerId) {
-      existing.push(row.aliasPlayerId);
-    }
-    aliasIdsByCanonical.set(row.canonicalPlayerId, existing);
-  }
-
-  for (const requestedId of requestedIds) {
-    const canonicalId = requestedToCanonical.get(requestedId) || requestedId;
-    const aliasIds = aliasIdsByCanonical.get(canonicalId) || [];
-    contextMap.set(requestedId, {
-      requestedId,
-      canonicalId,
-      aliasIds,
-      allIds: Array.from(new Set([canonicalId, ...aliasIds])),
-    });
-  }
-
-  return contextMap;
 }
 
 function buildIdentityMatchSql(column: unknown, ids: string[]) {
@@ -2841,50 +2706,71 @@ export class DatabaseStorage implements IStorage {
     quantity: number,
   ): Promise<HoldingsLock> {
     const normalizedQuantity = normalizeHoldingLockQuantity(quantity);
-    const normalizedQuantityValue = Number(normalizedQuantity);
 
-    // CRITICAL: Use transaction with row-level lock to prevent race conditions
+    // Use every ordinary holding in a player identity as the shared serialization
+    // point. Collection, order, stacking, and boost locks must not be able to
+    // reserve canonical and alias rows independently.
     return await db.transaction(async (tx) => {
-      // Step 1: Lock the holdings row to prevent concurrent modifications
-      const [holding] = await tx
-        .select()
+      const identity =
+        assetType === "player" ? await loadPlayerIdentityContext(tx, assetId) : undefined;
+      const identityIds = identity?.allIds.length ? identity.allIds : [assetId];
+      const holdingRows = await tx
+        .select({ id: holdings.id })
         .from(holdings)
         .where(
           and(
             eq(holdings.userId, userId),
             eq(holdings.assetType, assetType),
-            eq(holdings.assetId, assetId),
+            inArray(holdings.assetId, identityIds),
           ),
         )
-        .for("update"); // SELECT ... FOR UPDATE - prevents concurrent reservations
+        .orderBy(asc(holdings.id))
+        .for("update");
 
-      if (!holding) {
+      if (holdingRows.length === 0) {
         throw new Error(`No holdings found for user ${userId}, asset ${assetId}`);
       }
 
-      // Step 2: Calculate currently locked shares within the same transaction
-      const lockedResult = await tx
-        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
-        .from(holdingsLocks)
-        .where(
-          and(
-            eq(holdingsLocks.userId, userId),
-            eq(holdingsLocks.assetType, assetType),
-            eq(holdingsLocks.assetId, assetId),
-          ),
-        );
-
-      const totalLocked = Number(lockedResult[0]?.total || 0);
-      const available = parseFloat(holding.quantity) - totalLocked;
-
-      // Step 3: Check the canonical quantity that will actually be persisted.
-      if (available < normalizedQuantityValue) {
+      const totals = await tx.execute(sql`
+        SELECT
+          COALESCE((
+            SELECT SUM(quantity)
+            FROM holdings
+            WHERE user_id = ${userId}
+              AND asset_type = ${assetType}
+              AND asset_id IN (${sql.join(
+                identityIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})
+          ), 0)::text AS held_quantity,
+          COALESCE((
+            SELECT SUM(locked_quantity)
+            FROM holdings_locks
+            WHERE user_id = ${userId}
+              AND asset_type = ${assetType}
+              AND asset_id IN (${sql.join(
+                identityIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})
+          ), 0)::text AS locked_quantity
+      `);
+      const total = totals.rows[0] as { held_quantity: string; locked_quantity: string };
+      const availability = await tx.execute(sql`
+        SELECT
+          (${total.held_quantity}::numeric - ${total.locked_quantity}::numeric) >=
+            ${normalizedQuantity}::numeric AS enough,
+          GREATEST(
+            ${total.held_quantity}::numeric - ${total.locked_quantity}::numeric,
+            0::numeric
+          )::text AS available
+      `);
+      const available = availability.rows[0] as { enough: boolean; available: string };
+      if (!available.enough) {
         throw new Error(
-          `Insufficient available shares: have ${available}, need ${normalizedQuantity}`,
+          `Insufficient available shares: have ${available.available}, need ${normalizedQuantity}`,
         );
       }
 
-      // Step 4: Create an exact decimal lock (holdings and allocations use 4 decimal places)
       const [lock] = await tx
         .insert(holdingsLocks)
         .values({
@@ -3066,14 +2952,99 @@ export class DatabaseStorage implements IStorage {
 
   async adjustLockQuantity(lockReferenceId: string, newQuantity: number): Promise<void> {
     if (Number.isFinite(newQuantity) && newQuantity <= 0) {
-      await this.releaseSharesByReference(lockReferenceId);
-    } else {
-      const normalizedQuantity = normalizeHoldingLockQuantity(newQuantity);
-      await db
+      await db.transaction(async (tx) => {
+        await tx
+          .select({ id: holdingsLocks.id })
+          .from(holdingsLocks)
+          .where(eq(holdingsLocks.lockReferenceId, lockReferenceId))
+          .orderBy(asc(holdingsLocks.id))
+          .for("update");
+        await tx.delete(holdingsLocks).where(eq(holdingsLocks.lockReferenceId, lockReferenceId));
+      });
+      return;
+    }
+
+    const normalizedQuantity = normalizeHoldingLockQuantity(newQuantity);
+    const [snapshot] = await db
+      .select({
+        userId: holdingsLocks.userId,
+        assetType: holdingsLocks.assetType,
+        assetId: holdingsLocks.assetId,
+      })
+      .from(holdingsLocks)
+      .where(eq(holdingsLocks.lockReferenceId, lockReferenceId))
+      .limit(1);
+    if (!snapshot) return;
+
+    await db.transaction(async (tx) => {
+      const identity =
+        snapshot.assetType === "player"
+          ? await loadPlayerIdentityContext(tx, snapshot.assetId)
+          : {
+              requestedId: snapshot.assetId,
+              canonicalId: snapshot.assetId,
+              aliasIds: [],
+              allIds: [snapshot.assetId],
+            };
+      const identityIds = identity.allIds;
+      const lockedHoldingRows = await tx
+        .select({ id: holdings.id, quantity: holdings.quantity })
+        .from(holdings)
+        .where(
+          and(
+            eq(holdings.userId, snapshot.userId),
+            eq(holdings.assetType, snapshot.assetType),
+            buildIdentityMatchSql(holdings.assetId, identityIds),
+          ),
+        )
+        .orderBy(asc(holdings.id))
+        .for("update");
+
+      const currentLocks = await tx
+        .select()
+        .from(holdingsLocks)
+        .where(eq(holdingsLocks.lockReferenceId, lockReferenceId))
+        .orderBy(asc(holdingsLocks.id))
+        .for("update");
+      if (currentLocks.length === 0) return;
+      if (
+        currentLocks.some(
+          (lock) =>
+            lock.userId !== snapshot.userId ||
+            lock.assetType !== snapshot.assetType ||
+            !identityIds.includes(lock.assetId),
+        )
+      ) {
+        throw new Error("Lock identity changed while adjusting quantity");
+      }
+
+      const totalHeld = lockedHoldingRows.reduce(
+        (sum, holding) => sum + Number(holding.quantity || 0),
+        0,
+      );
+      const [otherLockTotal] = await tx
+        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, snapshot.userId),
+            eq(holdingsLocks.assetType, snapshot.assetType),
+            buildIdentityMatchSql(holdingsLocks.assetId, identityIds),
+            ne(holdingsLocks.lockReferenceId, lockReferenceId),
+          ),
+        );
+      const availableForAdjustedLock = totalHeld - Number(otherLockTotal?.total || 0);
+      if (availableForAdjustedLock + 1e-9 < Number(normalizedQuantity)) {
+        throw new Error(
+          `Insufficient available shares. Available: ${availableForAdjustedLock.toFixed(4)}, Requested: ${normalizedQuantity}`,
+        );
+      }
+
+      await tx
         .update(holdingsLocks)
         .set({ lockedQuantity: normalizedQuantity })
         .where(eq(holdingsLocks.lockReferenceId, lockReferenceId));
-    }
+    });
   }
 
   // Cash lock methods - prevent double-spending balance on buy orders
@@ -7137,15 +7108,23 @@ export class DatabaseStorage implements IStorage {
               buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
             ),
           )
-          .orderBy(
-            desc(
-              sql<number>`CASE WHEN ${playerMultipliers.playerId} = ${canonicalPlayerId} THEN 1 ELSE 0 END`,
-            ),
-            desc(playerMultipliers.multiplier),
-            desc(playerMultipliers.updatedAt),
-          )
+          .orderBy(asc(playerMultipliers.id))
           .for("update");
-        const [multiplierRow] = multiplierRows;
+        const [multiplierRow] = [...multiplierRows].sort((left, right) => {
+          const canonicalPreference =
+            Number(right.playerId === canonicalPlayerId) -
+            Number(left.playerId === canonicalPlayerId);
+          if (canonicalPreference !== 0) return canonicalPreference;
+
+          const multiplierPreference = Number(right.multiplier) - Number(left.multiplier);
+          if (multiplierPreference !== 0) return multiplierPreference;
+
+          const updatedPreference =
+            new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
+          if (updatedPreference !== 0) return updatedPreference;
+
+          return left.id.localeCompare(right.id);
+        });
 
         if (!multiplierRow) {
           throw new Error(
@@ -7201,11 +7180,7 @@ export class DatabaseStorage implements IStorage {
             buildIdentityMatchSql(holdings.assetId, identity.allIds),
           ),
         )
-        .orderBy(
-          desc(sql<number>`CASE WHEN ${holdings.assetId} = ${canonicalPlayerId} THEN 1 ELSE 0 END`),
-          desc(sql<number>`CAST(${holdings.quantity} AS NUMERIC)`),
-          desc(holdings.lastUpdated),
-        )
+        .orderBy(asc(holdings.id))
         .for("update");
       const lockRows = await tx
         .select()
@@ -7217,6 +7192,7 @@ export class DatabaseStorage implements IStorage {
             buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds),
           ),
         )
+        .orderBy(asc(holdingsLocks.id))
         .for("update");
       const lockedByAssetId = new Map<string, number>();
       for (const lockRow of lockRows) {
@@ -7627,74 +7603,122 @@ export class DatabaseStorage implements IStorage {
     const effectiveSharesBurned = rawShareCount - multiplierGained;
 
     return await db.transaction(async (tx) => {
-      const [regularHolding] = await tx
+      const identity = await loadPlayerIdentityContext(tx, playerId);
+      const canonicalPlayerId = identity.canonicalId;
+      const regularHoldings = await tx
         .select()
         .from(holdings)
         .where(
           and(
             eq(holdings.userId, userId),
             eq(holdings.assetType, "player"),
-            eq(holdings.assetId, playerId),
+            buildIdentityMatchSql(holdings.assetId, identity.allIds),
           ),
         )
+        .orderBy(asc(holdings.id))
         .for("update");
 
-      if (!regularHolding) {
+      if (regularHoldings.length === 0) {
         throw new Error("No regular shares found to stack");
       }
 
-      const [lockedResult] = await tx
-        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+      const lockRows = await tx
+        .select()
         .from(holdingsLocks)
         .where(
           and(
             eq(holdingsLocks.userId, userId),
             eq(holdingsLocks.assetType, "player"),
-            eq(holdingsLocks.assetId, playerId),
+            buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds),
           ),
-        );
-      const lockedShares = Number(lockedResult?.total || 0);
-      const availableShares = parseFloat(regularHolding.quantity) - lockedShares;
+        )
+        .orderBy(asc(holdingsLocks.id))
+        .for("update");
+      const lockedShares = lockRows.reduce(
+        (sum, lock) => sum + Number(lock.lockedQuantity || 0),
+        0,
+      );
+      const totalHeld = regularHoldings.reduce(
+        (sum, holding) => sum + Number(holding.quantity || 0),
+        0,
+      );
+      const availableShares = totalHeld - lockedShares;
 
-      if (availableShares < rawShareCount) {
+      if (availableShares + 1e-9 < rawShareCount) {
         throw new Error(`Only ${availableShares} shares available (${lockedShares} locked)`);
       }
 
-      const avgCostBasis = toHoldingNumber(regularHolding.avgCostBasis);
-      const consumedTotalCostBasis = avgCostBasis * rawShareCount;
-      const retainedTotalCostBasis = avgCostBasis * multiplierGained;
-      const newRegularQuantity = parseFloat(regularHolding.quantity) - rawShareCount;
-      const newRegularTotalCostBasis = avgCostBasis * newRegularQuantity;
+      let remainingToConsume = rawShareCount;
+      let consumedTotalCostBasis = 0;
+      for (const regularHolding of regularHoldings) {
+        if (remainingToConsume <= 1e-9) break;
+        const currentQuantity = Number(regularHolding.quantity || 0);
+        const consumedFromHolding = Math.min(currentQuantity, remainingToConsume);
+        if (consumedFromHolding <= 0) continue;
 
-      if (newRegularQuantity <= 0) {
-        await tx.delete(holdings).where(eq(holdings.id, regularHolding.id));
-      } else {
-        await tx
-          .update(holdings)
-          .set({
-            quantity: newRegularQuantity.toString(),
-            totalCostBasis: newRegularTotalCostBasis.toFixed(2),
-            lastUpdated: new Date(),
-          })
-          .where(eq(holdings.id, regularHolding.id));
+        const avgCostBasis = toHoldingNumber(regularHolding.avgCostBasis);
+        consumedTotalCostBasis += avgCostBasis * consumedFromHolding;
+        const newRegularQuantity = currentQuantity - consumedFromHolding;
+        const newRegularTotalCostBasis = avgCostBasis * newRegularQuantity;
+        if (newRegularQuantity <= 1e-9) {
+          await tx.delete(holdings).where(eq(holdings.id, regularHolding.id));
+        } else {
+          await tx
+            .update(holdings)
+            .set({
+              quantity: newRegularQuantity.toString(),
+              totalCostBasis: newRegularTotalCostBasis.toFixed(2),
+              lastUpdated: new Date(),
+            })
+            .where(eq(holdings.id, regularHolding.id));
+        }
+        remainingToConsume -= consumedFromHolding;
+      }
+      if (remainingToConsume > 1e-9) {
+        throw new Error("Unable to consume the requested identity-equivalent shares");
       }
 
-      const [existingMultiplier] = await tx
+      const consumedAvgCostBasis = consumedTotalCostBasis / rawShareCount;
+      const retainedTotalCostBasis = consumedTotalCostBasis * (multiplierGained / rawShareCount);
+
+      const multiplierRows = await tx
         .select()
         .from(playerMultipliers)
-        .where(and(eq(playerMultipliers.userId, userId), eq(playerMultipliers.playerId, playerId)))
+        .where(
+          and(
+            eq(playerMultipliers.userId, userId),
+            buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
+          ),
+        )
+        .orderBy(asc(playerMultipliers.id))
         .for("update");
+      const existingMultiplier =
+        multiplierRows.find((row) => row.playerId === canonicalPlayerId) || multiplierRows[0];
 
       let multiplierAfter = multiplierGained;
       if (existingMultiplier) {
-        const existingTotalCostBasis = toHoldingNumber(existingMultiplier.totalCostBasis);
-        multiplierAfter = existingMultiplier.multiplier + multiplierGained;
+        const existingMultiplierTotal = multiplierRows.reduce(
+          (sum, row) => sum + Number(row.multiplier || 0),
+          0,
+        );
+        const existingTotalCostBasis = multiplierRows.reduce(
+          (sum, row) => sum + toHoldingNumber(row.totalCostBasis),
+          0,
+        );
+        multiplierAfter = existingMultiplierTotal + multiplierGained;
         const nextTotalCostBasis = existingTotalCostBasis + retainedTotalCostBasis;
         const nextAvgCostBasis =
-          multiplierAfter > 0 ? nextTotalCostBasis / multiplierAfter : avgCostBasis;
+          multiplierAfter > 0 ? nextTotalCostBasis / multiplierAfter : consumedAvgCostBasis;
+        const duplicateIds = multiplierRows
+          .filter((row) => row.id !== existingMultiplier.id)
+          .map((row) => row.id);
+        if (duplicateIds.length > 0) {
+          await tx.delete(playerMultipliers).where(inArray(playerMultipliers.id, duplicateIds));
+        }
         await tx
           .update(playerMultipliers)
           .set({
+            playerId: canonicalPlayerId,
             multiplier: multiplierAfter,
             avgCostBasis: nextAvgCostBasis.toFixed(4),
             totalCostBasis: nextTotalCostBasis.toFixed(2),
@@ -7704,9 +7728,9 @@ export class DatabaseStorage implements IStorage {
       } else {
         await tx.insert(playerMultipliers).values({
           userId,
-          playerId,
+          playerId: canonicalPlayerId,
           multiplier: multiplierGained,
-          avgCostBasis: toFixedString(avgCostBasis, 4),
+          avgCostBasis: toFixedString(consumedAvgCostBasis, 4),
           totalCostBasis: retainedTotalCostBasis.toFixed(2),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -7715,7 +7739,7 @@ export class DatabaseStorage implements IStorage {
 
       await tx.insert(playerMultiplierEvents).values({
         userId,
-        playerId,
+        playerId: canonicalPlayerId,
         eventType: "stack_shares",
         sharesConsumed: rawShareCount,
         effectiveSharesBurned,
@@ -7730,10 +7754,10 @@ export class DatabaseStorage implements IStorage {
           totalShares: sql`GREATEST(${players.totalShares} - ${effectiveSharesBurned}, 0)`,
           lastUpdated: new Date(),
         })
-        .where(eq(players.id, playerId));
+        .where(eq(players.id, canonicalPlayerId));
 
       console.log(
-        `[stackShares] User ${userId} stacked ${rawShareCount} shares of ${playerId} into 1 stacked share at ${multiplierAfter.toFixed(2)}x`,
+        `[stackShares] User ${userId} stacked ${rawShareCount} shares of ${canonicalPlayerId} into 1 stacked share at ${multiplierAfter.toFixed(2)}x`,
       );
 
       return {
