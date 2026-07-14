@@ -1073,7 +1073,8 @@ test("chat renders formatted leaderboard output and opens player modal from stru
   const leaderboard = page.locator('[data-testid="agent-ui-leaderboard-table"]:visible').last();
   await expect(leaderboard).toBeVisible();
   await expect(leaderboard).toContainText("Aaron Judge");
-  await expect(page.getByText("Mookie Betts")).toBeVisible();
+  await expect(leaderboard).toContainText("Freddie Freeman");
+  await expect(page.getByText("Mookie Betts")).toHaveCount(0);
 
   await leaderboard.getByRole("button", { name: /Aaron Judge/i }).click();
   await expect(page.getByTestId("dialog-player-modal")).toBeVisible();

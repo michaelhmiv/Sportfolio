@@ -301,17 +301,17 @@ function getPrimaryChip(
 function getChipClassName(label: MarketChipLabel | null) {
   switch (label) {
     case "Boost live today":
-      return "border-yellow-500/30 bg-yellow-500/10 text-yellow-200";
+      return "border-category-boost/30 bg-category-boost/10 text-category-boost";
     case "Scouts surging":
-      return "border-cyan-500/30 bg-cyan-500/10 text-cyan-200";
+      return "border-category-scout/30 bg-category-scout/10 text-category-scout";
     case "Whale trade":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-200";
+      return "border-category-whale/30 bg-category-whale/10 text-category-whale";
     case "Thin pool":
-      return "border-red-500/30 bg-red-500/10 text-red-200";
+      return "border-category-thin-pool/30 bg-category-thin-pool/10 text-category-thin-pool";
     case "Buy pressure":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+      return "border-market-positive/30 bg-market-positive/10 text-market-positive";
     case "Heat check":
-      return "border-orange-500/30 bg-orange-500/10 text-orange-200";
+      return "border-category-momentum/30 bg-category-momentum/10 text-category-momentum";
     default:
       return "border-border/60 bg-muted/30 text-muted-foreground";
   }
@@ -320,11 +320,11 @@ function getChipClassName(label: MarketChipLabel | null) {
 function getFreshnessClassName(freshnessState: "live" | "catching_up" | "offline") {
   switch (freshnessState) {
     case "live":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+      return "border-market-positive/30 bg-market-positive/10 text-market-positive";
     case "catching_up":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+      return "border-status-warning/30 bg-status-warning/10 text-status-warning";
     case "offline":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
+      return "border-market-negative/30 bg-market-negative/10 text-market-negative";
   }
 }
 
@@ -507,7 +507,7 @@ function MarketIntelList({
 
   if (items.length === 0) {
     return (
-      <div className="rounded-sm border border-dashed border-border/70 p-1.5 text-xs text-muted-foreground">
+      <div className="rounded-compact border border-dashed border-border/70 p-1.5 text-xs text-muted-foreground">
         {emptyState}
       </div>
     );
@@ -515,7 +515,7 @@ function MarketIntelList({
 
   return (
     <div
-      className="overflow-hidden rounded-sm border border-border/70 bg-muted/10"
+      className="overflow-hidden rounded-compact border border-border/70 bg-muted/10"
       data-testid={`market-mobile-intel-list-${metric}`}
     >
       <div className="grid grid-cols-[minmax(0,1fr)_56px_64px] gap-2 border-b border-border/60 px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -589,7 +589,7 @@ function MarketSummaryStat({
   hint?: string;
 }) {
   return (
-    <div className="rounded-sm bg-background/50 px-2 py-1.5">
+    <div className="rounded-compact bg-background/50 px-2 py-1.5">
       <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </div>
@@ -625,7 +625,7 @@ function MarketTabHeader({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/40 text-muted-foreground transition-colors hover:bg-muted/25 hover:text-foreground"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-pill border border-border/70 bg-background/40 text-muted-foreground transition-colors hover:bg-muted/25 hover:text-foreground"
               aria-label={`Explain ${title}`}
             >
               <HelpCircle className="h-3 w-3" />
@@ -658,42 +658,42 @@ function getCompactStatusToken(params: {
   if (quickContext?.isBoostEligible && player.gameStatus && player.gameStatus !== "none") {
     return {
       label: "Boost Ready",
-      className: "border-yellow-500/30 bg-yellow-500/10 text-yellow-200",
+      className: "border-category-boost/30 bg-category-boost/10 text-category-boost",
     };
   }
 
   if (player.gameStatus === "live") {
     return {
       label: "Live",
-      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+      className: "border-market-positive/30 bg-market-positive/10 text-market-positive",
     };
   }
 
   if (hasLpPosition) {
     return {
       label: "LP",
-      className: "border-blue-500/30 bg-blue-500/10 text-blue-200",
+      className: "border-category-liquidity/30 bg-category-liquidity/10 text-category-liquidity",
     };
   }
 
   if (quickContext?.isWatchlisted) {
     return {
       label: "Watch",
-      className: "border-primary/30 bg-primary/10 text-primary",
+      className: "border-selected-border bg-selected text-selected-foreground",
     };
   }
 
   if ((quickContext?.bestShareMultiplier || 1) > 1) {
     return {
       label: `x${quickContext?.bestShareMultiplier}`,
-      className: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+      className: "border-category-stacking/30 bg-category-stacking/10 text-category-stacking",
     };
   }
 
   if ((player.communityBoostCount || 0) > 0) {
     return {
       label: `C+${player.communityBoostCount}`,
-      className: "border-orange-500/30 bg-orange-500/10 text-orange-200",
+      className: "border-category-community/30 bg-category-community/10 text-category-community",
     };
   }
 
@@ -1003,13 +1003,13 @@ export function MarketMobilePoolsBoard({
             <SportSelector size="sm" className="w-[112px] shrink-0" />
           </div>
 
-          <div className="mt-1 grid grid-cols-3 gap-1 rounded-sm border border-border/60 bg-background/30 p-0.5">
+          <div className="mt-1 grid grid-cols-3 gap-1 rounded-compact border border-border/60 bg-background/30 p-0.5">
             {intelTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 className={cn(
-                  "rounded-sm px-1 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors",
+                  "rounded-compact px-1 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors",
                   activeIntelTab === tab.id
                     ? "bg-background text-foreground"
                     : "text-muted-foreground hover:bg-muted/30",
@@ -1028,7 +1028,7 @@ export function MarketMobilePoolsBoard({
               </div>
             ) : activeIntelTab === "indicators" ? (
               <div className="space-y-1">
-                <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-border/60 bg-border/60 p-px">
+                <div className="grid grid-cols-2 gap-px overflow-hidden rounded-compact border border-border/60 bg-border/60 p-px">
                   <MarketSummaryStat
                     label="Volatility"
                     value={String(Math.round(overview?.marketIndicators.volatilityIndex || 0))}
@@ -1054,14 +1054,14 @@ export function MarketMobilePoolsBoard({
                 <div className="flex flex-wrap gap-1 text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
                   <Badge
                     variant="outline"
-                    className="h-5 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5"
+                    className="h-5 whitespace-nowrap rounded-compact border-border/70 bg-background/30 px-1.5"
                   >
                     <span className="mr-1 font-mono text-foreground">{liveSlateDisplay}</span>
                     live/slate
                   </Badge>
                   <Badge
                     variant="outline"
-                    className="h-5 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5"
+                    className="h-5 whitespace-nowrap rounded-compact border-border/70 bg-background/30 px-1.5"
                   >
                     <span className="mr-1 font-mono text-foreground">
                       {overview?.pulse.tradeCount15m ?? 0}
@@ -1070,7 +1070,7 @@ export function MarketMobilePoolsBoard({
                   </Badge>
                   <Badge
                     variant="outline"
-                    className="h-5 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5"
+                    className="h-5 whitespace-nowrap rounded-compact border-border/70 bg-background/30 px-1.5"
                   >
                     <span className="mr-1 font-mono text-foreground">{marketFreshness}</span>
                     feed
@@ -1173,7 +1173,7 @@ export function MarketMobilePoolsBoard({
               <select
                 value={sortField}
                 onChange={(event) => onSortFieldChange(event.target.value as SortField)}
-                className="h-7 min-w-0 rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
+                className="h-7 min-w-0 rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
               >
                 <option value="volume">Volume</option>
                 <option value="marketCap">Market Cap</option>
@@ -1231,7 +1231,7 @@ export function MarketMobilePoolsBoard({
             )}
 
             {showFilters && (
-              <div className="grid grid-cols-2 gap-1 rounded-sm border border-border/70 bg-muted/10 p-1.5">
+              <div className="grid grid-cols-2 gap-1 rounded-compact border border-border/70 bg-muted/10 p-1.5">
                 <div className="space-y-1">
                   <label className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     Team
@@ -1239,7 +1239,7 @@ export function MarketMobilePoolsBoard({
                   <select
                     value={teamFilter}
                     onChange={(event) => onTeamFilterChange(event.target.value)}
-                    className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
+                    className="h-7 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
                   >
                     <option value="all">All Teams</option>
                     {teams.map((team) => (
@@ -1257,7 +1257,7 @@ export function MarketMobilePoolsBoard({
                   <select
                     value={positionFilter}
                     onChange={(event) => onPositionFilterChange(event.target.value)}
-                    className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
+                    className="h-7 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
                   >
                     <option value="all">All Positions</option>
                     {positions.map((position) => (
@@ -1276,7 +1276,7 @@ export function MarketMobilePoolsBoard({
                     <select
                       value={filterWatchlistId}
                       onChange={(event) => onWatchlistFilterChange(event.target.value)}
-                      className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
+                      className="h-7 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
                     >
                       <option value="none">All Players</option>
                       <option value="all">My Watchlists</option>
@@ -1311,7 +1311,7 @@ export function MarketMobilePoolsBoard({
             )}
           </div>
 
-          <div className="mt-1 overflow-hidden rounded-sm border border-border/70 bg-muted/10">
+          <div className="mt-1 overflow-hidden rounded-compact border border-border/70 bg-muted/10">
             <div
               className="grid grid-cols-[minmax(0,1.95fr)_58px_66px_54px] gap-1.5 border-b border-border/70 px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
               data-testid="market-mobile-trade-board-header"
@@ -1435,7 +1435,7 @@ export function MarketMobilePoolsBoard({
           </div>
 
           {totalPages > 1 && (
-            <div className="mt-1 flex items-center justify-between rounded-sm border border-border/70 bg-muted/15 px-1.5 py-1">
+            <div className="mt-1 flex items-center justify-between rounded-compact border border-border/70 bg-muted/15 px-1.5 py-1">
               <div className="text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
                 Page {page} / {totalPages}
               </div>

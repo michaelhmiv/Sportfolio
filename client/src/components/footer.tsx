@@ -1,131 +1,101 @@
-import { Link } from "wouter";
 import { SiDiscord } from "react-icons/si";
+import { Link } from "wouter";
+
+const linkClass =
+  "inline-flex min-h-11 items-center text-sm text-content-muted transition-colors duration-fast hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-8";
+
+type FooterLink = {
+  label: string;
+  href: string;
+  testId?: string;
+};
+
+type FooterSection = {
+  title: string;
+  links: readonly FooterLink[];
+};
+
+const sections: readonly FooterSection[] = [
+  {
+    title: "Company",
+    links: [
+      { label: "About", href: "/about", testId: "link-footer-about" },
+      { label: "Contact", href: "/contact", testId: "link-footer-contact" },
+      { label: "Blog", href: "/blog", testId: "link-footer-blog" },
+    ],
+  },
+  {
+    title: "Markets",
+    links: [
+      { label: "Player Pools", href: "/pools" },
+      { label: "Wiki", href: "/wiki", testId: "link-footer-wiki" },
+      { label: "Leaderboards", href: "/leaderboards" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy", testId: "link-footer-privacy" },
+      { label: "Terms", href: "/terms", testId: "link-footer-terms" },
+    ],
+  },
+] as const;
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="bg-sidebar border-t mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-          {/* Company */}
-          <div>
-            <h3 className="font-semibold mb-4 text-sm">Company</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/about"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid="link-footer-about"
-                >
-                  About Us
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/contact"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid="link-footer-contact"
-                >
-                  Contact
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/blog"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid="link-footer-blog"
-                >
-                  Blog
-                </Link>
-              </li>
-            </ul>
-          </div>
+    <footer
+      className="mt-auto border-t border-border-subtle bg-sidebar"
+      data-testid="application-footer"
+    >
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+          {sections.map((section) => (
+            <section key={section.title} aria-labelledby={`footer-${section.title.toLowerCase()}`}>
+              <h2
+                id={`footer-${section.title.toLowerCase()}`}
+                className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-content-subtle"
+              >
+                {section.title}
+              </h2>
+              <ul>
+                {section.links.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className={linkClass} data-testid={link.testId}>
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
 
-          {/* Resources */}
-          <div>
-            <h3 className="font-semibold mb-4 text-sm">Resources</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/wiki"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid="link-footer-wiki"
-                >
-                  Wiki
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/pools"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Player Pools
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Legal */}
-          <div>
-            <h3 className="font-semibold mb-4 text-sm">Legal</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/privacy"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid="link-footer-privacy"
-                >
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/terms"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid="link-footer-terms"
-                >
-                  Terms of Service
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Community */}
-          <div>
-            <h3 className="font-semibold mb-4 text-sm">Community</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <a
-                  href="https://discord.gg/sportfolio"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
-                  data-testid="link-footer-discord"
-                >
-                  <SiDiscord className="w-4 h-4" />
-                  Discord
-                </a>
-              </li>
-              <li>
-                <Link
-                  href="/leaderboards"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Leaderboards
-                </Link>
-              </li>
-            </ul>
-          </div>
+          <section aria-labelledby="footer-community">
+            <h2
+              id="footer-community"
+              className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-content-subtle"
+            >
+              Community
+            </h2>
+            <a
+              href="https://discord.gg/sportfolio"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${linkClass} gap-2`}
+              data-testid="link-footer-discord"
+            >
+              <SiDiscord className="h-4 w-4" aria-hidden="true" />
+              Discord
+            </a>
+          </section>
         </div>
 
-        <div className="mt-8 pt-8 border-t">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-            <p>© {currentYear} Sportfolio. All rights reserved.</p>
-            <p className="text-center md:text-right">
-              Trade NBA player shares like stocks. Scout, boost, and build a stronger portfolio.
-            </p>
-          </div>
+        <div className="mt-5 flex flex-col gap-2 border-t border-border-subtle pt-4 text-xs text-content-subtle sm:flex-row sm:items-center sm:justify-between">
+          <p>© {currentYear} Sportfolio</p>
+          <p className="max-w-xl sm:text-right">
+            Trade player shares, scout talent, and manage a multi-sport portfolio.
+          </p>
         </div>
       </div>
     </footer>

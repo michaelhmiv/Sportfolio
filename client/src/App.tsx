@@ -79,6 +79,7 @@ const loadSmsLinkPage = () => import("@/pages/sms-link");
 const loadDiscordLinkPage = () => import("@/pages/discord-link");
 const loadAnalyticsPage = () => import("@/pages/analytics");
 const loadNewsPage = () => import("@/pages/news");
+const loadAgentPage = () => import("@/pages/agent");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
 const loadBoostsPage = () => import("@/pages/boosts");
@@ -132,6 +133,7 @@ const SmsLink = lazy(loadSmsLinkPage);
 const DiscordLink = lazy(loadDiscordLinkPage);
 const Analytics = lazy(loadAnalyticsPage);
 const News = lazy(loadNewsPage);
+const Agent = lazy(loadAgentPage);
 const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
 const Boosts = lazy(loadBoostsPage);
@@ -216,16 +218,6 @@ function LegacyMarketplaceRedirect() {
   useEffect(() => {
     const search = window.location.search || "";
     setLocation(`/pools${search}`, { replace: true });
-  }, [setLocation]);
-
-  return null;
-}
-
-function LegacyAgentRedirect() {
-  const [, setLocation] = useLocation();
-
-  useEffect(() => {
-    setLocation("/", { replace: true });
   }, [setLocation]);
 
   return null;
@@ -621,8 +613,8 @@ function Router() {
           void CapacitorApp.minimizeApp();
           return;
         }
-        // Otherwise navigate back
-        history.back();
+        // A deep link can have no WebView history. Fall back to the app home instead of no-oping.
+        navigate("/");
       });
     };
 
@@ -630,22 +622,9 @@ function Router() {
     return () => {
       void listener?.remove();
     };
-  }, [isNativeAndroid, location]);
+  }, [isNativeAndroid, location, navigate]);
 
-  // P1 — 1.1: StatusBar — set to match app's dark theme, enable edge-to-edge
-  useEffect(() => {
-    if (!isNativePlatform) return;
-
-    void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
-      void StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined);
-      if (isNativeAndroid) {
-        void StatusBar.setBackgroundColor({ color: "#0f1420" }).catch(() => undefined);
-        void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
-      }
-    });
-  }, [isNativeAndroid, isNativePlatform]);
-
-  // P3 — 5.2: Update StatusBar when theme changes (dark/light)
+  // Keep native system chrome readable as the web theme changes.
   const [isDark, setIsDark] = useState(() =>
     typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true,
   );
@@ -660,24 +639,29 @@ function Router() {
     if (!isNativePlatform) return;
     void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
       void StatusBar.setStyle({
-        style: isDark ? Style.Dark : Style.Light,
+        // Dark canvases need light system icons; light canvases need dark icons.
+        style: isDark ? Style.Light : Style.Dark,
       }).catch(() => undefined);
       if (isNativeAndroid) {
         void StatusBar.setBackgroundColor({
           color: isDark ? "#0f1420" : "#ffffff",
         }).catch(() => undefined);
+        void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
       }
     });
   }, [isDark, isNativeAndroid, isNativePlatform]);
 
-  // P1 — 1.1: Keyboard — resize body instead of overlapping content
+  // Keep iOS keyboard appearance and resize behavior aligned with the active theme.
   useEffect(() => {
     if (!isNativeIOS) return;
 
-    void import("@capacitor/keyboard").then(({ Keyboard, KeyboardResize }) => {
+    void import("@capacitor/keyboard").then(({ Keyboard, KeyboardResize, KeyboardStyle }) => {
       void Keyboard.setResizeMode({ mode: KeyboardResize.Body }).catch(() => undefined);
+      void Keyboard.setStyle({
+        style: isDark ? KeyboardStyle.Dark : KeyboardStyle.Light,
+      }).catch(() => undefined);
     });
-  }, [isNativeIOS]);
+  }, [isDark, isNativeIOS]);
 
   // P3 — 7.1: Splash screen — hide after auth resolves
   useEffect(() => {
@@ -860,7 +844,9 @@ function Router() {
               <Route path="/discord/link" component={DiscordLink} />
               <Route path="/analytics" component={Analytics} />
               <Route path="/news" component={News} />
-              <Route path="/agent" component={LegacyAgentRedirect} />
+
+              {/* Hermes workspace - requires authentication */}
+              <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <Dashboard />}</Route>
 
               {/* Boosts - requires authentication */}
               <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
@@ -944,15 +930,16 @@ function Header() {
   return (
     <header
       className={cn(
-        "flex items-center justify-between px-4 border-b bg-sidebar sticky top-0 z-10",
-        isPremium && "border-b-yellow-500/30",
+        "sticky top-0 z-10 flex items-center justify-between border-b border-border-subtle bg-sidebar/95 px-3 backdrop-blur sm:px-4",
+        isPremium && "border-b-premium/30",
       )}
+      data-testid="application-header"
       style={{
-        height: "calc(4rem + env(safe-area-inset-top))",
+        height: "calc(3.5rem + env(safe-area-inset-top))",
         paddingTop: "env(safe-area-inset-top)",
       }}
     >
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <div className="hidden sm:block">
           <SidebarTrigger data-testid="button-sidebar-toggle" aria-label="Toggle sidebar" />
         </div>
@@ -963,7 +950,7 @@ function Header() {
             width={40}
             height={40}
             decoding="async"
-            className="h-10 w-10"
+            className="h-8 w-8 sm:h-9 sm:w-9"
           />
           {isAuthenticated ? (
             <>
@@ -971,17 +958,22 @@ function Header() {
               <ScoutWidget compact className="flex sm:hidden" />
             </>
           ) : (
-            <span className="text-xl font-extrabold tracking-tight text-primary">Sportfolio</span>
+            <span className="text-lg font-extrabold tracking-tight text-brand">Sportfolio</span>
           )}
         </div>
-        <div className="hidden sm:flex items-center gap-2 text-sm">
-          <span className="font-medium">Balance:</span>
-          <span className="font-mono font-bold text-primary" data-testid="text-balance">
+        <div className="hidden items-baseline gap-2 rounded-control border border-border-subtle bg-surface-raised px-2.5 py-1 sm:flex">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-content-muted">
+            Balance
+          </span>
+          <span
+            className="font-mono text-sm font-bold tabular-nums text-brand"
+            data-testid="text-balance"
+          >
             ${dashboardData?.user?.balance || "0.00"}
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0.5 sm:gap-1">
         <Button
           variant="ghost"
           size="icon"
@@ -998,7 +990,7 @@ function Header() {
             <Newspaper className="h-4 w-4" aria-hidden="true" />
             {(hasUnreadDigest || unreadNewsCount > 0) && (
               <span
-                className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-red-500"
+                className="absolute right-2.5 top-2.5 h-2 w-2 rounded-circle bg-status-live ring-2 ring-sidebar"
                 aria-label="Unread news"
               />
             )}
@@ -1027,7 +1019,7 @@ function Header() {
               className="hidden sm:block"
               data-testid="link-username"
             >
-              <div className="flex items-center gap-2 text-sm text-muted-foreground hover-elevate active-elevate-2 px-3 py-1.5 rounded-md transition-colors">
+              <div className="flex items-center gap-2 rounded-control px-3 py-1.5 text-sm text-content-muted transition-colors hover:bg-action-hover hover:text-content">
                 <span data-testid="text-username">{userName}</span>
               </div>
             </Link>
@@ -1074,7 +1066,7 @@ function Header() {
           onClick={() => window.open("https://discord.gg/r8MsduNvXG", "_blank")}
           data-testid="button-discord"
           aria-label="Join our Discord"
-          className="hover-elevate active-elevate-2 min-h-[44px] min-w-[44px]"
+          className="min-h-[44px] min-w-[44px] hover:bg-action-hover"
         >
           <SiDiscord className="w-5 h-5" aria-hidden="true" />
         </Button>

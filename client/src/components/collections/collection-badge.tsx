@@ -28,28 +28,28 @@ const collectionTypeColors: Record<
   { bg: string; border: string; text: string; glow: string }
 > = {
   team: {
-    bg: "bg-blue-500/10",
-    border: "border-blue-500/30",
-    text: "text-blue-500",
-    glow: "shadow-blue-500/30",
+    bg: "bg-status-info/10",
+    border: "border-status-info/30",
+    text: "text-status-info",
+    glow: "shadow-status-info/30",
   },
   rookie: {
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/30",
-    text: "text-emerald-500",
-    glow: "shadow-emerald-500/30",
+    bg: "bg-market-positive/10",
+    border: "border-market-positive/30",
+    text: "text-market-positive",
+    glow: "shadow-market-positive/30",
   },
   position: {
-    bg: "bg-violet-500/10",
-    border: "border-violet-500/30",
-    text: "text-violet-500",
-    glow: "shadow-violet-500/30",
+    bg: "bg-category-scout/10",
+    border: "border-category-scout/30",
+    text: "text-category-scout",
+    glow: "shadow-category-scout/30",
   },
   allstar: {
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
-    text: "text-amber-500",
-    glow: "shadow-amber-500/30",
+    bg: "bg-premium/10",
+    border: "border-premium/30",
+    text: "text-premium",
+    glow: "shadow-premium/30",
   },
 };
 
@@ -83,7 +83,7 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className={cn(
-        "relative rounded-sm border cursor-pointer overflow-hidden",
+        "relative rounded-compact border cursor-pointer overflow-hidden",
         sizeClasses[size],
         colors.bg,
         colors.border,
@@ -118,7 +118,7 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
         <motion.div
           animate={isCompleted ? { scale: [1, 1.1, 1] } : {}}
           transition={{ duration: 0.5, repeat: isCompleted ? Infinity : 0, repeatDelay: 2 }}
-          className={cn("rounded-sm p-1.5", colors.bg, colors.text)}
+          className={cn("rounded-compact p-1.5", colors.bg, colors.text)}
         >
           <Icon className={iconSizes[size]} />
         </motion.div>
@@ -136,12 +136,12 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
         {/* Progress bar for incomplete */}
         {!isCompleted && (
           <div className="w-full mt-1">
-            <div className="h-1.5 w-full rounded-sm bg-background/50 overflow-hidden">
+            <div className="h-1.5 w-full rounded-compact bg-background/50 overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPercent}%` }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className={cn("h-full rounded-sm", colors.text.replace("text-", "bg-"))}
+                className={cn("h-full rounded-compact", colors.text.replace("text-", "bg-"))}
               />
             </div>
             <p className={cn("text-center mt-0.5 text-muted-foreground", textSizes[size])}>
@@ -157,9 +157,9 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 500, damping: 30 }}
             className={cn(
-              "absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-sm",
+              "absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-compact",
               colors.text.replace("text-", "bg-"),
-              "text-white text-xs font-bold",
+              "text-content text-xs font-bold",
             )}
           >
             OK

@@ -778,7 +778,7 @@ export default function PlayerPage() {
                           content={({ active, payload }) => {
                             if (active && payload && payload.length) {
                               return (
-                                <div className="bg-background border rounded p-2 shadow-lg">
+                                <div className="bg-background border rounded-compact p-2 shadow-lg">
                                   <div className="font-mono font-bold">
                                     $
                                     {typeof payload[0].value === "number"
@@ -817,7 +817,7 @@ export default function PlayerPage() {
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-2">
-                    <Droplets className="w-4 h-4 text-blue-500" />
+                    <Droplets className="w-4 h-4 text-category-liquidity" />
                     <CardTitle className="text-sm font-medium uppercase tracking-wide">
                       AMM Pool
                     </CardTitle>
@@ -855,7 +855,7 @@ export default function PlayerPage() {
                   ) : poolData ? (
                     <>
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="p-2 bg-muted/50 rounded">
+                        <div className="p-2 bg-muted/50 rounded-compact">
                           <div className="text-[10px] text-muted-foreground uppercase">
                             Pool Shares
                           </div>
@@ -863,7 +863,7 @@ export default function PlayerPage() {
                             {poolData.shares.toLocaleString()}
                           </div>
                         </div>
-                        <div className="p-2 bg-muted/50 rounded">
+                        <div className="p-2 bg-muted/50 rounded-compact">
                           <div className="text-[10px] text-muted-foreground uppercase">
                             Pool TVL
                           </div>
@@ -875,7 +875,7 @@ export default function PlayerPage() {
                         </div>
                       </div>
 
-                      <div className="p-2 bg-muted/50 rounded">
+                      <div className="p-2 bg-muted/50 rounded-compact">
                         <div className="text-[10px] text-muted-foreground uppercase">
                           Total Volume
                         </div>
@@ -888,14 +888,14 @@ export default function PlayerPage() {
                       </div>
 
                       {!isPoolInitialized && (
-                        <div className="rounded border bg-amber-500/10 border-amber-500/30 p-2 text-xs text-amber-700">
+                        <div className="rounded-compact border bg-status-warning/10 border-status-warning/30 p-2 text-xs text-status-warning">
                           Pool uninitialized. First two-sided LP add sets the starting market price.
                         </div>
                       )}
 
                       {lpPosition && lpPosition.lpShares > 0 && (
-                        <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded">
-                          <div className="text-[10px] text-blue-600 uppercase font-semibold">
+                        <div className="rounded-compact border border-category-liquidity/20 bg-category-liquidity/10 p-2">
+                          <div className="text-[10px] font-semibold uppercase text-category-liquidity">
                             Your LP Position
                           </div>
                           <div className="flex justify-between items-center mt-1">
@@ -1072,7 +1072,7 @@ export default function PlayerPage() {
                 </Button>
               </div>
             ) : (
-              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              <div className="rounded-control border bg-muted/30 p-3 text-xs text-muted-foreground">
                 Set opening shares and SB to initialize this pool. Your first deposit sets the
                 starting market price.
               </div>
@@ -1093,7 +1093,7 @@ export default function PlayerPage() {
               </div>
             )}
 
-            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+            <div className="rounded-control border bg-muted/30 p-3 text-xs space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Current price</span>
                 <span className="font-mono">
@@ -1195,7 +1195,7 @@ export default function PlayerPage() {
 
             {/* Auto-Detect Zap Quote Display */}
             {addLiquidityMode === "auto-detect" && zapQuote && (
-              <div className="rounded-md border bg-accent/10 p-3 text-xs space-y-1">
+              <div className="rounded-control border bg-accent/10 p-3 text-xs space-y-1">
                 <div className="text-[10px] uppercase font-semibold text-muted-foreground mb-2">
                   Auto-Trade Preview
                 </div>
@@ -1253,7 +1253,7 @@ export default function PlayerPage() {
 
             {/* Dual Max / Fixed Ratio Estimates */}
             {(addLiquidityMode === "dual-max" || addLiquidityMode === "fixed-ratio") && (
-              <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="rounded-control border bg-muted/30 p-3 text-xs space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Est. deposit</span>
                   <span className="font-mono">
@@ -1277,7 +1277,7 @@ export default function PlayerPage() {
                   </>
                 )}
                 {addLiquidityMode === "fixed-ratio" && linkAmounts && isLinkingConstrained && (
-                  <div className="text-xs text-amber-600">
+                  <div className="text-xs text-status-warning">
                     Limited by your {lastEdited === "shares" ? "SB balance" : "shares"}. Deposit
                     will be reduced.
                   </div>
@@ -1363,7 +1363,7 @@ export default function PlayerPage() {
               Estimated returns may adjust slightly at execution.
             </div>
 
-            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+            <div className="rounded-control border bg-muted/30 p-3 text-xs space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Your ownership</span>
                 <span className="font-mono">
@@ -1392,7 +1392,7 @@ export default function PlayerPage() {
               />
             </div>
 
-            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+            <div className="rounded-control border bg-muted/30 p-3 text-xs space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Est. shares</span>
                 <span className="font-mono">
@@ -1465,7 +1465,7 @@ export default function PlayerPage() {
             <Button
               variant="terminalOutline"
               size="sm"
-              className={`h-9 px-3 ${isWatchlisted ? "text-red-500" : ""}`}
+              className={`h-9 px-3 ${isWatchlisted ? "text-market-negative" : ""}`}
               onClick={() => toggleWatchlistMutation.mutate(isWatchlisted)}
               disabled={toggleWatchlistMutation.isPending}
               aria-label={isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}

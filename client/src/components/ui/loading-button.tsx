@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Button, ButtonProps } from "./button";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,7 @@ export function LoadingButton({
   disabled,
   ...props
 }: LoadingButtonProps) {
+  const shouldReduceMotion = useReducedMotion();
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
 
@@ -50,6 +51,14 @@ export function LoadingButton({
 
   const getContent = () => {
     if (loading) {
+      if (shouldReduceMotion) {
+        return (
+          <span className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4" aria-hidden="true" />
+            {loadingText || children}
+          </span>
+        );
+      }
       return (
         <motion.span
           initial={{ opacity: 0 }}
@@ -57,13 +66,21 @@ export function LoadingButton({
           exit={{ opacity: 0 }}
           className="flex items-center gap-2"
         >
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
           {loadingText || children}
         </motion.span>
       );
     }
 
     if (showSuccess) {
+      if (shouldReduceMotion) {
+        return (
+          <span className="flex items-center gap-2">
+            <Check className="h-4 w-4" aria-hidden="true" />
+            {successText || "Success!"}
+          </span>
+        );
+      }
       return (
         <motion.span
           initial={{ opacity: 0, scale: 0.8 }}
@@ -76,7 +93,7 @@ export function LoadingButton({
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 400, damping: 15 }}
           >
-            <Check className="h-4 w-4" />
+            <Check className="h-4 w-4" aria-hidden="true" />
           </motion.span>
           {successText || "Success!"}
         </motion.span>
@@ -84,6 +101,14 @@ export function LoadingButton({
     }
 
     if (showError) {
+      if (shouldReduceMotion) {
+        return (
+          <span className="flex items-center gap-2">
+            <X className="h-4 w-4" aria-hidden="true" />
+            {errorText || "Error"}
+          </span>
+        );
+      }
       return (
         <motion.span
           initial={{ opacity: 0, scale: 0.8 }}
@@ -96,7 +121,7 @@ export function LoadingButton({
             animate={{ scale: 1, rotate: [0, -10, 10, 0] }}
             transition={{ type: "spring", stiffness: 400, damping: 15 }}
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </motion.span>
           {errorText || "Error"}
         </motion.span>
@@ -109,15 +134,19 @@ export function LoadingButton({
   return (
     <Button
       className={cn(
-        "relative overflow-hidden transition-all duration-300",
-        showSuccess && "bg-emerald-600 hover:bg-emerald-700",
-        showError && "bg-red-600 hover:bg-red-700",
+        "relative overflow-hidden transition-all duration-standard",
+        showSuccess &&
+          "bg-market-positive text-content-inverse hover:bg-market-positive/90 disabled:bg-market-positive disabled:text-content-inverse",
+        showError &&
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:bg-destructive disabled:text-destructive-foreground",
         className,
       )}
       disabled={disabled || loading || showSuccess || showError}
       {...props}
     >
-      <AnimatePresence mode="wait">{getContent()}</AnimatePresence>
+      <AnimatePresence mode="wait" initial={!shouldReduceMotion}>
+        {getContent()}
+      </AnimatePresence>
     </Button>
   );
 }
@@ -164,16 +193,17 @@ export function PulsingButton({
   className,
   ...props
 }: PulsingButtonProps) {
+  const shouldReduceMotion = useReducedMotion();
   return (
     <motion.div
       animate={
-        pulse
+        pulse && !shouldReduceMotion
           ? {
               scale: [1, 1.02, 1],
               boxShadow: [
-                "0 0 0 0 rgba(var(--primary), 0)",
-                "0 0 0 8px rgba(var(--primary), 0.2)",
-                "0 0 0 0 rgba(var(--primary), 0)",
+                "0 0 0 0 hsl(var(--brand) / 0)",
+                "0 0 0 8px hsl(var(--brand) / 0.2)",
+                "0 0 0 0 hsl(var(--brand) / 0)",
               ],
             }
           : {}
@@ -183,7 +213,7 @@ export function PulsingButton({
         repeat: Infinity,
         ease: "easeInOut",
       }}
-      className="inline-block rounded-md"
+      className="inline-block rounded-control"
     >
       <Button className={className} {...props}>
         {children}

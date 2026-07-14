@@ -147,14 +147,14 @@ function HandbookNavigation({
                 href={`#${section.anchorId}`}
                 onClick={() => onNavigate?.()}
                 className={cn(
-                  "flex-1 rounded-sm border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground flex items-center justify-between gap-2",
+                  "flex-1 rounded-compact border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground flex items-center justify-between gap-2",
                   isSectionHighlighted && "border-primary/40 bg-primary/5 text-foreground",
                 )}
               >
                 <span>{section.label}</span>
                 <Badge
                   variant="secondary"
-                  className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px] shrink-0"
+                  className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px] shrink-0"
                 >
                   {section.chapters.length}
                 </Badge>
@@ -163,7 +163,7 @@ function HandbookNavigation({
                 <button
                   type="button"
                   className={cn(
-                    "inline-flex h-9 w-9 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:text-foreground",
+                    "inline-flex h-9 w-9 items-center justify-center rounded-compact border border-border text-muted-foreground transition-colors hover:text-foreground",
                     isSectionHighlighted && "border-primary/40 bg-primary/5 text-foreground",
                   )}
                   aria-label={`${isOpen ? "Collapse" : "Expand"} ${section.label}`}
@@ -191,7 +191,7 @@ function HandbookNavigation({
                       href={`#${chapter.chapterAnchorId}`}
                       onClick={() => onNavigate?.()}
                       className={cn(
-                        "block rounded-sm px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
+                        "block rounded-compact px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
                         isChapterHighlighted && "bg-primary/5 text-foreground",
                       )}
                     >
@@ -461,7 +461,7 @@ export default function WikiPage() {
               <div className="flex items-center gap-2">
                 <Badge
                   variant="secondary"
-                  className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
+                  className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
                 >
                   {handbook.chapterCount} chapters
                 </Badge>
@@ -503,7 +503,7 @@ export default function WikiPage() {
                       <CardTitle className="terminal-heading text-sm">Search Matches</CardTitle>
                       <Badge
                         variant="outline"
-                        className="rounded-sm font-mono text-[11px] uppercase tracking-[0.08em]"
+                        className="rounded-compact font-mono text-[11px] uppercase tracking-[0.08em]"
                       >
                         {searchResults.length}
                       </Badge>
@@ -518,7 +518,7 @@ export default function WikiPage() {
                         <a
                           key={`${result.id}-${result.anchorId}`}
                           href={`#${result.anchorId}`}
-                          className="block rounded-sm border px-3 py-3 transition-colors hover:border-primary/40"
+                          className="block rounded-compact border px-3 py-3 transition-colors hover:border-primary/40"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
@@ -553,20 +553,20 @@ export default function WikiPage() {
                 <div className="flex items-center gap-2">
                   <Badge
                     variant="outline"
-                    className="rounded-sm font-mono text-[11px] uppercase tracking-[0.08em]"
+                    className="rounded-compact font-mono text-[11px] uppercase tracking-[0.08em]"
                   >
                     Sportfolio Handbook
                   </Badge>
                   <Badge
                     variant="secondary"
-                    className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
+                    className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
                   >
                     Docs mode
                   </Badge>
                   {askMutation.data.fallbackUsed && (
                     <Badge
                       variant="secondary"
-                      className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
+                      className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
                     >
                       handbook fallback
                     </Badge>
@@ -585,7 +585,7 @@ export default function WikiPage() {
                       <a
                         key={`${citation.id}-${citation.anchorId}`}
                         href={`#${citation.anchorId}`}
-                        className="block rounded-sm border px-3 py-3 transition-colors hover:border-primary/40"
+                        className="block rounded-compact border px-3 py-3 transition-colors hover:border-primary/40"
                       >
                         <div className="font-medium">{citation.title}</div>
                         <div className="terminal-subtle mt-1 text-sm">{citation.excerpt}</div>
@@ -614,7 +614,7 @@ export default function WikiPage() {
             <h2 className="terminal-heading text-lg">Sections</h2>
             <Badge
               variant="secondary"
-              className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
+              className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
             >
               {handbook.sections.length}
             </Badge>
@@ -624,13 +624,13 @@ export default function WikiPage() {
               <a
                 key={section.id}
                 href={`#${section.anchorId}`}
-                className="group block rounded-sm border p-4 transition-colors hover:border-primary/40 hover:bg-primary/[0.02]"
+                className="group block rounded-compact border p-4 transition-colors hover:border-primary/40 hover:bg-primary/[0.02]"
               >
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-medium text-sm">{section.label}</h3>
                   <Badge
                     variant="secondary"
-                    className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px] shrink-0"
+                    className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px] shrink-0"
                   >
                     {section.chapters.length}
                   </Badge>
@@ -674,7 +674,7 @@ export default function WikiPage() {
                   <h2 className="terminal-heading text-2xl">{section.label}</h2>
                   <Badge
                     variant="secondary"
-                    className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
+                    className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
                   >
                     {section.chapters.length}
                   </Badge>
@@ -700,7 +700,7 @@ export default function WikiPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge
                               variant="outline"
-                              className="rounded-sm font-mono text-[11px] uppercase tracking-[0.08em]"
+                              className="rounded-compact font-mono text-[11px] uppercase tracking-[0.08em]"
                             >
                               {section.label}
                             </Badge>
@@ -719,7 +719,7 @@ export default function WikiPage() {
                                   key={heading.id}
                                   href={`#${heading.id}`}
                                   className={cn(
-                                    "rounded-sm border px-2 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground",
+                                    "rounded-compact border px-2 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground",
                                     matchState.matchedHeadingIds.has(heading.id) &&
                                       "border-primary/40 bg-primary/5 text-foreground",
                                   )}

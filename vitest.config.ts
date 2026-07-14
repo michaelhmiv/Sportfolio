@@ -20,6 +20,7 @@ export default defineConfig({
       ".claude/**",
       "**/.claude/**",
       "tests/e2e/**",
+      "tests/visual/**",
     ],
     coverage: {
       reporter: ["text", "html"],

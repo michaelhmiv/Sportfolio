@@ -222,7 +222,7 @@ export default function Leaderboards() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={isConnected ? "default" : "outline"} className="gap-1">
                 <span
-                  className={`h-2 w-2 rounded-full ${isConnected ? "bg-current" : "bg-muted-foreground"}`}
+                  className={`h-2 w-2 rounded-pill ${isConnected ? "bg-current" : "bg-muted-foreground"}`}
                 />
                 {liveLabel}
               </Badge>
@@ -324,7 +324,7 @@ export default function Leaderboards() {
                                       #{entry.rank}
                                     </span>
                                     {entry.rank === 1 && (
-                                      <Trophy className="h-4 w-4 text-yellow-500" />
+                                      <Trophy className="h-4 w-4 text-premium" />
                                     )}
                                   </div>
                                   <div className="font-semibold">@{entry.username}</div>

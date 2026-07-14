@@ -494,7 +494,7 @@ export default function Portfolio() {
   const openStackSharesDialog = (playerId: string, playerName: string, availableShares: number) => {
     const safePlayerName = playerName?.trim() || "Selected player";
     setSelectedPlayerForStacking({ id: playerId, name: safePlayerName });
-    // Default to the maximum stackable shares (rounded down to nearest multiple of 2)
+    // Default to the maximum stackable shares (round down to nearest multiple of 2)
     const maxStackable = Math.floor(availableShares / 2) * 2;
     setSharesToStackInput(maxStackable.toString());
     setStackSharesDialogOpen(true);
@@ -863,16 +863,16 @@ export default function Portfolio() {
                   </div>
                   <Link href="/premium">
                     <div
-                      className="flex-1 min-w-0 text-right cursor-pointer hover-elevate rounded-md p-1 -m-1"
+                      className="flex-1 min-w-0 text-right cursor-pointer hover-elevate rounded-control p-1 -m-1"
                       data-testid="link-premium-mobile"
                     >
                       <div className="flex items-center justify-end gap-1 text-muted-foreground uppercase tracking-wide mb-0.5">
-                        <Crown className="w-3 h-3 text-yellow-500" />
+                        <Crown className="w-3 h-3 text-premium" />
                         <span>Premium</span>
-                        <Plus className="w-3 h-3 text-yellow-500" />
+                        <Plus className="w-3 h-3 text-premium" />
                       </div>
                       <div
-                        className="font-mono font-bold text-yellow-500"
+                        className="font-mono font-bold text-premium"
                         data-testid="text-premium-shares"
                       >
                         {data?.premiumShares || 0}
@@ -948,7 +948,7 @@ export default function Portfolio() {
 
               <Card
                 variant="terminal"
-                className={`${data?.isPremium ? "border-yellow-500/30 bg-yellow-500/5" : ""} hover-elevate cursor-pointer`}
+                className={`${data?.isPremium ? "border-premium/30 bg-premium/5" : ""} hover-elevate cursor-pointer`}
               >
                 <Link href="/premium">
                   <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
@@ -956,16 +956,16 @@ export default function Portfolio() {
                       Premium Shares
                     </CardTitle>
                     <div className="flex items-center gap-1">
-                      <Crown className="w-4 h-4 text-yellow-500" />
+                      <Crown className="w-4 h-4 text-premium" />
                       <Plus
-                        className="w-4 h-4 text-yellow-500"
+                        className="w-4 h-4 text-premium"
                         data-testid="button-add-premium-desktop"
                       />
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div
-                      className="text-lg font-mono font-bold text-yellow-500"
+                      className="text-lg font-mono font-bold text-premium"
                       data-testid="text-premium-shares-desktop"
                     >
                       {data?.premiumShares || 0}
@@ -980,7 +980,7 @@ export default function Portfolio() {
                       <Button
                         size="sm"
                         variant="terminalOutline"
-                        className="mt-2 h-7 text-xs border-yellow-500/50 text-yellow-600 hover:bg-yellow-500/10"
+                        className="mt-2 h-7 text-xs border-premium/50 text-premium hover:bg-premium/10"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1376,22 +1376,22 @@ export default function Portfolio() {
                       <tbody>
                         {(data?.premiumShares ?? 0) > 0 && data && (
                           <tr
-                            className="border-b border-border bg-yellow-500/5 hover-elevate"
+                            className="border-b border-border bg-premium/5 hover-elevate"
                             data-testid="row-premium-shares"
                           >
                             {/* Mobile layout */}
                             <td className="px-2 py-2 sm:hidden" colSpan={6}>
                               <div className="flex items-start gap-2">
-                                <div className="terminal-avatar mt-0.5 flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
-                                  <Crown className="h-4 w-4 text-yellow-500" />
+                                <div className="terminal-avatar mt-0.5 flex-shrink-0 border-premium/20 bg-premium/10 text-premium">
+                                  <Crown className="h-4 w-4 text-premium" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center justify-between gap-2">
-                                    <div className="truncate text-sm font-medium text-yellow-500">
+                                    <div className="truncate text-sm font-medium text-premium">
                                       Premium Share
                                     </div>
                                     {data.isPremium ? (
-                                      <span className="rounded border border-yellow-500/30 bg-yellow-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-yellow-300">
+                                      <span className="rounded-compact border border-premium/30 bg-premium/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-premium">
                                         Active
                                       </span>
                                     ) : null}
@@ -1412,7 +1412,7 @@ export default function Portfolio() {
                                       onClick={() => redeemPremiumMutation.mutate()}
                                       disabled={redeemPremiumMutation.isPending}
                                       variant="ghost"
-                                      className="mt-1 h-6 px-0 text-[10px] text-yellow-300 hover:text-yellow-200"
+                                      className="mt-1 h-6 px-0 text-[10px] text-premium hover:text-premium"
                                       data-testid="button-redeem-premium"
                                     >
                                       Redeem
@@ -1426,11 +1426,11 @@ export default function Portfolio() {
                             <td className="px-2 py-1.5 hidden sm:table-cell">
                               <div className="flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
-                                  <div className="terminal-avatar flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
-                                    <Crown className="w-4 h-4 text-yellow-500" />
+                                  <div className="terminal-avatar flex-shrink-0 border-premium/20 bg-premium/10 text-premium">
+                                    <Crown className="w-4 h-4 text-premium" />
                                   </div>
                                   <div>
-                                    <div className="font-medium text-sm text-yellow-500">
+                                    <div className="font-medium text-sm text-premium">
                                       Premium Share
                                     </div>
                                     <div className="text-xs text-muted-foreground">
@@ -1443,29 +1443,29 @@ export default function Portfolio() {
                                   onClick={() => redeemPremiumMutation.mutate()}
                                   disabled={redeemPremiumMutation.isPending || data.isPremium}
                                   variant="terminal"
-                                  className="border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
+                                  className="border-premium/40 bg-premium text-premium-foreground hover:bg-premium/90"
                                   data-testid="button-redeem-premium-desktop"
                                 >
                                   {data.isPremium ? "Active" : "Redeem"}
                                 </Button>
                               </div>
                             </td>
-                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500 font-bold">
+                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-premium font-bold">
                               {data.premiumShares}
                             </td>
-                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500">
+                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-premium">
                               -
                             </td>
-                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500">
+                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-premium">
                               -
                             </td>
-                            <td className="px-2 py-1.5 text-right font-mono hidden md:table-cell text-yellow-500">
+                            <td className="px-2 py-1.5 text-right font-mono hidden md:table-cell text-premium">
                               {premiumMarketData?.lastTradePrice !== null &&
                               premiumMarketData?.lastTradePrice !== undefined
                                 ? `$${premiumMarketData.lastTradePrice.toFixed(2)}`
                                 : "-"}
                             </td>
-                            <td className="px-2 py-1.5 text-right font-mono hidden xl:table-cell text-yellow-500 font-bold">
+                            <td className="px-2 py-1.5 text-right font-mono hidden xl:table-cell text-premium font-bold">
                               {premiumMarketData?.lastTradePrice !== null &&
                               premiumMarketData?.lastTradePrice !== undefined
                                 ? `$${(data.premiumShares * premiumMarketData.lastTradePrice).toFixed(2)}`
@@ -1516,10 +1516,10 @@ export default function Portfolio() {
                                                     lastName={group.player.lastName}
                                                     className="truncate text-sm font-medium"
                                                   />
-                                                  <span className="shrink-0 rounded-sm border border-border/70 bg-muted/20 px-1.5 py-0.5 font-mono text-[10px]">
+                                                  <span className="shrink-0 rounded-compact border border-border/70 bg-muted/20 px-1.5 py-0.5 font-mono text-[10px]">
                                                     S {formatMobileCompactUnits(singlesCount)}
                                                   </span>
-                                                  <span className="shrink-0 rounded-sm border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 font-mono text-[10px] text-purple-400">
+                                                  <span className="shrink-0 rounded-compact border border-category-stacking/30 bg-category-stacking/10 px-1.5 py-0.5 font-mono text-[10px] text-category-stacking">
                                                     P {formatMobileCompactUnits(stackPower)}p
                                                   </span>
                                                 </div>
@@ -1580,7 +1580,7 @@ export default function Portfolio() {
                                           {parseFloat(group.totalPower) > 0 && (
                                             <Badge
                                               variant="outline"
-                                              className="text-[10px] h-4 px-1 border-purple-500/50 text-purple-400 bg-purple-500/10"
+                                              className="text-[10px] h-4 px-1 border-category-stacking/50 text-category-stacking bg-category-stacking/10"
                                             >
                                               {group.totalPower} effective
                                             </Badge>
@@ -1651,8 +1651,8 @@ export default function Portfolio() {
                                       <button
                                         className={`text-xs font-medium hover:underline cursor-pointer text-right ${
                                           parseFloat(group.pnl) >= 0
-                                            ? "text-positive hover:text-green-400"
-                                            : "text-negative hover:text-red-400"
+                                            ? "text-positive hover:text-market-positive"
+                                            : "text-negative hover:text-market-negative"
                                         }`}
                                         title="Open stacking"
                                         onClick={(e) => {
@@ -1676,7 +1676,7 @@ export default function Portfolio() {
                                       <span
                                         className={`font-semibold ${
                                           stackPower > 0
-                                            ? "text-purple-400"
+                                            ? "text-category-stacking"
                                             : "text-muted-foreground"
                                         }`}
                                         title="Stack power"
@@ -1846,7 +1846,7 @@ export default function Portfolio() {
                                                           clearSelection();
                                                         }
                                                       }}
-                                                      className="rounded border-input"
+                                                      className="rounded-compact border-input"
                                                     />
                                                   </th>
                                                   <th
@@ -1897,7 +1897,7 @@ export default function Portfolio() {
                                                   return (
                                                     <tr
                                                       key={holdingId}
-                                                      className={`${isRegular ? "bg-green-500/5" : "bg-purple-500/5"} hover:bg-muted/50 transition-colors`}
+                                                      className={`${isRegular ? "bg-market-positive/5" : "bg-category-stacking/5"} hover:bg-muted/50 transition-colors`}
                                                     >
                                                       <td className="py-2 pl-1">
                                                         <input
@@ -1906,7 +1906,7 @@ export default function Portfolio() {
                                                           onChange={() =>
                                                             toggleHoldingSelection(holdingId)
                                                           }
-                                                          className="rounded border-input"
+                                                          className="rounded-compact border-input"
                                                         />
                                                       </td>
                                                       <td className="py-2">
@@ -1914,14 +1914,14 @@ export default function Portfolio() {
                                                           {share.quantity}
                                                         </span>
                                                         <span
-                                                          className={`ml-1 text-[10px] ${isRegular ? "text-muted-foreground" : "text-purple-400"}`}
+                                                          className={`ml-1 text-[10px] ${isRegular ? "text-muted-foreground" : "text-category-stacking"}`}
                                                         >
                                                           @ {share.multiplier}x
                                                         </span>
                                                       </td>
                                                       <td className="py-2">
                                                         <span
-                                                          className={`font-mono font-medium ${isRegular ? "text-muted-foreground" : "text-purple-400"}`}
+                                                          className={`font-mono font-medium ${isRegular ? "text-muted-foreground" : "text-category-stacking"}`}
                                                         >
                                                           {share.effectiveShares}
                                                         </span>
@@ -1931,7 +1931,7 @@ export default function Portfolio() {
                                                           <Button
                                                             size="sm"
                                                             variant="ghost"
-                                                            className="h-6 px-2 text-xs bg-green-500/10 hover:bg-green-500/20 text-green-600"
+                                                            className="h-6 bg-market-positive/10 px-2 text-xs text-market-positive hover:bg-hover"
                                                             onClick={() =>
                                                               openStackSharesFromExpanded(
                                                                 group.player.id,
@@ -1947,7 +1947,7 @@ export default function Portfolio() {
                                                           <Button
                                                             size="sm"
                                                             variant="ghost"
-                                                            className="h-6 px-2 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-600"
+                                                            className="h-6 bg-category-stacking/10 px-2 text-xs text-category-stacking"
                                                             disabled
                                                           >
                                                             Stacked
@@ -1962,14 +1962,15 @@ export default function Portfolio() {
 
                                             {/* Selection summary */}
                                             {selectedHoldingIds.size > 0 && (
-                                              <div className="mt-3 flex items-center justify-between bg-muted/50 rounded p-2">
+                                              <div className="mt-3 flex items-center justify-between bg-muted/50 rounded-compact p-2">
                                                 <span className="text-xs text-muted-foreground">
                                                   {selectedHoldingIds.size} lot
                                                   {selectedHoldingIds.size > 1 ? "s" : ""} selected
                                                 </span>
                                                 <Button
                                                   size="sm"
-                                                  className="h-7 bg-purple-500 hover:bg-purple-600 text-xs"
+                                                  variant="outline"
+                                                  className="h-7 border-category-stacking/40 bg-category-stacking/10 text-xs text-category-stacking hover:bg-hover hover:text-category-stacking"
                                                   onClick={() =>
                                                     openStackSharesFromExpanded(
                                                       group.player.id,
@@ -2052,12 +2053,16 @@ export default function Portfolio() {
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => (
                       <div key={i} className="terminal-shell flex items-center gap-3 p-3">
-                        <Shimmer width="40px" height="40px" className="rounded-sm flex-shrink-0" />
+                        <Shimmer
+                          width="40px"
+                          height="40px"
+                          className="rounded-compact flex-shrink-0"
+                        />
                         <div className="flex-1 space-y-2">
                           <Shimmer height="14px" width="60%" />
                           <Shimmer height="12px" width="80%" />
                         </div>
-                        <Shimmer height="32px" width="70px" className="rounded" />
+                        <Shimmer height="32px" width="70px" className="rounded-compact" />
                       </div>
                     ))}
                   </div>
@@ -2114,7 +2119,7 @@ export default function Portfolio() {
                     </div>
 
                     {/* Position list - mobile-first card layout */}
-                    <div className="divide-y rounded-md border">
+                    <div className="divide-y rounded-control border">
                       {lpAggregates.sortedPositions.map((pos: any) => (
                         <div key={pos.playerId} className="p-3 hover-elevate">
                           {/* Mobile layout */}
@@ -2189,7 +2194,7 @@ export default function Portfolio() {
 
         {/* Stack Shares Dialog */}
         <Dialog open={stackSharesDialogOpen} onOpenChange={setStackSharesDialogOpen}>
-          <DialogContent className="sm:max-w-md rounded-sm border border-border bg-card">
+          <DialogContent className="sm:max-w-md rounded-compact border border-border bg-card">
             <DialogHeader>
               <DialogTitle>Stack Shares</DialogTitle>
               <DialogDescription>
@@ -2212,7 +2217,7 @@ export default function Portfolio() {
                       </div>
                       <div className="flex justify-between">
                         <span>Current Stack Power:</span>
-                        <span className="font-mono text-purple-400">
+                        <span className="font-mono text-category-stacking">
                           {formatPortfolioUnits(
                             Math.max(0, selectedStackingCandidate.bestStackedMultiplier),
                           )}
@@ -2270,21 +2275,21 @@ export default function Portfolio() {
                   const remainingShares = selectedStackingCandidate.regularShares - shares;
 
                   return (
-                    <div className="terminal-shell space-y-2 border-purple-500/20 bg-purple-500/10 p-3">
-                      <div className="text-sm font-medium text-purple-400">Stack Result</div>
+                    <div className="terminal-shell space-y-2 border-category-stacking/20 bg-category-stacking/10 p-3">
+                      <div className="text-sm font-medium text-category-stacking">Stack Result</div>
                       <div className="flex justify-between text-sm">
                         <span>Shares consumed:</span>
                         <span className="font-mono">-{shares}</span>
                       </div>
                       <div className="flex justify-between text-sm font-medium">
                         <span>Added stack power:</span>
-                        <span className="font-mono text-purple-400">
+                        <span className="font-mono text-category-stacking">
                           +{formatPortfolioUnits(powerAdded)}p
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>New stack power:</span>
-                        <span className="font-mono text-purple-400">
+                        <span className="font-mono text-category-stacking">
                           {formatPortfolioUnits(resultingStackPower)}p
                         </span>
                       </div>
@@ -2311,7 +2316,7 @@ export default function Portfolio() {
                 variant="terminal"
                 onClick={handleStackSharesFromDialog}
                 disabled={stackSharesMutation.isPending || !selectedStackingCandidate}
-                className="border-purple-500/30 bg-purple-500/20 text-purple-200 hover:bg-purple-500/25"
+                className="border-category-stacking/40"
               >
                 {stackSharesMutation.isPending ? "Stacking..." : "Stack Shares"}
               </Button>

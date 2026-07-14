@@ -57,17 +57,17 @@ export function ScoutReadyBanner({
         transition={{ type: "spring", stiffness: 400, damping: 30 }}
         className="fixed bottom-20 sm:bottom-4 left-3 right-3 z-50 sm:left-auto sm:right-4 sm:w-96"
       >
-        <div className="relative overflow-hidden rounded-sm border bg-card shadow-none">
+        <div className="relative overflow-hidden rounded-compact border bg-card shadow-none">
           {/* Progress bar */}
           <div
-            className="absolute bottom-0 left-0 h-1 bg-amber-500 transition-all duration-100 ease-linear"
+            className="absolute bottom-0 left-0 h-1 bg-category-scout transition-all duration-100 ease-linear"
             style={{ width: `${progress}%` }}
           />
 
           <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
             {/* Icon */}
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-sm border border-amber-500/20 bg-amber-500/10 sm:h-10 sm:w-10">
-              <Binoculars className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-compact border border-category-scout/20 bg-category-scout/10 sm:h-10 sm:w-10">
+              <Binoculars className="w-4 h-4 sm:w-5 sm:h-5 text-category-scout" />
             </div>
 
             {/* Content */}
@@ -84,7 +84,7 @@ export function ScoutReadyBanner({
                 size="sm"
                 variant="terminalOutline"
                 onClick={onView}
-                className="h-7 sm:h-8 text-xs px-2 sm:px-3 bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20"
+                className="h-7 sm:h-8 text-xs px-2 sm:px-3 bg-category-scout/10 border-category-scout/20 text-category-scout hover:bg-category-scout/20"
               >
                 View
               </Button>
@@ -101,7 +101,7 @@ export function ScoutReadyBanner({
               )}
               <button
                 onClick={onDismiss}
-                className="rounded-sm border border-border/60 p-1.5 text-muted-foreground transition-colors hover:text-foreground sm:p-1"
+                className="rounded-compact border border-border/60 p-1.5 text-muted-foreground transition-colors hover:text-foreground sm:p-1"
               >
                 <X className="w-4 h-4" />
               </button>

@@ -107,7 +107,7 @@ export function ScoutSelector({ playerId }: ScoutSelectorProps) {
 
   if (isLoading) {
     return (
-      <div className="border rounded-md p-2 bg-accent/5">
+      <div className="border rounded-control p-2 bg-accent/5">
         <div className="flex items-center gap-1 mb-2">
           <Skeleton className="h-4 w-4" />
           <Skeleton className="h-4 w-24" />
@@ -118,10 +118,10 @@ export function ScoutSelector({ playerId }: ScoutSelectorProps) {
   }
 
   return (
-    <div className="border border-amber-500/20 rounded-sm bg-amber-500/5 p-2">
+    <div className="border border-category-scout/20 rounded-compact bg-category-scout/5 p-2">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
-          <Binoculars className="h-3.5 w-3.5 text-amber-600" />
+          <Binoculars className="h-3.5 w-3.5 text-category-scout" />
           <span className="text-xs font-semibold">Scout This Player</span>
           <TooltipProvider>
             <Tooltip>
@@ -144,7 +144,7 @@ export function ScoutSelector({ playerId }: ScoutSelectorProps) {
           {(scoutData?.premiumActive ?? scoutData?.isPremium) && (
             <Badge
               variant="secondary"
-              className="h-4 px-1 text-[9px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+              className="h-4 px-1 text-[9px] bg-category-scout text-category-scout dark:bg-category-scout/30 dark:text-category-scout"
             >
               <Crown className="h-2.5 w-2.5 mr-0.5" />
               PRO
@@ -154,7 +154,7 @@ export function ScoutSelector({ playerId }: ScoutSelectorProps) {
             scoutData?.rewardedScoutBoostActive && (
               <Badge
                 variant="secondary"
-                className="h-4 px-1 text-[9px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                className="h-4 px-1 text-[9px] bg-category-scout text-category-scout dark:bg-category-scout/30 dark:text-category-scout"
               >
                 <Zap className="h-2.5 w-2.5 mr-0.5" />
                 BOOST
@@ -178,28 +178,28 @@ export function ScoutSelector({ playerId }: ScoutSelectorProps) {
           </div>
           <div className="w-8 text-center">
             <span
-              className={`text-sm font-bold ${sliderValue > 0 ? "text-amber-600" : "text-muted-foreground"}`}
+              className={`text-sm font-bold ${sliderValue > 0 ? "text-category-scout" : "text-muted-foreground"}`}
             >
               {sliderValue}
             </span>
           </div>
         </div>
 
-        <div className="flex justify-between items-center text-[10px] px-1 py-1.5 bg-background/50 rounded border border-border/50">
+        <div className="flex justify-between items-center text-[10px] px-1 py-1.5 bg-background/50 rounded-compact border border-border/50">
           <div className="text-muted-foreground">
             Global Scouts:{" "}
             <span className="font-mono text-foreground">{otherScouts + sliderValue}</span>
           </div>
           <div className="font-medium">
             Est. Earnings:{" "}
-            <span className="text-amber-600 font-bold">{projectedShare.toFixed(2)}</span> / hr
+            <span className="text-category-scout font-bold">{projectedShare.toFixed(2)}</span> / hr
           </div>
         </div>
 
         {hasChanges && (
           <Button
             size="sm"
-            className="w-full h-7 text-xs bg-amber-600 hover:bg-amber-700"
+            className="w-full h-7 text-xs bg-category-scout hover:bg-category-scout"
             onClick={handleSave}
             disabled={assignMutation.isPending}
           >

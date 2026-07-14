@@ -72,37 +72,37 @@ function formatDateTime(value: string | null | undefined) {
 function getContinuityLoopTone(status: "tracking" | "waiting_on_you" | "scheduled" | "blocked") {
   switch (status) {
     case "waiting_on_you":
-      return "border-amber-500/35 bg-amber-500/10 text-amber-100";
+      return "border-brand/35 bg-brand/10 text-brand";
     case "blocked":
-      return "border-red-500/35 bg-red-500/10 text-red-100";
+      return "border-market-negative/35 bg-market-negative/10 text-market-negative";
     case "scheduled":
-      return "border-sky-500/35 bg-sky-500/10 text-sky-100";
+      return "border-status-info/35 bg-status-info/10 text-status-info";
     case "tracking":
     default:
-      return "border-emerald-500/35 bg-emerald-500/10 text-emerald-100";
+      return "border-market-positive/35 bg-market-positive/10 text-market-positive";
   }
 }
 
 function getStrategyTone(status: AgentStrategySummary["status"]) {
   switch (status) {
     case "live":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
+      return "border-market-positive/30 bg-market-positive/10 text-market-positive";
     case "blocked":
-      return "border-red-500/30 bg-red-500/10 text-red-100";
+      return "border-market-negative/30 bg-market-negative/10 text-market-negative";
     case "paused":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-100";
+      return "border-brand/30 bg-brand/10 text-brand";
     case "archived":
-      return "border-slate-600 bg-slate-800/80 text-slate-300";
+      return "border-border bg-muted/80 text-content-muted";
     case "draft":
     default:
-      return "border-sky-500/30 bg-sky-500/10 text-sky-100";
+      return "border-status-info/30 bg-status-info/10 text-status-info";
   }
 }
 
 function getReviewTone(status: AgentStrategySummary["reviewState"]["status"]) {
   return status === "approved"
-    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-    : "border-amber-500/30 bg-amber-500/10 text-amber-100";
+    ? "border-market-positive/30 bg-market-positive/10 text-market-positive"
+    : "border-brand/30 bg-brand/10 text-brand";
 }
 
 function getResolvedReviewState(
@@ -348,19 +348,19 @@ function StrategyDeskBrief({
   ];
 
   return (
-    <section className="min-w-0 w-full overflow-hidden border-b border-[#1f2634] bg-[#0b1120] md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02]">
-      <div className="border-b border-[#222938] px-0 py-2 sm:px-4 md:px-3 md:py-3">
+    <section className="min-w-0 w-full overflow-hidden border-b border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40">
+      <div className="border-b border-[hsl(var(--surface-raised))] px-0 py-2 sm:px-4 md:px-3 md:py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-content/40">
               Strategy desk
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <div className="truncate text-sm font-semibold text-slate-50 sm:text-base">
+              <div className="truncate text-sm font-semibold text-content-muted sm:text-base">
                 {selectedDetail?.name || "Strategy desk"}
               </div>
               {nextRunLabel ? (
-                <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">{`Next ${nextRunLabel}`}</span>
+                <span className="inline-flex items-center rounded-pill border border-border/60 bg-surface-raised/40 px-2.5 py-1 text-[10px] font-medium text-content/60">{`Next ${nextRunLabel}`}</span>
               ) : null}
               {leadLoop ? (
                 <Badge
@@ -372,38 +372,38 @@ function StrategyDeskBrief({
             </div>
           </div>
 
-          <div className="hidden min-w-[10rem] grid-cols-3 gap-px overflow-hidden border border-[#222938] bg-[#222938] md:grid">
+          <div className="hidden min-w-[10rem] grid-cols-3 gap-px overflow-hidden border border-[hsl(var(--surface-raised))] bg-[hsl(var(--surface-raised))] md:grid">
             {briefItems.map((item) => (
-              <div key={item.label} className="bg-[#0f1524] px-2 py-1.5 text-right">
-                <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+              <div key={item.label} className="bg-[hsl(var(--surface))] px-2 py-1.5 text-right">
+                <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-content-muted">
                   {item.label}
                 </div>
-                <div className="mt-1 text-sm font-semibold text-slate-50">{item.value}</div>
+                <div className="mt-1 text-sm font-semibold text-content-muted">{item.value}</div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="divide-y divide-[#222938] md:hidden">
-        <div className="flex flex-wrap gap-x-3 gap-y-1 px-0 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+      <div className="divide-y divide-[hsl(var(--surface-raised))] md:hidden">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-0 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-content-muted">
           {briefItems.map((item) => (
             <span key={item.label}>
-              <span className="text-slate-100">{item.value}</span> {item.label}
+              <span className="text-content-muted">{item.value}</span> {item.label}
             </span>
           ))}
           {selectedDetail?.requiresReview ? (
-            <span className="text-amber-200">Review needed</span>
+            <span className="text-brand">Review needed</span>
           ) : null}
         </div>
-        <div className="px-0 py-1.5 text-[11px] leading-4.5 text-slate-300">
-          <span className="font-mono uppercase tracking-[0.08em] text-slate-500">Focus</span>{" "}
+        <div className="px-0 py-1.5 text-[11px] leading-4.5 text-content-muted">
+          <span className="font-mono uppercase tracking-[0.08em] text-content-muted">Focus</span>{" "}
           {leadLoop?.summary ||
             selectedDetail?.summary ||
             "Open a slot to inspect the saved thesis, current wake, and recent runs."}
         </div>
-        <div className="px-0 py-1.5 text-[11px] leading-4.5 text-slate-300">
-          <span className="font-mono uppercase tracking-[0.08em] text-slate-500">Next</span>{" "}
+        <div className="px-0 py-1.5 text-[11px] leading-4.5 text-content-muted">
+          <span className="font-mono uppercase tracking-[0.08em] text-content-muted">Next</span>{" "}
           {leadAction?.summary ||
             leadLoop?.title ||
             (nextRunLabel
@@ -412,28 +412,28 @@ function StrategyDeskBrief({
         </div>
       </div>
 
-      <div className="hidden gap-px bg-[#222938] md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="bg-[#0f1524] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+      <div className="hidden gap-px bg-[hsl(var(--surface-raised))] md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="bg-[hsl(var(--surface))] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
             Active focus
           </div>
-          <div className="mt-1 text-sm font-semibold text-slate-50">
+          <div className="mt-1 text-sm font-semibold text-content-muted">
             {selectedDetail?.name || "No strategy selected"}
           </div>
-          <div className="mt-2 text-xs leading-5 text-slate-300">
+          <div className="mt-2 text-xs leading-5 text-content-muted">
             {selectedDetail?.lastOutcomeSummary ||
               "Use the slot rail to open a saved template or start a new strategy conversation."}
           </div>
         </div>
 
-        <div className="bg-[#0f1524] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+        <div className="bg-[hsl(var(--surface))] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
             Next action
           </div>
-          <div className="mt-1 text-sm font-semibold text-slate-50">
+          <div className="mt-1 text-sm font-semibold text-content-muted">
             {leadLoop?.title || "Awaiting next trigger"}
           </div>
-          <div className="mt-2 text-xs leading-5 text-slate-300">
+          <div className="mt-2 text-xs leading-5 text-content-muted">
             {leadAction?.summary ||
               (nextRunLabel
                 ? `Hermes wakes again ${nextRunLabel}.`
@@ -465,17 +465,20 @@ function StrategySlots({
   const slots = Array.from({ length: 5 }, (_, index) => strategies[index] || null);
 
   return (
-    <div className="flex min-h-0 min-w-0 w-full flex-col border-t border-[#1f2634] bg-[#0b1120] md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02]">
+    <div className="flex min-h-0 min-w-0 w-full flex-col border-t border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40">
       {showHeader ? (
-        <div className="border-b border-[#222938] px-0 py-2 sm:px-4 md:px-3 md:py-3">
+        <div className="border-b border-[hsl(var(--surface-raised))] px-0 py-2 sm:px-4 md:px-3 md:py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-content/40">
                 Strategy rail
               </div>
-              <div className="mt-1 text-sm font-semibold text-slate-50">Saved slots</div>
+              <div className="mt-1 text-sm font-semibold text-content-muted">Saved slots</div>
             </div>
-            <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
+            <Badge
+              variant="outline"
+              className="border-[hsl(var(--border-strong))] text-content-muted"
+            >
               {strategies.length}/5 used
             </Badge>
           </div>
@@ -491,7 +494,7 @@ function StrategySlots({
         )}
         data-testid="strategy-slots"
       >
-        <div className="divide-y divide-[#222938] md:space-y-2 md:divide-y-0">
+        <div className="divide-y divide-[hsl(var(--surface-raised))] md:space-y-2 md:divide-y-0">
           {slots.map((strategy, index) =>
             strategy ? (
               <button
@@ -501,25 +504,25 @@ function StrategySlots({
                 className={cn(
                   "w-full border-l-2 px-0 py-2.5 text-left transition-colors md:border md:px-3",
                   selectedStrategyId === strategy.id
-                    ? "border-l-amber-500 bg-amber-500/5 md:border-amber-500/45 md:bg-[linear-gradient(180deg,rgba(122,81,0,0.14),rgba(27,20,8,0.96))]"
-                    : "border-l-transparent hover:bg-[#101726] md:border-[#222938] md:bg-[#0f1524] md:hover:border-slate-500 md:hover:bg-[#141d2d]",
+                    ? "border-l-amber-500 bg-brand/5 md:border-brand/45 md:bg-[linear-gradient(180deg,rgba(122,81,0,0.14),rgba(27,20,8,0.96))]"
+                    : "border-l-transparent hover:bg-[hsl(var(--surface))] md:border-[hsl(var(--surface-raised))] md:bg-[hsl(var(--surface))] md:hover:border-border md:hover:bg-[hsl(var(--surface-raised))]",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-content-muted">
                         {`S${index + 1}`}
                       </span>
-                      <div className="truncate text-[13px] font-semibold text-slate-50 md:text-sm">
+                      <div className="truncate text-[13px] font-semibold text-content-muted md:text-sm">
                         {strategy.name}
                       </div>
                     </div>
-                    <div className="mt-1 line-clamp-2 text-[11px] leading-4.5 text-slate-400">
+                    <div className="mt-1 line-clamp-2 text-[11px] leading-4.5 text-content-muted">
                       {strategy.summary}
                     </div>
                     {strategy.lastOutcomeSummary && (
-                      <div className="mt-1.5 line-clamp-2 text-[11px] leading-4.5 text-slate-300 md:mt-2 md:border-l md:border-[#2a2e39] md:pl-3">
+                      <div className="mt-1.5 line-clamp-2 text-[11px] leading-4.5 text-content-muted md:mt-2 md:border-l md:border-[hsl(var(--border-strong))] md:pl-3">
                         {strategy.lastOutcomeSummary}
                       </div>
                     )}
@@ -533,16 +536,16 @@ function StrategySlots({
                     {strategy.status}
                   </Badge>
                   <div className="shrink-0 text-right md:hidden">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-slate-300">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-content-muted">
                       {strategy.status}
                     </div>
-                    <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+                    <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-content-muted">
                       {strategy.requiresReview ? "review" : "ready"}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500 md:mt-2 md:gap-y-1.5">
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.08em] text-content-muted md:mt-2 md:gap-y-1.5">
                   <span>{strategy.requiresReview ? "Review needed" : "Reviewed"}</span>
                   <span>
                     Last update {formatDateTime(strategy.lastRunAt || strategy.updatedAt)}
@@ -555,23 +558,23 @@ function StrategySlots({
                 type="button"
                 onClick={onCreateBlank}
                 disabled={isCreating}
-                className="w-full border-l-2 border-l-transparent px-0 py-2.5 text-left transition-colors hover:bg-[#101726] disabled:cursor-not-allowed disabled:opacity-70 md:border md:border-dashed md:border-border md:bg-sidebar/10 md:px-3 md:py-3.5 md:hover:border-amber-500/40 md:hover:bg-sidebar/20"
+                className="w-full border-l-2 border-l-transparent px-0 py-2.5 text-left transition-colors hover:bg-[hsl(var(--surface))] disabled:cursor-not-allowed disabled:opacity-70 md:border md:border-dashed md:border-border md:bg-sidebar/10 md:px-3 md:py-3.5 md:hover:border-brand/40 md:hover:bg-sidebar/20"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-content-muted">
                         {`S${index + 1}`}
                       </span>
-                      <div className="text-[13px] font-semibold text-slate-50 md:text-sm">
+                      <div className="text-[13px] font-semibold text-content-muted md:text-sm">
                         Create new
                       </div>
                     </div>
-                    <div className="mt-1 text-[11px] leading-4.5 text-slate-400">
+                    <div className="mt-1 text-[11px] leading-4.5 text-content-muted">
                       Slot {index + 1} is open for a new strategy conversation.
                     </div>
                   </div>
-                  <div className="shrink-0 text-amber-300">
+                  <div className="shrink-0 text-brand">
                     {isCreating && index === strategies.length ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
@@ -603,70 +606,74 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         <AgentUiBlockList blocks={overviewBlocks} />
       </div>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
-        <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">
+      <section className="border-t border-[hsl(var(--border-strong))] px-0 py-3 md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40 md:p-4">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-content/40">
           Continuous state
         </div>
-        <div className="mt-1 text-sm font-semibold text-slate-50">{continuity.headline}</div>
+        <div className="mt-1 text-sm font-semibold text-content-muted">{continuity.headline}</div>
         <div className="mt-2 grid gap-3 xl:grid-cols-3">
           <div className="space-y-2">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
               Open loops
             </div>
             {continuity.openLoops.length > 0 ? (
               continuity.openLoops.slice(0, 3).map((loop) => (
                 <div key={loop.id} className="border border-border bg-sidebar/25 px-3 py-2.5">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 text-sm font-medium text-slate-50">{loop.title}</div>
+                    <div className="min-w-0 text-sm font-medium text-content-muted">
+                      {loop.title}
+                    </div>
                     <Badge
                       className={cn("hover:bg-transparent", getContinuityLoopTone(loop.status))}
                     >
                       {loop.status.replace(/_/g, " ")}
                     </Badge>
                   </div>
-                  <div className="mt-1 text-xs leading-5 text-slate-300">{loop.summary}</div>
+                  <div className="mt-1 text-xs leading-5 text-content-muted">{loop.summary}</div>
                 </div>
               ))
             ) : (
-              <div className="border border-dashed border-border bg-sidebar/15 px-3 py-3 text-xs leading-5 text-slate-400">
+              <div className="border border-dashed border-border bg-sidebar/15 px-3 py-3 text-xs leading-5 text-content-muted">
                 No unresolved loops.
               </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
               Recent actions
             </div>
             {continuity.recentActions.length > 0 ? (
               continuity.recentActions.slice(0, 3).map((action) => (
                 <div key={action.id} className="border border-border bg-sidebar/25 px-3 py-2.5">
-                  <div className="text-sm font-medium text-slate-50">{action.title}</div>
-                  <div className="mt-1 text-xs leading-5 text-slate-300">{action.summary}</div>
-                  <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                  <div className="text-sm font-medium text-content-muted">{action.title}</div>
+                  <div className="mt-1 text-xs leading-5 text-content-muted">{action.summary}</div>
+                  <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-content-muted">
                     {action.createdAt ? formatDateTime(action.createdAt) : "Recent"} |{" "}
                     {action.source === "pending_bundle" ? "staged" : "applied"}
                   </div>
                 </div>
               ))
             ) : (
-              <div className="border border-dashed border-border bg-sidebar/15 px-3 py-3 text-xs leading-5 text-slate-400">
+              <div className="border border-dashed border-border bg-sidebar/15 px-3 py-3 text-xs leading-5 text-content-muted">
                 No recorded actions yet.
               </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-content/35">
               Evidence
             </div>
             {continuity.evidenceUpdates.length > 0 || continuity.activeStrategies.length > 0 ? (
               <>
                 {continuity.evidenceUpdates.slice(0, 2).map((evidence) => (
                   <div key={evidence.id} className="border border-border bg-sidebar/25 px-3 py-2.5">
-                    <div className="text-sm font-medium text-slate-50">{evidence.title}</div>
-                    <div className="mt-1 text-xs leading-5 text-slate-300">{evidence.summary}</div>
-                    <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                    <div className="text-sm font-medium text-content-muted">{evidence.title}</div>
+                    <div className="mt-1 text-xs leading-5 text-content-muted">
+                      {evidence.summary}
+                    </div>
+                    <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-content-muted">
                       {evidence.sourceName || "Research"}
                     </div>
                   </div>
@@ -677,14 +684,14 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
                     className="border border-border bg-sidebar/25 px-3 py-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="text-sm font-medium text-slate-50">{strategy.name}</div>
+                      <div className="text-sm font-medium text-content-muted">{strategy.name}</div>
                       <Badge
                         className={cn("hover:bg-transparent", getStrategyTone(strategy.status))}
                       >
                         {strategy.status}
                       </Badge>
                     </div>
-                    <div className="mt-1 text-xs leading-5 text-slate-300">
+                    <div className="mt-1 text-xs leading-5 text-content-muted">
                       {strategy.lastOutcomeSummary ||
                         "Hermes is carrying this strategy forward in the operator state."}
                     </div>
@@ -692,7 +699,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
                 ))}
               </>
             ) : (
-              <div className="border border-dashed border-border bg-sidebar/15 px-3 py-3 text-xs leading-5 text-slate-400">
+              <div className="border border-dashed border-border bg-sidebar/15 px-3 py-3 text-xs leading-5 text-content-muted">
                 No fresh evidence attached.
               </div>
             )}
@@ -700,9 +707,9 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         </div>
       </section>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
-          <Clock3 className="h-4 w-4 text-sky-300" />
+      <section className="border-t border-[hsl(var(--border-strong))] px-0 py-3 md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40 md:p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-content-muted">
+          <Clock3 className="h-4 w-4 text-status-info" />
           Strategy timeline
         </div>
         <div className="mt-3 space-y-3">
@@ -714,31 +721,31 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
                 key={stage.id}
                 className={cn(
                   "border px-3 py-3",
-                  isActive ? "border-amber-500/40 bg-amber-500/10" : "border-border bg-sidebar/25",
+                  isActive ? "border-brand/40 bg-brand/10" : "border-border bg-sidebar/25",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                    <div className="text-[11px] uppercase tracking-[0.12em] text-content-muted">
                       Stage {index + 1}
                     </div>
-                    <div className="mt-1 text-sm font-medium text-slate-100">{stage.title}</div>
-                    <div className="mt-1 text-xs leading-5 text-slate-400">
+                    <div className="mt-1 text-sm font-medium text-content-muted">{stage.title}</div>
+                    <div className="mt-1 text-xs leading-5 text-content-muted">
                       {summarizeAgentStrategyTrigger(stage.triggerPolicy)}
                     </div>
                   </div>
                   <Badge
                     variant="outline"
                     className={cn(
-                      "border-[#2a2e39] text-slate-300",
-                      isActive && "border-amber-500/40 text-amber-200",
+                      "border-[hsl(var(--border-strong))] text-content-muted",
+                      isActive && "border-brand/40 text-brand",
                     )}
                   >
                     {isActive ? "active" : stage.status}
                   </Badge>
                 </div>
                 {stage.summary && (
-                  <div className="mt-3 text-sm leading-6 text-slate-300">{stage.summary}</div>
+                  <div className="mt-3 text-sm leading-6 text-content-muted">{stage.summary}</div>
                 )}
               </div>
             );
@@ -746,17 +753,19 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         </div>
       </section>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
-          <Rocket className="h-4 w-4 text-sky-300" />
+      <section className="border-t border-[hsl(var(--border-strong))] px-0 py-3 md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40 md:p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-content-muted">
+          <Rocket className="h-4 w-4 text-status-info" />
           Strategy instructions
         </div>
-        <div className="mt-2 text-sm leading-6 text-slate-300">{strategyDetail.mandateText}</div>
+        <div className="mt-2 text-sm leading-6 text-content-muted">
+          {strategyDetail.mandateText}
+        </div>
       </section>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
-          <Clock3 className="h-4 w-4 text-sky-300" />
+      <section className="border-t border-[hsl(var(--border-strong))] px-0 py-3 md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40 md:p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-content-muted">
+          <Clock3 className="h-4 w-4 text-status-info" />
           Operations timeline
         </div>
         <div className="mt-2 space-y-2">
@@ -764,18 +773,18 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
             recentEvents.map((event) => (
               <div key={event.id} className="border border-border bg-sidebar/25 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-slate-100">{event.title}</div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                  <div className="text-sm font-medium text-content-muted">{event.title}</div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-content-muted">
                     {formatDateTime(event.createdAt)}
                   </div>
                 </div>
                 {event.summary && (
-                  <div className="mt-1 text-xs leading-5 text-slate-300">{event.summary}</div>
+                  <div className="mt-1 text-xs leading-5 text-content-muted">{event.summary}</div>
                 )}
               </div>
             ))
           ) : (
-            <div className="border border-dashed border-border bg-sidebar/20 px-3 py-4 text-xs leading-5 text-slate-400">
+            <div className="border border-dashed border-border bg-sidebar/20 px-3 py-4 text-xs leading-5 text-content-muted">
               Hermes has not logged strategy activity yet.
             </div>
           )}
@@ -824,17 +833,17 @@ function StrategyRulesForm({
 
   return (
     <div className="space-y-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pb-4">
-      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
+      <section className="border-t border-[hsl(var(--border-strong))] px-0 py-3 md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40 md:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
-              <Rocket className="h-4 w-4 text-amber-300" />
+            <div className="flex items-center gap-2 text-sm font-semibold text-content-muted">
+              <Rocket className="h-4 w-4 text-brand" />
               Activation review
             </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
+            <div className="mt-2 text-sm leading-6 text-content-muted">
               {reviewState.summary || "Review the saved playbook before Hermes uses it live."}
             </div>
-            <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#0d1320] px-3 py-3 text-xs leading-5 text-slate-300">
+            <div className="mt-3 rounded-compact border border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] px-3 py-3 text-xs leading-5 text-content-muted">
               Broad goals are interpreted as ongoing portfolio mandates. By default Hermes should
               pace actions, avoid repetitive concentration in one player, and never use premium,
               checkout, or community boost flows.
@@ -847,18 +856,18 @@ function StrategyRulesForm({
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="border border-border bg-sidebar/25 p-3">
-            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-content-muted">
               Latest saved change
             </div>
-            <div className="mt-2 text-sm text-slate-200">
+            <div className="mt-2 text-sm text-content-muted">
               {formatDateTime(reviewState.lastMaterialUpdateAt)}
             </div>
           </div>
           <div className="border border-border bg-sidebar/25 p-3">
-            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-content-muted">
               Last approval
             </div>
-            <div className="mt-2 text-sm text-slate-200">
+            <div className="mt-2 text-sm text-content-muted">
               {reviewState.reviewedAt ? formatDateTime(reviewState.reviewedAt) : "Not approved yet"}
             </div>
           </div>
@@ -869,20 +878,23 @@ function StrategyRulesForm({
             <div key={stage.id} className="border border-border bg-sidebar/25 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-content-muted">
                     Stage {index + 1}
                   </div>
-                  <div className="mt-1 text-sm font-medium text-slate-100">{stage.title}</div>
-                  <div className="mt-1 text-xs leading-5 text-slate-400">
+                  <div className="mt-1 text-sm font-medium text-content-muted">{stage.title}</div>
+                  <div className="mt-1 text-xs leading-5 text-content-muted">
                     {summarizeAgentStrategyTrigger(stage.triggerPolicy)}
                   </div>
                 </div>
-                <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
+                <Badge
+                  variant="outline"
+                  className="border-[hsl(var(--border-strong))] text-content-muted"
+                >
                   {stage.status}
                 </Badge>
               </div>
               {stage.summary ? (
-                <div className="mt-2 text-sm leading-6 text-slate-300">{stage.summary}</div>
+                <div className="mt-2 text-sm leading-6 text-content-muted">{stage.summary}</div>
               ) : null}
             </div>
           ))}
@@ -903,24 +915,24 @@ function StrategyRulesForm({
         </Button>
       </section>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
-          <Settings2 className="h-4 w-4 text-amber-300" />
+      <section className="border-t border-[hsl(var(--border-strong))] px-0 py-3 md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40 md:p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-content-muted">
+          <Settings2 className="h-4 w-4 text-brand" />
           Saved strategy rules
         </div>
-        <div className="mt-2 text-sm leading-6 text-slate-400">
+        <div className="mt-2 text-sm leading-6 text-content-muted">
           Use chat to refine the idea with Hermes. Save the current name, instructions, schedule,
           and limits here.
         </div>
 
         <div className="mt-4 grid gap-4">
           <div className="space-y-2">
-            <Label className="text-slate-300" htmlFor="strategy-name">
+            <Label className="text-content-muted" htmlFor="strategy-name">
               Name
             </Label>
             <Input
               id="strategy-name"
-              className="h-9 rounded-sm border-[#2a2e39] bg-[#0d1320] text-slate-100"
+              className="h-9 rounded-compact border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] text-content-muted"
               value={draft.name}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, name: event.target.value }))
@@ -929,12 +941,12 @@ function StrategyRulesForm({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-slate-300" htmlFor="strategy-summary">
+            <Label className="text-content-muted" htmlFor="strategy-summary">
               Summary
             </Label>
             <Textarea
               id="strategy-summary"
-              className="rounded-sm border-[#2a2e39] bg-[#0d1320] text-slate-100"
+              className="rounded-compact border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] text-content-muted"
               rows={4}
               value={draft.summary}
               onChange={(event) =>
@@ -944,12 +956,12 @@ function StrategyRulesForm({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-slate-300" htmlFor="strategy-mandate">
+            <Label className="text-content-muted" htmlFor="strategy-mandate">
               Strategy instructions
             </Label>
             <Textarea
               id="strategy-mandate"
-              className="rounded-sm border-[#2a2e39] bg-[#0d1320] text-slate-100"
+              className="rounded-compact border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] text-content-muted"
               rows={6}
               value={draft.mandateText}
               onChange={(event) =>
@@ -960,12 +972,12 @@ function StrategyRulesForm({
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2 sm:col-span-1">
-              <Label className="text-slate-300" htmlFor="strategy-schedule">
+              <Label className="text-content-muted" htmlFor="strategy-schedule">
                 Schedule
               </Label>
               <Input
                 id="strategy-schedule"
-                className="h-9 rounded-sm border-[#2a2e39] bg-[#0d1320] text-slate-100"
+                className="h-9 rounded-compact border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] text-content-muted"
                 value={draft.scheduleCron}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, scheduleCron: event.target.value }))
@@ -974,12 +986,12 @@ function StrategyRulesForm({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-slate-300" htmlFor="strategy-max-run">
+              <Label className="text-content-muted" htmlFor="strategy-max-run">
                 Max actions per run
               </Label>
               <Input
                 id="strategy-max-run"
-                className="h-9 rounded-sm border-[#2a2e39] bg-[#0d1320] text-slate-100"
+                className="h-9 rounded-compact border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] text-content-muted"
                 inputMode="numeric"
                 value={draft.maxActionsPerRun}
                 onChange={(event) =>
@@ -988,12 +1000,12 @@ function StrategyRulesForm({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-slate-300" htmlFor="strategy-max-day">
+              <Label className="text-content-muted" htmlFor="strategy-max-day">
                 Max actions per day
               </Label>
               <Input
                 id="strategy-max-day"
-                className="h-9 rounded-sm border-[#2a2e39] bg-[#0d1320] text-slate-100"
+                className="h-9 rounded-compact border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] text-content-muted"
                 inputMode="numeric"
                 value={draft.maxActionsPerDay}
                 onChange={(event) =>
@@ -1003,8 +1015,8 @@ function StrategyRulesForm({
             </div>
           </div>
 
-          <div className="rounded-sm border border-[#2a2e39] bg-[#0d1320] p-3">
-            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+          <div className="rounded-compact border border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] p-3">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-content-muted">
               Allowed actions
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -1013,13 +1025,13 @@ function StrategyRulesForm({
                   <Badge
                     key={actionType}
                     variant="outline"
-                    className="border-[#2a2e39] text-slate-300"
+                    className="border-[hsl(var(--border-strong))] text-content-muted"
                   >
                     {actionType.replace(/_/g, " ")}
                   </Badge>
                 ))
               ) : (
-                <span className="text-sm text-slate-400">
+                <span className="text-sm text-content-muted">
                   Hermes can still guide the setup even before action types are narrowed down.
                 </span>
               )}
@@ -1028,7 +1040,7 @@ function StrategyRulesForm({
         </div>
 
         <Button
-          className="mt-4 h-9 rounded-sm bg-slate-100 px-4 text-sm text-slate-950 hover:bg-slate-200"
+          className="mt-4 h-9 rounded-compact bg-muted px-4 text-sm text-content-muted hover:bg-muted"
           onClick={handleSave}
           disabled={isSaving}
         >
@@ -1079,12 +1091,12 @@ function StrategyChatTab({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="border-b border-[#222938] px-0 py-1.5 sm:px-4 md:px-3 md:py-2">
+      <div className="border-b border-[hsl(var(--surface-raised))] px-0 py-1.5 sm:px-4 md:px-3 md:py-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-content/40">
             Strategy chat
           </div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-content-muted">
             {strategyDetail.nextRunAt
               ? `Wake ${formatDateTime(strategyDetail.nextRunAt)}`
               : strategyDetail.status === "live"
@@ -1095,7 +1107,7 @@ function StrategyChatTab({
       </div>
       <div
         ref={scrollViewportRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#0b1120] px-0 py-1.5 pb-2 sm:px-4 md:bg-[linear-gradient(180deg,rgba(15,20,32,0.96),rgba(8,13,24,0.98))] md:px-3 md:py-3"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[hsl(var(--canvas))] px-0 py-1.5 pb-2 sm:px-4 md:bg-[linear-gradient(180deg,rgba(15,20,32,0.96),rgba(8,13,24,0.98))] md:px-3 md:py-3"
         data-testid="strategy-chat-scroll"
       >
         {shouldShowEmptyState ? (
@@ -1123,7 +1135,7 @@ function StrategyChatTab({
         )}
       </div>
 
-      <div className="border-t border-[#222938] px-0 py-1.5 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] sm:px-4 sm:py-2 sm:pb-3 md:px-3">
+      <div className="border-t border-[hsl(var(--surface-raised))] px-0 py-1.5 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] sm:px-4 sm:py-2 sm:pb-3 md:px-3">
         <AgentComposer
           value={composerValue}
           onChange={onComposerChange}
@@ -1243,10 +1255,10 @@ function StrategyDetailWorkspace({
 
   return (
     <div
-      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden border-t border-[#1f2634] bg-[#0b1120] md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02]"
+      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden border-t border-[hsl(var(--border-strong))] bg-[hsl(var(--canvas))] md:rounded-panel md:border md:border-border/60 md:bg-surface-raised/40"
       data-testid="strategy-detail"
     >
-      <div className="border-b border-[#222938] bg-[#0b1120] px-0 py-2 sm:px-4 md:bg-[linear-gradient(180deg,rgba(17,23,39,0.96),rgba(12,17,29,0.98))] md:px-3 md:py-4">
+      <div className="border-b border-[hsl(var(--surface-raised))] bg-[hsl(var(--canvas))] px-0 py-2 sm:px-4 md:bg-[linear-gradient(180deg,rgba(17,23,39,0.96),rgba(12,17,29,0.98))] md:px-3 md:py-4">
         <div className="space-y-2 md:hidden">
           <div className="flex items-start gap-2">
             <Button
@@ -1261,10 +1273,10 @@ function StrategyDetailWorkspace({
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-content-muted">
                     Strategy detail
                   </div>
-                  <h2 className="truncate text-sm font-semibold text-slate-50">
+                  <h2 className="truncate text-sm font-semibold text-content-muted">
                     {strategyDetail.name}
                   </h2>
                 </div>
@@ -1274,7 +1286,7 @@ function StrategyDetailWorkspace({
                   {strategyDetail.status === "live" ? "active" : strategyDetail.status}
                 </Badge>
               </div>
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.08em] text-content-muted">
                 <span>{reviewState.status === "approved" ? "Reviewed" : "Pending review"}</span>
                 <span>
                   {strategyDetail.allowedActionTypes.length > 0
@@ -1284,7 +1296,7 @@ function StrategyDetailWorkspace({
                 {strategyDetail.nextRunAt ? (
                   <span>{`Wake ${formatDateTime(strategyDetail.nextRunAt)}`}</span>
                 ) : null}
-                {needsReview ? <span className="text-amber-200">Review needed</span> : null}
+                {needsReview ? <span className="text-brand">Review needed</span> : null}
               </div>
             </div>
           </div>
@@ -1322,7 +1334,7 @@ function StrategyDetailWorkspace({
 
             <Button
               variant="terminal"
-              className="h-8 border-emerald-500/30 bg-emerald-500/15 px-3 text-xs text-emerald-100 hover:bg-emerald-500/20"
+              className="h-8 border-market-positive/30 bg-market-positive/15 px-3 text-xs text-market-positive hover:bg-market-positive/20"
               onClick={onActivate}
               disabled={isActivating || strategyDetail.status === "archived" || needsReview}
             >
@@ -1367,30 +1379,30 @@ function StrategyDetailWorkspace({
         <div className="hidden flex-wrap items-start justify-between gap-3 md:flex">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="truncate text-lg font-semibold text-slate-50">
+              <h2 className="truncate text-lg font-semibold text-content-muted">
                 {strategyDetail.name}
               </h2>
               <Badge className={cn("hover:bg-transparent", getStrategyTone(strategyDetail.status))}>
                 {strategyDetail.status === "live" ? "active" : strategyDetail.status}
               </Badge>
               {needsReview ? (
-                <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60 text-amber-200">
+                <span className="inline-flex items-center rounded-pill border border-border/60 bg-surface-raised/40 px-2.5 py-1 text-[10px] font-medium text-content/60 text-brand">
                   review needed
                 </span>
               ) : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">
+              <span className="inline-flex items-center rounded-pill border border-border/60 bg-surface-raised/40 px-2.5 py-1 text-[10px] font-medium text-content/60">
                 {strategyDetail.nextRunAt
                   ? `Next wake ${formatDateTime(strategyDetail.nextRunAt)}`
                   : "No wake scheduled"}
               </span>
-              <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">
+              <span className="inline-flex items-center rounded-pill border border-border/60 bg-surface-raised/40 px-2.5 py-1 text-[10px] font-medium text-content/60">
                 {strategyDetail.allowedActionTypes.length > 0
                   ? `${strategyDetail.allowedActionTypes.length} action types`
                   : "Action scope not finalized"}
               </span>
-              <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">
+              <span className="inline-flex items-center rounded-pill border border-border/60 bg-surface-raised/40 px-2.5 py-1 text-[10px] font-medium text-content/60">
                 {reviewState.status === "approved" ? "Reviewed" : "Pending review"}
               </span>
             </div>
@@ -1428,7 +1440,7 @@ function StrategyDetailWorkspace({
                 </Button>
                 <Button
                   variant="terminal"
-                  className="h-9 border-emerald-500/30 bg-emerald-500/15 px-4 text-emerald-100 hover:bg-emerald-500/20"
+                  className="h-9 border-market-positive/30 bg-market-positive/15 px-4 text-market-positive hover:bg-market-positive/20"
                   onClick={onActivate}
                   disabled={isActivating || strategyDetail.status === "archived" || needsReview}
                 >
@@ -1476,7 +1488,7 @@ function StrategyDetailWorkspace({
         onValueChange={(value) => onDetailTabChange(value as StrategyDetailTab)}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        <div className="border-b border-[#222938] px-0 py-1.5 sm:px-4 md:px-3 md:py-3">
+        <div className="border-b border-[hsl(var(--surface-raised))] px-0 py-1.5 sm:px-4 md:px-3 md:py-3">
           <TabsList variant="terminal" className="grid h-auto w-full grid-cols-3 bg-transparent">
             <TabsTrigger variant="terminal" value="overview">
               Overview
@@ -1577,16 +1589,16 @@ export function AgentStrategiesPanel({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-[#1f2634] pb-2 md:mb-3 md:gap-3 md:pb-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-[hsl(var(--border-strong))] pb-2 md:mb-3 md:gap-3 md:pb-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">{`${strategyList.length}/5 templates`}</span>
-          <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">
+          <span className="inline-flex items-center rounded-pill border border-border/60 bg-surface-raised/40 px-2.5 py-1 text-[10px] font-medium text-content/60">{`${strategyList.length}/5 templates`}</span>
+          <span className="inline-flex items-center rounded-pill border border-border/60 bg-surface-raised/40 px-2.5 py-1 text-[10px] font-medium text-content/60">
             {strategyList.some((strategy) => strategy.status === "live")
               ? "1 active strategy"
               : "No active strategy"}
           </span>
         </div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-500">
+        <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-content-muted">
           {selectedDetail?.nextRunAt
             ? `Next wake ${formatDateTime(selectedDetail.nextRunAt)}`
             : "Awaiting next trigger"}
@@ -1594,7 +1606,7 @@ export function AgentStrategiesPanel({
       </div>
 
       {isLoading && strategyList.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex min-h-[14rem] items-center justify-center text-sm text-slate-300">
+        <div className="rounded-panel border border-border/60 bg-surface-raised/40 flex min-h-[14rem] items-center justify-center text-sm text-content-muted">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Loading strategies...
         </div>
@@ -1626,7 +1638,7 @@ export function AgentStrategiesPanel({
                 </div>
               </div>
             ) : isDetailLoading && selectedStrategyId ? (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex h-full min-h-[18rem] items-center justify-center text-sm text-slate-300">
+              <div className="rounded-panel border border-border/60 bg-surface-raised/40 flex h-full min-h-[18rem] items-center justify-center text-sm text-content-muted">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Loading strategy details...
               </div>
@@ -1663,7 +1675,7 @@ export function AgentStrategiesPanel({
                 endRef={strategyThreadEndRef}
               />
             ) : (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex h-full min-h-[18rem] items-center justify-center border-dashed bg-sidebar/15 px-6 text-center text-sm leading-6 text-slate-400">
+              <div className="rounded-panel border border-border/60 bg-surface-raised/40 flex h-full min-h-[18rem] items-center justify-center border-dashed bg-sidebar/15 px-6 text-center text-sm leading-6 text-content-muted">
                 Pick a strategy slot to review it, or create a new one to open a dedicated strategy
                 chat with Hermes.
               </div>
@@ -1688,7 +1700,7 @@ export function AgentStrategiesPanel({
 
               <div className={cn("min-h-0", selectedStrategyId ? "block" : "hidden md:block")}>
                 {isDetailLoading && selectedStrategyId ? (
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex h-full min-h-[18rem] items-center justify-center text-sm text-slate-300">
+                  <div className="rounded-panel border border-border/60 bg-surface-raised/40 flex h-full min-h-[18rem] items-center justify-center text-sm text-content-muted">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Loading strategy details...
                   </div>
@@ -1725,7 +1737,7 @@ export function AgentStrategiesPanel({
                     endRef={strategyThreadEndRef}
                   />
                 ) : (
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex h-full min-h-[18rem] items-center justify-center border-dashed bg-sidebar/15 px-6 text-center text-sm leading-6 text-slate-400">
+                  <div className="rounded-panel border border-border/60 bg-surface-raised/40 flex h-full min-h-[18rem] items-center justify-center border-dashed bg-sidebar/15 px-6 text-center text-sm leading-6 text-content-muted">
                     Pick a strategy slot to review it, or create a new one to open a dedicated
                     strategy chat with Hermes.
                   </div>

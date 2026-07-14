@@ -115,14 +115,14 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
   const progressPct = Math.min((totalSharesPerHour / Math.max(maxSharesPerHour, 0.01)) * 100, 100);
 
   return (
-    <div className="relative border border-border/60 rounded-sm bg-muted/30 p-2.5 overflow-hidden">
+    <div className="relative border border-border/60 rounded-compact bg-muted/30 p-2.5 overflow-hidden">
       <div className="relative z-10 flex gap-3">
         {/* LEFT: total + progress */}
         <div className="flex-1 min-w-0">
           {/* Header row */}
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-3 w-3 text-amber-600" />
+              <TrendingUp className="h-3 w-3 text-category-scout" />
               <span className="text-[10px] font-semibold text-foreground">Live Earnings</span>
             </div>
             <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
@@ -136,7 +136,7 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
 
           {/* Accumulator — shares earned so far this hour */}
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold font-mono tabular-nums text-amber-500 leading-none">
+            <span className="text-xl font-bold font-mono tabular-nums text-category-scout leading-none">
               {accumulator.toFixed(2)}
             </span>
             <span className="text-[9px] text-muted-foreground">earned this hour</span>
@@ -148,9 +148,9 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
               <span>{totalSharesPerHour.toFixed(2)}/hr est.</span>
               <span>{maxSharesPerHour.toFixed(0)} max</span>
             </div>
-            <div className="h-1 bg-muted rounded-full overflow-hidden">
+            <div className="h-1 bg-muted rounded-pill overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-amber-500/70 to-amber-400 rounded-full transition-all duration-1000 ease-linear"
+                className="h-full bg-gradient-to-r from-category-scout/70 to-category-scout rounded-pill transition-all duration-1000 ease-linear"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
@@ -164,9 +164,9 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
               key={a.playerId}
               type="button"
               onClick={() => openPlayerModal(a.playerId)}
-              className="flex items-center gap-1.5 text-[9px] bg-card/60 border border-border/40 rounded-sm px-1.5 py-0.5 hover:bg-card hover:border-border/70 active:scale-[0.98] transition-colors text-left"
+              className="flex items-center gap-1.5 text-[9px] bg-card/60 border border-border/40 rounded-compact px-1.5 py-0.5 hover:bg-card hover:border-border/70 active:scale-[0.98] transition-colors text-left"
             >
-              <span className="text-amber-500 font-mono font-semibold tabular-nums w-[38px] text-right shrink-0">
+              <span className="text-category-scout font-mono font-semibold tabular-nums w-[38px] text-right shrink-0">
                 {a.rate.toFixed(2)}
               </span>
               <span className="h-2 w-px bg-border/60 shrink-0" />

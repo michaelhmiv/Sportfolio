@@ -23,6 +23,19 @@ describe("capacitor.config", () => {
     const config = await loadConfig();
 
     expect(config.server).toBeUndefined();
+    expect(config.plugins?.StatusBar).toMatchObject({
+      style: "DEFAULT",
+      overlaysWebView: true,
+    });
+    expect(config.plugins?.Keyboard).toMatchObject({
+      resize: "body",
+      resizeOnFullScreen: true,
+      style: "DEFAULT",
+    });
+    expect(config.plugins?.SplashScreen).toMatchObject({
+      launchAutoHide: false,
+      showSpinner: false,
+    });
   });
 
   it("allows overriding the native server URL per environment", async () => {

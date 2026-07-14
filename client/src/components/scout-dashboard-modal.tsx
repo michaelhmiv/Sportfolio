@@ -151,8 +151,6 @@ function ScoutRoster({ playerId, globalTotal }: { playerId: string; globalTotal:
     staleTime: 1000 * 60, // 1 minute
   });
 
-  const { data: dbDebug } = useQuery<any>({ queryKey: ["/api/debug/db-check"] });
-
   if (isLoading)
     return (
       <div className="p-4 text-center text-xs text-muted-foreground">
@@ -163,13 +161,7 @@ function ScoutRoster({ playerId, globalTotal }: { playerId: string; globalTotal:
   if (!roster || roster.length === 0) {
     return (
       <div className="p-4 text-center text-xs text-muted-foreground">
-        No active scouts found.
-        <br />
-        <span className="text-[10px] opacity-50">
-          ID: {playerId} | Global: {globalTotal}
-          <br />
-          DB Count (Cade): {dbDebug?.scoutAssignmentsCount ?? "?"}
-        </span>
+        No active scouts found for this player.
       </div>
     );
   }
@@ -184,7 +176,7 @@ function ScoutRoster({ playerId, globalTotal }: { playerId: string; globalTotal:
         {roster.map((entry, idx) => (
           <div
             key={idx}
-            className="flex items-center justify-between text-xs p-1.5 rounded hover:bg-muted/50"
+            className="flex items-center justify-between text-xs p-1.5 rounded-compact hover:bg-muted/50"
           >
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground w-4 text-right">{idx + 1}.</span>
@@ -218,14 +210,15 @@ function HowItWorks() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-amber-600"
+          className="min-h-11 min-w-11 text-muted-foreground hover:text-category-scout sm:h-8 sm:min-h-8 sm:w-8 sm:min-w-8"
+          aria-label="How scouting works"
         >
           <Info className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-4 text-xs space-y-3" align="end">
         <h4 className="font-semibold text-sm flex items-center gap-2">
-          <Binoculars className="h-4 w-4 text-amber-600" />
+          <Binoculars className="h-4 w-4 text-category-scout" />
           How Scouting Works
         </h4>
         <div className="space-y-2 text-muted-foreground">
@@ -235,18 +228,18 @@ function HowItWorks() {
           </p>
           <p>
             <strong className="text-foreground">Mechanic:</strong> Every player mints{" "}
-            <span className="text-green-600 font-bold">60 shares per hour</span>.
+            <span className="text-market-positive font-bold">60 shares per hour</span>.
           </p>
           <p>
             <strong className="text-foreground">Your Reward:</strong> You split these 60 shares with
             other scouts based on how many scouts you assign.
           </p>
-          <div className="bg-muted/50 p-2 rounded border font-mono text-[10px] text-center">
+          <div className="bg-muted/50 p-2 rounded-compact border font-mono text-[10px] text-center">
             (Your Scouts / Total Scouts) × 60 = Hourly Shares
           </div>
           <p>
-            <span className="text-amber-600 font-medium">Strategy:</span> Scout "hidden gems" with
-            few other scouts to get a larger slice of the pie!
+            <span className="text-category-scout font-medium">Strategy:</span> Scout "hidden gems"
+            with few other scouts to get a larger slice of the pie!
           </p>
         </div>
       </PopoverContent>
@@ -758,7 +751,7 @@ export function ScoutDashboardModal() {
   };
 
   const getDeltaColor = (val: number) =>
-    val > 0 ? "text-green-500" : val < 0 ? "text-red-500" : "text-muted-foreground";
+    val > 0 ? "text-market-positive" : val < 0 ? "text-market-negative" : "text-muted-foreground";
 
   return (
     <Dialog open={isScoutDashboardOpen} onOpenChange={(open) => !open && closeScoutDashboard()}>
@@ -767,8 +760,8 @@ export function ScoutDashboardModal() {
         <DialogHeader className="p-4 pb-2 border-b bg-muted/10 shrink-0">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-1.5">
-                <Binoculars className="h-5 w-5 text-amber-600" />
+              <div className="rounded-compact border border-category-scout/30 bg-category-scout/10 p-1.5">
+                <Binoculars className="h-5 w-5 text-category-scout" />
               </div>
               <div>
                 <DialogTitle className="text-lg flex items-center gap-2">
@@ -782,13 +775,13 @@ export function ScoutDashboardModal() {
             </div>
           </div>
           {/* Compact Capacity Bar & Status */}
-          <div className="bg-card border rounded-md p-2 shadow-sm space-y-2">
+          <div className="bg-card border rounded-control p-2 shadow-sm space-y-2">
             <div className="flex justify-between items-center gap-2 text-xs">
               <span className="text-muted-foreground flex items-center gap-1.5">
                 <span
                   className={cn(
                     "font-bold text-base",
-                    remaining === 0 ? "text-amber-600" : "text-foreground",
+                    remaining === 0 ? "text-category-scout" : "text-foreground",
                   )}
                 >
                   {totalScouts}
@@ -797,7 +790,7 @@ export function ScoutDashboardModal() {
                 {rewardedScoutBoostActive && (
                   <Badge
                     variant="secondary"
-                    className="h-5 rounded-[3px] border-amber-500/30 bg-amber-500/10 px-1.5 font-mono text-[9px] uppercase text-amber-700 dark:text-amber-300"
+                    className="h-5 rounded-compact border-category-scout/30 bg-category-scout/10 px-1.5 font-mono text-[9px] uppercase text-category-scout dark:text-category-scout"
                   >
                     <Zap className="mr-1 h-2.5 w-2.5" />
                     {boostTimeRemaining}
@@ -810,7 +803,7 @@ export function ScoutDashboardModal() {
                     type="button"
                     size="icon"
                     variant="outline"
-                    className="h-7 w-7 shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                    className="min-h-11 min-w-11 shrink-0 border-category-scout/30 bg-category-scout/10 text-category-scout hover:bg-category-scout/20 sm:h-8 sm:min-h-8 sm:w-8 sm:min-w-8 dark:text-category-scout"
                     aria-label="Add rewarded scout boost time"
                     data-testid="button-scout-rewarded-boost"
                   >
@@ -825,19 +818,19 @@ export function ScoutDashboardModal() {
                         {rewardedScoutBoostActive ? "10-scout boost active" : "Add 10-scout time"}
                       </div>
                     </div>
-                    <Badge className="rounded-[3px] border-amber-500/30 bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                    <Badge className="rounded-compact border-category-scout/30 bg-category-scout/20 text-category-scout dark:text-category-scout">
                       +12h
                     </Badge>
                   </div>
 
-                  <div className="rounded-sm border bg-muted/30 p-3 text-xs">
+                  <div className="rounded-compact border bg-muted/30 p-3 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Current cap</span>
                       <span className="font-mono font-semibold">{maxScouts} scouts</span>
                     </div>
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-muted-foreground">Boost time banked</span>
-                      <span className="font-mono font-semibold text-amber-700 dark:text-amber-300">
+                      <span className="font-mono font-semibold text-category-scout dark:text-category-scout">
                         {rewardedScoutBoostActive ? boostTimeRemaining : "0h 00m"}
                       </span>
                     </div>
@@ -872,7 +865,7 @@ export function ScoutDashboardModal() {
                   <Button
                     type="button"
                     variant="terminal"
-                    className="w-full border-amber-500/40 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 disabled:text-amber-900/60 dark:text-amber-100 dark:disabled:text-amber-100/60"
+                    className="w-full border-category-scout/40 bg-category-scout/15 text-category-scout hover:bg-category-scout/25 disabled:text-category-scout/60 dark:text-category-scout dark:disabled:text-category-scout/60"
                     onClick={handleRewardedScoutBoost}
                     disabled={
                       !isAuthenticated ||
@@ -899,7 +892,7 @@ export function ScoutDashboardModal() {
             <Progress
               value={(totalScouts / maxScouts) * 100}
               className="h-1.5"
-              indicatorClassName={cn("bg-amber-500", remaining === 0 && "animate-pulse")}
+              indicatorClassName={cn("bg-category-scout", remaining === 0 && "animate-pulse")}
             />
           </div>
         </DialogHeader>
@@ -951,7 +944,8 @@ export function ScoutDashboardModal() {
                 size="icon"
                 variant="ghost"
                 onClick={toggleSortDirection}
-                className="h-8 w-8 shrink-0"
+                className="min-h-11 min-w-11 shrink-0 sm:h-8 sm:min-h-8 sm:w-8 sm:min-w-8"
+                aria-label={`Sort ${sortDirection === "asc" ? "descending" : "ascending"}`}
               >
                 <ArrowUpDown className={cn("h-4 w-4", sortDirection === "asc" && "rotate-180")} />
               </Button>
@@ -1005,7 +999,7 @@ export function ScoutDashboardModal() {
                 sortField !== "shares" &&
                 playersData?.total &&
                 playersData.total > limit && (
-                  <span className="text-amber-600 font-medium animate-pulse">
+                  <span className="text-category-scout font-medium animate-pulse">
                     Scroll to load more
                   </span>
                 )}
@@ -1055,9 +1049,9 @@ export function ScoutDashboardModal() {
               )}
               <div className="w-14 sm:w-16 text-right hidden sm:block">Owned</div>
               <div className="w-14 sm:w-16 text-right hidden sm:block">Earned</div>
-              <div className="w-14 sm:w-16 text-center">Status</div>
+              <div className="hidden w-14 text-center sm:block sm:w-16">Status</div>
               <div
-                className="w-20 sm:w-28 text-center cursor-pointer hover:text-foreground"
+                className="w-36 sm:w-28 text-center cursor-pointer hover:text-foreground"
                 onClick={() => handleSort("scouts")}
               >
                 Scouts
@@ -1073,7 +1067,7 @@ export function ScoutDashboardModal() {
                 </div>
               ) : displayedPlayers.length === 0 ? (
                 <div className="py-20 text-center text-muted-foreground flex flex-col items-center gap-3 bg-muted/10 shrink-0 border-b">
-                  <div className="rounded-sm border bg-background p-3 shadow-none">
+                  <div className="rounded-compact border bg-background p-3 shadow-none">
                     <Search className="h-5 w-5 opacity-40" />
                   </div>
                   <div className="space-y-1">
@@ -1094,14 +1088,14 @@ export function ScoutDashboardModal() {
                         "flex items-center px-2 py-1.5 transition-colors text-sm",
                         // Live/ended games get priority highlighting
                         player.gameStatus === "live" &&
-                          "bg-red-50 dark:bg-red-950/20 border-l-2 border-l-red-500",
+                          "bg-market-negative dark:bg-market-negative/20 border-l-2 border-l-red-500",
                         player.gameStatus === "ended" &&
                           "bg-muted/40 dark:bg-muted/20 border-l-2 border-l-muted-foreground",
                         // Scout highlighting (only for upcoming/no-game players)
                         player.gameStatus !== "live" &&
                           player.gameStatus !== "ended" &&
                           player.scoutCount > 0 &&
-                          "bg-amber-50/50 dark:bg-amber-950/10 hover:bg-amber-100/50 dark:hover:bg-amber-950/20",
+                          "bg-category-scout/50 dark:bg-category-scout/10 hover:bg-category-scout/50 dark:hover:bg-category-scout/20",
                         // Regular hover for non-scouted players
                         player.gameStatus !== "live" &&
                           player.gameStatus !== "ended" &&
@@ -1110,11 +1104,13 @@ export function ScoutDashboardModal() {
                       )}
                     >
                       {/* Expand Toggle */}
-                      <div className="w-8 flex justify-center">
+                      <div className="w-11 sm:w-8 flex justify-center">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          className="min-h-11 min-w-11 text-muted-foreground hover:text-foreground sm:h-6 sm:min-h-6 sm:w-6 sm:min-w-6"
+                          aria-label={`${expandedPlayerId === player.id ? "Collapse" : "Expand"} ${player.firstName} ${player.lastName}`}
+                          aria-expanded={expandedPlayerId === player.id}
                           onClick={() =>
                             setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)
                           }
@@ -1139,7 +1135,7 @@ export function ScoutDashboardModal() {
                           <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
                             <Badge
                               variant="secondary"
-                              className="text-[9px] px-0.5 h-3.5 min-w-[20px] justify-center rounded-[3px]"
+                              className="text-[9px] px-0.5 h-3.5 min-w-[20px] justify-center rounded-compact"
                             >
                               {player.team}
                             </Badge>
@@ -1188,7 +1184,7 @@ export function ScoutDashboardModal() {
                       {/* Owned */}
                       <div className="w-16 sm:w-20 text-right font-mono text-xs tabular-nums hidden sm:block">
                         {player.sharesOwned > 0 ? (
-                          <span className="text-blue-600 dark:text-blue-400 font-bold">
+                          <span className="text-status-info dark:text-status-info font-bold">
                             {player.sharesOwned.toLocaleString()}
                           </span>
                         ) : (
@@ -1197,18 +1193,18 @@ export function ScoutDashboardModal() {
                       </div>
 
                       {/* Earned Minutes */}
-                      <div className="w-14 sm:w-16 text-right font-mono text-xs tabular-nums hidden sm:block text-amber-600 font-medium">
+                      <div className="w-14 sm:w-16 text-right font-mono text-xs tabular-nums hidden sm:block text-category-scout font-medium">
                         {scoutStatus?.perPlayer?.[player.id]
                           ? `${scoutStatus.perPlayer[player.id].toFixed(0)}m`
                           : "-"}
                       </div>
 
                       {/* Game Status */}
-                      <div className="w-14 sm:w-16 text-center">
+                      <div className="hidden w-14 text-center sm:block sm:w-16">
                         {player.gameStatus === "upcoming" && player.gameStartTime && (
                           <Badge
                             variant="outline"
-                            className="text-[9px] px-1 h-5 border-blue-200 text-blue-600 bg-blue-50"
+                            className="text-[9px] px-1 h-5 border-status-info text-status-info bg-status-info"
                           >
                             {format(new Date(player.gameStartTime), "h:mm a")}
                           </Badge>
@@ -1242,27 +1238,33 @@ export function ScoutDashboardModal() {
                       </div>
 
                       {/* Scouts Control */}
-                      <div className="w-20 sm:w-28 flex items-center justify-center gap-0.5 sm:gap-1 pl-1 sm:pl-2">
+                      <div className="w-36 sm:w-28 flex items-center justify-center gap-0.5 sm:gap-1 pl-1 sm:pl-2">
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-6 w-6"
+                          className="min-h-11 min-w-11 sm:h-6 sm:min-h-6 sm:w-6 sm:min-w-6"
+                          aria-label={`Remove one scout from ${player.firstName} ${player.lastName}`}
                           onClick={() => handleAdjustScout(player.id, player.scoutCount, -1)}
                           disabled={player.scoutCount === 0 || assignMutation.isPending}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
-                        <div
-                          className="flex flex-col items-center min-w-[32px] rounded p-0.5 transition-colors cursor-pointer hover:bg-muted/50"
+                        <button
+                          type="button"
+                          className="flex min-h-11 min-w-11 flex-col items-center justify-center rounded-compact p-0.5 transition-colors hover:bg-muted/50 sm:min-h-8 sm:min-w-8"
                           onClick={() =>
                             setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)
                           }
                           title="Click to view all scouts"
+                          aria-label={`View scouts assigned to ${player.firstName} ${player.lastName}`}
+                          aria-expanded={expandedPlayerId === player.id}
                         >
                           <div
                             className={cn(
                               "text-center font-bold text-xs leading-none",
-                              player.scoutCount > 0 ? "text-amber-600" : "text-muted-foreground",
+                              player.scoutCount > 0
+                                ? "text-category-scout"
+                                : "text-muted-foreground",
                             )}
                           >
                             {player.scoutCount}
@@ -1270,11 +1272,12 @@ export function ScoutDashboardModal() {
                           <div className="text-[9px] text-muted-foreground font-normal leading-none mt-0.5">
                             of {player.globalScoutCount}
                           </div>
-                        </div>
+                        </button>
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-6 w-6"
+                          className="min-h-11 min-w-11 sm:h-6 sm:min-h-6 sm:w-6 sm:min-w-6"
+                          aria-label={`Add one scout to ${player.firstName} ${player.lastName}`}
                           onClick={() => handleAdjustScout(player.id, player.scoutCount, 1)}
                           disabled={remaining === 0 || assignMutation.isPending}
                         >
@@ -1292,7 +1295,7 @@ export function ScoutDashboardModal() {
                               <TrendingUp className="h-3 w-3" />
                               Stats
                             </h4>
-                            <div className="bg-background border rounded p-2 text-xs space-y-1">
+                            <div className="bg-background border rounded-compact p-2 text-xs space-y-1">
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Global Scouts:</span>
                                 <span className="font-mono">{player.globalScoutCount}</span>
@@ -1311,7 +1314,7 @@ export function ScoutDashboardModal() {
                               </div>
                               <div className="border-t my-1 pt-1 flex justify-between font-medium items-center">
                                 <span>Earned Minutes:</span>
-                                <span className="text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 dark:bg-amber-950/30 dark:border-amber-900">
+                                <span className="text-category-scout font-bold bg-category-scout px-1.5 py-0.5 rounded-compact border border-category-scout dark:bg-category-scout/30 dark:border-category-scout">
                                   {scoutStatus?.perPlayer?.[player.id] ?? 0} min
                                 </span>
                               </div>

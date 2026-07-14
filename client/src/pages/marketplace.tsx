@@ -582,7 +582,7 @@ export default function PlayerPools() {
                         <select
                           value={sortField}
                           onChange={(e) => setSortFieldFromSelector(e.target.value as SortField)}
-                          className="h-9 rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                          className="h-9 rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                         >
                           <option value="volume">Volume</option>
                           <option value="marketCap">Mkt Cap</option>
@@ -616,7 +616,7 @@ export default function PlayerPools() {
                           <select
                             value={teamFilter}
                             onChange={(e) => setTeamFilter(e.target.value)}
-                            className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                            className="h-9 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                           >
                             <option value="all">All Teams</option>
                             {teams.map((team) => (
@@ -632,7 +632,7 @@ export default function PlayerPools() {
                           <select
                             value={positionFilter}
                             onChange={(e) => setPositionFilter(e.target.value)}
-                            className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                            className="h-9 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                           >
                             <option value="all">All Positions</option>
                             {positions.map((pos) => (
@@ -648,7 +648,7 @@ export default function PlayerPools() {
                           <select
                             value={filterWatchlistId}
                             onChange={(e) => setFilterWatchlistId(e.target.value)}
-                            className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                            className="h-9 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                           >
                             <option value="none">All Players</option>
                             <option value="all">My Watchlists</option>
@@ -775,7 +775,7 @@ export default function PlayerPools() {
                                     className={cn(
                                       "border-b border-border hover:bg-muted/20 transition-colors",
                                       rowBorderClass,
-                                      isLive && "bg-emerald-500/[0.03]",
+                                      isLive && "bg-market-positive/[0.03]",
                                     )}
                                   >
                                     <td className="p-3">
@@ -812,19 +812,19 @@ export default function PlayerPools() {
                                           player.mlbMatchupChip ? (
                                             <div className="mt-1 flex flex-wrap gap-1">
                                               {isLive && (
-                                                <span className="inline-flex items-center gap-0.5 rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+                                                <span className="inline-flex items-center gap-0.5 rounded-compact border border-market-positive/40 bg-market-positive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-market-positive">
                                                   <Radio className="w-2.5 h-2.5" />
                                                   Live
                                                 </span>
                                               )}
                                               {hasBuyPressure && (
-                                                <span className="inline-flex items-center gap-0.5 rounded-sm border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-500">
+                                                <span className="inline-flex items-center gap-0.5 rounded-compact border border-boost/30 bg-boost/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-boost">
                                                   <Flame className="w-2.5 h-2.5" />
                                                   Buy
                                                 </span>
                                               )}
                                               {hasCommunityBoost && (
-                                                <span className="inline-flex items-center gap-0.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
+                                                <span className="inline-flex items-center gap-0.5 rounded-compact border border-status-warning/30 bg-status-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-status-warning">
                                                   <Users className="w-2.5 h-2.5" />
                                                   {player.communityBoostCount}x
                                                 </span>

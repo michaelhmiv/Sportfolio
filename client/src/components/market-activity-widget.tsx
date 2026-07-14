@@ -59,7 +59,7 @@ export function MarketActivityWidget({
   }, [subscribe]);
 
   const getActivityIcon = (item: MarketActivityFeedItem) => {
-    return <span className="text-blue-500 font-bold text-lg">▲</span>;
+    return <span className="text-market-positive font-bold text-lg">▲</span>;
   };
 
   const getActivityText = (item: MarketActivityFeedItem) => {

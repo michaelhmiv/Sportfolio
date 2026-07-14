@@ -16,11 +16,11 @@ export function OfflineBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-destructive/90 px-4 py-2 text-destructive-foreground text-sm font-medium"
+      className="fixed inset-x-0 top-0 z-[100] flex items-center justify-center gap-2 border-b border-offline/30 bg-offline-subtle px-4 py-2 text-sm font-semibold text-offline shadow-medium"
       style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
     >
       <WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" />
-      <span>No connection — showing cached data</span>
+      <span>Offline · showing cached market data</span>
     </div>
   );
 }

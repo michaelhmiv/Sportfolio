@@ -173,7 +173,7 @@ export default function AuthError() {
     <div className="terminal-page flex items-center justify-center p-4">
       <Card variant="terminal" className="w-full max-w-lg">
         <CardHeader className="text-center space-y-2">
-          <div className="terminal-avatar mx-auto mb-4 h-12 w-12 border-red-500/20 bg-destructive/10">
+          <div className="terminal-avatar mx-auto mb-4 h-12 w-12 border-destructive/20 bg-destructive/10">
             <AlertCircle className="w-6 h-6 text-destructive" data-testid="icon-error" />
           </div>
           <div className="terminal-kicker">Authentication Status</div>
@@ -190,7 +190,7 @@ export default function AuthError() {
 
         <CardContent className="space-y-4">
           {countdown > 0 && (
-            <Alert className="rounded-sm border-primary/30 bg-primary/5">
+            <Alert className="rounded-compact border-primary/30 bg-primary/5">
               <Clock className="h-4 w-4" />
               <AlertTitle className="terminal-label text-[10px]">Retrying Automatically</AlertTitle>
               <AlertDescription className="flex items-center justify-between">
@@ -209,7 +209,7 @@ export default function AuthError() {
             </Alert>
           )}
 
-          <Alert className="rounded-sm border-border bg-card/70">
+          <Alert className="rounded-compact border-border bg-card/70">
             <AlertTitle className="terminal-label text-[10px]">What You Can Do</AlertTitle>
             <AlertDescription
               className="text-sm text-muted-foreground"
@@ -220,7 +220,7 @@ export default function AuthError() {
           </Alert>
 
           {isMobile && errorInfo.isMobileIssue && (
-            <Alert className="rounded-sm border-amber-500/30 bg-amber-500/5">
+            <Alert className="rounded-compact border-status-warning/30 bg-status-warning/5">
               <Smartphone className="h-4 w-4" />
               <AlertTitle className="terminal-label text-[10px]">Mobile Browser Tip</AlertTitle>
               <AlertDescription className="text-sm text-muted-foreground">

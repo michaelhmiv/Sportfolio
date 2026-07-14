@@ -178,8 +178,8 @@ function ActivePositionsToday({
 
   const getChangeClass = (val: string | null | undefined) => {
     const n = parseFloat(val ?? "0");
-    if (n > 0) return "text-emerald-500";
-    if (n < 0) return "text-red-500";
+    if (n > 0) return "text-market-positive";
+    if (n < 0) return "text-market-negative";
     return "text-muted-foreground";
   };
 
@@ -216,17 +216,17 @@ function ActivePositionsToday({
                   key={holding.player.id}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/20",
-                    isLiveGame && "bg-emerald-500/[0.03]",
+                    isLiveGame && "bg-market-positive/[0.03]",
                   )}
                 >
                   {/* Status indicator */}
                   <div
                     className={cn(
-                      "h-1.5 w-1.5 flex-shrink-0 rounded-full",
+                      "h-1.5 w-1.5 flex-shrink-0 rounded-pill",
                       isLiveGame
-                        ? "animate-pulse bg-emerald-500"
+                        ? "animate-pulse bg-market-positive"
                         : slateStatus === "scheduled"
-                          ? "bg-blue-400"
+                          ? "bg-status-info"
                           : "bg-muted-foreground/40",
                     )}
                   />
@@ -241,14 +241,14 @@ function ActivePositionsToday({
                         className="text-sm font-semibold truncate"
                       />
                       {isLiveGame && (
-                        <span className="inline-flex items-center gap-0.5 rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-1 py-0 text-[10px] font-semibold uppercase text-emerald-500">
+                        <span className="inline-flex items-center gap-0.5 rounded-compact border border-market-positive/40 bg-market-positive/10 px-1 py-0 text-[10px] font-semibold uppercase text-market-positive">
                           Live
                         </span>
                       )}
                       {isBoostEligible && (
                         <button
                           onClick={() => onBoost(holding.player.id)}
-                          className="inline-flex items-center gap-0.5 rounded-sm border border-yellow-500/40 bg-yellow-500/10 px-1 py-0 text-[10px] font-semibold uppercase text-yellow-500 hover:bg-yellow-500/20 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-0.5 rounded-compact border border-premium/40 bg-premium/10 px-1 py-0 text-[10px] font-semibold uppercase text-premium transition-colors hover:bg-hover cursor-pointer"
                         >
                           <Zap className="h-2.5 w-2.5" />
                           Boost
@@ -627,7 +627,11 @@ export default function Dashboard() {
     return {
       label: formatSignedAdaptiveCurrency(amount, { zeroDisplay: "$0.00" }),
       className:
-        amount > 0 ? "text-emerald-500" : amount < 0 ? "text-rose-500" : "text-muted-foreground",
+        amount > 0
+          ? "text-market-positive"
+          : amount < 0
+            ? "text-market-negative"
+            : "text-muted-foreground",
     };
   };
 
@@ -683,9 +687,9 @@ export default function Dashboard() {
                   onClick={() => setSport(sportOption as typeof sport)}
                   data-testid={`sport-chip-${sportOption.toLowerCase()}`}
                   className={cn(
-                    "flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase whitespace-nowrap transition-colors",
+                    "flex items-center gap-1 rounded-pill border px-3 py-1.5 text-xs font-semibold uppercase whitespace-nowrap transition-colors",
                     isActive
-                      ? "border-primary/60 bg-primary/10 text-primary"
+                      ? "border-selected-border bg-selected text-selected-foreground"
                       : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -697,7 +701,7 @@ export default function Dashboard() {
               <>
                 {(data?.boosts?.slotsRemaining ?? 0) > 0 && (
                   <Link href="/boosts">
-                    <button className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-500 transition-colors hover:bg-amber-500/20">
+                    <button className="flex items-center gap-1.5 whitespace-nowrap rounded-pill border border-status-warning/40 bg-status-warning/10 px-3 py-1.5 text-xs font-medium text-status-warning transition-colors hover:bg-hover">
                       <Zap className="h-3 w-3" />
                       {data!.boosts!.slotsRemaining} boost slot
                       {data!.boosts!.slotsRemaining !== 1 ? "s" : ""} open
@@ -705,7 +709,7 @@ export default function Dashboard() {
                   </Link>
                 )}
                 {liveGames.length > 0 && (
-                  <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-500">
+                  <span className="flex items-center gap-1.5 whitespace-nowrap rounded-pill border border-market-positive/40 bg-market-positive/10 px-3 py-1.5 text-xs font-medium text-market-positive">
                     <Radio className="h-3 w-3 animate-pulse" />
                     {liveGames.length} live now
                   </span>
@@ -748,8 +752,8 @@ export default function Dashboard() {
                 <div
                   className={cn(
                     "terminal-shell group relative hidden p-1.5 shadow-sm sm:block sm:p-2 transition-colors duration-700",
-                    change24hAmount > 0 && "border-emerald-500/25 bg-emerald-500/[0.04]",
-                    change24hAmount < 0 && "border-red-500/20 bg-red-500/[0.04]",
+                    change24hAmount > 0 && "border-market-positive/25 bg-market-positive/[0.04]",
+                    change24hAmount < 0 && "border-market-negative/20 bg-market-negative/[0.04]",
                   )}
                 >
                   {/* Background Pattern */}
@@ -771,7 +775,7 @@ export default function Dashboard() {
                         {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
                           <button
                             onClick={() => setLocation("/leaderboards#portfolioValue")}
-                            className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border px-1 py-0 text-[9px] transition-colors hover:bg-secondary"
+                            className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-compact border border-border px-1 py-0 text-[9px] transition-colors hover:bg-secondary"
                             data-testid="badge-portfolio-rank"
                             aria-label={`Portfolio value rank #${data?.user.portfolioRank}, click to view leaderboard`}
                           >
@@ -796,7 +800,7 @@ export default function Dashboard() {
                         {data?.user?.cashRank && data?.user.cashRank > 0 && (
                           <button
                             onClick={() => setLocation("/leaderboards#cashBalance")}
-                            className="inline-flex items-center gap-0.5 border border-border px-0.5 py-0 rounded text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-0.5"
+                            className="inline-flex items-center gap-0.5 border border-border px-0.5 py-0 rounded-compact text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-0.5"
                             data-testid="badge-cash-rank"
                           >
                             #{data?.user.cashRank}
@@ -827,7 +831,7 @@ export default function Dashboard() {
                         <button
                           key={metric.key}
                           onClick={() => setLocation("/portfolio")}
-                          className="flex flex-col justify-center text-center rounded-md hover:bg-secondary/40 transition-colors p-1 -m-1 min-w-0"
+                          className="flex flex-col justify-center text-center rounded-control hover:bg-secondary/40 transition-colors p-1 -m-1 min-w-0"
                           data-testid={metric.testId}
                           aria-label={`Open portfolio details for ${metric.key} net worth change`}
                         >
@@ -841,7 +845,7 @@ export default function Dashboard() {
                               {formatSignedCurrency(change.amount)}
                             </div>
                             {change.rank !== null && change.rank > 0 && (
-                              <span className="inline-flex items-center border border-border px-0.5 rounded text-[8px] text-muted-foreground flex-shrink-0">
+                              <span className="inline-flex items-center border border-border px-0.5 rounded-compact text-[8px] text-muted-foreground flex-shrink-0">
                                 #{change.rank}
                               </span>
                             )}
@@ -862,24 +866,24 @@ export default function Dashboard() {
           {/* Boost Live Earnings Strip */}
           {isAuthenticated && data?.boosts && data.boosts.lockedBoosts > 0 && (
             <Link href="/boosts">
-              <div className="flex cursor-pointer items-center justify-between rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 transition-colors hover:bg-yellow-500/15">
+              <div className="flex cursor-pointer items-center justify-between rounded-control border border-premium/30 bg-premium/10 px-3 py-2 transition-colors hover:bg-premium/15">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-yellow-500/20">
-                    <Zap className="h-3 w-3 text-yellow-500" />
+                  <span className="flex h-5 w-5 items-center justify-center rounded-compact bg-premium/20">
+                    <Zap className="h-3 w-3 text-premium" />
                   </span>
-                  <span className="text-sm font-semibold text-yellow-500">
+                  <span className="text-sm font-semibold text-premium">
                     {`${data.boosts.lockedBoosts} boost${data.boosts.lockedBoosts !== 1 ? "s" : ""} live now`}
                   </span>
                   {data.boosts.totalLivePayout !== "0.00" && (
                     <span className="text-xs text-muted-foreground">
                       · Est.{" "}
-                      <span className="font-mono font-semibold text-emerald-500">
+                      <span className="font-mono font-semibold text-market-positive">
                         +${data.boosts.totalLivePayout}
                       </span>
                     </span>
                   )}
                 </div>
-                <ChevronRight className="h-4 w-4 text-yellow-500/60" />
+                <ChevronRight className="h-4 w-4 text-premium/60" />
               </div>
             </Link>
           )}
@@ -988,9 +992,9 @@ export default function Dashboard() {
                         key={sportOption}
                         type="button"
                         onClick={() => setSport(sportOption as typeof sport)}
-                        className={`inline-flex items-center rounded-sm border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors ${
+                        className={`inline-flex items-center rounded-compact border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors ${
                           isActive
-                            ? "border-primary/60 bg-primary/10 text-primary"
+                            ? "border-selected-border bg-selected text-selected-foreground"
                             : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -1029,7 +1033,7 @@ export default function Dashboard() {
                             <Badge variant="outline">{section.raceList.length}</Badge>
                           </div>
                           {section.raceList.length > 0 ? (
-                            <div className="overflow-hidden rounded-md border border-border/70 bg-background/40">
+                            <div className="overflow-hidden rounded-control border border-border/70 bg-background/40">
                               <table className="w-full table-fixed text-xs sm:text-sm">
                                 <thead>
                                   <tr className="border-b border-border/70 bg-muted/20">
@@ -1072,10 +1076,10 @@ export default function Dashboard() {
                                           : "FINAL";
                                     const raceMarketStateClass =
                                       race.status === "inprogress"
-                                        ? "text-emerald-500"
+                                        ? "text-market-positive"
                                         : race.status === "completed"
-                                          ? "text-slate-300"
-                                          : "text-blue-400";
+                                          ? "text-content-muted"
+                                          : "text-status-info";
                                     const leader = race.driverStandings?.[0];
                                     const hasRaceLapProgress =
                                       Boolean(race.lapInfo) &&
@@ -1191,7 +1195,7 @@ export default function Dashboard() {
                           <Badge variant="outline">{section.games.length}</Badge>
                         </div>
                         {section.games.length > 0 ? (
-                          <div className="overflow-hidden rounded-md border border-border/70 bg-background/40">
+                          <div className="overflow-hidden rounded-control border border-border/70 bg-background/40">
                             <table className="w-full table-fixed text-xs sm:text-sm">
                               <thead>
                                 <tr className="border-b border-border/70 bg-muted/20">
@@ -1252,12 +1256,12 @@ export default function Dashboard() {
                                         : dateLabel;
                                   const gameMarketStateClass =
                                     effectiveStatus === "inprogress"
-                                      ? "text-emerald-500"
+                                      ? "text-market-positive"
                                       : effectiveStatus === "completed"
-                                        ? "text-slate-300"
+                                        ? "text-content-muted"
                                         : effectiveStatus === "postponed"
-                                          ? "text-amber-500"
-                                          : "text-blue-400";
+                                          ? "text-status-warning"
+                                          : "text-status-info";
                                   const ownedTeams = new Set(
                                     [
                                       ...(game.userContext?.ownedPlayers || []).map(
@@ -1454,23 +1458,23 @@ export default function Dashboard() {
                   <CardTitle className="text-sm font-medium uppercase tracking-wide">
                     Boosts
                   </CardTitle>
-                  <Zap className="w-4 h-4 text-yellow-500" />
+                  <Zap className="w-4 h-4 text-premium" />
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-3">
                   {isAuthenticated && data?.boosts ? (
                     <>
                       {/* Active Boosts Stats */}
                       <div className="grid grid-cols-2 gap-2 relative z-10">
-                        <div className="p-2 bg-primary/10 rounded-md">
+                        <div className="p-2 bg-primary/10 rounded-control">
                           <div className="flex items-center gap-1 mb-1">
-                            <Flame className="w-3 h-3 text-orange-500" />
+                            <Flame className="w-3 h-3 text-boost" />
                             <span className="text-xs text-muted-foreground">Active</span>
                           </div>
                           <div className="text-lg font-bold">{data.boosts.activeBoosts}/4</div>
                         </div>
-                        <div className="p-2 bg-yellow-500/10 rounded-md">
+                        <div className="p-2 bg-premium/10 rounded-control">
                           <div className="flex items-center gap-1 mb-1">
-                            <span className="h-2 w-2 rounded-sm bg-yellow-500 animate-pulse" />
+                            <span className="h-2 w-2 rounded-compact bg-premium animate-pulse" />
                             <span className="text-xs text-muted-foreground">Live</span>
                           </div>
                           <div className="text-lg font-bold">{data.boosts.lockedBoosts}</div>
@@ -1478,7 +1482,7 @@ export default function Dashboard() {
                       </div>
 
                       {/* Slots Remaining */}
-                      <div className="flex items-center gap-2 p-2 border rounded-md relative z-10">
+                      <div className="flex items-center gap-2 p-2 border rounded-control relative z-10">
                         <div className="flex-1">
                           <div className="text-xs text-muted-foreground mb-1">Slots Available</div>
                           <div className="flex gap-1 mt-1">
@@ -1498,14 +1502,14 @@ export default function Dashboard() {
 
                       {/* Community Boost Count */}
                       {data.boosts.communityBoostCount > 0 && (
-                        <div className="flex items-center gap-2 p-2 bg-amber-500/10 rounded-md border border-amber-500/20">
+                        <div className="flex items-center gap-2 p-2 bg-status-warning/10 rounded-control border border-status-warning/20">
                           <div className="flex-1">
                             <div className="text-xs text-muted-foreground">Community Boosts</div>
                             <div className="text-sm font-medium">
                               {data.boosts.communityBoostCount} active today
                             </div>
                           </div>
-                          <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">
+                          <Badge className="border-status-warning/30 bg-status-warning/10 text-status-warning">
                             +{data.boosts.communityBoostCount}x
                           </Badge>
                         </div>
@@ -1514,10 +1518,10 @@ export default function Dashboard() {
                       {/* Today's Payout */}
                       {(data.boosts.totalLivePayout !== "0.00" ||
                         data.boosts.totalProcessedPayout !== "0.00") && (
-                        <div className="p-2 bg-green-500/10 rounded-md border border-green-500/20">
+                        <div className="p-2 bg-market-positive/10 rounded-control border border-market-positive/20">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Today's Payout</span>
-                            <span className="text-lg font-bold text-green-500">
+                            <span className="text-lg font-bold text-market-positive">
                               $
                               {(
                                 parseFloat(data.boosts.totalLivePayout) +
@@ -1561,7 +1565,7 @@ export default function Dashboard() {
                   <CardContent className="space-y-2 sm:space-y-3">
                     {data.topHoldings.slice(0, 3).map((holding) => (
                       <Link key={holding.player.id} href={`/player/${holding.player.id}`}>
-                        <div className="p-2 rounded-md hover-elevate">
+                        <div className="p-2 rounded-control hover-elevate">
                           <div className="flex items-center justify-between mb-1">
                             <PlayerName
                               playerId={holding.player.id}
@@ -1679,16 +1683,16 @@ export default function Dashboard() {
                   const posDiff = driver.startingPosition - driver.position;
                   const posDiffClass =
                     posDiff > 0
-                      ? "text-green-500"
+                      ? "text-market-positive"
                       : posDiff < 0
-                        ? "text-red-500"
+                        ? "text-market-negative"
                         : "text-muted-foreground";
                   return (
                     <div
                       key={driver.playerId}
                       className="grid grid-cols-12 gap-2 text-sm py-2 border-b items-center"
                     >
-                      <div className={`col-span-1 font-bold ${index < 3 ? "text-yellow-500" : ""}`}>
+                      <div className={`col-span-1 font-bold ${index < 3 ? "text-premium" : ""}`}>
                         {driver.position}
                       </div>
                       <div className="col-span-1">
@@ -1714,14 +1718,14 @@ export default function Dashboard() {
                         {driver.lapsCompleted || "-"}
                       </div>
                       <div className="col-span-1">
-                        <span className="text-yellow-500 text-xs">
+                        <span className="text-premium text-xs">
                           {driver.lapsLed > 0 ? `${driver.lapsLed} led` : ""}
                           {driver.fastestLaps > 0
                             ? `${driver.lapsLed > 0 ? " / " : ""}${driver.fastestLaps} fast`
                             : ""}
                         </span>
                       </div>
-                      <div className="col-span-1 text-right font-mono text-purple-400">
+                      <div className="col-span-1 text-right font-mono text-content">
                         {driver.fantasyPoints?.toFixed(1)}
                       </div>
                     </div>

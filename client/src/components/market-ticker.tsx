@@ -44,8 +44,8 @@ export function MarketTicker() {
         style={{ background: "linear-gradient(to left, hsl(var(--card)), transparent)" }}
       />
 
-      <div className="h-10 flex items-center overflow-hidden bg-black/40 border-y border-white/5">
-        <div className="flex items-center px-4 border-r border-white/10 h-full mr-2 z-20 bg-background/50 backdrop-blur shrink-0">
+      <div className="h-10 flex items-center overflow-hidden bg-scrim/40 border-y border-content-inverse/5">
+        <div className="flex items-center px-4 border-r border-content-inverse/10 h-full mr-2 z-20 bg-background/50 backdrop-blur shrink-0">
           <Activity className="w-4 h-4 text-primary mr-2" />
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Live Market

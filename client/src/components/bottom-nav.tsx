@@ -1,54 +1,39 @@
-import { BarChart3, Briefcase, Home, TrendingUp, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Check } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Link, useLocation } from "wouter";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { useNotifications } from "@/lib/notification-context";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { useState, useEffect } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { useSport, SPORTS, Sport } from "@/lib/sport-context";
+import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
-  DrawerDescription,
 } from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
+import { SportIcon } from "@/components/sport-icon";
+import { useAuth } from "@/hooks/useAuth";
+import { MOBILE_NAV_ITEM_IDS, getAppNavItem, isAppRouteActive } from "@/lib/app-navigation";
 import { hapticLight } from "@/lib/haptics";
-import { useQuery } from "@tanstack/react-query";
+import { useNotifications } from "@/lib/notification-context";
 import { preloadRoute } from "@/lib/route-preload";
+import { SPORTS, useSport, type Sport } from "@/lib/sport-context";
+import { cn } from "@/lib/utils";
 
-const navItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Player Pools",
-    url: "/pools",
-    icon: TrendingUp,
-  },
-  {
-    title: "Boosts",
-    url: "/boosts",
-    icon: Zap,
-  },
-  {
-    title: "Portfolio",
-    url: "/portfolio",
-    icon: Briefcase,
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-  },
-];
+/** Retains the established App.tsx transition contract while sharing route metadata. */
+export const NAV_ITEMS = MOBILE_NAV_ITEM_IDS.map((id) => {
+  const item = getAppNavItem(id);
+  return {
+    id: item.id,
+    title: item.label,
+    shortLabel: item.shortLabel ?? item.label,
+    url: item.href,
+    icon: item.icon,
+  };
+});
 
-/** Exported so App.tsx can read the active tab index for directional transitions */
-export const NAV_ITEMS = navItems;
+const getSportLabel = (sport: Sport) => (sport === "ALL" ? "All Sports" : sport);
 
 export function BottomNav() {
   const [location] = useLocation();
@@ -58,68 +43,29 @@ export function BottomNav() {
   const [previousLocation, setPreviousLocation] = useState(location);
   const [justActivated, setJustActivated] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
-
-  // Sport Context & Filter
   const { sport, setSport } = useSport();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Urgency data for badges — reuses the dashboard query cache
+  // Reuse dashboard cache data; this does not create an additional fetch contract.
   const { data: dashData } = useQuery<any>({ queryKey: ["/api/dashboard"] });
   const slotsRemaining = (dashData?.boosts?.slotsRemaining ?? 0) as number;
 
-  const handleClick = (e: React.MouseEvent, url: string) => {
-    // If clicking Dashboard while already on Dashboard, open filter
+  const handleClick = (event: React.MouseEvent, url: string) => {
     if (url === "/" && location === "/") {
-      e.preventDefault();
+      event.preventDefault();
       setIsDrawerOpen(true);
-      void hapticLight();
-    } else {
-      void hapticLight();
     }
+    void hapticLight();
   };
 
   useEffect(() => {
     if (location !== previousLocation) {
       setJustActivated(location);
       setPreviousLocation(location);
-      const timer = setTimeout(() => setJustActivated(null), 400);
+      const timer = setTimeout(() => setJustActivated(null), 260);
       return () => clearTimeout(timer);
     }
   }, [location, previousLocation]);
-
-  const getSportIcon = (s: Sport) => {
-    switch (s) {
-      case "NBA":
-        return "🏀";
-      case "NFL":
-        return "🏈";
-      case "MLB":
-        return "⚾";
-      case "NASCAR":
-        return "🏎️";
-      case "NHL":
-        return "🏒";
-      case "ALL":
-        return "🌎";
-    }
-  };
-
-  const getSportLabel = (s: Sport) => {
-    switch (s) {
-      case "NBA":
-        return "NBA";
-      case "NFL":
-        return "NFL";
-      case "MLB":
-        return "MLB";
-      case "NASCAR":
-        return "NASCAR";
-      case "NHL":
-        return "NHL";
-      case "ALL":
-        return "All Sports";
-    }
-  };
 
   return (
     <>
@@ -127,29 +73,32 @@ export function BottomNav() {
         <DrawerContent>
           <div className="mx-auto w-full max-w-sm">
             <DrawerHeader>
-              <DrawerTitle>Select Market</DrawerTitle>
-              <DrawerDescription>Filter the entire app by sport.</DrawerDescription>
+              <DrawerTitle>Select market</DrawerTitle>
+              <DrawerDescription>Set the sport used across exchange surfaces.</DrawerDescription>
             </DrawerHeader>
-            <div className="p-4 pb-8 grid grid-cols-1 gap-3">
-              {SPORTS.map((s) => (
-                <Button
-                  key={s}
-                  variant={sport === s ? "default" : "outline"}
-                  className="h-14 text-lg justify-start gap-4 px-6 relative overflow-hidden touch-manipulation"
-                  aria-label={getSportLabel(s)}
-                  onClick={() => {
-                    setSport(s);
-                    setIsDrawerOpen(false);
-                    void hapticLight();
-                  }}
-                >
-                  <span className="text-2xl">{getSportIcon(s)}</span>
-                  <span className="font-bold">{getSportLabel(s)}</span>
-                  {sport === s && (
-                    <div className="absolute right-4 h-3 w-3 rounded-sm bg-primary-foreground animate-pulse" />
-                  )}
-                </Button>
-              ))}
+            <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+              {SPORTS.map((marketSport) => {
+                const isSelected = sport === marketSport;
+                const label = getSportLabel(marketSport);
+                return (
+                  <Button
+                    key={marketSport}
+                    variant={isSelected ? "default" : "outline"}
+                    className="relative h-14 justify-start gap-3 px-4 touch-manipulation"
+                    aria-label={`${label}${isSelected ? ", selected" : ""}`}
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      setSport(marketSport);
+                      setIsDrawerOpen(false);
+                      void hapticLight();
+                    }}
+                  >
+                    <SportIcon sport={marketSport} className="h-5 w-5" aria-hidden="true" />
+                    <span className="font-semibold">{label}</span>
+                    {isSelected ? <Check className="ml-auto h-4 w-4" aria-hidden="true" /> : null}
+                  </Button>
+                );
+              })}
             </div>
           </div>
         </DrawerContent>
@@ -157,122 +106,68 @@ export function BottomNav() {
 
       <nav
         aria-label="Main navigation"
+        data-testid="bottom-navigation"
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t sm:hidden select-none",
-          isPremium && "border-t-yellow-500/30",
+          "fixed inset-x-0 bottom-0 z-50 select-none border-t border-border-subtle bg-sidebar/95 backdrop-blur sm:hidden",
+          isPremium && "border-t-premium/30",
         )}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="grid grid-cols-5 h-16 max-w-md mx-auto">
-          {navItems.map((item) => {
-            const isActive = location === item.url;
+        <div className="mx-auto grid h-16 max-w-md grid-cols-5">
+          {NAV_ITEMS.map((item) => {
+            const isActive = isAppRouteActive(location, item.url);
             const wasJustActivated = justActivated === item.url;
             return (
-              <div key={item.title} className="flex items-center justify-center">
-                <Link
-                  href={item.url}
-                  aria-label={item.title}
-                  aria-current={isActive ? "page" : undefined}
-                  className="flex items-center justify-center w-full h-full min-h-[48px] touch-manipulation"
-                  onClick={(e) => handleClick(e, item.url)}
-                  onFocus={() => preloadRoute(item.url)}
-                  onMouseEnter={() => preloadRoute(item.url)}
+              <Link
+                key={item.id}
+                href={item.url}
+                aria-label={item.title}
+                aria-current={isActive ? "page" : undefined}
+                className="relative flex min-h-11 w-full touch-manipulation items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+                onClick={(event) => handleClick(event, item.url)}
+                onFocus={() => preloadRoute(item.url)}
+                onMouseEnter={() => preloadRoute(item.url)}
+                data-testid={`button-nav-${item.id}`}
+              >
+                <motion.span
+                  className={cn(
+                    "relative flex h-[52px] w-[calc(100%-4px)] flex-col items-center justify-center gap-1 rounded-control text-content-muted transition-colors duration-fast",
+                    isActive &&
+                      "bg-brand-subtle text-brand before:absolute before:inset-x-5 before:top-0 before:h-0.5 before:rounded-pill before:bg-brand",
+                  )}
+                  animate={
+                    wasJustActivated && !prefersReducedMotion ? { y: [0, -2, 0] } : undefined
+                  }
+                  transition={{ duration: 0.22, ease: "easeOut" }}
                 >
-                  <motion.div
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-1 py-1 rounded-none transition-colors w-full h-full relative",
-                      isActive ? "text-primary" : "text-muted-foreground",
-                    )}
-                    data-testid={`button - nav - ${item.title.toLowerCase()} `}
-                    animate={
-                      wasJustActivated && !prefersReducedMotion
-                        ? {
-                            scale: [1, 1.15, 0.95, 1.05, 1],
-                            y: [0, -6, 0, -2, 0],
-                          }
-                        : {}
-                    }
-                    transition={{
-                      duration: 0.4,
-                      ease: "easeOut",
-                    }}
-                  >
-                    <motion.div
-                      animate={
-                        wasJustActivated && !prefersReducedMotion
-                          ? {
-                              scale: [1, 1.3, 1],
-                              rotate: [0, -10, 10, 0],
-                            }
-                          : {}
-                      }
-                      transition={{ duration: 0.3 }}
+                  <item.icon className="h-5 w-5" aria-hidden="true" />
+                  <span className="max-w-full truncate px-1 text-[10px] font-semibold tracking-tight">
+                    {item.shortLabel}
+                  </span>
+
+                  {item.id === "portfolio" && unreadCount > 0 ? (
+                    <Badge
+                      variant="notification"
+                      className="absolute right-1 top-1 h-5"
+                      aria-label={`${unreadCount} unread portfolio notifications`}
+                      data-testid="badge-notification-count-mobile"
                     >
-                      <item.icon className="w-5 h-5" aria-hidden="true" />
-                    </motion.div>
-                    <span className="text-[10px] font-medium">{item.title}</span>
+                      {unreadCount}
+                    </Badge>
+                  ) : null}
 
-                    {/* Active Overlay Background with Sport Watermark */}
-                    <AnimatePresence>
-                      {isActive && (
-                        <motion.div
-                          layoutId="activeTab"
-                          className="absolute inset-x-1 inset-y-1 -z-10 flex items-center justify-center overflow-hidden rounded-sm bg-primary/10"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <span className="text-3xl opacity-20 select-none grayscale cursor-default">
-                            {getSportIcon(sport)}
-                          </span>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {item.title === "Portfolio" && unreadCount > 0 && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={
-                          prefersReducedMotion
-                            ? { duration: 0 }
-                            : { type: "spring", stiffness: 500, damping: 25 }
-                        }
-                        className="absolute top-1 right-2 z-[51]"
-                      >
-                        <Badge
-                          variant="default"
-                          className="min-w-5 h-5 flex items-center justify-center px-1.5 text-xs"
-                          data-testid="badge-notification-count-mobile"
-                        >
-                          {unreadCount}
-                        </Badge>
-                      </motion.div>
-                    )}
-
-                    {item.title === "Boosts" && slotsRemaining > 0 && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={
-                          prefersReducedMotion
-                            ? { duration: 0 }
-                            : { type: "spring", stiffness: 500, damping: 25 }
-                        }
-                        className="absolute top-1 right-2 z-[51]"
-                      >
-                        <Badge
-                          className="min-w-5 h-5 flex items-center justify-center px-1.5 text-xs bg-yellow-500 text-black border-0 hover:bg-yellow-500"
-                          data-testid="badge-boost-slots-remaining"
-                        >
-                          {slotsRemaining}
-                        </Badge>
-                      </motion.div>
-                    )}
-                  </motion.div>
-                </Link>
-              </div>
+                  {item.id === "boosts" && slotsRemaining > 0 ? (
+                    <Badge
+                      variant="boost"
+                      className="absolute right-1 top-1 h-5 min-w-5 justify-center bg-boost px-1.5 text-boost-foreground"
+                      aria-label={`${slotsRemaining} boost slots remaining`}
+                      data-testid="badge-boost-slots-remaining"
+                    >
+                      {slotsRemaining}
+                    </Badge>
+                  ) : null}
+                </motion.span>
+              </Link>
             );
           })}
         </div>

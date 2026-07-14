@@ -196,17 +196,17 @@ export function ScoutLiveSharePopupHost() {
       {queue.slice(0, MAX_VISIBLE).map((popup) => (
         <div
           key={popup.id}
-          className="flex items-center gap-1.5 rounded-full border border-[#2a2e39] bg-[#131722]/90 px-3 py-1.5 shadow-[0_4px_14px_rgba(0,0,0,0.35)] backdrop-blur-sm"
+          className="flex items-center gap-1.5 rounded-pill border border-[hsl(var(--border-strong))] bg-[hsl(var(--surface))]/90 px-3 py-1.5 shadow-[0_4px_14px_rgba(0,0,0,0.35)] backdrop-blur-sm"
           style={{
             animation:
               "scout-popup-enter 0.3s ease-out, scout-popup-exit 0.6s ease-in 2.4s forwards",
           }}
         >
-          <span className="text-amber-500 font-mono font-semibold text-[11px] tabular-nums whitespace-nowrap drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+          <span className="text-category-scout font-mono font-semibold text-[11px] tabular-nums whitespace-nowrap drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
             +{popup.amount.toFixed(3)}
           </span>
-          <span className="h-3 w-px bg-[#2a2e39]" />
-          <span className="text-[11px] font-medium text-[#d1d4dc] whitespace-nowrap">
+          <span className="h-3 w-px bg-[hsl(var(--border-strong))]" />
+          <span className="text-[11px] font-medium text-[hsl(var(--text))] whitespace-nowrap">
             {popup.shortLabel}
           </span>
         </div>

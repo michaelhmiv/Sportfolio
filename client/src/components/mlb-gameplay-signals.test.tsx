@@ -25,9 +25,9 @@ describe("mlb gameplay signal presentation helpers", () => {
     expect(getVisibleMlbSignals(null, 3)).toEqual([]);
   });
 
-  it("uses restrained Sportfolio-native tones by severity", () => {
-    expect(getMlbSignalTone(makeSignal(1, "high")).chipClassName).toContain("amber");
-    expect(getMlbSignalTone(makeSignal(2, "positive")).chipClassName).toContain("emerald");
+  it("uses restrained semantic Sportfolio tones by severity", () => {
+    expect(getMlbSignalTone(makeSignal(1, "high")).chipClassName).toContain("status-warning");
+    expect(getMlbSignalTone(makeSignal(2, "positive")).chipClassName).toContain("market-positive");
     expect(getMlbSignalTone(makeSignal(3, "warning")).chipClassName).toContain("border-border");
     expect(getMlbSignalTone(makeSignal(4, "info")).chipClassName).toContain("muted-foreground");
   });

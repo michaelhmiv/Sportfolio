@@ -335,7 +335,10 @@ function MlbLinescorePanel({
   };
 
   return (
-    <div className={embedded ? "space-y-3" : "rounded-sm border border-border/60 p-3"}>
+    <div
+      data-testid="mlb-linescore-panel"
+      className={embedded ? "space-y-3" : "rounded-compact border border-border/60 p-3"}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm font-semibold">{title}</div>
         {gameState?.detailedStatus ? (
@@ -433,7 +436,7 @@ function MlbLinescorePanel({
       {showDecisions && decisions ? (
         <div className="mt-3 grid gap-2 md:grid-cols-3">
           {decisions.winner ? (
-            <div className="rounded-sm border border-border/60 bg-background/40 p-2 text-xs">
+            <div className="rounded-compact border border-border/60 bg-background/40 p-2 text-xs">
               <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 Winning Pitcher
               </div>
@@ -441,7 +444,7 @@ function MlbLinescorePanel({
             </div>
           ) : null}
           {decisions.loser ? (
-            <div className="rounded-sm border border-border/60 bg-background/40 p-2 text-xs">
+            <div className="rounded-compact border border-border/60 bg-background/40 p-2 text-xs">
               <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 Losing Pitcher
               </div>
@@ -449,7 +452,7 @@ function MlbLinescorePanel({
             </div>
           ) : null}
           {decisions.save ? (
-            <div className="rounded-sm border border-border/60 bg-background/40 p-2 text-xs">
+            <div className="rounded-compact border border-border/60 bg-background/40 p-2 text-xs">
               <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 Save
               </div>
@@ -468,6 +471,8 @@ function MlbLifecycleCard({
   mlbSignals,
   activeTab,
   liveStats,
+  isLoadingLive,
+  liveStatsError,
   userContext,
   isAuthenticated,
   isHydratingDetails,
@@ -481,6 +486,8 @@ function MlbLifecycleCard({
   mlbSignals?: GameInsight["mlbSignals"] | null;
   activeTab: CommandCenterTab;
   liveStats?: LiveStatsResponse;
+  isLoadingLive: boolean;
+  liveStatsError: Error | null;
   userContext?: GameInsight["userContext"] | null;
   isAuthenticated: boolean;
   isHydratingDetails: boolean;
@@ -495,12 +502,21 @@ function MlbLifecycleCard({
 
   const isPregame = activeTab === "pre";
   const lifecycleLabel = isPregame ? "Pregame" : activeTab === "during" ? "Live" : "Final";
-  const scoreAvailable =
-    !isPregame &&
-    typeof liveStats?.awayScore === "number" &&
-    typeof liveStats?.homeScore === "number";
+  const awayScore =
+    typeof liveStats?.awayScore === "number"
+      ? liveStats.awayScore
+      : typeof game.awayScore === "number"
+        ? game.awayScore
+        : null;
+  const homeScore =
+    typeof liveStats?.homeScore === "number"
+      ? liveStats.homeScore
+      : typeof game.homeScore === "number"
+        ? game.homeScore
+        : null;
+  const scoreAvailable = !isPregame && awayScore !== null && homeScore !== null;
   const scoreLine = scoreAvailable
-    ? `${game.awayTeam} ${liveStats?.awayScore ?? 0} • ${liveStats?.homeScore ?? 0} ${game.homeTeam}`
+    ? `${game.awayTeam} ${awayScore} • ${homeScore} ${game.homeTeam}`
     : null;
   const scheduledOwnedPlayers = userContext?.ownedPlayers || [];
   const liveOwnedPlayers = liveStats?.userEarnings?.ownedPlayers || [];
@@ -511,7 +527,11 @@ function MlbLifecycleCard({
   const ownershipBadgeLabel = isAuthenticated
     ? isPregame
       ? `${scheduledOwnedPlayers.length} held`
-      : `${liveOwnedPlayers.length} live`
+      : isLoadingLive
+        ? "Loading"
+        : liveStatsError
+          ? "Unavailable"
+          : `${liveOwnedPlayers.length} ${activeTab === "post" ? "final" : "live"}`
     : null;
   const normalizeLookupToken = (value: string | null | undefined) =>
     String(value || "")
@@ -526,7 +546,7 @@ function MlbLifecycleCard({
       {
         badge: `${player.multiplier.toFixed(1)}x`,
         detail: `${player.totalShares.toFixed(1)} shares held`,
-        tone: "text-purple-500",
+        tone: "text-category-ownership",
       },
     ]),
   );
@@ -536,7 +556,7 @@ function MlbLifecycleCard({
       {
         badge: `$${player.estimatedEarnings.toFixed(2)}`,
         detail: `${player.fantasyPoints.toFixed(1)} FP • ${player.effectiveShares.toFixed(1)} effective`,
-        tone: "text-emerald-600 dark:text-emerald-400",
+        tone: "text-market-positive dark:text-market-positive",
       },
     ]),
   );
@@ -571,152 +591,138 @@ function MlbLifecycleCard({
   };
 
   return (
-    <section className="mt-4 overflow-hidden rounded-md border border-border/70 bg-background/80">
-      {!isPregame && mlbPregame.gameState ? (
-        <MlbLinescorePanel
-          title={activeTab === "during" ? "MLB Game State" : "Final Linescore"}
-          game={game}
-          mlbPregame={mlbPregame}
-          showDecisions={activeTab === "post"}
-          embedded
-          resolvePlayerModalId={resolvePlayerModalId}
-          onOpenPlayerModal={onOpenPlayerModal}
-        />
+    <section className="mt-4 overflow-hidden rounded-control border border-border/70 bg-background/80">
+      {!isPregame ? (
+        mlbPregame.gameState ? (
+          <MlbLinescorePanel
+            title={activeTab === "during" ? "MLB Game State" : "Final Linescore"}
+            game={game}
+            mlbPregame={mlbPregame}
+            showDecisions={activeTab === "post"}
+            embedded
+            resolvePlayerModalId={resolvePlayerModalId}
+            onOpenPlayerModal={onOpenPlayerModal}
+          />
+        ) : scoreLine ? (
+          <div data-testid="mlb-score-fallback" className="px-3 py-3 sm:px-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              {activeTab === "during" ? "MLB Game State" : "Final Score"}
+            </div>
+            <div className="mt-2 font-mono text-lg font-semibold tabular-nums text-foreground">
+              {scoreLine}
+            </div>
+          </div>
+        ) : null
       ) : null}
 
-      {!isPregame && mlbPregame.scoringPlays.length ? (
-        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
-          <button
-            type="button"
-            onClick={() => setScoringExpanded(!scoringExpanded)}
-            className="flex w-full items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span>Scoring summary ({mlbPregame.scoringPlays.length})</span>
-            <ChevronDown
-              className={`h-3 w-3 transition-transform ${scoringExpanded ? "rotate-180" : ""}`}
-            />
-          </button>
-          {scoringExpanded ? (
-            <div className="mt-3 space-y-2">
-              {mlbPregame.scoringPlays.map((play, index) => (
-                <div
-                  key={`scoring-play-${play.inningLabel || "inning"}-${index}`}
-                  className="rounded-sm border border-border/60 bg-background/40 p-2"
-                >
-                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                    {play.inningLabel ? <span>{play.inningLabel}</span> : null}
-                    {play.battingTeam ? <span>{play.battingTeam}</span> : null}
-                    {play.scoreLabel ? <span>{play.scoreLabel}</span> : null}
-                    {play.event ? <span>{play.event}</span> : null}
-                  </div>
-                  <div className="mt-1 text-xs text-foreground">{play.description}</div>
-                </div>
-              ))}
-            </div>
+      <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Your exposure
+          </div>
+          {ownershipBadgeLabel ? (
+            <Badge variant="outline" className="text-[10px] border-border/80">
+              {ownershipBadgeLabel}
+            </Badge>
           ) : null}
         </div>
-      ) : null}
 
-      {isPregame && (
-        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Your exposure
-            </div>
-            {ownershipBadgeLabel ? (
-              <Badge variant="outline" className="text-[10px] border-border/80">
-                {ownershipBadgeLabel}
-              </Badge>
-            ) : null}
+        {!isAuthenticated ? (
+          <div className="mt-2 text-xs text-muted-foreground">
+            Sign in to tie this matchup back to your holdings and earnings.
           </div>
-
-          {!isAuthenticated ? (
-            <div className="mt-2 text-xs text-muted-foreground">
-              Sign in to tie this matchup back to your holdings and earnings.
-            </div>
-          ) : isPregame ? (
-            scheduledOwnedPlayers.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {scheduledOwnedPlayers.slice(0, 4).map((player) => (
-                    <Badge
-                      key={`pregame-owned-${player.playerId}`}
-                      variant="outline"
-                      className="text-[10px] gap-1 border-border/80"
-                    >
-                      {renderModalPlayerName({
-                        name: player.name,
-                        team: player.team,
-                        playerId: player.playerId,
-                        className: "text-purple-500",
-                        label: formatCompactName(player.name),
-                      })}
-                      <span className="font-mono">{player.multiplier.toFixed(1)}x</span>
-                    </Badge>
-                  ))}
-                  {scheduledOwnedPlayers.length > 4 ? (
-                    <Badge variant="outline" className="text-[10px] border-border/80">
-                      +{scheduledOwnedPlayers.length - 4}
-                    </Badge>
-                  ) : null}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Track posted lineups here against the players you already hold in this game.
-                </div>
-              </div>
-            ) : (
-              <div className="mt-2 text-xs text-muted-foreground">
-                No current holdings in this matchup.
-              </div>
-            )
-          ) : liveOwnedPlayers.length > 0 ? (
+        ) : isPregame ? (
+          scheduledOwnedPlayers.length > 0 ? (
             <div className="mt-3 space-y-2">
-              <div className="flex items-center justify-between rounded-sm border border-emerald-500/30 bg-background/70 px-2 py-1.5">
-                <span className="text-xs text-muted-foreground">
-                  {activeTab === "during" ? "Live estimated" : "Final estimated"}
-                </span>
-                <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                  ${totalLiveEarnings.toFixed(2)}
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {liveOwnedPlayers.slice(0, 4).map((player) => (
-                  <div
-                    key={`live-owned-${player.playerId}`}
-                    className="flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1.5"
+              <div className="flex flex-wrap gap-1.5">
+                {scheduledOwnedPlayers.slice(0, 4).map((player) => (
+                  <Badge
+                    key={`pregame-owned-${player.playerId}`}
+                    variant="outline"
+                    className="text-[10px] gap-1 border-border/80"
                   >
-                    <div className="min-w-0 flex-1">
-                      {renderModalPlayerName({
-                        name: player.name,
-                        team: player.team,
-                        playerId: player.playerId,
-                        className: "truncate text-xs font-medium text-purple-500",
-                        label: formatCompactName(player.name),
-                      })}
-                      <div className="text-[10px] text-muted-foreground">
-                        {player.team} • {player.fantasyPoints.toFixed(1)} FP •{" "}
-                        {player.effectiveShares.toFixed(1)} effective
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        ${player.estimatedEarnings.toFixed(2)}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {player.quantity.toFixed(2)} shares
-                      </div>
-                    </div>
-                  </div>
+                    {renderModalPlayerName({
+                      name: player.name,
+                      team: player.team,
+                      playerId: player.playerId,
+                      className: "text-category-ownership",
+                      label: formatCompactName(player.name),
+                    })}
+                    <span className="font-mono">{player.multiplier.toFixed(1)}x</span>
+                  </Badge>
                 ))}
+                {scheduledOwnedPlayers.length > 4 ? (
+                  <Badge variant="outline" className="text-[10px] border-border/80">
+                    +{scheduledOwnedPlayers.length - 4}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Track posted lineups here against the players you already hold in this game.
               </div>
             </div>
           ) : (
             <div className="mt-2 text-xs text-muted-foreground">
-              No stacked or boosted earning lines are active in this matchup yet.
+              No current holdings in this matchup.
             </div>
-          )}
-        </div>
-      )}
+          )
+        ) : isLoadingLive ? (
+          <div role="status" className="mt-2 text-xs text-muted-foreground">
+            Loading {activeTab === "post" ? "final" : "live"} exposure…
+          </div>
+        ) : liveStatsError ? (
+          <div role="status" className="mt-2 text-xs text-muted-foreground">
+            {activeTab === "post" ? "Final" : "Live"} exposure is temporarily unavailable.
+          </div>
+        ) : liveOwnedPlayers.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between rounded-compact border border-market-positive/30 bg-background/70 px-2 py-1.5">
+              <span className="text-xs text-muted-foreground">
+                {activeTab === "during" ? "Live estimated" : "Final estimated"}
+              </span>
+              <span className="font-mono text-sm font-semibold text-market-positive dark:text-market-positive">
+                ${totalLiveEarnings.toFixed(2)}
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {liveOwnedPlayers.slice(0, 4).map((player) => (
+                <div
+                  key={`live-owned-${player.playerId}`}
+                  className="flex items-center justify-between gap-2 rounded-compact border border-border/60 bg-background/60 px-2 py-1.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    {renderModalPlayerName({
+                      name: player.name,
+                      team: player.team,
+                      playerId: player.playerId,
+                      className: "truncate text-xs font-medium text-category-ownership",
+                      label: formatCompactName(player.name),
+                    })}
+                    <div className="text-[10px] text-muted-foreground">
+                      {player.team} • {player.fantasyPoints.toFixed(1)} FP •{" "}
+                      {player.effectiveShares.toFixed(1)} effective
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono text-xs font-semibold text-market-positive dark:text-market-positive">
+                      ${player.estimatedEarnings.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {player.quantity.toFixed(2)} shares
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2 text-xs text-muted-foreground">
+            {activeTab === "post"
+              ? "No stacked or boosted earning lines were recorded for this matchup."
+              : "No stacked or boosted earning lines are active in this matchup yet."}
+          </div>
+        )}
+      </div>
 
       {isPregame && (
         <div className="border-t border-border/60 px-3 py-3 sm:px-4">
@@ -769,7 +775,7 @@ function MlbLifecycleCard({
               return (
                 <div
                   key={`${entry.side}-${entry.team}`}
-                  className="rounded-sm border border-border/60 bg-background/40 p-3"
+                  className="rounded-compact border border-border/60 bg-background/40 p-3"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -810,21 +816,21 @@ function MlbLifecycleCard({
 
                   {showMlbAdvanced && entry.stats ? (
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="rounded-compact border border-border/60 bg-background/50 p-2">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           ERA
                         </div>
                         <div className="mt-1 font-mono">{formatPitcherEra(entry.stats.era)}</div>
                       </div>
-                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="rounded-compact border border-border/60 bg-background/50 p-2">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           xERA
                         </div>
-                        <div className="mt-1 font-mono text-emerald-600 dark:text-emerald-400">
+                        <div className="mt-1 font-mono text-market-positive dark:text-market-positive">
                           {formatPitcherEra(entry.stats.xera)}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="rounded-compact border border-border/60 bg-background/50 p-2">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           wOBA
                         </div>
@@ -832,7 +838,7 @@ function MlbLifecycleCard({
                           {formatPitcherMetric(entry.stats.woba)}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="rounded-compact border border-border/60 bg-background/50 p-2">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           xwOBA
                         </div>
@@ -840,7 +846,7 @@ function MlbLifecycleCard({
                           {formatPitcherMetric(entry.stats.expectedWoba)}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="rounded-compact border border-border/60 bg-background/50 p-2">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           AVG
                         </div>
@@ -848,7 +854,7 @@ function MlbLifecycleCard({
                           {formatPitcherMetric(entry.stats.battingAverage)}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="rounded-compact border border-border/60 bg-background/50 p-2">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           xAVG
                         </div>
@@ -856,7 +862,7 @@ function MlbLifecycleCard({
                           {formatPitcherMetric(entry.stats.expectedBattingAverage)}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="rounded-compact border border-border/60 bg-background/50 p-2">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           SLG
                         </div>
@@ -864,7 +870,7 @@ function MlbLifecycleCard({
                           {formatPitcherMetric(entry.stats.slugging)}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="rounded-compact border border-border/60 bg-background/50 p-2">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           xSLG
                         </div>
@@ -881,7 +887,7 @@ function MlbLifecycleCard({
         </div>
       )}
 
-      {isPregame && (
+      {(isPregame || mlbPregame.lineupsPosted) && (
         <div className="border-t border-border/60 px-3 py-3 sm:px-4">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -926,7 +932,7 @@ function MlbLifecycleCard({
               ].map((entry) => (
                 <div
                   key={`${entry.team}-lineup`}
-                  className="rounded-sm border border-border/60 bg-background/40 p-3"
+                  className="rounded-compact border border-border/60 bg-background/40 p-3"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -955,12 +961,12 @@ function MlbLifecycleCard({
                         const exposure = (
                           isPregame ? scheduledExposureByNameTeam : liveExposureByNameTeam
                         ).get(buildNameTeamKey(player.name, entry.team));
-                        const nameClass = `truncate font-medium ${exposure ? "text-purple-500" : "text-foreground"}`;
+                        const nameClass = `truncate font-medium ${exposure ? "text-category-ownership" : "text-foreground"}`;
 
                         return (
                           <div
                             key={`${entry.team}-${player.slot}-${player.playerId || player.name}`}
-                            className={`rounded-sm px-2 py-2 text-xs ${exposure ? "bg-purple-500/5" : ""}`}
+                            className={`rounded-compact px-2 py-2 text-xs ${exposure ? "bg-category-ownership/5" : ""}`}
                           >
                             <div className="flex items-center justify-between gap-3">
                               <div className="min-w-0">
@@ -1026,6 +1032,42 @@ function MlbLifecycleCard({
         </div>
       )}
 
+      {!isPregame && mlbPregame.scoringPlays.length ? (
+        <div className="border-t border-border/60 px-3 py-2 sm:px-4">
+          <button
+            type="button"
+            aria-expanded={scoringExpanded}
+            aria-controls="mlb-scoring-summary"
+            onClick={() => setScoringExpanded(!scoringExpanded)}
+            className="flex min-h-11 w-full items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground motion-reduce:transition-none"
+          >
+            <span>Scoring summary ({mlbPregame.scoringPlays.length})</span>
+            <ChevronDown
+              aria-hidden="true"
+              className={`h-3 w-3 transition-transform motion-reduce:transition-none ${scoringExpanded ? "rotate-180" : ""}`}
+            />
+          </button>
+          {scoringExpanded ? (
+            <div id="mlb-scoring-summary" className="space-y-2 pb-2 pt-1">
+              {mlbPregame.scoringPlays.map((play, index) => (
+                <div
+                  key={`scoring-play-${play.inningLabel || "inning"}-${index}`}
+                  className="rounded-compact border border-border/60 bg-background/40 p-2"
+                >
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                    {play.inningLabel ? <span>{play.inningLabel}</span> : null}
+                    {play.battingTeam ? <span>{play.battingTeam}</span> : null}
+                    {play.scoreLabel ? <span>{play.scoreLabel}</span> : null}
+                    {play.event ? <span>{play.event}</span> : null}
+                  </div>
+                  <div className="mt-1 text-xs text-foreground">{play.description}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {isPregame && !mlbPregame.lineupsPosted ? (
         <div className="border-t border-border/60 px-3 py-3 sm:px-4">
           <div className="flex items-center justify-between gap-2">
@@ -1056,7 +1098,7 @@ function MlbLifecycleCard({
             ].map((entry) => (
               <div
                 key={`${entry.team}-hitters`}
-                className="rounded-sm border border-border/60 bg-background/40 p-3"
+                className="rounded-compact border border-border/60 bg-background/40 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground">
@@ -1082,7 +1124,7 @@ function MlbLifecycleCard({
                     {entry.spotlights.map((player) => (
                       <div
                         key={`${entry.team}-${player.slot}-${player.name}`}
-                        className="rounded-sm border border-border/60 bg-background/60 p-2"
+                        className="rounded-compact border border-border/60 bg-background/60 p-2"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -1148,7 +1190,7 @@ function MlbLifecycleCard({
             ].map((entry) => (
               <div
                 key={`${entry.team}-club-context`}
-                className="rounded-sm border border-border/60 bg-background/40 p-3"
+                className="rounded-compact border border-border/60 bg-background/40 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground">
@@ -2110,6 +2152,9 @@ export function GameCommandCenterModal({
           </DialogDescription>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {game && <span>{startTimeLabel}</span>}
+            {liveSport === "MLB" && mlbPregame?.venue ? (
+              <span aria-label="Venue">• {mlbPregame.venue}</span>
+            ) : null}
             <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
               {activeTab === "pre" ? "Pregame" : activeTab === "during" ? "Live" : "Final"}
             </Badge>
@@ -2117,7 +2162,8 @@ export function GameCommandCenterModal({
               <Button
                 variant="ghost"
                 size="icon"
-                className="ml-auto h-6 w-6"
+                aria-label="Refresh game statistics"
+                className="ml-auto h-11 w-11 sm:h-6 sm:w-6"
                 onClick={() => (liveSport === "MLB" ? refetchLive() : refetchStats())}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -2134,6 +2180,8 @@ export function GameCommandCenterModal({
             mlbSignals={game?.mlbSignals}
             activeTab={activeTab}
             liveStats={liveStats}
+            isLoadingLive={isLoadingLive}
+            liveStatsError={liveStatsError instanceof Error ? liveStatsError : null}
             userContext={userContext}
             isAuthenticated={isAuthenticated}
             isHydratingDetails={isHydratingMlbDetails}
@@ -2154,7 +2202,7 @@ export function GameCommandCenterModal({
             ) : (
               <>
                 {/* Compact Leaders Row */}
-                <div className="flex items-center justify-between gap-2 rounded-sm border border-border/60 p-2 text-[11px]">
+                <div className="flex items-center justify-between gap-2 rounded-compact border border-border/60 p-2 text-[11px]">
                   <div className="flex-1 text-center">
                     <div className="text-muted-foreground">FP Leader</div>
                     <div className="font-semibold truncate">{leaders?.fantasy?.name || "—"}</div>
@@ -2182,7 +2230,7 @@ export function GameCommandCenterModal({
 
                 {/* Team Rosters - Top 5 by Season Avg Fantasy Points */}
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-sm border border-border/60 p-3">
+                  <div className="rounded-compact border border-border/60 p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="text-sm font-semibold">{game?.awayTeam}</div>
                       <Badge variant="outline" className="text-[10px]">
@@ -2201,7 +2249,7 @@ export function GameCommandCenterModal({
                               team: player.team,
                               playerId: player.playerId,
                               className: ownedPlayerIds.has(player.playerId)
-                                ? "text-purple-400 font-medium"
+                                ? "text-category-ownership font-medium"
                                 : "",
                               label: `${idx + 1}. ${formatName(player.name)}`,
                             })}
@@ -2216,7 +2264,7 @@ export function GameCommandCenterModal({
                     )}
                   </div>
 
-                  <div className="rounded-sm border border-border/60 p-3">
+                  <div className="rounded-compact border border-border/60 p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="text-sm font-semibold">{game?.homeTeam}</div>
                       <Badge variant="outline" className="text-[10px]">
@@ -2235,7 +2283,7 @@ export function GameCommandCenterModal({
                               team: player.team,
                               playerId: player.playerId,
                               className: ownedPlayerIds.has(player.playerId)
-                                ? "text-purple-400 font-medium"
+                                ? "text-category-ownership font-medium"
                                 : "",
                               label: `${idx + 1}. ${formatName(player.name)}`,
                             })}
@@ -2252,10 +2300,10 @@ export function GameCommandCenterModal({
                 </div>
 
                 {/* Your Multiplier Leaders - interactive quick-boost view */}
-                <div className="rounded-sm border-2 border-purple-500/40 bg-purple-500/5 p-3">
+                <div className="rounded-compact border-2 border-category-stacking/40 bg-category-stacking/5 p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-purple-500" />
+                      <Zap className="h-4 w-4 text-category-stacking" />
                       <div className="text-sm font-semibold">Your Multiplier Leaders</div>
                       {userContext?.topMultiplierPlayers?.length ? (
                         <Badge variant="secondary" className="text-[10px] border-border/80">
@@ -2270,8 +2318,8 @@ export function GameCommandCenterModal({
                         size="sm"
                         className={`h-7 px-3 text-[11px] font-medium border-2 ${
                           showBoostSelector
-                            ? "bg-purple-600 border-purple-600 hover:bg-purple-700 hover:border-purple-700"
-                            : "border-purple-500 text-purple-700 bg-purple-50 hover:bg-purple-100 hover:text-purple-800 hover:border-purple-600 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-500/60"
+                            ? "border-boost bg-boost text-boost-foreground hover:bg-boost/90"
+                            : "border-boost/40 bg-boost/10 text-boost hover:border-boost hover:bg-hover hover:text-boost"
                         }`}
                         onClick={() => setShowBoostSelector(!showBoostSelector)}
                       >
@@ -2310,10 +2358,10 @@ export function GameCommandCenterModal({
                             name: player.name,
                             team: player.team,
                             playerId: player.playerId,
-                            className: "text-purple-500 font-medium",
+                            className: "text-category-ownership font-medium",
                             label: formatName(player.name),
                           })}
-                          <span className="text-purple-500 font-mono">
+                          <span className="text-category-stacking font-mono">
                             {player.multiplier.toFixed(1)}x
                           </span>
                         </Badge>
@@ -2336,39 +2384,50 @@ export function GameCommandCenterModal({
                   )}
 
                   {showBoostSelector && boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
-                    <div className="mt-3 rounded-sm border-2 border-purple-400 bg-background/80 p-3">
-                      <div className="mb-2 text-[11px] font-medium text-purple-700 dark:text-purple-400">
+                    <div className="mt-3 rounded-compact border-2 border-category-stacking bg-background/80 p-3">
+                      <div className="mb-2 text-[11px] font-medium text-category-stacking">
                         Select tier & player to boost:
                       </div>
 
                       <div className="mb-3 flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground font-medium">Tier:</span>
                         <div className="flex gap-1">
-                          {([5, 4, 3, 2] as const).map((tier) => (
-                            <Button
-                              key={tier}
-                              variant={selectedTier === tier ? "default" : "outline"}
-                              size="sm"
-                              className={`h-7 px-2.5 text-[11px] font-semibold border-2 ${
-                                selectedTier === tier
-                                  ? "bg-purple-600 border-purple-600 hover:bg-purple-700 hover:border-purple-700"
-                                  : "border-border hover:border-purple-400"
-                              }`}
-                              onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
-                            >
-                              {tier}x
-                            </Button>
-                          ))}
+                          {([5, 4, 3, 2] as const).map((tier) => {
+                            const selectedTierClass =
+                              tier === 5
+                                ? "border-tier-mythic bg-tier-mythic text-content-inverse hover:brightness-105"
+                                : tier === 4
+                                  ? "border-tier-legendary bg-tier-legendary text-content-inverse hover:brightness-105"
+                                  : tier === 3
+                                    ? "border-tier-elite bg-tier-elite text-content-inverse hover:brightness-105"
+                                    : "border-tier-boosted bg-tier-boosted text-content-inverse hover:brightness-105";
+                            return (
+                              <Button
+                                key={tier}
+                                variant={selectedTier === tier ? "default" : "outline"}
+                                size="sm"
+                                className={`h-7 border-2 px-2.5 text-[11px] font-semibold ${
+                                  selectedTier === tier
+                                    ? selectedTierClass
+                                    : "border-border hover:border-category-stacking"
+                                }`}
+                                onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
+                                aria-pressed={selectedTier === tier}
+                              >
+                                {tier}x
+                              </Button>
+                            );
+                          })}
                         </div>
                       </div>
 
                       {userContext?.topMultiplierPlayers &&
                       userContext.topMultiplierPlayers.length > 0 ? (
-                        <div className="space-y-1 max-h-40 overflow-y-auto border border-border/60 rounded-md p-1">
+                        <div className="space-y-1 max-h-40 overflow-y-auto border border-border/60 rounded-control p-1">
                           {userContext.topMultiplierPlayers.map((player, idx) => (
                             <div
                               key={`${player.playerId}-${idx}`}
-                              className="flex items-center justify-between text-xs py-2 px-2 rounded bg-muted/30 hover:bg-purple-500/10 transition-colors"
+                              className="flex items-center justify-between rounded-compact bg-muted/30 px-2 py-2 text-xs transition-colors hover:bg-category-stacking/10"
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 {renderModalPlayerName({
@@ -2381,7 +2440,7 @@ export function GameCommandCenterModal({
                                 <span className="text-muted-foreground text-[10px]">
                                   {player.team}
                                 </span>
-                                <span className="text-purple-500 font-mono text-[10px]">
+                                <span className="text-category-stacking font-mono text-[10px]">
                                   {player.multiplier.toFixed(1)}x
                                 </span>
                               </div>
@@ -2391,7 +2450,7 @@ export function GameCommandCenterModal({
                                 disabled={!selectedTier || assignBoostMutation.isPending}
                                 className={`h-6 px-2 text-[10px] border-2 ${
                                   selectedTier
-                                    ? "bg-purple-600 border-purple-600 hover:bg-purple-700 hover:border-purple-700"
+                                    ? "border-boost bg-boost text-boost-foreground hover:bg-boost/90"
                                     : "border-transparent"
                                 }`}
                                 onClick={() => {
@@ -2417,7 +2476,7 @@ export function GameCommandCenterModal({
                           ))}
                         </div>
                       ) : (
-                        <div className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border/60 rounded-md">
+                        <div className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border/60 rounded-control">
                           No eligible players to boost
                         </div>
                       )}
@@ -2426,10 +2485,10 @@ export function GameCommandCenterModal({
                 </div>
 
                 {/* Quick Scout - mobile-first command center action */}
-                <div className="rounded-sm border-2 border-amber-500/40 bg-amber-500/5 p-3">
+                <div className="rounded-compact border-2 border-category-scout/40 bg-category-scout/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <Binoculars className="h-4 w-4 text-amber-600" />
+                      <Binoculars className="h-4 w-4 text-category-scout" />
                       <div className="text-sm font-semibold">Quick Scout</div>
                     </div>
                     {isAuthenticated && scoutData ? (
@@ -2460,14 +2519,14 @@ export function GameCommandCenterModal({
                           return (
                             <div
                               key={player.playerId}
-                              className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5"
+                              className="flex items-center justify-between gap-2 rounded-control border border-border/60 bg-background/60 px-2 py-1.5"
                             >
                               <div className="min-w-0 flex-1">
                                 {renderModalPlayerName({
                                   name: player.name,
                                   team: player.team,
                                   playerId: player.playerId,
-                                  className: `truncate text-xs font-medium ${ownedData ? "text-purple-500" : ""}`,
+                                  className: `truncate text-xs font-medium ${ownedData ? "text-category-ownership" : ""}`,
                                   label: `${idx + 1}. ${formatName(player.name)}`,
                                 })}
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -2477,7 +2536,7 @@ export function GameCommandCenterModal({
                                   {ownedData ? (
                                     <>
                                       <span>•</span>
-                                      <span className="text-purple-500 font-medium">
+                                      <span className="text-category-ownership font-medium">
                                         Own {ownedData.multiplier.toFixed(1)}x
                                       </span>
                                     </>
@@ -2532,10 +2591,10 @@ export function GameCommandCenterModal({
                 </div>
 
                 {/* Injuries - Compact */}
-                <div className="rounded-sm border border-border/60 p-3">
+                <div className="rounded-compact border border-border/60 p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-3 w-3 text-amber-500" />
+                      <AlertTriangle className="h-3 w-3 text-status-warning" />
                       <span className="text-xs text-muted-foreground">Injuries</span>
                       {insight?.injuries?.length ? (
                         <Badge variant="outline" className="text-[10px]">
@@ -2610,7 +2669,7 @@ export function GameCommandCenterModal({
               <div className="text-sm text-muted-foreground">{liveStatsErrorMessage}</div>
             ) : (
               <>
-                <div className="space-y-3 rounded-sm border border-border/60 p-3">
+                <div className="space-y-3 rounded-compact border border-border/60 p-3">
                   {liveSport === "NASCAR" ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-3 text-sm font-semibold">
@@ -2675,7 +2734,7 @@ export function GameCommandCenterModal({
 
                   {(liveStats.awayTopPerformers?.length || liveStats.homeTopPerformers?.length) && (
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-sm border border-border/60 p-2">
+                      <div className="rounded-compact border border-border/60 p-2">
                         <div className="mb-1.5 flex items-center justify-between">
                           <span className="text-xs font-semibold">
                             {liveStats.awayTeam} Leaders
@@ -2699,7 +2758,7 @@ export function GameCommandCenterModal({
                                   label: formatName(player.name),
                                 })}
                               </span>
-                              <span className="ml-2 font-mono text-green-600">
+                              <span className="ml-2 font-mono text-market-positive">
                                 {liveSport === "NHL"
                                   ? `${player.points ?? 0} pts · ${(player.fantasyPoints ?? 0).toFixed(1)} FP`
                                   : `${player.pts ?? 0}p`}
@@ -2708,7 +2767,7 @@ export function GameCommandCenterModal({
                           ))}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/60 p-2">
+                      <div className="rounded-compact border border-border/60 p-2">
                         <div className="mb-1.5 flex items-center justify-between">
                           <span className="text-xs font-semibold">
                             {liveStats.homeTeam} Leaders
@@ -2732,7 +2791,7 @@ export function GameCommandCenterModal({
                                   label: formatName(player.name),
                                 })}
                               </span>
-                              <span className="ml-2 font-mono text-green-600">
+                              <span className="ml-2 font-mono text-market-positive">
                                 {liveSport === "NHL"
                                   ? `${player.points ?? 0} pts · ${(player.fantasyPoints ?? 0).toFixed(1)} FP`
                                   : `${player.pts ?? 0}p`}
@@ -2749,7 +2808,7 @@ export function GameCommandCenterModal({
                   {liveTeamSections.map((section) => (
                     <div
                       key={section.team}
-                      className="min-w-0 rounded-sm border border-border/70 p-3"
+                      className="min-w-0 rounded-compact border border-border/70 p-3"
                     >
                       <div className="mb-2 flex items-center justify-between">
                         <div className="text-sm font-semibold">{section.team} Box</div>
@@ -2801,7 +2860,9 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-purple-500/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     const passLine = `${player.passingCompletions ?? 0}/${player.passingAttempts ?? 0}-${player.passingYards ?? 0}`;
                                     const rushLine = `${player.rushingAttempts ?? 0}/${player.rushingYards ?? 0}`;
                                     const recLine = `${player.receptions ?? 0}/${player.receivingTargets ?? 0}-${player.receivingYards ?? 0}`;
@@ -2813,7 +2874,7 @@ export function GameCommandCenterModal({
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-purple-500/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -2821,7 +2882,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -2831,7 +2892,7 @@ export function GameCommandCenterModal({
                                           {(player.fantasyPoints || 0).toFixed(1)}
                                         </td>
                                         <td
-                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400 ${stickyCellBg}`}
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
                                         >
                                           ${earnings.toFixed(2)}
                                         </td>
@@ -2907,13 +2968,15 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-purple-500/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     const positionDiff = Number(player.positionDifferential || 0);
 
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-purple-500/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -2921,7 +2984,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -2931,7 +2994,7 @@ export function GameCommandCenterModal({
                                           {(player.fantasyPoints || 0).toFixed(1)}
                                         </td>
                                         <td
-                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400 ${stickyCellBg}`}
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
                                         >
                                           ${earnings.toFixed(2)}
                                         </td>
@@ -2944,9 +3007,9 @@ export function GameCommandCenterModal({
                                         <td
                                           className={`border-b border-border/40 px-1 py-1.5 text-right font-mono ${
                                             positionDiff > 0
-                                              ? "text-emerald-500"
+                                              ? "text-market-positive"
                                               : positionDiff < 0
-                                                ? "text-rose-500"
+                                                ? "text-market-negative"
                                                 : ""
                                           }`}
                                         >
@@ -3023,11 +3086,13 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-purple-500/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-purple-500/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -3035,7 +3100,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -3045,7 +3110,7 @@ export function GameCommandCenterModal({
                                           {(player.fantasyPoints || 0).toFixed(1)}
                                         </td>
                                         <td
-                                          className={`sticky left-36 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400 ${stickyCellBg}`}
+                                          className={`sticky left-36 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
                                         >
                                           ${earnings.toFixed(2)}
                                         </td>
@@ -3145,12 +3210,14 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-purple-500/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
 
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-purple-500/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -3158,7 +3225,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -3168,7 +3235,7 @@ export function GameCommandCenterModal({
                                           {(player.fantasyPoints || 0).toFixed(1)}
                                         </td>
                                         <td
-                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400 ${stickyCellBg}`}
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
                                         >
                                           ${earnings.toFixed(2)}
                                         </td>
@@ -3271,12 +3338,14 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-purple-500/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
 
                                     return (
                                       <tr
                                         key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-purple-500/5" : ""}
+                                        className={owned ? "bg-category-ownership/5" : ""}
                                       >
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
@@ -3284,7 +3353,7 @@ export function GameCommandCenterModal({
                                           {renderLiveModalPlayerName({
                                             player,
                                             team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
                                             label: formatCompactName(player.name),
                                           })}
                                         </td>
@@ -3294,7 +3363,7 @@ export function GameCommandCenterModal({
                                           {(player.fantasyPoints || 0).toFixed(1)}
                                         </td>
                                         <td
-                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400 ${stickyCellBg}`}
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
                                         >
                                           ${earnings.toFixed(2)}
                                         </td>
@@ -3351,9 +3420,9 @@ export function GameCommandCenterModal({
                   ))}
                 </div>
 
-                <div className="rounded-sm border border-border/70 p-3">
+                <div className="rounded-compact border border-border/70 p-3">
                   <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-3 w-3 text-amber-500" />
+                    <AlertTriangle className="h-3 w-3 text-status-warning" />
                     <span className="text-xs text-muted-foreground">Injuries</span>
                     {liveInjuries.length ? (
                       <Badge variant="outline" className="text-[10px]">
@@ -3369,9 +3438,9 @@ export function GameCommandCenterModal({
                           <button
                             key={`live-injury-${injury.playerId}`}
                             type="button"
-                            className={`h-8 truncate rounded-md border px-2 text-left text-[10px] transition-colors ${
+                            className={`h-8 truncate rounded-control border px-2 text-left text-[10px] transition-colors ${
                               injury.status === "Out"
-                                ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
+                                ? "border-market-negative/40 bg-market-negative/10 text-market-negative dark:text-market-negative"
                                 : "border-border/70 bg-background/70 text-foreground hover:bg-muted"
                             }`}
                             onClick={() => setSelectedLiveInjury(injury)}
@@ -3389,7 +3458,7 @@ export function GameCommandCenterModal({
                   )}
                 </div>
 
-                <div className="rounded-sm border-2 border-emerald-500/35 bg-emerald-500/5 p-3">
+                <div className="rounded-compact border-2 border-market-positive/35 bg-market-positive/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-semibold">Live Earnings</div>
                     {isAuthenticated ? (
@@ -3405,9 +3474,9 @@ export function GameCommandCenterModal({
                     </div>
                   ) : (
                     <>
-                      <div className="mt-2 flex items-center justify-between rounded-md border border-emerald-500/30 bg-background/70 px-2 py-1.5">
+                      <div className="mt-2 flex items-center justify-between rounded-control border border-market-positive/30 bg-background/70 px-2 py-1.5">
                         <span className="text-xs text-muted-foreground">Total Estimated</span>
-                        <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                        <span className="font-mono text-sm font-semibold text-market-positive dark:text-market-positive">
                           ${totalLiveEarnings.toFixed(2)}
                         </span>
                       </div>
@@ -3417,14 +3486,14 @@ export function GameCommandCenterModal({
                           {liveOwnedPlayers.map((player) => (
                             <div
                               key={player.playerId}
-                              className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5"
+                              className="flex items-center justify-between gap-2 rounded-control border border-border/60 bg-background/60 px-2 py-1.5"
                             >
                               <div className="min-w-0 flex-1">
                                 {renderModalPlayerName({
                                   name: player.name,
                                   team: player.team,
                                   playerId: player.playerId,
-                                  className: "truncate text-xs font-medium text-purple-500",
+                                  className: "truncate text-xs font-medium text-category-ownership",
                                   label: formatName(player.name),
                                 })}
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -3436,7 +3505,7 @@ export function GameCommandCenterModal({
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                <div className="font-mono text-xs font-semibold text-market-positive dark:text-market-positive">
                                   ${player.estimatedEarnings.toFixed(2)}
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
@@ -3473,7 +3542,7 @@ export function GameCommandCenterModal({
                       {mlbTopPerformers.map((player) => (
                         <div
                           key={`final-pulse-${player.team || "UNK"}-${player.name}`}
-                          className="rounded-sm border border-border/60 p-3 text-xs"
+                          className="rounded-compact border border-border/60 p-3 text-xs"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
@@ -3498,7 +3567,7 @@ export function GameCommandCenterModal({
                     </div>
                   ) : null}
 
-                  <div className="rounded-sm border border-border/60 p-3">
+                  <div className="rounded-compact border border-border/60 p-3">
                     <div className="text-xs text-muted-foreground">Final Fantasy Leaders</div>
                     <div className="mt-2 space-y-2 text-xs">
                       {mlbLiveFantasyLeaders.map((player) => (
@@ -3524,27 +3593,27 @@ export function GameCommandCenterModal({
                     </div>
                   </div>
 
-                  <div className="rounded-sm border border-border/60 p-3">
+                  <div className="rounded-compact border border-border/60 p-3">
                     <div className="text-xs text-muted-foreground">Final Share Check</div>
                     {liveOwnedPlayers.length > 0 ? (
                       <div className="mt-2 space-y-2 text-xs">
-                        <div className="flex items-center justify-between rounded-sm border border-emerald-500/30 bg-background/70 px-2 py-1.5">
+                        <div className="flex items-center justify-between rounded-compact border border-market-positive/30 bg-background/70 px-2 py-1.5">
                           <span className="text-muted-foreground">Estimated outcome</span>
-                          <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                          <span className="font-mono text-sm font-semibold text-market-positive dark:text-market-positive">
                             ${totalLiveEarnings.toFixed(2)}
                           </span>
                         </div>
                         {liveOwnedPlayers.map((player) => (
                           <div
                             key={`final-owned-${player.playerId}`}
-                            className="flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1.5"
+                            className="flex items-center justify-between gap-2 rounded-compact border border-border/60 bg-background/60 px-2 py-1.5"
                           >
                             <div className="min-w-0 flex-1">
                               {renderModalPlayerName({
                                 name: player.name,
                                 team: player.team,
                                 playerId: player.playerId,
-                                className: "truncate font-medium text-purple-500",
+                                className: "truncate font-medium text-category-ownership",
                                 label: formatName(player.name),
                               })}
                               <div className="text-[10px] text-muted-foreground">
@@ -3552,7 +3621,7 @@ export function GameCommandCenterModal({
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                              <div className="font-mono text-xs font-semibold text-market-positive dark:text-market-positive">
                                 ${player.estimatedEarnings.toFixed(2)}
                               </div>
                               <div className="text-[10px] text-muted-foreground">
@@ -3582,7 +3651,7 @@ export function GameCommandCenterModal({
               <div className="space-y-4">
                 {gameStats.topPerformers && (
                   <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-sm border border-border/60 p-3 text-xs">
+                    <div className="rounded-compact border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Scorer</div>
                       <div className="mt-1 font-semibold">
                         {renderModalPlayerName({
@@ -3592,7 +3661,7 @@ export function GameCommandCenterModal({
                       </div>
                       <div className="mt-1">{gameStats.topPerformers.topScorer.points} pts</div>
                     </div>
-                    <div className="rounded-sm border border-border/60 p-3 text-xs">
+                    <div className="rounded-compact border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Rebounder</div>
                       <div className="mt-1 font-semibold">
                         {renderModalPlayerName({
@@ -3604,7 +3673,7 @@ export function GameCommandCenterModal({
                         {gameStats.topPerformers.topRebounder.rebounds} reb
                       </div>
                     </div>
-                    <div className="rounded-sm border border-border/60 p-3 text-xs">
+                    <div className="rounded-compact border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Assister</div>
                       <div className="mt-1 font-semibold">
                         {renderModalPlayerName({
@@ -3617,7 +3686,7 @@ export function GameCommandCenterModal({
                   </div>
                 )}
 
-                <div className="rounded-sm border border-border/60 p-3">
+                <div className="rounded-compact border border-border/60 p-3">
                   <div className="text-xs text-muted-foreground">Fantasy Points Leaders</div>
                   <div className="mt-2 space-y-2 text-xs">
                     {topFantasy.map((player) => (
@@ -3664,7 +3733,7 @@ export function GameCommandCenterModal({
 
             {selectedLiveInjury ? (
               <div className="space-y-3 text-xs">
-                <div className="rounded-md border border-border/70 bg-muted/40 p-2">
+                <div className="rounded-control border border-border/70 bg-muted/40 p-2">
                   {selectedLiveInjury.description || "No additional injury description provided."}
                 </div>
                 {selectedLiveInjury.returnDate ? (
@@ -3720,7 +3789,7 @@ export function GameCommandCenterModal({
 
             <div className="space-y-2">
               {swapTargetPlayer ? (
-                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+                <div className="rounded-control border border-status-warning/40 bg-status-warning/10 p-2 text-xs">
                   <span className="font-medium">Target:</span> {formatName(swapTargetPlayer.name)} •{" "}
                   {swapTargetPlayer.team}
                 </div>
@@ -3739,7 +3808,7 @@ export function GameCommandCenterModal({
                     return (
                       <div
                         key={assignment.id}
-                        className="flex items-center justify-between gap-2 rounded-md border border-border/70 px-2 py-1.5"
+                        className="flex items-center justify-between gap-2 rounded-control border border-border/70 px-2 py-1.5"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-xs font-medium">
@@ -3774,7 +3843,7 @@ export function GameCommandCenterModal({
                     );
                   })
                 ) : (
-                  <div className="rounded-md border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
+                  <div className="rounded-control border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
                     No scout assignments available to swap.
                   </div>
                 )}

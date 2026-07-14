@@ -23,7 +23,7 @@ interface BoostCeremonyOverlayProps {
 function EnergyBeam({ color, delay }: { color: string; delay: number }) {
   return (
     <motion.div
-      className="absolute h-1 rounded-sm"
+      className="absolute h-1 rounded-compact"
       style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}` }}
       initial={{ width: 0, opacity: 0 }}
       animate={{ width: "100%", opacity: [0, 1, 1, 0] }}
@@ -42,11 +42,11 @@ function ParticleBurst({ color, count = 8 }: { color: string; count?: number }) 
     <div className="absolute inset-0 pointer-events-none">
       {[...Array(count)].map((_, i) => {
         const angle = (360 / count) * i;
-        const distance = 30 + Math.random() * 20;
+        const distance = 30 + (i % 5) * 4;
         return (
           <motion.div
             key={i}
-            className="absolute h-1.5 w-1.5 rounded-sm"
+            className="absolute h-1.5 w-1.5 rounded-compact"
             style={{ backgroundColor: color }}
             initial={{
               x: 0,
@@ -77,42 +77,42 @@ function getTierVisuals(tier: number) {
   switch (tier) {
     case 5:
       return {
-        color: "#EF4444", // Red
-        bgColor: "bg-red-500/10",
-        borderColor: "border-red-500/30",
-        textColor: "text-red-500",
-        glowColor: "shadow-red-500/30",
+        color: "hsl(var(--tier-mythic))",
+        bgColor: "bg-tier-mythic/10",
+        borderColor: "border-tier-mythic/30",
+        textColor: "text-tier-mythic",
+        glowColor: "shadow-tier-mythic/30",
         label: "5x",
         intensity: "high",
       };
     case 4:
       return {
-        color: "#F97316", // Orange
-        bgColor: "bg-orange-500/10",
-        borderColor: "border-orange-500/30",
-        textColor: "text-orange-500",
-        glowColor: "shadow-orange-500/30",
+        color: "hsl(var(--tier-legendary))",
+        bgColor: "bg-tier-legendary/10",
+        borderColor: "border-tier-legendary/30",
+        textColor: "text-tier-legendary",
+        glowColor: "shadow-tier-legendary/30",
         label: "4x",
         intensity: "high",
       };
     case 3:
       return {
-        color: "#8B5CF6", // Violet
-        bgColor: "bg-violet-500/10",
-        borderColor: "border-violet-500/30",
-        textColor: "text-violet-500",
-        glowColor: "shadow-violet-500/30",
+        color: "hsl(var(--tier-elite))",
+        bgColor: "bg-tier-elite/10",
+        borderColor: "border-tier-elite/30",
+        textColor: "text-tier-elite",
+        glowColor: "shadow-tier-elite/30",
         label: "3x",
         intensity: "medium",
       };
     case 2:
     default:
       return {
-        color: "#3B82F6", // Blue
-        bgColor: "bg-blue-500/10",
-        borderColor: "border-blue-500/30",
-        textColor: "text-blue-500",
-        glowColor: "shadow-blue-500/30",
+        color: "hsl(var(--tier-boosted))",
+        bgColor: "bg-tier-boosted/10",
+        borderColor: "border-tier-boosted/30",
+        textColor: "text-tier-boosted",
+        glowColor: "shadow-tier-boosted/30",
         label: "2x",
         intensity: "low",
       };
@@ -128,15 +128,15 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
       setPhase("intro");
 
       const timers = [
-        setTimeout(() => setPhase("charge"), 300),
-        setTimeout(() => setPhase("boost"), 1000),
-        setTimeout(() => setPhase("complete"), 2000),
-        setTimeout(() => onClose(), 3500),
+        setTimeout(() => setPhase("charge"), prefersReducedMotion ? 0 : 300),
+        setTimeout(() => setPhase("boost"), prefersReducedMotion ? 0 : 1000),
+        setTimeout(() => setPhase("complete"), prefersReducedMotion ? 0 : 2000),
+        setTimeout(() => onClose(), prefersReducedMotion ? 2500 : 3500),
       ];
 
       return () => timers.forEach(clearTimeout);
     }
-  }, [isOpen, data, onClose]);
+  }, [isOpen, data, onClose, prefersReducedMotion]);
 
   if (!isOpen || !data) return null;
 
@@ -151,12 +151,16 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
         transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm"
         onClick={onClose}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="boost-ceremony-title"
       >
         <motion.button
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: prefersReducedMotion ? 0 : 0.5 }}
-          className="absolute top-4 right-4 rounded-sm border border-border/60 p-2 text-muted-foreground transition-colors hover:text-foreground"
+          className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-control border border-border/60 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Close boost ceremony"
           onClick={(e) => {
             e.stopPropagation();
             onClose();
@@ -175,13 +179,18 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
           >
             <div
               className={cn(
-                "inline-flex items-center gap-2 rounded-sm px-4 py-2 border",
+                "inline-flex items-center gap-2 rounded-compact px-4 py-2 border",
                 visuals.bgColor,
                 visuals.borderColor,
               )}
             >
               <Zap className={cn("w-4 h-4", visuals.textColor)} />
-              <span className={cn("text-sm font-medium", visuals.textColor)}>Boost Applied</span>
+              <span
+                id="boost-ceremony-title"
+                className={cn("text-sm font-medium", visuals.textColor)}
+              >
+                Boost Applied
+              </span>
             </div>
           </motion.div>
 
@@ -196,13 +205,13 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
                 delay: prefersReducedMotion ? 0 : 0.1,
               }}
               className={cn(
-                "relative mb-4 overflow-hidden rounded-sm border bg-card p-4",
+                "relative mb-4 overflow-hidden rounded-compact border bg-card p-4",
                 phase === "charge" && "ring-2",
                 phase === "charge" && visuals.borderColor,
               )}
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-sm font-bold">
+                <div className="w-10 h-10 rounded-compact bg-primary/10 flex items-center justify-center text-sm font-bold">
                   {data.playerName
                     .split(" ")
                     .map((n) => n[0])
@@ -243,7 +252,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
                 animate={phase === "boost" && !prefersReducedMotion ? { scale: [1, 1.2, 1] } : {}}
                 transition={{ duration: 0.3 }}
                 className={cn(
-                  "z-10 flex h-8 w-8 items-center justify-center rounded-sm",
+                  "z-10 flex h-8 w-8 items-center justify-center rounded-compact",
                   visuals.bgColor,
                 )}
               >
@@ -264,7 +273,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
                 scale: { duration: 0.4, delay: 0 },
               }}
               className={cn(
-                "relative mt-4 overflow-hidden rounded-sm border p-6 text-center",
+                "relative mt-4 overflow-hidden rounded-compact border p-6 text-center",
                 visuals.bgColor,
                 visuals.borderColor,
                 phase === "complete" && cn("ring-1", visuals.borderColor),
@@ -300,12 +309,12 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
               transition={{ delay: prefersReducedMotion ? 0 : 0.3 }}
               className="mt-6 grid grid-cols-2 gap-4"
             >
-              <div className="rounded-sm bg-muted p-3 text-center">
+              <div className="rounded-compact bg-muted p-3 text-center">
                 <TrendingUp className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Share Multiplier</p>
                 <p className="font-mono font-semibold">{data.shareMultiplier}x</p>
               </div>
-              <div className="rounded-sm bg-muted p-3 text-center">
+              <div className="rounded-compact bg-muted p-3 text-center">
                 <Zap className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Shares Burned</p>
                 <p className="font-mono font-semibold">{data.sharesBurned}</p>

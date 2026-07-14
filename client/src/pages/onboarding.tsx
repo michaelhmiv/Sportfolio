@@ -72,8 +72,8 @@ const SLIDES: OnboardingSlide[] = [
   {
     id: "trade",
     icon: Activity,
-    iconColor: "text-emerald-400",
-    iconBg: "bg-emerald-400/10",
+    iconColor: "text-market-positive",
+    iconBg: "bg-market-positive/10",
     title: "Trade Player Shares",
     subtitle: "Instant AMM pricing — no order book needed",
     body: "Buy or sell instantly once a player pool is initialized. Add opening liquidity to start a new pool, then trade, LP, or scout over time.",
@@ -81,8 +81,8 @@ const SLIDES: OnboardingSlide[] = [
   {
     id: "scout",
     icon: Eye,
-    iconColor: "text-violet-400",
-    iconBg: "bg-violet-400/10",
+    iconColor: "text-category-scout",
+    iconBg: "bg-category-scout/10",
     title: "Earn with Scouts",
     subtitle: "Time-weighted share rewards — no luck required",
     body: "Assign up to 5 scouts to players you believe in. Every hour you earn shares proportional to your share of scout-minutes across the pool.",
@@ -90,8 +90,8 @@ const SLIDES: OnboardingSlide[] = [
   {
     id: "boost",
     icon: Trophy,
-    iconColor: "text-amber-400",
-    iconBg: "bg-amber-400/10",
+    iconColor: "text-status-warning",
+    iconBg: "bg-status-warning/10",
     title: "Boost Game Outcomes",
     subtitle: "Turn strong performances into portfolio upside",
     body: "Assign shares to daily boost slots before tip-off. Post-game settlement multiplies your virtual payout based on your player's performance.",
@@ -99,8 +99,8 @@ const SLIDES: OnboardingSlide[] = [
   {
     id: "notifications",
     icon: Bell,
-    iconColor: "text-sky-400",
-    iconBg: "bg-sky-400/10",
+    iconColor: "text-status-info",
+    iconBg: "bg-status-info/10",
     title: "Stay in the Game",
     subtitle: "Get alerts when it matters",
     body: "Score updates, boost settlements, and scout rewards — delivered right when they happen so you never miss a move.",
@@ -388,7 +388,7 @@ export default function OnboardingPage() {
                 <CarouselItem key={slide.id} className="pl-0 basis-full h-full">
                   <div className="flex h-full flex-col items-center justify-center px-8 py-6 text-center">
                     <div
-                      className={`mb-8 flex h-24 w-24 items-center justify-center rounded-2xl ${slide.iconBg}`}
+                      className={`mb-8 flex h-24 w-24 items-center justify-center rounded-panel ${slide.iconBg}`}
                     >
                       <Icon className={`h-12 w-12 ${slide.iconColor}`} />
                     </div>
@@ -422,7 +422,7 @@ export default function OnboardingPage() {
                           </p>
                         )}
                         {notificationState === "granted" && (
-                          <p className="font-mono text-[11px] text-emerald-400">
+                          <p className="font-mono text-[11px] text-market-positive">
                             ✓ Notifications enabled
                           </p>
                         )}
@@ -474,7 +474,7 @@ export default function OnboardingPage() {
                 void hapticLight();
                 api?.scrollTo(index);
               }}
-              className={`h-2 rounded-full transition-all duration-300 ${
+              className={`h-2 rounded-pill transition-all duration-300 ${
                 index === current ? "w-6 bg-primary" : "w-2 bg-muted-foreground/30"
               }`}
               aria-label={`Go to slide ${index + 1}`}

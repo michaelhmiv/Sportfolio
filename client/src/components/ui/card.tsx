@@ -3,11 +3,19 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-const cardVariants = cva("shadcn-card border text-card-foreground", {
+export const cardVariants = cva("shadcn-card border text-card-foreground", {
   variants: {
     variant: {
-      default: "rounded-md bg-card shadow-sm",
-      terminal: "terminal-panel rounded-sm bg-card shadow-none",
+      default: "rounded-panel border-border-subtle bg-surface shadow-low",
+      terminal: "terminal-panel rounded-compact border-border-subtle bg-surface shadow-none",
+      interactive:
+        "rounded-panel border-border-subtle bg-surface shadow-low transition-colors duration-fast ease-standard hover:border-border-strong hover:bg-hover focus-within:ring-2 focus-within:ring-focus focus-within:ring-offset-2 focus-within:ring-offset-background",
+      dense: "rounded-compact border-border-subtle bg-surface shadow-none",
+      summary: "rounded-panel border-border-strong bg-surface-raised shadow-none",
+      alert: "rounded-panel border-status-warning/35 bg-status-warning-subtle shadow-none",
+      live: "rounded-panel border-status-live/35 bg-status-live-subtle shadow-none",
+      premium: "rounded-panel border-premium/35 bg-premium-subtle shadow-low",
+      empty: "rounded-panel border-dashed border-border-strong bg-surface shadow-none",
     },
   },
   defaultVariants: {

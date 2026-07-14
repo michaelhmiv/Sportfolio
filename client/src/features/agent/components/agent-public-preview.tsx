@@ -21,47 +21,47 @@ const FEATURES = [
     title: "Saved Strategies",
     description:
       "Save recurring game-day workflows that Hermes can run inside approved Sportfolio guardrails.",
-    color: "from-purple-500/20 to-purple-600/10",
-    iconColor: "text-purple-300",
+    color: "from-category-scout/20 to-category-scout/10",
+    iconColor: "text-category-scout",
   },
   {
     icon: Sparkles,
     title: "Slate-Aware Reads",
     description:
       "NBA, NFL, MLB, and NASCAR context tied back to your holdings, boosts, scouts, and idle balance.",
-    color: "from-amber-500/20 to-amber-600/10",
-    iconColor: "text-amber-300",
+    color: "from-brand/20 to-brand/10",
+    iconColor: "text-brand",
   },
   {
     icon: Shield,
     title: "Confirmation-Gated Gameplay",
     description:
       "Trades, boosts, scouts, and watchlist moves are staged for review first. Nothing risky executes without approval.",
-    color: "from-emerald-500/20 to-emerald-600/10",
-    iconColor: "text-emerald-300",
+    color: "from-market-positive/20 to-market-positive/10",
+    iconColor: "text-market-positive",
   },
   {
     icon: Zap,
     title: "Optional External Enrichment",
     description:
       "Native Sportfolio tools stay primary. Built-in or user-added MCP sources are used only when extra context is actually needed.",
-    color: "from-cyan-500/20 to-cyan-600/10",
-    iconColor: "text-cyan-300",
+    color: "from-status-info/20 to-status-info/10",
+    iconColor: "text-status-info",
   },
 ];
 
 export function AgentPublicPreview() {
   return (
-    <div className="flex min-h-full flex-col overflow-y-auto bg-[#0a0e1a] text-white">
+    <div className="flex min-h-full flex-col overflow-y-auto bg-canvas text-content">
       <div className="mx-auto w-full max-w-4xl px-4 pt-12 pb-8 sm:px-6 sm:pt-20 sm:pb-12">
         <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400/20 to-amber-600/10 ring-1 ring-white/[0.08]">
-            <Bot className="h-8 w-8 text-amber-300" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-panel bg-gradient-to-br from-brand/20 to-brand/10 ring-1 ring-border/60">
+            <Bot className="h-8 w-8 text-brand" />
           </div>
-          <h1 className="mt-6 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h1 className="mt-6 text-3xl font-bold tracking-tight text-content sm:text-4xl">
             Meet Hermes
           </h1>
-          <p className="mx-auto mt-3 max-w-lg text-base text-white/50 sm:text-lg">
+          <p className="mx-auto mt-3 max-w-lg text-base text-content/50 sm:text-lg">
             Sportfolio&apos;s product operator. Hermes reviews your setup, reads slate context,
             stages supported actions, and carries saved strategies forward inside server-owned
             guardrails.
@@ -70,7 +70,7 @@ export function AgentPublicPreview() {
             <Button
               asChild
               size="lg"
-              className="rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 text-black hover:from-amber-400 hover:to-amber-500"
+              className="rounded-panel bg-gradient-to-r from-brand to-brand px-6 text-brand-foreground hover:from-brand hover:to-brand"
             >
               <Link href="/auth">Set up your agent</Link>
             </Button>
@@ -78,7 +78,7 @@ export function AgentPublicPreview() {
               asChild
               variant="ghost"
               size="lg"
-              className="rounded-xl text-white/50 hover:bg-white/[0.06] hover:text-white/80"
+              className="rounded-panel text-content/50 hover:bg-surface-raised/40 hover:text-content"
             >
               <Link href="/">Back to dashboard</Link>
             </Button>
@@ -87,8 +87,8 @@ export function AgentPublicPreview() {
       </div>
 
       <div className="mx-auto w-full max-w-2xl px-4 pb-8 sm:px-6">
-        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-6">
-          <p className="mb-4 text-xs font-medium uppercase tracking-wider text-white/30">
+        <div className="rounded-panel border border-border/60 bg-surface-raised/40 p-4 sm:p-6">
+          <p className="mb-4 text-xs font-medium uppercase tracking-wider text-content/30">
             Sample conversation
           </p>
           <div className="space-y-3">
@@ -98,10 +98,10 @@ export function AgentPublicPreview() {
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                  className={`max-w-[85%] rounded-panel px-4 py-2.5 text-sm leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-blue-600/20 text-blue-100"
-                      : "bg-white/[0.04] text-white/70"
+                      ? "bg-status-info/20 text-status-info"
+                      : "bg-surface-raised/40 text-content"
                   }`}
                 >
                   {msg.text}
@@ -117,15 +117,15 @@ export function AgentPublicPreview() {
           {FEATURES.map((feature) => (
             <div
               key={feature.title}
-              className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5"
+              className="rounded-panel border border-border/60 bg-surface-raised/40 p-5"
             >
               <div
-                className={`mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${feature.color}`}
+                className={`mb-3 flex h-10 w-10 items-center justify-center rounded-pill bg-gradient-to-br ${feature.color}`}
               >
                 <feature.icon className={`h-5 w-5 ${feature.iconColor}`} />
               </div>
-              <h3 className="text-sm font-semibold text-white/90">{feature.title}</h3>
-              <p className="mt-1 text-xs leading-5 text-white/40">{feature.description}</p>
+              <h3 className="text-sm font-semibold text-content">{feature.title}</h3>
+              <p className="mt-1 text-xs leading-5 text-content/40">{feature.description}</p>
             </div>
           ))}
         </div>

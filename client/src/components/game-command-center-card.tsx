@@ -98,9 +98,9 @@ export function GameCommandCenterCard({
       label: formatSignedAdaptiveCurrency(rawValue, { zeroDisplay: "$0.00" }),
       toneClass:
         rawValue > 0
-          ? "text-emerald-500"
+          ? "text-market-positive"
           : rawValue < 0
-            ? "text-rose-500"
+            ? "text-market-negative"
             : "text-muted-foreground",
       meta: "Captured",
     };
@@ -159,12 +159,13 @@ export function GameCommandCenterCard({
   });
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full text-left rounded-sm border-2 border-border/90 bg-card p-3 shadow-none transition-all hover:border-border hover:shadow-none"
-    >
-      <div className="rounded-md border border-border/70 bg-background/40 overflow-hidden">
+    <div className="w-full rounded-compact border-2 border-border/90 bg-card p-3 text-left shadow-none transition-all hover:border-border hover:shadow-none">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full overflow-hidden rounded-control border border-border/70 bg-background/40 text-left"
+        aria-label={`Open ${game.awayTeam} at ${game.homeTeam} game details`}
+      >
         <div
           className={`${listingGridClass} border-b border-border/60 px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-muted-foreground`}
         >
@@ -215,7 +216,7 @@ export function GameCommandCenterCard({
             </div>
           </div>
         </div>
-      </div>
+      </button>
 
       {game.sport?.toUpperCase() === "MLB" ? (
         <MlbSignalChips signals={game.mlbSignals} limit={3} />
@@ -237,10 +238,10 @@ export function GameCommandCenterCard({
                   e.stopPropagation();
                   setShowBoostSelector(!showBoostSelector);
                 }}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border-2 transition-all ${
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-compact text-[10px] font-medium border-2 transition-all ${
                   showBoostSelector
-                    ? "bg-purple-600 text-white border-purple-600"
-                    : "bg-purple-50 text-purple-700 border-purple-400 hover:bg-purple-100 hover:border-purple-500 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-600/50"
+                    ? "border-boost bg-boost text-boost-foreground"
+                    : "border-boost/40 bg-boost/10 text-boost hover:border-boost/60 hover:bg-hover"
                 }`}
               >
                 {showBoostSelector ? (
@@ -269,7 +270,7 @@ export function GameCommandCenterCard({
             {powerLeader && powerLeader.multiplier > 0 && (
               <Badge
                 variant="secondary"
-                className="gap-1 text-[10px] text-purple-500 border-border/80"
+                className="gap-1 text-[10px] text-category-stacking border-border/80"
               >
                 <Zap className="h-3 w-3" />
                 Multi {powerLeader.multiplier.toFixed(2)}x
@@ -280,10 +281,10 @@ export function GameCommandCenterCard({
           {/* Quick Boost Selector - Inline expandable panel */}
           {showBoostSelector && boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
             <div
-              className="mt-3 rounded-sm border-2 border-purple-400 bg-purple-50/50 p-3 dark:bg-purple-950/20"
+              className="mt-3 rounded-panel border-2 border-boost/40 bg-boost/10 p-3"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-[11px] font-medium text-purple-700 dark:text-purple-400 mb-2">
+              <div className="mb-2 text-[11px] font-medium text-boost">
                 Select tier & player to boost:
               </div>
 
@@ -296,10 +297,11 @@ export function GameCommandCenterCard({
                       key={tier}
                       type="button"
                       onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
-                      className={`px-2 py-1 rounded text-[10px] font-medium border-2 transition-all ${
+                      aria-pressed={selectedTier === tier}
+                      className={`px-2 py-1 rounded-compact text-[10px] font-medium border-2 transition-all ${
                         selectedTier === tier
-                          ? "bg-purple-600 text-white border-purple-600"
-                          : "bg-background text-foreground border-border hover:border-purple-400"
+                          ? "border-boost bg-boost text-boost-foreground"
+                          : "border-border bg-background text-foreground hover:border-boost"
                       }`}
                     >
                       {tier}x
@@ -314,7 +316,7 @@ export function GameCommandCenterCard({
                   {userContext.topMultiplierPlayers.map((player, idx) => (
                     <div
                       key={`${player.playerId}-${idx}`}
-                      className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-background/80"
+                      className="flex items-center justify-between text-xs py-1.5 px-2 rounded-compact bg-background/80"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
@@ -331,7 +333,7 @@ export function GameCommandCenterCard({
                           {player.name}
                         </span>
                         <span className="text-muted-foreground text-[10px]">{player.team}</span>
-                        <span className="text-purple-500 font-mono text-[10px]">
+                        <span className="text-category-stacking font-mono text-[10px]">
                           {player.multiplier.toFixed(1)}x
                         </span>
                       </div>
@@ -339,7 +341,7 @@ export function GameCommandCenterCard({
                         size="sm"
                         variant={selectedTier ? "default" : "ghost"}
                         disabled={!selectedTier || assignBoostMutation.isPending}
-                        className={`h-6 px-2 text-[10px] ${selectedTier ? "bg-purple-600 hover:bg-purple-700" : ""}`}
+                        className={`h-6 px-2 text-[10px] ${selectedTier ? "bg-boost text-boost-foreground hover:bg-boost/90" : ""}`}
                         onClick={() => {
                           if (selectedTier) {
                             assignBoostMutation.mutate({
@@ -363,7 +365,7 @@ export function GameCommandCenterCard({
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground text-center py-3 bg-background/50 rounded">
+                <div className="text-xs text-muted-foreground text-center py-3 bg-background/50 rounded-compact">
                   No eligible players to boost
                 </div>
               )}
@@ -394,7 +396,9 @@ export function GameCommandCenterCard({
                   >
                     {player.name}
                   </span>
-                  <span className="font-mono text-purple-400">{player.multiplier.toFixed(1)}x</span>
+                  <span className="font-mono text-category-stacking">
+                    {player.multiplier.toFixed(1)}x
+                  </span>
                 </div>
               ))}
               {userContext.topMultiplierPlayers.length > 3 && (
@@ -406,6 +410,6 @@ export function GameCommandCenterCard({
           )}
         </div>
       )}
-    </button>
+    </div>
   );
 }

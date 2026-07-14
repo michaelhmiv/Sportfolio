@@ -9,14 +9,16 @@ type SignalTone = {
 
 const SIGNAL_TONES: Record<GameInsightMlbSignal["severity"], SignalTone> = {
   high: {
-    chipClassName: "border-amber-500/55 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-    cardClassName: "border-amber-500/35 bg-amber-500/5",
-    labelClassName: "text-amber-700 dark:text-amber-300",
+    chipClassName:
+      "border-status-warning/55 bg-status-warning/10 text-status-warning dark:text-status-warning",
+    cardClassName: "border-status-warning/35 bg-status-warning/5",
+    labelClassName: "text-status-warning dark:text-status-warning",
   },
   positive: {
-    chipClassName: "border-emerald-500/45 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-    cardClassName: "border-emerald-500/30 bg-emerald-500/5",
-    labelClassName: "text-emerald-700 dark:text-emerald-300",
+    chipClassName:
+      "border-market-positive/45 bg-market-positive/10 text-market-positive dark:text-market-positive",
+    cardClassName: "border-market-positive/30 bg-market-positive/5",
+    labelClassName: "text-market-positive dark:text-market-positive",
   },
   warning: {
     chipClassName: "border-border/80 bg-muted/40 text-foreground",
@@ -115,7 +117,7 @@ export function MlbSignalPanel({
         {visibleSignals.map((signal) => {
           const tone = getMlbSignalTone(signal);
           return (
-            <div key={signal.id} className={`rounded-sm border p-2.5 ${tone.cardClassName}`}>
+            <div key={signal.id} className={`rounded-compact border p-2.5 ${tone.cardClassName}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className={`min-w-0 text-xs font-semibold ${tone.labelClassName}`}>
                   {signal.label}

@@ -658,12 +658,12 @@ export default function UserProfile() {
                           />
                           <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
                         </Avatar>
-                        <div className="absolute inset-0 flex items-center justify-center rounded-sm bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                          <Upload className="h-6 w-6 text-white" />
+                        <div className="absolute inset-0 flex items-center justify-center rounded-compact bg-scrim/50 opacity-0 transition-opacity group-hover:opacity-100">
+                          <Upload className="h-6 w-6 text-content-inverse" />
                         </div>
                       </button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-sm rounded-sm border border-border bg-card">
+                    <DialogContent className="sm:max-w-sm rounded-compact border border-border bg-card">
                       <DialogHeader>
                         <DialogTitle>Change Profile Picture</DialogTitle>
                         <DialogDescription>
@@ -748,7 +748,7 @@ export default function UserProfile() {
                         Edit Username
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="rounded-sm border border-border bg-card">
+                    <DialogContent className="rounded-compact border border-border bg-card">
                       <DialogHeader>
                         <DialogTitle>Change Username</DialogTitle>
                         <DialogDescription>
@@ -1131,7 +1131,7 @@ export default function UserProfile() {
                           <span className="font-medium">{row.sport}</span>
                           <span className="font-mono">{formatAdaptiveCurrency(row.value)}</span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-sm bg-muted">
+                        <div className="h-2 overflow-hidden rounded-compact bg-muted">
                           <div
                             className="h-full bg-primary"
                             style={{ width: `${Math.min(row.percentage, 100)}%` }}
