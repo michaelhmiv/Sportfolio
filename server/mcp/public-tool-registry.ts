@@ -3851,9 +3851,15 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
   },
   { method: "POST", path: "/api/user/onboarding/complete", capabilityIds: ["complete_onboarding"] },
   { method: "GET", path: "/api/collections", capabilityIds: ["list_collections"] },
+  { method: "GET", path: "/api/me/collections", capabilityIds: ["list_collections"] },
   {
     method: "GET",
     path: "/api/collections/:type/:targetId",
+    capabilityIds: ["get_collection_detail"],
+  },
+  {
+    method: "GET",
+    path: "/api/me/collections/:slug",
     capabilityIds: ["get_collection_detail"],
   },
   {

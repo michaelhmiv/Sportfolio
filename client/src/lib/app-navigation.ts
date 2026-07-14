@@ -6,6 +6,7 @@ import {
   BriefcaseBusiness,
   Crown,
   House,
+  Layers,
   Newspaper,
   TrendingUp,
   Zap,
@@ -20,7 +21,8 @@ export type AppNavItemId =
   | "boosts"
   | "portfolio"
   | "premium"
-  | "news";
+  | "news"
+  | "collections";
 
 export interface AppNavItem {
   id: AppNavItemId;
@@ -55,6 +57,13 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     tone: "premium",
   },
   { id: "news", label: "News", href: "/news", icon: Newspaper },
+  {
+    id: "collections",
+    label: "Collections",
+    href: "/collections",
+    icon: Layers,
+    requiresAuth: true,
+  },
 ] as const;
 
 export const MOBILE_NAV_ITEM_IDS = [

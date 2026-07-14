@@ -1,5 +1,7 @@
 import { broadcastToUser } from "../websocket";
 import { collectionRepository } from "./postgres-repository";
+import { PostgresCollectionReadRepository } from "./read-repository";
+import { CollectionApiReadService } from "./read-service";
 import { CollectionBackendService, type CollectionEventPayload } from "./service";
 
 export const collectionEventPublisher = {
@@ -22,4 +24,8 @@ export const collectionEventPublisher = {
 export const collectionService = new CollectionBackendService(
   collectionRepository,
   collectionEventPublisher,
+);
+
+export const collectionReadService = new CollectionApiReadService(
+  new PostgresCollectionReadRepository(),
 );
