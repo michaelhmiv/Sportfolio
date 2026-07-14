@@ -210,7 +210,7 @@ export function broadcastToUser(
       client.ws.send(payload, (error) => {
         if (error) {
           logger.warn(
-            { error, type: message.type, userId },
+            { err: error, type: message.type, userId },
             "[WebSocket] Failed to broadcast to user",
           );
         }

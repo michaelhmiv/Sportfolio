@@ -7108,15 +7108,23 @@ export class DatabaseStorage implements IStorage {
               buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
             ),
           )
-          .orderBy(
-            desc(
-              sql<number>`CASE WHEN ${playerMultipliers.playerId} = ${canonicalPlayerId} THEN 1 ELSE 0 END`,
-            ),
-            desc(playerMultipliers.multiplier),
-            desc(playerMultipliers.updatedAt),
-          )
+          .orderBy(asc(playerMultipliers.id))
           .for("update");
-        const [multiplierRow] = multiplierRows;
+        const [multiplierRow] = [...multiplierRows].sort((left, right) => {
+          const canonicalPreference =
+            Number(right.playerId === canonicalPlayerId) -
+            Number(left.playerId === canonicalPlayerId);
+          if (canonicalPreference !== 0) return canonicalPreference;
+
+          const multiplierPreference = Number(right.multiplier) - Number(left.multiplier);
+          if (multiplierPreference !== 0) return multiplierPreference;
+
+          const updatedPreference =
+            new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
+          if (updatedPreference !== 0) return updatedPreference;
+
+          return left.id.localeCompare(right.id);
+        });
 
         if (!multiplierRow) {
           throw new Error(

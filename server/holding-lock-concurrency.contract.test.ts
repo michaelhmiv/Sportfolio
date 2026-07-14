@@ -44,9 +44,10 @@ describe("ordinary holding reservation concurrency contract", () => {
     expect(stackSection).toContain("buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds)");
     expect(stackSection).toContain("orderBy(asc(holdings.id))");
     expect(stackSection).toContain("orderBy(asc(holdingsLocks.id))");
+    expect(stackSection).toContain("orderBy(asc(playerMultipliers.id))");
   });
 
-  it("uses deterministic holding lock order for boost transactions", () => {
+  it("uses deterministic holding and multiplier lock order for boost transactions", () => {
     const boostStart = storageSource.indexOf("async lockBoostShares");
     const boostSection = storageSource.slice(
       boostStart,
@@ -55,5 +56,6 @@ describe("ordinary holding reservation concurrency contract", () => {
 
     expect(boostSection).toContain("orderBy(asc(holdings.id))");
     expect(boostSection).toContain("orderBy(asc(holdingsLocks.id))");
+    expect(boostSection).toContain("orderBy(asc(playerMultipliers.id))");
   });
 });
