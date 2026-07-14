@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { isAuthenticated } from "../supabaseAuth";
 import { CollectionDomainError } from "./state-engine";
+import type { CollectionReadService } from "./read-service";
 
 export interface CollectionMutationService {
   setAllocation(input: {
@@ -62,7 +63,36 @@ function sendCollectionError(res: Response, error: unknown): void {
   });
 }
 
-export function registerCollectionRoutes(app: Express, service: CollectionMutationService): void {
+export function registerCollectionRoutes(
+  app: Express,
+  service: CollectionMutationService,
+  readService?: CollectionReadService,
+): void {
+  // ── read endpoints ────────────────────────────────────────────────────────
+  if (readService) {
+    app.get("/api/me/collections", isAuthenticated, async (req, res) => {
+      try {
+        const collections = await readService.listCollections(getUserId(req));
+        res.json({ data: collections });
+      } catch (error) {
+        sendCollectionError(res, error);
+      }
+    });
+
+    app.get("/api/me/collections/:slug", isAuthenticated, async (req, res) => {
+      try {
+        const detail = await readService.getCollectionBySlug(
+          getUserId(req),
+          pathValueSchema.parse(req.params.slug),
+        );
+        res.json({ data: detail });
+      } catch (error) {
+        sendCollectionError(res, error);
+      }
+    });
+  }
+
+  // ── mutation endpoints ────────────────────────────────────────────────────
   app.put(
     "/api/me/collections/:slug/slots/:slotId/allocation",
     isAuthenticated,

@@ -648,6 +648,7 @@ export function useAuth() {
             "/api/portfolio",
             "/api/admin",
             "/api/whop",
+            "/api/me/collections",
           ];
           return userScopedPaths.some((path) => key.startsWith(path));
         },

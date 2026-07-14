@@ -83,6 +83,8 @@ const loadAgentPage = () => import("@/pages/agent");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
 const loadBoostsPage = () => import("@/pages/boosts");
+const loadCollectionsPage = () => import("@/pages/collections");
+const loadCollectionDetailPage = () => import("@/pages/collection-detail");
 const loadLoginPage = () => import("@/pages/Login");
 const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
@@ -148,6 +150,8 @@ const WhaleAlertBanner = lazy(loadWhaleAlertBanner);
 const BoostCeremonyOverlay = lazy(loadBoostCeremonyOverlay);
 const ScoutCeremonyOverlay = lazy(loadScoutCeremonyOverlay);
 const ScoutReadyBanner = lazy(loadScoutReadyBanner);
+const CollectionsPage = lazy(loadCollectionsPage);
+const CollectionDetailPage = lazy(loadCollectionDetailPage);
 
 function upsertMetaTag(attribute: "name" | "property", value: string): HTMLMetaElement {
   let tag = document.head.querySelector(`meta[${attribute}="${value}"]`) as HTMLMetaElement | null;
@@ -380,6 +384,7 @@ const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/premium",
   "/watchlists",
   "/profile",
+  "/collections",
 ];
 
 function routeRequiresAuthBootstrap(path: string) {
@@ -877,6 +882,12 @@ function Router() {
               {/* Premium share trading removed; premium shares are redeemed for premium access */}
               <Route path="/watchlists">
                 {canAccessProtectedRoutes ? <Watchlists /> : <Dashboard />}
+              </Route>
+              <Route path="/collections">
+                {canAccessProtectedRoutes ? <CollectionsPage /> : <Dashboard />}
+              </Route>
+              <Route path="/collections/:slug">
+                {canAccessProtectedRoutes ? <CollectionDetailPage /> : <Dashboard />}
               </Route>
               <Route path="/profile">
                 {canAccessProtectedRoutes && user ? (
