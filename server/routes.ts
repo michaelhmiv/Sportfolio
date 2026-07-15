@@ -92,7 +92,7 @@ import { ensureAccountDeletionSchema } from "./services/account-deletion";
 import { redeemPremiumShare } from "./services/premium-redemption";
 import { sendUserNotification } from "./services/notification-dispatcher";
 import { loadUserEntitlements } from "./services/user-entitlements";
-import { invalidateIdentity } from "./public-identities/identity-events";
+import { invalidateIdentity, setBroadcastFn } from "./public-identities/identity-events";
 import { resolveIdentityBatch, extractActorIds } from "./public-identities/public-identity-surface-adapters";
 import {
   getApiHealthStaleThresholdMs,
@@ -976,6 +976,9 @@ async function buildUserLiveEarningsSummary(params: {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
   await setupAuth(app);
+
+  // Wire identity-change events to the WebSocket broadcast
+  setBroadcastFn(broadcast);
 
   // Legacy player order-book mode is archived; player trading is AMM-only.
   const isAmmOnlyMode = true;
