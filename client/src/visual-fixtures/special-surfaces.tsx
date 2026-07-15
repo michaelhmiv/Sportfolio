@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
-import { CollectionProgress } from "@/components/collections/collection-progress";
+import type { AgentUiBlock } from "@shared/agent-ui";
+import { AgentUiBlockList } from "@/features/agent/components/agent-ui-blocks";
 import "@/index.css";
 
 const semanticCards = [
@@ -79,7 +80,12 @@ function SpecialSurfacesFixture() {
                     8 remaining
                   </span>
                 </div>
-                <CollectionProgress progress={17} total={25} color="violet" />
+                <div className="h-2 w-full overflow-hidden rounded-compact bg-category-community/20">
+                  <div
+                    className="h-full rounded-compact bg-category-community"
+                    style={{ width: "68%" }}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[

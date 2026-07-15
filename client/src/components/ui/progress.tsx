@@ -1,25 +1,51 @@
-"use client";
-
 import * as React from "react";
-import * as ProgressPrimitive from "@radix-ui/react-progress";
-
 import { cn } from "@/lib/utils";
+import { useReducedMotion } from "framer-motion";
 
-const Progress = React.forwardRef<
-  React.ElementRef<typeof ProgressPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> & { indicatorClassName?: string }
->(({ className, value, indicatorClassName, ...props }, ref) => (
-  <ProgressPrimitive.Root
-    ref={ref}
-    className={cn("relative h-2 w-full overflow-hidden rounded-pill bg-border-subtle", className)}
-    {...props}
-  >
-    <ProgressPrimitive.Indicator
-      className={cn("h-full w-full flex-1 rounded-pill bg-brand", indicatorClassName)}
-      style={{ width: `${value || 0}%` }}
-    />
-  </ProgressPrimitive.Root>
-));
-Progress.displayName = ProgressPrimitive.Root.displayName;
+interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Fill ratio from 0 to 1 (clamped). */
+  value?: number;
+  /** When true, fills with an animated gradient sweep (used for live/active state). */
+  animated?: boolean;
+  /** Tailwind background class for the filled portion (defaults to brand). */
+  indicatorClassName?: string;
+}
 
-export { Progress };
+export function Progress({
+  value = 0,
+  animated = false,
+  indicatorClassName,
+  className,
+  ...props
+}: ProgressProps) {
+  const prefersReducedMotion = useReducedMotion();
+  const pct = Math.max(0, Math.min(1, value)) * 100;
+  // Width transitions smoothly when the value changes; reduced-motion users get an instant fill.
+  const widthTransition = prefersReducedMotion
+    ? undefined
+    : "transition-[width] duration-500 ease-out";
+
+  return (
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(pct)}
+      className={cn(
+        "relative h-2 w-full overflow-hidden rounded-compact bg-surface-raised",
+        className,
+      )}
+      {...props}
+    >
+      <div
+        className={cn(
+          "h-full rounded-compact",
+          indicatorClassName ?? "bg-brand",
+          widthTransition,
+          animated && !prefersReducedMotion && "progress-shimmer",
+        )}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}

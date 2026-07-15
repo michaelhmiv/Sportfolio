@@ -32,7 +32,6 @@ import { syncNascarStats } from "./sync-nascar-stats";
 import { syncNhlRoster } from "./sync-nhl-roster";
 import { syncNhlSchedule } from "./sync-nhl-schedule";
 import { syncNhlStats } from "./sync-nhl-stats";
-import { updateCollectionsJob } from "./update-collections";
 import type { JobResult } from "./types";
 
 export type JobGroup = "core" | "api";
@@ -416,16 +415,6 @@ const rawJobDefinitions = [
       toApiHealthJobResult(await runApiHealthCheck({ reason: "scheduled" })),
     manualHandler: async () =>
       toApiHealthJobResult(await runApiHealthCheck({ reason: "manual_trigger" })),
-  },
-  {
-    name: "update_collections",
-    group: "core",
-    schedule: "7-59/15 * * * *",
-    scheduleOrder: 18,
-    enabled: true,
-    advertiseManual: true,
-    manualOrder: 18,
-    ...runWithoutProgress(() => runVoidJob(updateCollectionsJob)),
   },
   {
     name: "check_milestones",

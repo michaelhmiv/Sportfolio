@@ -19,10 +19,6 @@ const specialSurfaces = [
   "components/scout-live-ticker.tsx",
   "components/scout-live-share-popup-host.tsx",
   "components/scout-dashboard-modal.tsx",
-  "components/collections/collection-progress.tsx",
-  "components/collections/collection-list.tsx",
-  "components/collections/collection-ceremony.tsx",
-  "components/collections/collection-badge.tsx",
   "components/milestones/milestone-badge.tsx",
   "components/milestones/milestone-ceremony.tsx",
   "components/ceremonies/scout-ready-banner.tsx",
@@ -33,7 +29,6 @@ const specialSurfaces = [
 ] as const;
 
 const ceremonySurfaces = [
-  "components/collections/collection-ceremony.tsx",
   "components/milestones/milestone-ceremony.tsx",
   "components/ceremonies/scout-ceremony-overlay.tsx",
   "components/ceremonies/boost-ceremony-overlay.tsx",

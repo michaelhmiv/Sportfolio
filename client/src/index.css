@@ -1107,3 +1107,34 @@ footer,
   user-select: none;
   -webkit-user-select: none;
 }
+
+/* Animated progress fill sweep — used for live/active collection progress.
+   Suppressed automatically for users with reduced-motion preferences. */
+@keyframes progress-shimmer {
+  0% {
+    background-position: -150% 0;
+  }
+  100% {
+    background-position: 150% 0;
+  }
+}
+
+.progress-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--brand)) 0%,
+    hsl(var(--brand) / 0.55) 25%,
+    hsl(var(--premium) / 0.85) 50%,
+    hsl(var(--brand) / 0.55) 75%,
+    hsl(var(--brand)) 100%
+  );
+  background-size: 200% 100%;
+  animation: progress-shimmer 2.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-shimmer {
+    animation: none;
+    background-image: none;
+  }
+}

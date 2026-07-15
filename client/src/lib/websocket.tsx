@@ -175,16 +175,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
             case "marketActivity":
               debouncedInvalidateMarketActivity();
-              // Handle collection and milestone events within marketActivity
               if (message.data?.event === "collection_completed") {
-                // Trigger collection ceremony
-                window.dispatchEvent(
-                  new CustomEvent("collection-completed", {
-                    detail: message.data,
-                  }),
-                );
-                // Invalidate collections cache
-                queryClient.invalidateQueries({ queryKey: ["/api/collections"] });
+                // v2 completions surface via in-app ceremony + query invalidation
+                queryClient.invalidateQueries({ queryKey: ["/api/me/collections"] });
               } else if (message.data?.event === "milestone_achieved") {
                 // Trigger milestone ceremony
                 window.dispatchEvent(

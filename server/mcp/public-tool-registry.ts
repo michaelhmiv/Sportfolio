@@ -3850,7 +3850,6 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     capabilityIds: ["update_profile_image"],
   },
   { method: "POST", path: "/api/user/onboarding/complete", capabilityIds: ["complete_onboarding"] },
-  { method: "GET", path: "/api/collections", capabilityIds: ["list_collections"] },
   { method: "GET", path: "/api/me/collections", capabilityIds: ["list_collections"] },
   {
     method: "GET",

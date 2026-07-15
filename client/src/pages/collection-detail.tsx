@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import {
@@ -12,7 +12,9 @@ import {
   CheckCircle2,
   XCircle,
   Trophy,
+  X,
 } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -209,6 +211,14 @@ export default function CollectionDetailPage() {
       const eventType = result.data?.eventType;
       if (eventType === "completed") {
         toast({ title: "Collection completed" });
+        if (detail) {
+          setCeremony({
+            open: true,
+            title: detail.title,
+            points: detail.points,
+            awardTier: detail.award?.awardId,
+          });
+        }
       } else if (eventType === "reactivated") {
         toast({ title: "Collection reactivated" });
       } else {
@@ -229,6 +239,24 @@ export default function CollectionDetailPage() {
       setIsCompleting(false);
     },
   });
+
+  // ── v2 completion ceremony ──────────────────────────────────────────────
+  const prefersReducedMotion = useReducedMotion();
+  const [ceremony, setCeremony] = useState<{
+    open: boolean;
+    title: string;
+    points: number;
+    awardTier?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!ceremony?.open) return;
+    const timer = window.setTimeout(
+      () => setCeremony((c) => (c ? { ...c, open: false } : c)),
+      4200,
+    );
+    return () => window.clearTimeout(timer);
+  }, [ceremony?.open]);
 
   // ── allocate ────────────────────────────────────────────────────────────
   const allocateMutation = useMutation({
@@ -417,7 +445,7 @@ export default function CollectionDetailPage() {
   const isActive = detail.assemblyState === "active";
 
   return (
-    <div className="terminal-page p-3 sm:p-4" data-testid="collection-detail">
+    <div className="terminal-page p-3 pb-24 sm:p-4 sm:pb-24" data-testid="collection-detail">
       <div className="mx-auto max-w-3xl space-y-4">
         {/* Back navigation */}
         <div>
@@ -556,6 +584,12 @@ export default function CollectionDetailPage() {
                   compareCanonicalQuantities(parsed, slot.maxAllocatableQuantity) <= 0;
                 const canSubmit =
                   !isSubmitting && parsed !== null && parsed !== "0.0000" && withinAvailableMaximum;
+                const overMax =
+                  !isActive &&
+                  slot.maxAllocatableQuantity != null &&
+                  parsed != null &&
+                  parsed !== "0.0000" &&
+                  !withinAvailableMaximum;
 
                 return (
                   <div
@@ -687,6 +721,16 @@ export default function CollectionDetailPage() {
                           </Button>
                         </div>
                       )}
+                      {isActive ? (
+                        <p className="mt-1 text-[10px] font-medium text-muted-foreground">
+                          Locked while collection is active
+                        </p>
+                      ) : overMax ? (
+                        <p className="mt-1 text-[10px] font-medium text-status-negative">
+                          Exceeds available shares (max{" "}
+                          {formatCanonicalQuantity(slot.maxAllocatableQuantity!)})
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -779,6 +823,69 @@ export default function CollectionDetailPage() {
           </div>
         )}
       </div>
+
+      {/* v2 completion ceremony overlay */}
+      <AnimatePresence>
+        {ceremony?.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="collection-ceremony-title"
+            onClick={() => setCeremony((c) => (c ? { ...c, open: false } : c))}
+          >
+            <motion.div
+              initial={prefersReducedMotion ? false : { scale: 0.9, y: 12, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 240, damping: 22 }}
+              className="relative w-full max-w-sm rounded-panel border border-premium/30 bg-card p-6 text-center shadow-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => setCeremony((c) => (c ? { ...c, open: false } : c))}
+                className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-control text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+
+              <motion.div
+                initial={prefersReducedMotion ? false : { scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 28, delay: 0.1 }}
+                className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-compact border-2 border-premium/40 bg-premium/10 text-premium"
+              >
+                <Trophy className="h-8 w-8" />
+              </motion.div>
+
+              <p className="terminal-strip justify-center">Collection Complete</p>
+              <h2
+                id="collection-ceremony-title"
+                className="mt-1 text-xl font-bold text-content-strong"
+              >
+                {ceremony.title}
+              </h2>
+
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <span className="flex items-center gap-1.5 rounded-pill border border-premium/30 bg-premium/10 px-3 py-1 text-sm font-medium text-premium">
+                  <Award className="h-4 w-4" />
+                  {ceremony.awardTier ? ceremony.awardTier : "Award earned"}
+                </span>
+                <span className="rounded-pill border border-border/60 bg-surface px-3 py-1 font-mono text-sm font-semibold text-content-strong">
+                  +{ceremony.points} pts
+                </span>
+              </div>
+
+              <p className="mt-4 text-xs text-muted-foreground">Tap anywhere to dismiss</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

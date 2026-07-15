@@ -33,7 +33,6 @@ import {
   sharePayouts,
   holdingsLocks,
   communityCheckoutSessions,
-  userCollections,
   userMilestones,
   trades,
   whopPayments,
@@ -93,7 +92,10 @@ import { redeemPremiumShare } from "./services/premium-redemption";
 import { sendUserNotification } from "./services/notification-dispatcher";
 import { loadUserEntitlements } from "./services/user-entitlements";
 import { invalidateIdentity, setBroadcastFn } from "./public-identities/identity-events";
-import { resolveIdentityBatch, extractActorIds } from "./public-identities/public-identity-surface-adapters";
+import {
+  resolveIdentityBatch,
+  extractActorIds,
+} from "./public-identities/public-identity-surface-adapters";
 import {
   getApiHealthStaleThresholdMs,
   getLatestApiHealthReport,
@@ -4948,88 +4950,6 @@ ${items}
 
   registerMarketMobileRoutes(app);
 
-  // User collections endpoint. Keep the legacy read surface available until PR 3
-  // replaces it atomically with the versioned catalog.
-  app.get("/api/collections", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const collections = await db
-        .select()
-        .from(userCollections)
-        .where(eq(userCollections.userId, userId))
-        .orderBy(desc(userCollections.completed), desc(userCollections.updatedAt));
-      res.json(collections);
-    } catch (error: any) {
-      // If migrations haven't been applied yet, keep the app usable.
-      if (error?.code === "42P01") {
-        return res.json([]);
-      }
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get specific collection details
-  app.get("/api/collections/:type/:targetId", isAuthenticated, async (req, res) => {
-    try {
-      const { type, targetId } = req.params;
-      const userId = getUserId(req);
-
-      const collection = await db
-        .select()
-        .from(userCollections)
-        .where(
-          and(
-            eq(userCollections.userId, userId),
-            eq(userCollections.collectionType, type),
-            eq(userCollections.targetId, targetId),
-          ),
-        )
-        .limit(1);
-
-      if (collection.length === 0) {
-        return res.status(404).json({ error: "Collection not found" });
-      }
-
-      // Get owned players in this collection
-      let ownedPlayers: any[] = [];
-
-      if (type === "team") {
-        // Get all active players from this team that user owns
-        const teamPlayers = await db
-          .select({
-            playerId: players.id,
-            firstName: players.firstName,
-            lastName: players.lastName,
-            position: players.position,
-            team: players.team,
-            quantity: holdings.quantity,
-          })
-          .from(players)
-          .leftJoin(
-            holdings,
-            and(
-              eq(holdings.assetId, players.id),
-              eq(holdings.userId, userId),
-              eq(holdings.assetType, "player"),
-            ),
-          )
-          .where(and(eq(players.team, targetId), eq(players.isActive, true)));
-
-        ownedPlayers = teamPlayers.filter((player) => parseFloat(player.quantity || "0") > 0);
-      }
-
-      res.json({
-        collection: collection[0],
-        ownedPlayers,
-      });
-    } catch (error: any) {
-      if (error?.code === "42P01") {
-        return res.status(404).json({ error: "Collection not found" });
-      }
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // User milestones endpoint
   app.get("/api/milestones", isAuthenticated, async (req, res) => {
     try {
@@ -5854,23 +5774,20 @@ ${items}
       const roster = await storage.getScoutRoster(playerId);
 
       // Resolve identities for all scouters in one batch.
-      const scouterIds = roster
-        .map((r) => r.user?.id)
-        .filter((id): id is string => !!id);
-      const identityMap = scouterIds.length > 0
-        ? await resolveIdentityBatch(scouterIds)
-        : new Map();
+      const scouterIds = roster.map((r) => r.user?.id).filter((id): id is string => !!id);
+      const identityMap =
+        scouterIds.length > 0 ? await resolveIdentityBatch(scouterIds) : new Map();
 
       // Decorate each roster entry with identity and map profileImageUrl -> avatarUrl.
       const decoratedRoster = roster.map((entry) => {
-        const identity = entry.user?.id ? identityMap.get(entry.user.id) ?? null : null;
+        const identity = entry.user?.id ? (identityMap.get(entry.user.id) ?? null) : null;
         return {
           scoutCount: entry.scoutCount,
           user: entry.user
             ? {
                 id: entry.user.id,
                 username: entry.user.username,
-                avatarUrl: entry.user.avatarUrl ?? (identity?.avatarUrl ?? null),
+                avatarUrl: entry.user.avatarUrl ?? identity?.avatarUrl ?? null,
               }
             : null,
           identity,

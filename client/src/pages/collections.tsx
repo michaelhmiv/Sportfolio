@@ -1,245 +1,260 @@
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Layers, RefreshCw, ChevronRight, Award } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Award, Lock, Trophy, ArrowRight } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { useAuth } from "@/hooks/useAuth";
-import { authenticatedFetch } from "@/lib/queryClient";
-import {
-  formatCanonicalQuantity,
-  basisPointsToProgressValue,
-  allocationProgressDisplay,
-} from "@/lib/collection-format";
-import { extractCollectionApiError, parseCollectionFetchError } from "@/lib/collection-api-error";
 import { cn } from "@/lib/utils";
 import type { CollectionListEntry } from "@shared/collection-api";
 
-function buildListQueryKey(userId: string) {
-  return ["/api/me/collections", userId] as const;
-}
-
 async function fetchCollections(): Promise<CollectionListEntry[]> {
-  const res = await authenticatedFetch("/api/me/collections");
-  if (!res.ok) {
-    const apiErr = await extractCollectionApiError(res);
-    if (apiErr) throw apiErr;
-    throw new Error(`Failed to load collections (${res.status})`);
-  }
-  const json = await res.json();
+  const res = await fetch("/api/me/collections");
+  if (!res.ok) throw new Error("Failed to load collections");
+  const json = (await res.json()) as { data: CollectionListEntry[] };
   return json.data as CollectionListEntry[];
 }
 
-function stateBadge(state: string) {
-  switch (state) {
-    case "ready":
-      return {
-        label: "Ready",
-        className: "bg-status-live/15 text-status-live border-status-live/30",
-      };
-    case "active":
-      return {
-        label: "Active",
-        className: "bg-status-live/15 text-status-live border-status-live/30",
-      };
-    case "in_progress":
-      return {
-        label: "In Progress",
-        className: "bg-amber-500/15 text-amber-500 border-amber-500/30",
-      };
-    case "inactive":
-      return { label: "Inactive", className: "bg-muted text-muted-foreground border-border" };
-    default:
-      return null;
-  }
+const familyDot: Record<string, string> = {
+  scout: "bg-status-info",
+  boost: "bg-boost",
+  seasonal: "bg-status-live",
+  community: "bg-category-community",
+};
+
+type FilterValue = "all" | "active" | "in_progress" | "completed";
+type SortValue = "progress" | "recent";
+
+const filterTabs: { value: FilterValue; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "completed", label: "Completed" },
+];
+
+const sortOptions: { value: SortValue; label: string }[] = [
+  { value: "progress", label: "Most progress" },
+  { value: "recent", label: "Recently completed" },
+];
+
+function isComplete(entry: CollectionListEntry): boolean {
+  return entry.award != null;
 }
 
-function CollectionSkeleton() {
-  return (
-    <div className="terminal-shell space-y-3 p-4" aria-hidden="true">
-      <div className="h-4 w-20 animate-pulse rounded-sm bg-muted/60" />
-      <div className="h-5 w-48 animate-pulse rounded-sm bg-muted/60" />
-      <div className="h-3 w-64 animate-pulse rounded-sm bg-muted/40" />
-      <div className="h-2 w-full animate-pulse rounded-sm bg-muted/30" />
-    </div>
-  );
+function matchesFilter(entry: CollectionListEntry, filter: FilterValue): boolean {
+  if (filter === "all") return true;
+  if (filter === "completed") return isComplete(entry);
+  if (filter === "active") return entry.assemblyState === "active";
+  if (filter === "in_progress") return entry.assemblyState === "in_progress";
+  return true;
 }
 
-function EmptyState() {
+function CollectionCard({ entry, index }: { entry: CollectionListEntry; index: number }) {
+  const pct = Math.round(Number(entry.progressBps) / 100);
+  const isComplete = entry.award != null;
+  const remaining = Number(entry.requiredSlotCount) - Number(entry.qualifiedSlotCount);
+
   return (
-    <div className="terminal-shell flex flex-col items-center gap-3 p-8 text-center">
-      <Layers className="h-10 w-10 text-muted-foreground/60" aria-hidden="true" />
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: Math.min(index * 0.03, 0.3) }}
+      className={cn(
+        "terminal-shell group flex w-full flex-col gap-3 p-3 transition-colors sm:p-4",
+        "hover:border-brand/40",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "h-2 w-2 shrink-0 rounded-full",
+                familyDot[entry.family] ?? "bg-muted-foreground",
+              )}
+              aria-hidden
+            />
+            <h2 className="terminal-heading truncate !text-base !font-semibold sm:!text-lg">
+              {entry.title}
+            </h2>
+          </div>
+          <p className="mt-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+            {entry.family} · {entry.slug}
+          </p>
+        </div>
+        {entry.assemblyState === "active" && (
+          <span className="flex shrink-0 items-center gap-1 rounded-pill border border-brand/30 bg-brand/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand">
+            <Lock className="h-3 w-3" /> Active
+          </span>
+        )}
+        {isComplete && (
+          <span className="flex shrink-0 items-center gap-1 rounded-pill border border-market-positive/30 bg-market-positive/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-market-positive">
+            <Trophy className="h-3 w-3" /> Complete
+          </span>
+        )}
+      </div>
+
       <div>
-        <p className="text-sm font-medium text-muted-foreground">No collections yet</p>
-        <p className="mt-1 text-xs text-muted-foreground/70">
-          Collections will appear here as they become available during the season.
-        </p>
+        <Progress
+          value={Number(entry.progressBps) / 10000}
+          animated={entry.assemblyState === "active"}
+        />
+        <div className="mt-1.5 flex items-center justify-between text-xs">
+          <span className="font-mono text-content-strong">{pct}%</span>
+          <span className="text-muted-foreground">
+            {entry.qualifiedSlotCount}/{entry.requiredSlotCount} slots
+          </span>
+        </div>
       </div>
-    </div>
-  );
-}
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="terminal-shell flex flex-col items-center gap-3 p-8 text-center">
-      <div className="rounded-full bg-destructive/10 p-3">
-        <RefreshCw className="h-5 w-5 text-destructive" aria-hidden="true" />
+      <div className="flex items-center justify-between gap-2">
+        {!isComplete && remaining > 0 ? (
+          <span className="text-xs font-medium text-muted-foreground">
+            {remaining} more {remaining === 1 ? "slot" : "slots"} to ready
+          </span>
+        ) : !isComplete ? (
+          <span className="text-xs font-medium text-brand">Ready to complete</span>
+        ) : (
+          <span className="flex items-center gap-1 text-xs font-medium text-premium">
+            <Award className="h-3.5 w-3.5" />
+            {entry.award?.awardId ?? "Award"}
+            {entry.points ? ` · ${entry.points} pts` : ""}
+          </span>
+        )}
+        <span className="flex items-center gap-1 text-xs font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100">
+          Open <ArrowRight className="h-3.5 w-3.5" />
+        </span>
       </div>
-      <div>
-        <p className="text-sm font-medium text-destructive">Failed to load collections</p>
-        <p className="mt-1 text-xs text-muted-foreground max-w-xs">{message}</p>
-      </div>
-      <Button variant="outline" size="sm" onClick={onRetry} data-testid="button-retry-collections">
-        <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-        Retry
-      </Button>
-    </div>
+    </motion.div>
   );
 }
 
 export default function CollectionsPage() {
-  const { user, isAuthenticated } = useAuth();
-  const userId = user?.id ?? "";
+  const [filter, setFilter] = useState<FilterValue>("all");
+  const [sort, setSort] = useState<SortValue>("progress");
+
   const {
-    data: collections,
+    data: collections = [],
     isLoading,
     isError,
-    error,
-    refetch,
   } = useQuery<CollectionListEntry[]>({
-    queryKey: buildListQueryKey(userId),
+    queryKey: ["/api/me/collections"],
     queryFn: fetchCollections,
-    enabled: isAuthenticated && userId.length > 0,
   });
 
+  const visible = useMemo(() => {
+    const filtered = collections.filter((c) => matchesFilter(c, filter));
+    const sorted = [...filtered];
+    if (sort === "progress") {
+      sorted.sort((a, b) => Number(b.progressBps) - Number(a.progressBps));
+    } else {
+      sorted.sort((a, b) => {
+        const aDone = isComplete(a) ? 1 : 0;
+        const bDone = isComplete(b) ? 1 : 0;
+        if (aDone !== bDone) return bDone - aDone;
+        return Number(b.progressBps) - Number(a.progressBps);
+      });
+    }
+    return sorted;
+  }, [collections, filter, sort]);
+
+  const groups = useMemo(() => {
+    const byFamily = new Map<string, CollectionListEntry[]>();
+    for (const entry of visible) {
+      const list = byFamily.get(entry.family) ?? [];
+      list.push(entry);
+      byFamily.set(entry.family, list);
+    }
+    return [...byFamily.entries()];
+  }, [visible]);
+
+  const completedCount = collections.filter((c) => c.award != null).length;
+
   return (
-    <div className="terminal-page p-3 sm:p-4">
-      <div className="mx-auto max-w-3xl space-y-4">
-        {/* Header */}
-        <div className="terminal-shell overflow-hidden p-4 md:p-5">
-          <div className="terminal-strip mb-2">Collections</div>
-          <h1 className="terminal-heading text-xl">Your Collections</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Track progress toward collection milestones and earn awards.
-          </p>
-        </div>
-
-        {/* Screen reader loading announcement */}
-        {isLoading && (
-          <div role="status" aria-live="polite" className="sr-only">
-            Loading collections…
+    <div className="pb-24">
+      {/* Sticky compact header */}
+      <div className="sticky top-0 z-20 border-b border-border/60 bg-background/90 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2">
+            <h1 className="terminal-heading !text-lg !font-bold sm:!text-xl">Collections</h1>
+            <span className="text-xs text-muted-foreground">
+              {completedCount}/{collections.length} completed
+            </span>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="collections-sort">
+              Sort collections
+            </label>
+            <select
+              id="collections-sort"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortValue)}
+              className="rounded-control border border-border/60 bg-surface px-2 py-1.5 text-xs text-content-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+            >
+              {sortOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="mx-auto mt-3 flex max-w-5xl gap-1 overflow-x-auto">
+          {filterTabs.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setFilter(tab.value)}
+              className={cn(
+                "shrink-0 rounded-pill px-3 py-1 text-xs font-medium transition-colors",
+                filter === tab.value
+                  ? "bg-brand/15 text-brand"
+                  : "text-muted-foreground hover:text-content-strong",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {/* Content */}
+      <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6">
         {isLoading ? (
-          <div className="space-y-3" data-testid="collections-loading">
-            <CollectionSkeleton />
-            <CollectionSkeleton />
-            <CollectionSkeleton />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="terminal-shell h-36 animate-pulse p-4" />
+            ))}
           </div>
         ) : isError ? (
-          <ErrorState
-            message={error instanceof Error ? error.message : "An unexpected error occurred."}
-            onRetry={() => refetch()}
-          />
-        ) : !collections || collections.length === 0 ? (
-          <EmptyState />
+          <div className="terminal-shell p-6 text-center text-sm text-muted-foreground">
+            Couldn&apos;t load your collections. Try again in a moment.
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="terminal-shell p-8 text-center text-sm text-muted-foreground">
+            No collections match this filter.
+          </div>
         ) : (
-          <div className="space-y-3" data-testid="collections-list">
-            {collections.map((c) => {
-              const pctValue = basisPointsToProgressValue(c.progressBps);
-              const pctLabel = allocationProgressDisplay(c.progressBps);
-              const badge = stateBadge(c.assemblyState);
-              const hasAward = c.award != null;
-
-              return (
-                <Link
-                  key={c.slug}
-                  href={`/collections/${c.slug}`}
-                  className={cn(
-                    "terminal-shell group block p-4 transition-colors hover:border-brand/40",
-                    hasAward && "border-status-live/20",
-                  )}
-                  data-testid={`collection-card-${c.slug}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="terminal-strip text-[10px]">
-                          {c.sport} &middot; {c.season}
-                        </span>
-                        {c.lifecycleStatus === "final" && (
-                          <span className="terminal-strip text-[10px]">Final</span>
-                        )}
-                        {badge && (
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[10px] px-1.5 py-0", badge.className)}
-                          >
-                            {badge.label}
-                          </Badge>
-                        )}
-                        {hasAward && (
-                          <Award
-                            className="h-4 w-4 text-status-live flex-shrink-0"
-                            aria-label="Award earned"
-                          />
-                        )}
-                      </div>
-                      <h2 className="mt-1.5 truncate font-mono text-sm font-bold uppercase tracking-tight text-content group-hover:text-brand">
-                        {c.title}
-                      </h2>
-                      {c.description && (
-                        <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {c.description}
-                        </p>
-                      )}
-                    </div>
-                    <ChevronRight
-                      className="mt-1 h-4 w-4 flex-shrink-0 text-muted-foreground/40 transition-colors group-hover:text-content"
-                      aria-hidden="true"
-                    />
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="mt-3 space-y-1">
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span>
-                        {formatCanonicalQuantity(c.allocatedQuantity)} /{" "}
-                        {formatCanonicalQuantity(c.requiredQuantity)}{" "}
-                        {c.kind === "player_slots" ? "allocated" : "completed"}
-                      </span>
-                      <span>{pctLabel}</span>
-                    </div>
-                    <Progress
-                      value={pctValue}
-                      className={cn("h-1.5", hasAward && "[&>div]:bg-status-live")}
-                      aria-label={`${pctLabel} progress`}
-                    />
-                  </div>
-
-                  {/* Slot info for player_slots */}
-                  {c.kind === "player_slots" && (
-                    <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
-                      <span>
-                        {c.qualifiedSlotCount} / {c.requiredSlotCount} slots
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Points */}
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">{c.points} pts</span>
-                    {c.award && (
-                      <span className="text-[10px] text-status-live font-mono">
-                        Completed {new Date(c.award.firstCompletedAt).toLocaleDateString()}
-                      </span>
+          <div className="flex flex-col gap-5">
+            {groups.map(([family, entries]) => (
+              <section key={family} className="flex flex-col gap-3">
+                <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      familyDot[family] ?? "bg-muted-foreground",
                     )}
-                  </div>
-                </Link>
-              );
-            })}
+                  />
+                  {family}
+                  <span className="text-muted-foreground/60">· {entries.length}</span>
+                </h2>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {entries.map((entry, index) => (
+                    <Link key={entry.slug} href={`/collections/${entry.slug}`} className="block">
+                      <CollectionCard entry={entry} index={index} />
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>
