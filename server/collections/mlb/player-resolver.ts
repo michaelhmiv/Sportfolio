@@ -36,6 +36,7 @@ function isPositiveQuantity(value: string | null): boolean {
 export function resolveTradeableMembers(
   members: ImportedCollectionMember[],
   rows: PlayerResolutionRow[],
+  requireFunding = true,
 ): { members: ResolvedCollectionMember[]; errors: PlayerResolutionError[] } {
   const byRequestedId = new Map(rows.map((row) => [row.requestedPlayerId, row]));
   const canonicalOwners = new Map<string, number>();
@@ -72,7 +73,7 @@ export function resolveTradeableMembers(
       });
       continue;
     }
-    if (!isPositiveQuantity(row.poolShares) || !isPositiveQuantity(row.poolPlayMoney)) {
+    if (requireFunding && (!isPositiveQuantity(row.poolShares) || !isPositiveQuantity(row.poolPlayMoney))) {
       errors.push({
         code: "PLAYER_NOT_TRADEABLE",
         mlbamId: member.mlbamId,
