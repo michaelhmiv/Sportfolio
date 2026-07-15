@@ -1,6 +1,4 @@
 import { createRoot } from "react-dom/client";
-import type { AgentUiBlock } from "@shared/agent-ui";
-import { AgentUiBlockList } from "@/features/agent/components/agent-ui-blocks";
 import "@/index.css";
 
 const semanticCards = [

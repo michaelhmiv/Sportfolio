@@ -4,16 +4,6 @@ import { describe, expect, it } from "vitest";
 
 const specialSurfaces = [
   "pages/premium.tsx",
-  "features/agent/agent-shell.tsx",
-  "features/agent/components/agent-composer.tsx",
-  "features/agent/components/agent-conversation.tsx",
-  "features/agent/components/agent-status-header.tsx",
-  "features/agent/components/agent-configure-panel.tsx",
-  "features/agent/components/agent-panels.tsx",
-  "features/agent/components/agent-ui-blocks.tsx",
-  "features/agent/components/agent-command-bar.tsx",
-  "features/agent/components/agent-public-preview.tsx",
-  "features/agent/components/agent-strategies-panel.tsx",
   "components/scout-widget.tsx",
   "components/scout-selector.tsx",
   "components/scout-live-ticker.tsx",
@@ -62,20 +52,7 @@ describe("special-feature visual-system contract", () => {
     expect(contents).toContain('aria-label="Close');
   });
 
-  it("keeps the Hermes mobile shell actions touch-safe and named", () => {
-    const contents = source("features/agent/agent-shell.tsx");
-    expect(contents).toContain('aria-label="Open chat threads"');
-    expect(contents).toContain('aria-label="Open Hermes menu"');
-    expect(contents.match(/min-h-11/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
-  });
-
-  it("reserves scrim for overlays instead of ordinary Hermes content cards", () => {
-    const contents = source("features/agent/components/agent-ui-blocks.tsx");
-    expect(contents).not.toContain("bg-scrim");
-    expect(contents.match(/bg-canvas/g)?.length ?? 0).toBeGreaterThanOrEqual(7);
-  });
-
-  it("keeps edge-to-edge keyboard resize and no-history Android back navigation safe", () => {
+  it("does not expose scout database diagnostics in production UI", () => {
     const app = source("App.tsx");
     const config = readFileSync(resolve(process.cwd(), "capacitor.config.ts"), "utf8");
     expect(config).toContain("resizeOnFullScreen: true");
