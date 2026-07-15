@@ -570,9 +570,6 @@ export default function CollectionDetailPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-content truncate">
-                          {slot.slotLabel}
-                        </span>
                         {!slot.isRequired && (
                           <span className="text-[10px] text-muted-foreground">Optional</span>
                         )}
