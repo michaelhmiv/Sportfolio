@@ -32,6 +32,7 @@ import { extractCollectionApiError, parseCollectionFetchError } from "@/lib/coll
 import { cn } from "@/lib/utils";
 import { formatStatLabel } from "@/lib/collection-stats";
 import { openPlayerModal } from "@/lib/player-modal-events";
+import { CollectionCeremonyOverlay } from "@/components/ceremonies/collection-ceremony-overlay";
 import type { CollectionDetailResponse, CollectionSlotEntry } from "@shared/collection-api";
 
 function buildListQueryKey(userId: string) {
@@ -163,6 +164,14 @@ export default function CollectionDetailPage() {
   const [prereqsOpen, setPrereqsOpen] = useState(false);
   const [submittingSlots, setSubmittingSlots] = useState<Set<string>>(new Set());
   const [isCompleting, setIsCompleting] = useState(false);
+  const [ceremonyData, setCeremonyData] = useState<{
+    title: string;
+    artKey: string;
+    sport: string;
+    family: string;
+    kind: "player_slots" | "master";
+    points: number;
+  } | null>(null);
   // Per-slot input state: slotId → current user input string
   const [slotInputs, setSlotInputs] = useState<Map<string, string>>(new Map());
 
@@ -211,6 +220,16 @@ export default function CollectionDetailPage() {
       const eventType = result.data?.eventType;
       if (eventType === "completed") {
         toast({ title: "Collection completed" });
+        if (detail) {
+          setCeremonyData({
+            title: detail.title,
+            artKey: detail.artKey,
+            sport: detail.sport,
+            family: detail.family,
+            kind: detail.kind,
+            points: detail.points,
+          });
+        }
       } else if (eventType === "reactivated") {
         toast({ title: "Collection reactivated" });
       } else {
@@ -791,6 +810,11 @@ export default function CollectionDetailPage() {
           </div>
         )}
       </div>
+      <CollectionCeremonyOverlay
+        isOpen={!!ceremonyData}
+        data={ceremonyData}
+        onClose={() => setCeremonyData(null)}
+      />
     </div>
   );
 }

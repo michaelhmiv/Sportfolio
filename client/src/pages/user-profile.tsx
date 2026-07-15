@@ -15,6 +15,12 @@ import {
   Shield,
   Trophy,
   X,
+  Target,
+  Award,
+  Flag,
+  Layers,
+  TrendingUp,
+  Sparkles,
 } from "lucide-react";
 import type {
   PublicProfileResponse,
@@ -191,6 +197,25 @@ function PrivateProfile() {
 
 // ── badge chip ───────────────────────────────────────────────────────────────
 
+function getFamilyIcon(family: string, kind: string) {
+  switch (family) {
+    case "season_leaders":
+      return <Target className="h-4 w-4 shrink-0 text-emerald-500" />;
+    case "threshold_clubs":
+      return <Award className="h-4 w-4 shrink-0 text-amber-500" />;
+    case "official_awards":
+      return <Trophy className="h-4 w-4 shrink-0 text-yellow-500" />;
+    case "official_teams":
+      return <Flag className="h-4 w-4 shrink-0 text-blue-500" />;
+    case "postseason":
+      return <Flag className="h-4 w-4 shrink-0 text-purple-500" />;
+    case "masters":
+      return <Layers className="h-4 w-4 shrink-0 text-pink-500" />;
+    default:
+      return <Trophy className="h-4 w-4 shrink-0 text-premium" />;
+  }
+}
+
 function BadgeChip({ badge }: { badge: PublicBadgeEntry }) {
   const c = badge.collection;
   return (
@@ -198,7 +223,7 @@ function BadgeChip({ badge }: { badge: PublicBadgeEntry }) {
       className="flex items-center gap-2 rounded-control border border-premium/30 bg-premium-subtle/40 px-3 py-2"
       aria-label={`Badge: ${c.title}`}
     >
-      <Trophy className="h-4 w-4 shrink-0 text-premium" />
+      {getFamilyIcon(c.family || "", c.kind || "player_slots")}
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-semibold text-content">{c.title}</div>
         <div className="text-[10px] text-muted-foreground">
