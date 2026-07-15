@@ -69,7 +69,7 @@ export const MOBILE_NAV_ITEM_IDS = [
   "pools",
   "boosts",
   "portfolio",
-  "analytics",
+  "collections",
 ] as const satisfies readonly AppNavItemId[];
 
 const navItemById = new Map(APP_NAV_ITEMS.map((item) => [item.id, item]));
