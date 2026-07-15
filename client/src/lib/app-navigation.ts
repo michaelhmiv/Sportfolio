@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   BookOpen,
-  Bot,
   BriefcaseBusiness,
   Crown,
   House,
@@ -39,7 +38,6 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   { id: "pools", label: "Player Pools", shortLabel: "Pools", href: "/pools", icon: TrendingUp },
   { id: "analytics", label: "Analytics", href: "/analytics", icon: BarChart3 },
   { id: "wiki", label: "Wiki", href: "/wiki", icon: BookOpen },
-  { id: "agent", label: "Agent", href: "/agent", icon: Bot, requiresAuth: true },
   { id: "boosts", label: "Boosts", href: "/boosts", icon: Zap, tone: "boost" },
   {
     id: "portfolio",
@@ -71,7 +69,7 @@ export const MOBILE_NAV_ITEM_IDS = [
   "pools",
   "boosts",
   "portfolio",
-  "agent",
+  "analytics",
 ] as const satisfies readonly AppNavItemId[];
 
 const navItemById = new Map(APP_NAV_ITEMS.map((item) => [item.id, item]));

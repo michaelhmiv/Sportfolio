@@ -12,6 +12,7 @@ import {
 
 export async function resolveImportedMembers(
   members: ImportedCollectionMember[],
+  requireFunding = true,
 ): Promise<{ members: ResolvedCollectionMember[]; errors: PlayerResolutionError[] }> {
   if (members.length === 0) return { members: [], errors: [] };
 
@@ -47,5 +48,5 @@ export async function resolveImportedMembers(
     if (!player) continue;
     rows.push({ requestedPlayerId, ...player });
   }
-  return resolveTradeableMembers(members, rows);
+  return resolveTradeableMembers(members, rows, requireFunding);
 }

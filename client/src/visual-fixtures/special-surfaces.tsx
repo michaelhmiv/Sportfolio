@@ -1,45 +1,6 @@
 import { createRoot } from "react-dom/client";
-import type { AgentUiBlock } from "@shared/agent-ui";
 import { CollectionProgress } from "@/components/collections/collection-progress";
-import { AgentUiBlockList } from "@/features/agent/components/agent-ui-blocks";
 import "@/index.css";
-
-const agentBlocks: AgentUiBlock[] = [
-  {
-    type: "goal_strip",
-    props: {
-      eyebrow: "Hermes strategy",
-      title: "Monitor thin MLB pools",
-      status: "Tracking",
-      summary: "Watch ownership and price movement without obscuring the market context.",
-      nextStep: "Review opportunities before first pitch",
-      badge: "Live",
-    },
-  },
-  {
-    type: "stat_highlight_strip",
-    props: {
-      title: "Strategy pulse",
-      items: [
-        { label: "Pools watched", value: "12", tone: "accent" },
-        { label: "Signals ready", value: "3", tone: "positive" },
-        { label: "Needs review", value: "1", tone: "warning" },
-      ],
-    },
-  },
-  {
-    type: "execution_checklist",
-    props: {
-      title: "Next run",
-      summary: "Deterministic strategy status treatments",
-      items: [
-        { id: "market", label: "Refresh market depth", status: "done" },
-        { id: "lineups", label: "Confirm starting lineups", status: "in_progress" },
-        { id: "approval", label: "Wait for trade approval", status: "pending" },
-      ],
-    },
-  },
-];
 
 const semanticCards = [
   {
@@ -98,18 +59,6 @@ function SpecialSurfacesFixture() {
         </header>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-          <section className="space-y-3" aria-labelledby="hermes-fixture-heading">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-status-info">
-                Agent workspace
-              </p>
-              <h2 id="hermes-fixture-heading" className="text-lg font-semibold text-content-strong">
-                Hermes structured output
-              </h2>
-            </div>
-            <AgentUiBlockList blocks={agentBlocks} />
-          </section>
-
           <section className="space-y-3" aria-labelledby="collection-fixture-heading">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-category-community">

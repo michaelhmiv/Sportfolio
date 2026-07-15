@@ -80,7 +80,6 @@ const loadSmsLinkPage = () => import("@/pages/sms-link");
 const loadDiscordLinkPage = () => import("@/pages/discord-link");
 const loadAnalyticsPage = () => import("@/pages/analytics");
 const loadNewsPage = () => import("@/pages/news");
-const loadAgentPage = () => import("@/pages/agent");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
 const loadBoostsPage = () => import("@/pages/boosts");
@@ -137,7 +136,6 @@ const SmsLink = lazy(loadSmsLinkPage);
 const DiscordLink = lazy(loadDiscordLinkPage);
 const Analytics = lazy(loadAnalyticsPage);
 const News = lazy(loadNewsPage);
-const Agent = lazy(loadAgentPage);
 const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
 const Boosts = lazy(loadBoostsPage);
@@ -863,9 +861,6 @@ function Router() {
               <Route path="/discord/link" component={DiscordLink} />
               <Route path="/analytics" component={Analytics} />
               <Route path="/news" component={News} />
-
-              {/* Hermes workspace - requires authentication */}
-              <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <Dashboard />}</Route>
 
               {/* Boosts - requires authentication */}
               <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>

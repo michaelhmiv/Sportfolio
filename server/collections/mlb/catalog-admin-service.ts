@@ -160,7 +160,7 @@ export function existingInitialPublication(
 export function createMlbCatalogAdminService(
   dependencies: MlbCatalogAdminDependencies = {
     source: mlbStatsApiCollectionSource,
-    resolveMembers: resolveImportedMembers,
+    resolveMembers: (members) => resolveImportedMembers(members, false),
     collections: collectionService,
     publisher: collectionEventPublisher,
   },
