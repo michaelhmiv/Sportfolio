@@ -28,6 +28,7 @@ export type SubscriptionType =
   | "whale_alert" // Large trade alerts
   | "scout_velocity_update" // Scout velocity updates
   | "trending_players_update" // Trending players updates
+  | "identity" // Public user identity changed
   | "all"; // Receive all events
 
 interface ClientSubscription {

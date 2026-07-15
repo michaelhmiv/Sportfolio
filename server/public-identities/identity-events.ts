@@ -15,9 +15,9 @@ export interface IdentityChangedEvent {
 
 // ── publication (must be imported after the websocket module is loaded) ──────
 
-let _broadcast: ((message: { type: string; data: unknown }) => void) | null = null;
+let _broadcast: ((message: { type: string; [key: string]: unknown }) => void) | null = null;
 
-export function setBroadcastFn(fn: (message: { type: string; data: unknown }) => void): void {
+export function setBroadcastFn(fn: (message: { type: string; [key: string]: unknown }) => void): void {
   _broadcast = fn;
 }
 
