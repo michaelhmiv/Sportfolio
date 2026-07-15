@@ -227,7 +227,11 @@ export function MobilePushCard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="terminal-kicker">Android Notifications</p>
-            <CardTitle className="terminal-heading mt-2 flex items-center gap-2 text-base">
+            <CardTitle
+              role="heading"
+              aria-level={2}
+              className="terminal-heading mt-2 flex items-center gap-2 text-base"
+            >
               <Bell className="h-5 w-5 text-primary" />
               Push Alerts
             </CardTitle>
@@ -262,6 +266,21 @@ export function MobilePushCard() {
         {!isAndroidNativePushSupported() ? (
           <div className="terminal-empty border border-dashed border-border p-4 text-sm text-muted-foreground">
             Android push controls are only available inside the native Android app.
+          </div>
+        ) : statusQuery.isError || preferencesQuery.isError ? (
+          <div
+            role="alert"
+            className="terminal-empty border border-destructive/40 p-4 text-sm text-destructive"
+          >
+            Could not load Android push settings. Refresh this page to try again.
+          </div>
+        ) : statusQuery.isLoading || preferencesQuery.isLoading ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="terminal-empty p-4 text-sm text-muted-foreground"
+          >
+            Loading Android push settings...
           </div>
         ) : (
           <>
@@ -361,6 +380,7 @@ export function MobilePushCard() {
                     <div className="text-xs text-muted-foreground">{notificationType}</div>
                   </div>
                   <Switch
+                    aria-label={`${PUSH_LABELS[notificationType]} Android notifications`}
                     checked={preferences[notificationType]}
                     onCheckedChange={(checked) =>
                       preferenceMutation.mutate({ notificationType, enabled: checked })
