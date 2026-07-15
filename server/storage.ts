@@ -138,6 +138,7 @@ import { pickRegularBoostHolding } from "./boost-share-selection";
 import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
 import { resolveUserEntitlements } from "./services/user-entitlements";
 import { normalizeHoldingLockQuantity } from "./holding-lock-quantity";
+import { hashAuthIdentityEmails } from "./auth-identity-tombstone";
 import {
   holdingReservationDomain,
   loadPlayerIdentityContext,
@@ -854,6 +855,15 @@ function buildIdentityMatchSql(column: unknown, ids: string[]) {
   return inArray(column as never, ids);
 }
 
+export class DeletedUserSyncError extends Error {
+  readonly code = "USER_DELETED";
+
+  constructor() {
+    super("User account has been deleted");
+    this.name = "DeletedUserSyncError";
+  }
+}
+
 export class DatabaseStorage implements IStorage {
   private async getPlayerMultiplier(
     userId: string,
@@ -957,9 +967,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    const authEmailIdentityHashes = hashAuthIdentityEmails(userData.email);
+    const authEmailIdentityHash = authEmailIdentityHashes[0] || null;
     // IDEMPOTENCY GUARD: Check if target user ID already exists
     // This handles duplicate requests/retries where migration already completed
-    const [existingTargetUser] = await db.select().from(users).where(eq(users.id, userData.id!));
+    const [existingTargetUser] = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.id, userData.id!),
+          eq(users.authProviderSubject, userData.id!),
+          sql`${userData.id!} = ANY(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]))`,
+        ),
+      );
     if (existingTargetUser) {
       console.log(
         `[LAZY_MIGRATION] User ${userData.email} already exists with ID ${userData.id}, skipping migration`,
@@ -968,6 +989,13 @@ export class DatabaseStorage implements IStorage {
       const [updatedUser] = await db
         .update(users)
         .set({
+          authProviderSubject: existingTargetUser.authProviderSubject || userData.id,
+          authProviderSubjects: sql`CASE
+            WHEN ${userData.id!} = ANY(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]))
+              THEN COALESCE(${users.authProviderSubjects}, ARRAY[]::text[])
+            ELSE array_append(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]), ${userData.id!})
+          END`,
+          authEmailIdentityHash,
           email: userData.email || existingTargetUser.email,
           firstName: userData.firstName ?? existingTargetUser.firstName,
           lastName: userData.lastName ?? existingTargetUser.lastName,
@@ -975,178 +1003,60 @@ export class DatabaseStorage implements IStorage {
           username: userData.username || existingTargetUser.username,
           updatedAt: new Date(),
         })
-        .where(eq(users.id, userData.id!))
+        .where(and(eq(users.id, existingTargetUser.id), isNull(users.deletedAt)))
         .returning();
+      if (!updatedUser) {
+        throw new DeletedUserSyncError();
+      }
       return updatedUser;
     }
 
-    // Lazy migration: Look up existing user by email first to preserve their data
-    // This handles the case where users have existing accounts with different IDs
-    // (e.g., migrating from old auth system to Supabase)
+    // Resolve an existing account by email without rewriting its primary key. Collection
+    // awards and state events are intentionally immutable, so changing the user id would
+    // either fail or cascade-delete identity history. The auth layer uses the returned
+    // canonical id for request authorization.
     if (userData.email) {
-      // Use transaction with FOR UPDATE to prevent race conditions
       const migrationResult = await db.transaction(async (tx) => {
-        // Lock the row to prevent concurrent migrations of the same user
-        // Use case-insensitive email matching to handle OAuth providers returning different cases
         const [existingUserByEmail] = await tx
           .select()
           .from(users)
-          .where(sql`LOWER(${users.email}) = LOWER(${userData.email})`)
+          .where(
+            and(sql`LOWER(${users.email}) = LOWER(${userData.email})`, isNull(users.deletedAt)),
+          )
           .for("update");
 
         if (!existingUserByEmail || existingUserByEmail.id === userData.id) {
-          // No migration needed - either no user with this email, or same ID
           return null;
         }
 
-        // Found existing user with different ID - update their record with new auth ID
-        // This preserves all their holdings, orders, trades, and balances
         console.log(
-          `[LAZY_MIGRATION] Migrating user ${userData.email} from ID ${existingUserByEmail.id} to ${userData.id}`,
+          `[AUTH_IDENTITY] Reusing canonical user ${existingUserByEmail.id} for auth identity ${userData.id}`,
         );
 
-        const oldId = existingUserByEmail.id;
-        const newId = userData.id;
-
-        // Step 1: Temporarily clear unique constraints on old row to allow new row insert
-        // Email and username have unique constraints, so we clear them first
-        await tx
+        const [canonicalUser] = await tx
           .update(users)
           .set({
-            email: null,
-            username: `__migrating_${oldId}`,
+            authProviderSubject: userData.id,
+            authProviderSubjects: sql`CASE
+              WHEN ${userData.id!} = ANY(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]))
+                THEN COALESCE(${users.authProviderSubjects}, ARRAY[]::text[])
+              ELSE array_append(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]), ${userData.id!})
+            END`,
+            authEmailIdentityHash,
+            email: userData.email || existingUserByEmail.email,
+            username: userData.username || existingUserByEmail.username,
+            firstName: userData.firstName ?? existingUserByEmail.firstName,
+            lastName: userData.lastName ?? existingUserByEmail.lastName,
+            profileImageUrl: userData.profileImageUrl ?? existingUserByEmail.profileImageUrl,
+            updatedAt: new Date(),
           })
-          .where(eq(users.id, oldId));
+          .where(and(eq(users.id, existingUserByEmail.id), isNull(users.deletedAt)))
+          .returning();
 
-        // Step 2: Insert a new user row with the new ID, copying all data from old row
-        await tx.insert(users).values({
-          id: newId,
-          email: existingUserByEmail.email,
-          username: userData.username || existingUserByEmail.username,
-          firstName: userData.firstName ?? existingUserByEmail.firstName,
-          lastName: userData.lastName ?? existingUserByEmail.lastName,
-          profileImageUrl: userData.profileImageUrl ?? existingUserByEmail.profileImageUrl,
-          balance: existingUserByEmail.balance,
-          isAdmin: existingUserByEmail.isAdmin,
-          isPremium: existingUserByEmail.isPremium,
-          premiumExpiresAt: existingUserByEmail.premiumExpiresAt,
-          hasSeenOnboarding: existingUserByEmail.hasSeenOnboarding,
-          isBot: existingUserByEmail.isBot,
-          totalSharesVested: existingUserByEmail.totalSharesVested,
-          totalMarketOrders: existingUserByEmail.totalMarketOrders,
-          totalTradesExecuted: existingUserByEmail.totalTradesExecuted,
-          createdAt: existingUserByEmail.createdAt,
-          updatedAt: new Date(),
-        });
-
-        // Step 3: Update all FK references to point to the new user ID
-        // (New ID now exists, so FK constraints are satisfied)
-
-        // Update vesting records
-        await tx.update(vesting).set({ userId: newId }).where(eq(vesting.userId, oldId));
-
-        // Update holdings
-        await tx.update(holdings).set({ userId: newId }).where(eq(holdings.userId, oldId));
-
-        // Update holdings locks
-        await tx
-          .update(holdingsLocks)
-          .set({ userId: newId })
-          .where(eq(holdingsLocks.userId, oldId));
-
-        // Update balance locks
-        await tx.update(balanceLocks).set({ userId: newId }).where(eq(balanceLocks.userId, oldId));
-
-        // Update orders
-        await tx.update(orders).set({ userId: newId }).where(eq(orders.userId, oldId));
-
-        // Update trades (buyer and seller)
-        await tx.update(trades).set({ buyerId: newId }).where(eq(trades.buyerId, oldId));
-
-        await tx.update(trades).set({ sellerId: newId }).where(eq(trades.sellerId, oldId));
-
-        // Update vesting splits
-        await tx
-          .update(vestingSplits)
-          .set({ userId: newId })
-          .where(eq(vestingSplits.userId, oldId));
-
-        // Update vesting claims
-        await tx
-          .update(vestingClaims)
-          .set({ userId: newId })
-          .where(eq(vestingClaims.userId, oldId));
-
-        // Update vesting presets
-        await tx
-          .update(vestingPresets)
-          .set({ userId: newId })
-          .where(eq(vestingPresets.userId, oldId));
-
-        // Update portfolio snapshots
-        await tx
-          .update(portfolioSnapshots)
-          .set({ userId: newId })
-          .where(eq(portfolioSnapshots.userId, oldId));
-
-        // Update premium checkout sessions
-        await tx
-          .update(premiumCheckoutSessions)
-          .set({ userId: newId })
-          .where(eq(premiumCheckoutSessions.userId, oldId));
-
-        // Update premium orders
-        await tx
-          .update(premiumOrders)
-          .set({ userId: newId })
-          .where(eq(premiumOrders.userId, oldId));
-
-        // Update premium trades (buyer and seller)
-        await tx
-          .update(premiumTrades)
-          .set({ buyerId: newId })
-          .where(eq(premiumTrades.buyerId, oldId));
-
-        await tx
-          .update(premiumTrades)
-          .set({ sellerId: newId })
-          .where(eq(premiumTrades.sellerId, oldId));
-
-        // Update whop payments
-        await tx.update(whopPayments).set({ userId: newId }).where(eq(whopPayments.userId, oldId));
-
-        // Update rewarded scout boost grants
-        await tx
-          .update(rewardedScoutBoostGrants)
-          .set({ userId: newId })
-          .where(eq(rewardedScoutBoostGrants.userId, oldId));
-
-        // Update push notification delivery state
-        await tx
-          .update(userPushTokens)
-          .set({ userId: newId })
-          .where(eq(userPushTokens.userId, oldId));
-
-        await tx
-          .update(userNotificationPreferences)
-          .set({ userId: newId })
-          .where(eq(userNotificationPreferences.userId, oldId));
-
-        await tx
-          .update(pushNotificationEvents)
-          .set({ userId: newId })
-          .where(eq(pushNotificationEvents.userId, oldId));
-
-        // Update blog posts (author)
-        await tx.update(blogPosts).set({ authorId: newId }).where(eq(blogPosts.authorId, oldId));
-
-        // Step 4: Delete the old user row (all FKs now point to new row)
-        await tx.delete(users).where(eq(users.id, oldId));
-
-        // Return the migrated user
-        const [result] = await tx.select().from(users).where(eq(users.id, newId!));
-        console.log(`[LAZY_MIGRATION] Successfully migrated user ${userData.email} to new auth ID`);
-        return result;
+        if (!canonicalUser) {
+          throw new DeletedUserSyncError();
+        }
+        return canonicalUser;
       });
 
       // If migration happened, return the migrated user
@@ -1155,27 +1065,68 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Standard upsert: either new user or same ID (no migration needed)
-    const [user] = await db
-      .insert(users)
-      .values({
-        ...userData,
-        balance: userData.balance || "10000.00", // Starting balance if new user
-      })
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          profileImageUrl: userData.profileImageUrl,
-          username: userData.username,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+    if (authEmailIdentityHashes.length > 0) {
+      const [deletedEmailIdentity] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            inArray(users.authEmailIdentityHash, authEmailIdentityHashes),
+            isNotNull(users.deletedAt),
+          ),
+        );
+      if (deletedEmailIdentity) {
+        throw new DeletedUserSyncError();
+      }
+    }
 
-    return user;
+    // Standard upsert: either new user or same ID (no migration needed). The
+    // email identity hash is retained after erasure and uniquely serializes a
+    // concurrent first authentication against account deletion.
+    try {
+      const [user] = await db
+        .insert(users)
+        .values({
+          ...userData,
+          authProviderSubject: userData.id,
+          authProviderSubjects: [userData.id!],
+          authEmailIdentityHash,
+          balance: userData.balance || "10000.00", // Starting balance if new user
+        })
+        .onConflictDoUpdate({
+          target: users.id,
+          setWhere: isNull(users.deletedAt),
+          set: {
+            authProviderSubject: userData.id,
+            authProviderSubjects: sql`CASE
+              WHEN ${userData.id!} = ANY(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]))
+                THEN COALESCE(${users.authProviderSubjects}, ARRAY[]::text[])
+              ELSE array_append(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]), ${userData.id!})
+            END`,
+            authEmailIdentityHash,
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            profileImageUrl: userData.profileImageUrl,
+            username: userData.username,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      if (!user) {
+        throw new DeletedUserSyncError();
+      }
+      return user;
+    } catch (error: any) {
+      if (
+        error?.code === "23505" &&
+        String(error?.constraint || "").includes("auth_email_identity_hash")
+      ) {
+        throw new DeletedUserSyncError();
+      }
+      throw error;
+    }
   }
 
   async listUserApiTokens(userId: string): Promise<UserApiToken[]> {
@@ -1187,17 +1138,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUserApiToken(token: InsertUserApiToken): Promise<UserApiToken> {
-    const [created] = await db.insert(userApiTokens).values(token).returning();
-    return created;
+    return db.transaction(async (tx) => {
+      const [activeUser] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, token.userId), isNull(users.deletedAt)))
+        .for("update");
+      if (!activeUser) {
+        throw new Error("Cannot create an API token for a deleted or missing user");
+      }
+      const [created] = await tx.insert(userApiTokens).values(token).returning();
+      return created;
+    });
   }
 
   async getUserApiTokenByHash(tokenHash: string): Promise<UserApiToken | undefined> {
-    const [token] = await db
-      .select()
+    const [row] = await db
+      .select({ token: userApiTokens })
       .from(userApiTokens)
-      .where(and(eq(userApiTokens.tokenHash, tokenHash), isNull(userApiTokens.revokedAt)));
+      .innerJoin(users, eq(users.id, userApiTokens.userId))
+      .where(
+        and(
+          eq(userApiTokens.tokenHash, tokenHash),
+          isNull(userApiTokens.revokedAt),
+          isNull(users.deletedAt),
+        ),
+      );
 
-    return token || undefined;
+    return row?.token;
   }
 
   async markUserApiTokenUsed(tokenId: string): Promise<void> {
@@ -1256,6 +1224,15 @@ export class DatabaseStorage implements IStorage {
     }
 
     return db.transaction(async (tx) => {
+      const [activeUser] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, tokenInput.userId), isNull(users.deletedAt)))
+        .for("update");
+      if (!activeUser) {
+        throw new DeletedUserSyncError();
+      }
+
       if (normalizedDeviceId) {
         await tx
           .update(userPushTokens)
@@ -1889,7 +1866,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUsername(userId: string, username: string): Promise<User | undefined> {
-    await db.update(users).set({ username, updatedAt: new Date() }).where(eq(users.id, userId));
+    await db
+      .update(users)
+      .set({ username, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), isNull(users.deletedAt)));
 
     return await this.getUser(userId);
   }
@@ -1898,7 +1878,7 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(users)
       .set({ profileImageUrl: imageUrl, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+      .where(and(eq(users.id, userId), isNull(users.deletedAt)));
 
     return await this.getUser(userId);
   }

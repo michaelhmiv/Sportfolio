@@ -3,14 +3,18 @@ import { createClient } from "@supabase/supabase-js";
 import {
   accountDeletionRequests,
   userApiTokens,
+  userBadgePreferences,
+  userFeaturedCollections,
   userPhoneLinks,
+  userPushDevices,
   userPushTokens,
   users,
   type AccountDeletionRequest,
 } from "@shared/schema";
-import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lte, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { logger } from "../lib/logger";
+import { hashAuthIdentityEmail } from "../auth-identity-tombstone";
 
 const DEFAULT_DELETION_GRACE_HOURS = 24;
 const MIN_DELETION_GRACE_HOURS = 1;
@@ -77,7 +81,12 @@ async function deleteSupabaseAuthUser(
 
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
   if (error) {
-    return { deleted: false, error: error.message || "supabase_delete_failed" };
+    const status = "status" in error ? Number(error.status) : 0;
+    const message = error.message || "supabase_delete_failed";
+    if (status === 404 || /user\s+not\s+found/i.test(message)) {
+      return { deleted: true, error: null };
+    }
+    return { deleted: false, error: message };
   }
 
   return { deleted: true, error: null };
@@ -85,7 +94,35 @@ async function deleteSupabaseAuthUser(
 
 export async function ensureAccountDeletionSchema(): Promise<void> {
   try {
-    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at timestamp;`);
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS deleted_at timestamp,
+        ADD COLUMN IF NOT EXISTS profile_visibility varchar(10) NOT NULL DEFAULT 'public',
+        ADD COLUMN IF NOT EXISTS auth_provider_subject varchar,
+        ADD COLUMN IF NOT EXISTS auth_provider_subjects text[] NOT NULL DEFAULT ARRAY[]::text[],
+        ADD COLUMN IF NOT EXISTS auth_email_identity_hash varchar(64);
+    `);
+    await db.execute(sql`
+      UPDATE users
+      SET auth_provider_subjects = ARRAY(
+        SELECT DISTINCT subject
+        FROM unnest(array_remove(ARRAY[users.id, users.auth_provider_subject], NULL)) AS subject
+      )
+      WHERE cardinality(auth_provider_subjects) = 0;
+    `);
+    await db.execute(sql`
+      UPDATE users
+      SET auth_provider_subject = id
+      WHERE auth_provider_subject IS NULL;
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS users_auth_provider_subject_unique
+      ON users (auth_provider_subject);
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS users_auth_email_identity_hash_unique
+      ON users (auth_email_identity_hash);
+    `);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS account_deletion_requests (
         id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -241,7 +278,7 @@ async function processSingleAccountDeletionRequest(
       .where(eq(accountDeletionRequests.id, request.id))
       .for("update");
 
-    if (!locked || locked.status !== "pending") {
+    if (!locked || (locked.status !== "pending" && locked.status !== "provider_cleanup_pending")) {
       return { status: "skipped" as const };
     }
 
@@ -265,12 +302,29 @@ async function processSingleAccountDeletionRequest(
       return { status: "failed" as const, request: failed, userId: locked.userId };
     }
 
+    if (locked.status === "provider_cleanup_pending" && user.deletedAt) {
+      return {
+        status: "ready" as const,
+        request: locked,
+        userId: user.id,
+        authProviderSubjects: Array.from(
+          new Set(
+            [...(user.authProviderSubjects || []), user.authProviderSubject, user.id].filter(
+              Boolean,
+            ),
+          ),
+        ) as string[],
+        deletedUsername: user.username || buildDeletedUsername(user.id),
+      };
+    }
+
     const deletedUsername = buildDeletedUsername(user.id);
 
     await tx
       .update(users)
       .set({
         email: null,
+        authEmailIdentityHash: hashAuthIdentityEmail(user.email),
         firstName: null,
         lastName: null,
         profileImageUrl: null,
@@ -283,20 +337,19 @@ async function processSingleAccountDeletionRequest(
       })
       .where(eq(users.id, user.id));
 
+    // Trophy Case selections are presentation preferences, not retained ledger
+    // records. Account deletion soft-deletes the user row, so FK cascades do not
+    // fire; erase these rows explicitly inside the same transaction.
+    await tx.delete(userBadgePreferences).where(eq(userBadgePreferences.userId, user.id));
+    await tx.delete(userFeaturedCollections).where(eq(userFeaturedCollections.userId, user.id));
+    await tx.delete(userPushDevices).where(eq(userPushDevices.userId, user.id));
+
     await tx
       .update(userApiTokens)
       .set({ revokedAt: now })
       .where(and(eq(userApiTokens.userId, user.id), sql`${userApiTokens.revokedAt} IS NULL`));
 
-    await tx
-      .update(userPushTokens)
-      .set({
-        isActive: false,
-        invalidatedAt: now,
-        lastError: "account_deleted",
-        updatedAt: now,
-      })
-      .where(eq(userPushTokens.userId, user.id));
+    await tx.delete(userPushTokens).where(eq(userPushTokens.userId, user.id));
 
     await tx
       .update(userPhoneLinks)
@@ -311,11 +364,12 @@ async function processSingleAccountDeletionRequest(
     const [processingMarked] = await tx
       .update(accountDeletionRequests)
       .set({
-        status: "processing",
+        status: "provider_cleanup_pending",
         metadata: {
           ...toMetadataObject(locked.metadata),
           processingStartedAtIso: now.toISOString(),
           processingUserHash: hashIdentifier(user.id),
+          localErasureCompletedAtIso: now.toISOString(),
         },
       })
       .where(eq(accountDeletionRequests.id, locked.id))
@@ -325,6 +379,11 @@ async function processSingleAccountDeletionRequest(
       status: "ready" as const,
       request: processingMarked,
       userId: user.id,
+      authProviderSubjects: Array.from(
+        new Set(
+          [...(user.authProviderSubjects || []), user.authProviderSubject, user.id].filter(Boolean),
+        ),
+      ) as string[],
       deletedUsername,
     };
   });
@@ -344,20 +403,31 @@ async function processSingleAccountDeletionRequest(
     return "failed";
   }
 
-  const authDeletion = await deleteSupabaseAuthUser(lockResult.userId);
+  const authDeletionResults = await Promise.all(
+    lockResult.authProviderSubjects.map((subject) => deleteSupabaseAuthUser(subject)),
+  );
+  const authDeletion = {
+    deleted: authDeletionResults.every((result) => result.deleted),
+    error:
+      authDeletionResults
+        .map((result) => result.error)
+        .filter(Boolean)
+        .join("; ") || undefined,
+  };
   const completionTime = new Date();
 
   const [completed] = await db
     .update(accountDeletionRequests)
     .set({
-      status: "completed",
-      processedAt: completionTime,
+      status: authDeletion.deleted ? "completed" : "provider_cleanup_pending",
+      processedAt: authDeletion.deleted ? completionTime : null,
       retainedRecordsNote: RETAINED_RECORDS_NOTE,
       metadata: {
         ...toMetadataObject(lockResult.request.metadata),
-        processedAtIso: completionTime.toISOString(),
+        ...(authDeletion.deleted ? { processedAtIso: completionTime.toISOString() } : {}),
         authDeletionAttemptedAtIso: completionTime.toISOString(),
-        authDeletionStatus: authDeletion.deleted ? "deleted" : "not_deleted",
+        authDeletionSubjectCount: lockResult.authProviderSubjects.length,
+        authDeletionStatus: authDeletion.deleted ? "deleted" : "retry_pending",
         authDeletionError: authDeletion.error,
       },
     })
@@ -374,7 +444,7 @@ async function processSingleAccountDeletionRequest(
     "[ACCOUNT_DELETION] Processed account deletion request",
   );
 
-  return "completed";
+  return authDeletion.deleted ? "completed" : "failed";
 }
 
 export async function processDueAccountDeletionRequests(
@@ -386,7 +456,10 @@ export async function processDueAccountDeletionRequests(
     .from(accountDeletionRequests)
     .where(
       and(
-        eq(accountDeletionRequests.status, "pending"),
+        or(
+          eq(accountDeletionRequests.status, "pending"),
+          eq(accountDeletionRequests.status, "provider_cleanup_pending"),
+        ),
         lte(accountDeletionRequests.effectiveAt, now),
       ),
     )

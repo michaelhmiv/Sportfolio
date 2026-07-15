@@ -95,7 +95,7 @@ export function NotificationSettingsCard() {
     };
   }, [isSupported, refreshPermissionState]);
 
-  const { data, isLoading } = useQuery<NotificationSettingsResponse>({
+  const { data, isLoading, isError } = useQuery<NotificationSettingsResponse>({
     queryKey: ["/api/account/notifications"],
   });
 
@@ -232,7 +232,11 @@ export function NotificationSettingsCard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="terminal-kicker">Notification Settings</p>
-            <CardTitle className="terminal-heading mt-2 flex items-center gap-2 text-base">
+            <CardTitle
+              role="heading"
+              aria-level={2}
+              className="terminal-heading mt-2 flex items-center gap-2 text-base"
+            >
               <Bell className="h-5 w-5 text-primary" />
               Push Categories
             </CardTitle>
@@ -247,8 +251,19 @@ export function NotificationSettingsCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isLoading || !settings ? (
-          <div className="terminal-empty px-4 py-4 text-sm text-muted-foreground">
+        {isError ? (
+          <div
+            role="alert"
+            className="terminal-empty border border-destructive/40 px-4 py-4 text-sm text-destructive"
+          >
+            Could not load notification settings. Refresh this page to try again.
+          </div>
+        ) : isLoading || !settings ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="terminal-empty px-4 py-4 text-sm text-muted-foreground"
+          >
             Loading notification settings...
           </div>
         ) : (
@@ -262,6 +277,7 @@ export function NotificationSettingsCard() {
                   </div>
                 </div>
                 <Switch
+                  aria-label="Enable all push notifications"
                   checked={settings.pushEnabled}
                   onCheckedChange={handleMasterToggle}
                   disabled={updateSettingsMutation.isPending}
@@ -363,6 +379,7 @@ export function NotificationSettingsCard() {
                       </div>
                     </div>
                     <Switch
+                      aria-label={`${category.label} notifications`}
                       checked={checked}
                       onCheckedChange={(value) => handleCategoryToggle(category.id, value)}
                       disabled={updateSettingsMutation.isPending}

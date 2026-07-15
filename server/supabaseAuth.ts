@@ -79,7 +79,7 @@ async function verifySupabaseToken(token: string): Promise<SupabaseUser | null> 
   }
 }
 
-async function upsertSupabaseUser(supabaseUser: SupabaseUser): Promise<void> {
+async function upsertSupabaseUser(supabaseUser: SupabaseUser): Promise<string> {
   try {
     const fullName = supabaseUser.user_metadata?.full_name || "";
     const nameParts = fullName.split(" ");
@@ -120,19 +120,28 @@ async function upsertSupabaseUser(supabaseUser: SupabaseUser): Promise<void> {
     console.log(
       `[SUPABASE_AUTH] Upserted user: ${supabaseUser.email} (id: ${upsertedUser.id}, admin: ${upsertedUser.isAdmin}, preserved: ${!!existingUser?.username})`,
     );
+    return upsertedUser.id;
   } catch (error: any) {
     console.error("[SUPABASE_AUTH] Error upserting user:", error.message);
     throw error;
   }
 }
 
-function buildRequestUser(supabaseUser: SupabaseUser) {
+function isDeletedUserSyncError(error: unknown): error is Error & { code: "USER_DELETED" } {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as Error & { code?: string }).code === "USER_DELETED"
+  );
+}
+
+function buildRequestUser(supabaseUser: SupabaseUser, canonicalUserId = supabaseUser.id) {
   const fullName = supabaseUser.user_metadata?.full_name || "";
   const nameParts = fullName.split(" ");
 
   return {
     claims: {
-      sub: supabaseUser.id,
+      sub: canonicalUserId,
       email: supabaseUser.email,
       first_name: supabaseUser.user_metadata?.first_name || nameParts[0],
       last_name: supabaseUser.user_metadata?.last_name || nameParts.slice(1).join(" "),
@@ -209,15 +218,21 @@ export async function isAuthenticated(
     return;
   }
 
+  let canonicalUserId: string;
   try {
-    await upsertSupabaseUser(supabaseUser);
+    canonicalUserId = await upsertSupabaseUser(supabaseUser);
   } catch (error: any) {
+    if (isDeletedUserSyncError(error)) {
+      console.warn(`[SUPABASE_AUTH] Rejected deleted user identity: ${supabaseUser.id}`);
+      res.status(401).json({ message: "Unauthorized - Account deleted" });
+      return;
+    }
     console.error("[SUPABASE_AUTH] Failed to sync authenticated user:", error?.message || error);
     res.status(503).json({ message: "Authentication temporarily unavailable" });
     return;
   }
 
-  (req as any).user = buildRequestUser(supabaseUser);
+  (req as any).user = buildRequestUser(supabaseUser, canonicalUserId);
 
   next();
 }
@@ -261,10 +276,14 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
 
     if (supabaseUser) {
       try {
-        await upsertSupabaseUser(supabaseUser);
-        (req as any).user = buildRequestUser(supabaseUser);
+        const canonicalUserId = await upsertSupabaseUser(supabaseUser);
+        (req as any).user = buildRequestUser(supabaseUser, canonicalUserId);
       } catch (error) {
-        console.error("[SUPABASE_AUTH] Error in optionalAuth:", error);
+        if (isDeletedUserSyncError(error)) {
+          console.warn(`[SUPABASE_AUTH] Ignored deleted optional identity: ${supabaseUser.id}`);
+        } else {
+          console.error("[SUPABASE_AUTH] Error in optionalAuth:", error);
+        }
       }
     }
   }

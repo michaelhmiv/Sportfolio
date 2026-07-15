@@ -1,42 +1,29 @@
-﻿import { formatDistanceToNow } from "date-fns";
-import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useParams } from "wouter";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useParams } from "wouter";
 import {
-  Activity,
-  ArrowDownRight,
-  ArrowUpDown,
-  ArrowUpRight,
+  AlertTriangle,
+  Calendar,
   ChevronDown,
   ChevronUp,
-  Clock,
-  DollarSign,
-  Edit2,
-  LineChart as LineChartIcon,
+  Globe,
   Loader2,
-  LogOut,
-  Moon,
+  Lock,
+  RefreshCw,
+  RotateCw,
   Settings,
-  Trash2,
-  Sun,
+  Shield,
   Trophy,
-  Upload,
-  Wallet,
+  X,
 } from "lucide-react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import type { Player } from "@shared/schema";
-import { CliAccessCard } from "@/components/cli-access-card";
-import { NotificationSettingsCard } from "@/components/notification-settings-card";
-import { MobilePushCard } from "@/components/mobile-push-card";
-import { PlayerName } from "@/components/player-name";
+import type {
+  PublicProfileResponse,
+  PrivateProfileSentinel,
+  TrophyCaseEditorResponse,
+  EligibleCollectionEntry,
+  PublicBadgeEntry,
+  PublicFeaturedEntry,
+} from "@shared/trophy-case";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,137 +35,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import {
-  formatAdaptiveCurrency as formatSharedAdaptiveCurrency,
-  formatSignedAdaptiveCurrency as formatSharedSignedAdaptiveCurrency,
-  formatStandardCurrency as formatSharedStandardCurrency,
-} from "@/lib/currency";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getSupabase } from "@/lib/supabase";
+import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { useWebSocket } from "@/lib/websocket";
 
-type LeaderboardCategory =
-  | "netWorth"
-  | "cashBalance"
-  | "portfolioValue"
-  | "tradingVolume24h"
-  | "marketOrders";
+// ── types ────────────────────────────────────────────────────────────────────
 
-interface RankedMetric {
-  category: LeaderboardCategory;
-  label: string;
-  rank: number | null;
-  value: number;
-  rankChange: number | null;
-}
+type ProfileData = PublicProfileResponse | PrivateProfileSentinel;
 
-interface PerformanceWindow {
-  amount: number | null;
-  percent: number | null;
-  rankChange: number | null;
-}
+// ── style tokens ─────────────────────────────────────────────────────────────
 
-interface ProfileHolding {
-  id: string;
-  assetId: string;
-  quantity: number;
-  avgCostBasis: number;
-  lastTradePrice: number;
-  marketValue: number;
-  pnl: number;
-  pnlPercent: number;
-  shareOfPortfolio: number;
-  player?: Player;
-}
-
-interface ProfileActivity {
-  id: string;
-  timestamp: string;
-  category: "market" | "scout";
-  type: string;
-  description: string;
-  cashDelta?: string;
-  shareDelta?: number;
-  metadata: {
-    playerId?: string;
-    playerName?: string;
-  };
-}
-
-interface UserProfileResponse {
-  user: {
-    id: string;
-    username: string;
-    firstName: string | null;
-    lastName: string | null;
-    profileImageUrl?: string | null;
-    isAdmin: boolean;
-    isPremium: boolean;
-    createdAt: string;
-  };
-  updatedAt: string;
-  stats: {
-    netWorth: number;
-    cashBalance: number;
-    portfolioValue: number;
-    tradingVolume24h: number;
-    totalMarketOrders: number;
-    totalTradesExecuted: number;
-    holdingsCount: number;
-    activeSports: number;
-  };
-  rankings: Record<LeaderboardCategory, RankedMetric>;
-  performance: {
-    change24h: PerformanceWindow;
-    change7d: PerformanceWindow;
-    change30d: PerformanceWindow;
-  };
-  history: {
-    timeRange: string;
-    points: Array<{
-      date: string;
-      cashBalance: number;
-      portfolioValue: number;
-      netWorth: number;
-      cashRank: number | null;
-      portfolioRank: number | null;
-      netWorthRank: number | null;
-    }>;
-  };
-  holdingsSummary: {
-    topHoldings: ProfileHolding[];
-    sportExposure: Array<{ sport: string; value: number; percentage: number }>;
-  };
-  activity: ProfileActivity[];
-  holdings: ProfileHolding[];
-}
-
-type PublicHoldingsSortField =
-  | "name"
-  | "quantity"
-  | "avgCost"
-  | "price"
-  | "value"
-  | "pnl"
-  | "weight";
-type SortDirection = "asc" | "desc";
-
-// Compact mobile standards aligned with the dashboard density.
-const PROFILE_COMPACT_TYPE = {
+const S = {
   pageTitle: "text-xl font-bold sm:text-2xl",
   sectionTitle: "terminal-heading text-sm font-medium uppercase tracking-wide",
   label: "text-[10px] uppercase tracking-wide text-muted-foreground sm:text-xs",
@@ -186,1306 +57,946 @@ const PROFILE_COMPACT_TYPE = {
   body: "text-xs text-muted-foreground sm:text-sm",
   primaryValue: "font-mono text-base font-bold sm:text-xl",
   secondaryValue: "font-mono text-xs font-semibold sm:text-sm",
-};
+} as const;
 
-const PUBLIC_HOLDINGS_SORT_OPTIONS: Array<{ value: PublicHoldingsSortField; label: string }> = [
-  { value: "value", label: "Value" },
-  { value: "pnl", label: "P&L" },
-  { value: "weight", label: "Weight" },
-  { value: "quantity", label: "Quantity" },
-  { value: "price", label: "Price" },
-  { value: "avgCost", label: "Avg Cost" },
-  { value: "name", label: "Name" },
-];
+// ── helpers ──────────────────────────────────────────────────────────────────
 
-function formatCurrency(value: number) {
-  return formatSharedStandardCurrency(value);
+function usernameFallback(username: string | null): string {
+  return username || "User";
 }
 
-function formatAdaptiveCurrency(value: number) {
-  return formatSharedAdaptiveCurrency(value);
+function initials(username: string | null): string {
+  return (username || "??").slice(0, 2).toUpperCase();
 }
 
-function formatSignedAdaptiveCurrency(value: number) {
-  return formatSharedSignedAdaptiveCurrency(value, { zeroDisplay: "$0.00" });
-}
-
-function formatSignedPercent(value: number) {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
-function formatQuantity(value: number) {
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
-    maximumFractionDigits: 2,
+function memberSince(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
   });
 }
 
-function formatMetricValue(category: LeaderboardCategory, value: number) {
-  if (category === "marketOrders") {
-    return `${Math.round(value).toLocaleString()} orders`;
-  }
+// ── loading skeleton ─────────────────────────────────────────────────────────
 
-  return formatAdaptiveCurrency(value);
-}
-
-function RankMovement({ change }: { change: number | null }) {
-  if (change === null || change === 0) {
-    return <span className={PROFILE_COMPACT_TYPE.meta}>Flat</span>;
-  }
-
-  const positive = change > 0;
-  const Icon = positive ? ArrowUpRight : ArrowDownRight;
-
+function ProfileSkeleton() {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 text-[10px] sm:text-xs",
-        positive ? "text-positive" : "text-destructive",
-      )}
+    <div
+      className="terminal-page p-3 sm:p-4"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Loading profile"
     >
-      <Icon className="h-3 w-3" />
-      {positive ? "+" : ""}
-      {change}
-    </span>
+      <div className="mx-auto max-w-3xl space-y-4">
+        {/* Header skeleton */}
+        <Card variant="terminal">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-20 w-20 rounded-circle" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        {/* Trophy case skeleton */}
+        <Card variant="terminal">
+          <CardHeader>
+            <CardTitle className={S.sectionTitle}>
+              <Skeleton className="h-4 w-24" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 sm:p-6 pt-0">
+            <Skeleton className="h-8 w-full" />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 
-function PerformanceCard({ label, value }: { label: string; value: PerformanceWindow }) {
-  const amount = value.amount ?? 0;
-  const positive = amount >= 0;
+// ── error state ──────────────────────────────────────────────────────────────
+
+function ProfileError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className="terminal-page flex items-center justify-center p-4"
+      role="alert"
+      aria-label="Profile failed to load"
+    >
+      <Card variant="terminal" className="max-w-sm text-center">
+        <CardContent className="py-8 space-y-4">
+          <AlertTriangle className="mx-auto h-8 w-8 text-status-warning" />
+          <p className="text-sm text-muted-foreground">
+            Could not load this profile. The server may be unreachable.
+          </p>
+          <Button variant="terminalOutline" size="sm" className="gap-2" onClick={onRetry}>
+            <RefreshCw className="h-3 w-3" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── not found state ──────────────────────────────────────────────────────────
+
+function ProfileNotFound() {
+  return (
+    <div className="terminal-page flex items-center justify-center p-4">
+      <Card variant="terminal" className="max-w-sm text-center">
+        <CardContent className="py-8">
+          <EmptyState
+            icon="file"
+            title="User Not Found"
+            headingLevel={1}
+            description="This user does not exist or their account has been deleted."
+            size="sm"
+            variant="terminal"
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── private profile state ────────────────────────────────────────────────────
+
+function PrivateProfile() {
+  return (
+    <div className="terminal-page flex items-center justify-center p-4">
+      <Card variant="terminal" className="max-w-sm text-center">
+        <CardContent className="py-8">
+          <EmptyState
+            icon={<Lock className="h-8 w-8" />}
+            title="Private Profile"
+            headingLevel={1}
+            description="This user has set their profile to private."
+            size="sm"
+            variant="terminal"
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── badge chip ───────────────────────────────────────────────────────────────
+
+function BadgeChip({ badge }: { badge: PublicBadgeEntry }) {
+  const c = badge.collection;
+  return (
+    <div
+      className="flex items-center gap-2 rounded-control border border-premium/30 bg-premium-subtle/40 px-3 py-2"
+      aria-label={`Badge: ${c.title}`}
+    >
+      <Trophy className="h-4 w-4 shrink-0 text-premium" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-semibold text-content">{c.title}</div>
+        <div className="text-[10px] text-muted-foreground">
+          {c.sport} &middot; {c.season}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── collection art ────────────────────────────────────────────────────────────
+// Deterministic visual from identity metadata — never renders raw artKey text.
+
+function CollectionArt({
+  collection,
+}: {
+  collection: { sport: string; family: string; kind: string; title: string };
+}) {
+  const sportMark = collection.sport.slice(0, 3).toUpperCase();
+  const isMaster = collection.kind === "master";
 
   return (
+    <div
+      className={cn(
+        "flex h-10 w-10 shrink-0 items-center justify-center rounded-control border font-mono text-[10px] font-bold tracking-[0.08em]",
+        isMaster
+          ? "border-premium/30 bg-premium-subtle/20 text-premium"
+          : "border-border bg-panel text-content",
+      )}
+      aria-hidden="true"
+    >
+      <span>{sportMark}</span>
+    </div>
+  );
+}
+
+// ── featured card ────────────────────────────────────────────────────────────
+
+function FeaturedCard({
+  featured,
+  canNavigate,
+}: {
+  featured: PublicFeaturedEntry;
+  canNavigate: boolean;
+}) {
+  const c = featured.collection;
+  const content = (
+    <div
+      className={cn(
+        "rounded-control border border-border p-3",
+        canNavigate &&
+          "group cursor-pointer transition-colors hover:border-premium/30 hover:bg-premium-subtle/10 hover-elevate",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <CollectionArt collection={c} />
+        <div className="min-w-0 flex-1">
+          <div
+            className={cn(
+              "truncate text-sm font-semibold text-content",
+              canNavigate && "transition-colors group-hover:text-premium",
+            )}
+          >
+            {c.title}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+            <span>
+              {c.sport} {c.league} &middot; {c.season}
+            </span>
+            {c.lifecycleStatus === "final" && (
+              <Badge variant="neutral" className="text-[9px] px-1 py-0">
+                Final
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!canNavigate) {
+    return <div aria-label={`Featured collection: ${c.title}`}>{content}</div>;
+  }
+
+  return (
+    <Link
+      href={`/collections/${encodeURIComponent(c.slug)}`}
+      aria-label={`Featured collection: ${c.title}`}
+    >
+      {content}
+    </Link>
+  );
+}
+
+// ── trophy case public view ──────────────────────────────────────────────────
+
+function TrophyCasePublic({
+  badges,
+  featured,
+  canNavigateCollections,
+}: {
+  badges: PublicBadgeEntry[];
+  featured: PublicFeaturedEntry[];
+  canNavigateCollections: boolean;
+}) {
+  return (
     <Card variant="terminal">
-      <CardContent className="p-4">
-        <div className={PROFILE_COMPACT_TYPE.label}>{label}</div>
-        {value.amount !== null ? (
-          <>
-            <div
-              className={cn(
-                "mt-2 font-mono text-base font-bold sm:text-lg",
-                positive ? "text-positive" : "text-destructive",
-              )}
-            >
-              {formatSignedAdaptiveCurrency(amount)}
-            </div>
-            <div
-              className={cn("mt-2 flex items-center justify-between", PROFILE_COMPACT_TYPE.meta)}
-            >
-              <span>
-                {value.percent !== null
-                  ? `${value.percent >= 0 ? "+" : ""}${value.percent.toFixed(2)}%`
-                  : "No %"}
-              </span>
-              <RankMovement change={value.rankChange} />
-            </div>
-          </>
-        ) : (
-          <div className={cn("mt-2", PROFILE_COMPACT_TYPE.body)}>Not enough history yet</div>
-        )}
+      <CardHeader>
+        <CardTitle role="heading" aria-level={2} className={S.sectionTitle}>
+          Trophy Case
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
+        {/* Badges */}
+        <div>
+          <h3 className={cn(S.label, "mb-2")}>Badges</h3>
+          {badges.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No badges selected.</p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {badges.map((b) => (
+                <li key={b.definitionId}>
+                  <BadgeChip badge={b} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-border" />
+
+        {/* Featured */}
+        <div>
+          <h3 className={cn(S.label, "mb-2")}>Featured Collections</h3>
+          {featured.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              No featured collections selected.
+            </p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {featured.map((f) => (
+                <li key={f.definitionId}>
+                  <FeaturedCard featured={f} canNavigate={canNavigateCollections} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function SortIcon({
-  active,
-  direction,
-  align = "left",
-}: {
-  active: boolean;
-  direction: SortDirection;
-  align?: "left" | "right";
-}) {
-  if (!active) {
-    return <ArrowUpDown className="ml-1 h-3 w-3 opacity-40" />;
-  }
+// ── header section ───────────────────────────────────────────────────────────
 
-  const Icon = direction === "asc" ? ChevronUp : ChevronDown;
-  return <Icon className={cn("ml-1 h-3 w-3", align === "right" && "order-last ml-1")} />;
+function ProfileHeader({ profile }: { profile: PublicProfileResponse }) {
+  const nm = usernameFallback(profile.username);
+
+  return (
+    <Card variant="terminal">
+      <CardContent className="p-4 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <Avatar className="h-16 w-16 sm:h-20 sm:w-20 shrink-0">
+            <AvatarImage src={profile.profileImageUrl || undefined} alt={nm} />
+            <AvatarFallback className="text-lg">{initials(profile.username)}</AvatarFallback>
+          </Avatar>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className={cn(S.pageTitle, "truncate")}>
+                {profile.username ? `@${profile.username}` : "Unnamed User"}
+              </h1>
+              {profile.isPremium && (
+                <Badge variant="premium" className="gap-1">
+                  <Shield className="h-3 w-3" />
+                  Premium
+                </Badge>
+              )}
+            </div>
+            <div className={cn("mt-2 flex flex-wrap items-center gap-x-3 gap-y-1", S.meta)}>
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Member since {memberSince(profile.createdAt)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
-export default function UserProfile() {
-  const [, navigate] = useLocation();
-  const params = useParams();
-  const userId = params.id;
-  const { user: currentUser, logout } = useAuth();
-  const { toast } = useToast();
-  const { subscribe, connectionState, isConnected } = useWebSocket();
+// ── public profile view ──────────────────────────────────────────────────────
 
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
-  const [newUsername, setNewUsername] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [publicHoldingsSortField, setPublicHoldingsSortField] =
-    useState<PublicHoldingsSortField>("value");
-  const [publicHoldingsSortDirection, setPublicHoldingsSortDirection] =
-    useState<SortDirection>("desc");
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const convertImageToJpeg = async (file: File): Promise<File> => {
-    if (file.type === "image/jpeg") {
-      return file;
-    }
-
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const objectUrl = URL.createObjectURL(file);
-      const img = new Image();
-
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(img);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error("Could not read the selected image."));
-      };
-
-      img.src = objectUrl;
-    });
-
-    const maxDimension = 2048;
-    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
-    const width = Math.max(1, Math.round(image.naturalWidth * scale));
-    const height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-
-    const context = canvas.getContext("2d");
-    if (!context) {
-      throw new Error("Could not prepare the avatar image.");
-    }
-
-    context.drawImage(image, 0, 0, width, height);
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (result) => {
-          if (result) {
-            resolve(result);
-            return;
-          }
-
-          reject(new Error("Could not process the avatar image."));
-        },
-        "image/jpeg",
-        0.92,
-      );
-    });
-
-    const baseName = file.name.replace(/\.[^.]+$/, "") || "avatar";
-    return new File([blob], `${baseName}.jpg`, {
-      type: "image/jpeg",
-      lastModified: Date.now(),
-    });
-  };
-
-  useEffect(() => {
-    const stored = localStorage.getItem("theme") as "light" | "dark" | null;
-    const initialTheme = stored || "dark";
-    setTheme(initialTheme);
-    document.documentElement.classList.toggle("dark", initialTheme === "dark");
-  }, []);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const invalidate = () => {
-      void queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/profile`] });
-    };
-
-    const unsubPortfolio = subscribe("portfolio", (data) => {
-      if (!data?.userId || data.userId === userId) invalidate();
-    });
-    const unsubScouts = subscribe("scouts", (data) => {
-      if (!data?.userId || data.userId === userId) invalidate();
-    });
-    const unsubTrade = subscribe("trade", () => invalidate());
-
-    return () => {
-      unsubPortfolio();
-      unsubScouts();
-      unsubTrade();
-    };
-  }, [subscribe, userId]);
-
-  const toggleTheme = () => {
-    const nextTheme = theme === "light" ? "dark" : "light";
-    setTheme(nextTheme);
-    localStorage.setItem("theme", nextTheme);
-    document.documentElement.classList.toggle("dark", nextTheme === "dark");
-  };
-
-  const { data: profile, isLoading } = useQuery<UserProfileResponse>({
-    queryKey: [`/api/user/${userId}/profile`],
-    enabled: !!userId,
-    staleTime: 30000,
-    placeholderData: (previousData) => previousData,
-  });
-
-  const updateUsernameMutation = useMutation({
-    mutationFn: async (username: string) => {
-      const response = await apiRequest("POST", "/api/user/update-username", { username });
-      return response.json();
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/profile`] });
-      void queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      setIsEditDialogOpen(false);
-      setNewUsername("");
-      toast({
-        title: "Username updated",
-        description: "Your public profile name has been updated.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const updateProfileImageMutation = useMutation({
-    mutationFn: async (profileImageUrl: string) => {
-      const response = await apiRequest("POST", "/api/user/update-profile-image", {
-        profileImageUrl,
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/profile`] });
-      void queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      setIsAvatarDialogOpen(false);
-      toast({
-        title: "Profile picture updated",
-        description: "Your avatar is live on your public profile.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const handleUpdateUsername = () => {
-    if (newUsername.trim()) {
-      updateUsernameMutation.mutate(newUsername.trim());
-    }
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    try {
-      if (file.size > 20 * 1024 * 1024) {
-        throw new Error("Please choose an image under 20MB.");
-      }
-
-      if (file.type && !file.type.startsWith("image/")) {
-        throw new Error("Use a photo from your library.");
-      }
-
-      const userId = currentUser?.id;
-      if (!userId) {
-        throw new Error("Your account is still loading. Please try again in a moment.");
-      }
-
-      const supabase = await getSupabase();
-      const uploadFile = await convertImageToJpeg(file);
-      const ext = uploadFile.name.split(".").pop() || "jpg";
-      const fileName = `${userId}/${Date.now()}.${ext}`;
-
-      const { error } = await supabase.storage.from("avatars").upload(fileName, uploadFile, {
-        cacheControl: "3600",
-        upsert: true,
-      });
-      if (error) throw error;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("avatars").getPublicUrl(fileName);
-
-      await updateProfileImageMutation.mutateAsync(publicUrl);
-    } catch (error: any) {
-      toast({
-        title: "Upload failed",
-        description:
-          error.message || "Could not upload the image. Confirm the avatars bucket exists.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-      input.value = "";
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="terminal-page flex items-center justify-center p-4 text-muted-foreground">
-        Loading profile...
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="terminal-page flex items-center justify-center p-4">
+function PublicProfileView({ profile }: { profile: PublicProfileResponse }) {
+  const { user } = useAuth();
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      <ProfileHeader profile={profile} />
+      {profile.isOwner && profile.profileVisibility === "private" && (
+        <div
+          className="flex items-center gap-2 rounded-control border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-content"
+          role="status"
+        >
+          <Lock className="h-4 w-4 shrink-0 text-status-warning" aria-hidden="true" />
+          <span>Your profile is private. Only you can see this Trophy Case.</span>
+        </div>
+      )}
+      {profile.isOwner && <OwnerEditor />}
+      {profile.badges.length === 0 && profile.featured.length === 0 ? (
         <Card variant="terminal">
-          <CardContent className="py-8 text-center text-muted-foreground">
-            User not found
+          <CardContent className="py-8">
+            <EmptyState
+              icon="trophy"
+              title="Trophy Case Empty"
+              headingLevel={2}
+              description={
+                profile.isOwner
+                  ? "Select badges and featured collections to showcase them on your public profile."
+                  : "This user has not added any trophies to their case yet."
+              }
+              size="sm"
+              variant="terminal"
+            />
           </CardContent>
         </Card>
-      </div>
+      ) : (
+        <TrophyCasePublic
+          badges={profile.badges}
+          featured={profile.featured}
+          canNavigateCollections={!!user}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── editor: selected list ────────────────────────────────────────────────────
+
+function SelectedList({
+  ids,
+  entries,
+  listKind,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  maxCount,
+}: {
+  ids: string[];
+  entries: Map<string, EligibleCollectionEntry>;
+  listKind: "badge" | "featured";
+  onRemove: (defId: string) => void;
+  onMoveUp: (defId: string) => void;
+  onMoveDown: (defId: string) => void;
+  maxCount: number;
+}) {
+  if (ids.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground italic">
+        None selected ({ids.length}/{maxCount}).
+      </p>
     );
   }
 
-  const { user, stats, rankings, performance, history, holdingsSummary, activity, holdings } =
-    profile;
-  const isOwnProfile = currentUser?.id === user.id;
-  const initials = user.username.slice(0, 2).toUpperCase();
-  const memberSince = new Date(user.createdAt).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-  const liveLabel =
-    connectionState === "connected"
-      ? "Live"
-      : connectionState === "connecting"
-        ? "Connecting"
-        : connectionState === "error"
-          ? "Connection issue"
-          : "Reconnecting";
-  const headlineMetrics: Array<{
-    category: LeaderboardCategory;
-    label: string;
-    value: string;
-    icon: typeof DollarSign;
-  }> = [
-    {
-      category: "netWorth",
-      label: "Net Worth",
-      value: formatAdaptiveCurrency(stats.netWorth),
-      icon: DollarSign,
-    },
-    {
-      category: "portfolioValue",
-      label: "Portfolio",
-      value: formatAdaptiveCurrency(stats.portfolioValue),
-      icon: LineChartIcon,
-    },
-    {
-      category: "cashBalance",
-      label: "Cash",
-      value: formatAdaptiveCurrency(stats.cashBalance),
-      icon: Wallet,
-    },
-    {
-      category: "tradingVolume24h",
-      label: "24h Volume",
-      value: formatAdaptiveCurrency(stats.tradingVolume24h),
-      icon: Activity,
-    },
-  ];
-  const publicHoldings = holdings.filter(
-    (holding): holding is ProfileHolding & { player: Player } => Boolean(holding.player),
+  return (
+    <div className="space-y-1.5" role="list" aria-label={`Selected ${listKind}`}>
+      {ids.map((defId, idx) => {
+        const item = entries.get(defId);
+        if (!item) return null;
+        const isFirst = idx === 0;
+        const isLast = idx === ids.length - 1;
+
+        return (
+          <div
+            key={defId}
+            className="flex items-center gap-2 rounded-control border border-premium/30 bg-premium-subtle/20 px-3 py-2"
+            role="listitem"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs font-semibold text-content">{item.title}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {item.sport} {item.league} &middot; {item.season}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-control text-muted-foreground hover:bg-hover hover:text-content disabled:opacity-30"
+                onClick={() => onMoveUp(defId)}
+                disabled={isFirst}
+                aria-label={`Move ${item.title} up in ${listKind}`}
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-control text-muted-foreground hover:bg-hover hover:text-content disabled:opacity-30"
+                onClick={() => onMoveDown(defId)}
+                disabled={isLast}
+                aria-label={`Move ${item.title} down in ${listKind}`}
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-control text-muted-foreground hover:bg-destructive-subtle hover:text-destructive"
+                onClick={() => onRemove(defId)}
+                aria-label={`Remove ${item.title} from ${listKind}`}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
-  const sortedPublicHoldings = publicHoldings.slice().sort((left, right) => {
-    const leftName = `${left.player.lastName} ${left.player.firstName}`.toLowerCase();
-    const rightName = `${right.player.lastName} ${right.player.firstName}`.toLowerCase();
+}
 
-    if (publicHoldingsSortField === "name") {
-      return publicHoldingsSortDirection === "asc"
-        ? leftName.localeCompare(rightName)
-        : rightName.localeCompare(leftName);
-    }
+// ── owner editor ─────────────────────────────────────────────────────────────
 
-    const leftValue =
-      publicHoldingsSortField === "quantity"
-        ? left.quantity
-        : publicHoldingsSortField === "avgCost"
-          ? left.avgCostBasis
-          : publicHoldingsSortField === "price"
-            ? left.lastTradePrice
-            : publicHoldingsSortField === "value"
-              ? left.marketValue
-              : publicHoldingsSortField === "pnl"
-                ? left.pnl
-                : left.shareOfPortfolio;
-    const rightValue =
-      publicHoldingsSortField === "quantity"
-        ? right.quantity
-        : publicHoldingsSortField === "avgCost"
-          ? right.avgCostBasis
-          : publicHoldingsSortField === "price"
-            ? right.lastTradePrice
-            : publicHoldingsSortField === "value"
-              ? right.marketValue
-              : publicHoldingsSortField === "pnl"
-                ? right.pnl
-                : right.shareOfPortfolio;
+function OwnerEditor() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { user } = useAuth();
 
-    return publicHoldingsSortDirection === "asc" ? leftValue - rightValue : rightValue - leftValue;
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Editor state query (only for owner)
+  const editorQuery = useQuery<TrophyCaseEditorResponse>({
+    queryKey: ["/api/me/trophy-case", user?.id],
+    queryFn: async () => {
+      const response = await authenticatedFetch("/api/me/trophy-case");
+      if (!response.ok) throw new Error(`${response.status}: Failed to load trophy case`);
+      return response.json() as Promise<TrophyCaseEditorResponse>;
+    },
+    enabled: isOpen,
+    staleTime: 30_000,
   });
 
-  const handlePublicHoldingsSort = (field: PublicHoldingsSortField) => {
-    if (publicHoldingsSortField === field) {
-      setPublicHoldingsSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-      return;
-    }
+  // Local UI state synced from server
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [badgeIds, setBadgeIds] = useState<string[]>([]);
+  const [featuredIds, setFeaturedIds] = useState<string[]>([]);
+  const [reorderStatus, setReorderStatus] = useState("");
 
-    setPublicHoldingsSortField(field);
-    setPublicHoldingsSortDirection(field === "name" ? "asc" : "desc");
+  // Sync on data arrival
+  useEffect(() => {
+    if (editorQuery.data) {
+      setVisibility(editorQuery.data.profileVisibility);
+      setBadgeIds(editorQuery.data.badgeDefinitionIds);
+      setFeaturedIds(editorQuery.data.featuredDefinitionIds);
+    }
+  }, [editorQuery.data]);
+
+  const resetDraft = useCallback(() => {
+    if (!editorQuery.data) return;
+    setVisibility(editorQuery.data.profileVisibility);
+    setBadgeIds(editorQuery.data.badgeDefinitionIds);
+    setFeaturedIds(editorQuery.data.featuredDefinitionIds);
+  }, [editorQuery.data]);
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      resetDraft();
+      setReorderStatus("");
+    }
+    setIsOpen(open);
+  };
+
+  const openEditor = () => {
+    resetDraft();
+    setIsOpen(true);
+  };
+
+  // Build lookup maps
+  const eligibleByDef = useMemo(() => {
+    const map = new Map<string, EligibleCollectionEntry>();
+    if (editorQuery.data?.eligibleCollections) {
+      for (const c of editorQuery.data.eligibleCollections) {
+        map.set(c.definitionId, c);
+      }
+    }
+    return map;
+  }, [editorQuery.data]);
+
+  const eligibleCollections = useMemo(() => {
+    return editorQuery.data?.eligibleCollections ?? [];
+  }, [editorQuery.data]);
+
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PUT", "/api/me/trophy-case", {
+        profileVisibility: visibility,
+        badgeDefinitionIds: badgeIds,
+        featuredDefinitionIds: featuredIds,
+      });
+      return res.json() as Promise<TrophyCaseEditorResponse>;
+    },
+    onSuccess: (savedState) => {
+      queryClient.setQueryData(["/api/me/trophy-case", user?.id], savedState);
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      toast({
+        title: "Trophy case saved",
+        description:
+          savedState.profileVisibility === "public"
+            ? "Your Trophy Case is live on your public profile."
+            : "Your Trophy Case is saved and remains private.",
+      });
+      setVisibility(savedState.profileVisibility);
+      setBadgeIds(savedState.badgeDefinitionIds);
+      setFeaturedIds(savedState.featuredDefinitionIds);
+      setIsOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Save failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAdd = (defId: string, listKind: "badge" | "featured") => {
+    if (listKind === "badge") {
+      if (badgeIds.length >= 5) return;
+      if (badgeIds.includes(defId)) return;
+      setBadgeIds([...badgeIds, defId]);
+    } else {
+      if (featuredIds.length >= 4) return;
+      if (featuredIds.includes(defId)) return;
+      setFeaturedIds([...featuredIds, defId]);
+    }
+  };
+
+  const handleRemove = (defId: string, listKind: "badge" | "featured") => {
+    if (listKind === "badge") {
+      setBadgeIds(badgeIds.filter((id) => id !== defId));
+    } else {
+      setFeaturedIds(featuredIds.filter((id) => id !== defId));
+    }
+  };
+
+  const handleMoveUp = (defId: string, listKind: "badge" | "featured") => {
+    const list = listKind === "badge" ? badgeIds : featuredIds;
+    const setter = listKind === "badge" ? setBadgeIds : setFeaturedIds;
+    const idx = list.indexOf(defId);
+    if (idx <= 0) return;
+    const next = [...list];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    setter(next);
+    const title = eligibleByDef.get(defId)?.title ?? "Collection";
+    setReorderStatus(`${title} moved to position ${idx} of ${list.length} in ${listKind}s.`);
+  };
+
+  const handleMoveDown = (defId: string, listKind: "badge" | "featured") => {
+    const list = listKind === "badge" ? badgeIds : featuredIds;
+    const setter = listKind === "badge" ? setBadgeIds : setFeaturedIds;
+    const idx = list.indexOf(defId);
+    if (idx < 0 || idx >= list.length - 1) return;
+    const next = [...list];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    setter(next);
+    const title = eligibleByDef.get(defId)?.title ?? "Collection";
+    setReorderStatus(`${title} moved to position ${idx + 2} of ${list.length} in ${listKind}s.`);
   };
 
   return (
-    <div className="terminal-page p-3 sm:p-4">
-      <div className="mx-auto max-w-7xl space-y-4">
-        <Card variant="terminal">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                {isOwnProfile ? (
-                  <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
-                    <DialogTrigger asChild>
-                      <button className="group relative">
-                        <Avatar className="h-24 w-24">
-                          <AvatarImage
-                            src={user.profileImageUrl || undefined}
-                            alt={user.username}
-                          />
-                          <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
-                        </Avatar>
-                        <div className="absolute inset-0 flex items-center justify-center rounded-compact bg-scrim/50 opacity-0 transition-opacity group-hover:opacity-100">
-                          <Upload className="h-6 w-6 text-content-inverse" />
-                        </div>
-                      </button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-sm rounded-compact border border-border bg-card">
-                      <DialogHeader>
-                        <DialogTitle>Change Profile Picture</DialogTitle>
-                        <DialogDescription>
-                          Choose a new public avatar from your photo library.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-3 py-4">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleFileUpload}
-                        />
-                        <Button
-                          variant="terminalOutline"
-                          className="h-12 w-full gap-2"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={isUploading}
-                        >
-                          {isUploading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Upload className="h-4 w-4" />
-                          )}
-                          Choose from Library
-                        </Button>
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          variant="terminalOutline"
-                          onClick={() => setIsAvatarDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                ) : (
-                  <Avatar className="h-24 w-24">
-                    <AvatarImage src={user.profileImageUrl || undefined} alt={user.username} />
-                    <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
-                  </Avatar>
-                )}
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="terminal"
+          size="sm"
+          className="gap-2"
+          onClick={openEditor}
+          aria-label="Edit Trophy Case"
+        >
+          <Trophy className="h-3 w-3" />
+          Edit Trophy Case
+        </Button>
+        <Button asChild variant="terminalOutline" size="sm" className="gap-2">
+          <Link href="/settings" aria-label="Account Settings">
+            <Settings className="h-3 w-3" />
+            Settings
+          </Link>
+        </Button>
+      </div>
 
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-control border border-border bg-card md:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className={S.sectionTitle}>Edit Trophy Case</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Choose up to 5 badges and 4 featured collections. Drag-free; use up/down arrows to
+              reorder.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="sr-only" role="status" aria-live="polite">
+            {reorderStatus}
+          </p>
+
+          {editorQuery.isLoading ? (
+            <div
+              className="flex items-center justify-center py-8"
+              role="status"
+              aria-label="Loading Trophy Case editor"
+            >
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : editorQuery.isError ? (
+            <div
+              className="flex flex-col items-center gap-3 py-8 text-center"
+              role="alert"
+              aria-live="assertive"
+            >
+              <AlertTriangle className="h-6 w-6 text-status-warning" />
+              <p className="text-xs text-muted-foreground">Could not load trophy case editor.</p>
+              <Button variant="terminalOutline" size="sm" onClick={() => editorQuery.refetch()}>
+                <RotateCw className="h-3 w-3" />
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Visibility toggle */}
+              <div className="flex items-center justify-between rounded-control border border-border px-3 py-2.5">
                 <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className={PROFILE_COMPACT_TYPE.pageTitle}>@{user.username}</h1>
-                    {user.isPremium && (
-                      <Badge className="gap-1">
-                        <Trophy className="h-3 w-3" />
-                        Premium
-                      </Badge>
-                    )}
-                    <Badge variant={isConnected ? "default" : "outline"}>{liveLabel}</Badge>
+                  <div className="text-xs font-semibold text-content">
+                    <Globe className="-mt-0.5 mr-1 inline-block h-3.5 w-3.5" />
+                    Profile Visibility
                   </div>
-                  <div
-                    className={cn(
-                      "mt-3 flex flex-wrap items-center gap-3",
-                      PROFILE_COMPACT_TYPE.body,
-                    )}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      Member since {memberSince}
-                    </span>
-                    <span>
-                      Updated{" "}
-                      {formatDistanceToNow(new Date(profile.updatedAt), { addSuffix: true })}
-                    </span>
-                    <span>{stats.activeSports} sports active</span>
+                  <div className="text-[10px] text-muted-foreground">
+                    {visibility === "public"
+                      ? "Anyone can see your trophy case."
+                      : "Only you can see your profile."}
                   </div>
                 </div>
+                <Button
+                  variant={visibility === "public" ? "terminal" : "terminalOutline"}
+                  size="sm"
+                  className="min-h-11 shrink-0 text-[10px]"
+                  onClick={() => setVisibility(visibility === "public" ? "private" : "public")}
+                  role="switch"
+                  aria-checked={visibility === "public"}
+                  aria-label="Public profile visibility"
+                >
+                  {visibility === "public" ? (
+                    <>
+                      <Globe className="h-3 w-3" />
+                      Public
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-3 w-3" />
+                      Private
+                    </>
+                  )}
+                </Button>
               </div>
 
-              {isOwnProfile && (
-                <div className="flex flex-wrap gap-2">
-                  <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="terminalOutline" size="sm" className="gap-2">
-                        <Edit2 className="h-3 w-3" />
-                        Edit Username
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="rounded-compact border border-border bg-card">
-                      <DialogHeader>
-                        <DialogTitle>Change Username</DialogTitle>
-                        <DialogDescription>
-                          Choose a unique public username using 3-20 letters, numbers, underscores,
-                          or hyphens.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <Input
-                          value={newUsername}
-                          onChange={(event) => setNewUsername(event.target.value)}
-                          maxLength={20}
-                          placeholder="Enter new username"
-                        />
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          variant="terminalOutline"
-                          onClick={() => setIsEditDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={handleUpdateUsername}
-                          disabled={updateUsernameMutation.isPending || !newUsername.trim()}
-                        >
-                          {updateUsernameMutation.isPending ? "Saving..." : "Save"}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+              {/* Badges */}
+              <div>
+                <div className={cn(S.label, "mb-2")}>Badges ({badgeIds.length}/5)</div>
+                <SelectedList
+                  ids={badgeIds}
+                  entries={eligibleByDef}
+                  listKind="badge"
+                  onRemove={(id) => handleRemove(id, "badge")}
+                  onMoveUp={(id) => handleMoveUp(id, "badge")}
+                  onMoveDown={(id) => handleMoveDown(id, "badge")}
+                  maxCount={5}
+                />
+              </div>
+
+              {/* Featured */}
+              <div>
+                <div className={cn(S.label, "mb-2")}>
+                  Featured Collections ({featuredIds.length}/4)
+                </div>
+                <SelectedList
+                  ids={featuredIds}
+                  entries={eligibleByDef}
+                  listKind="featured"
+                  onRemove={(id) => handleRemove(id, "featured")}
+                  onMoveUp={(id) => handleMoveUp(id, "featured")}
+                  onMoveDown={(id) => handleMoveDown(id, "featured")}
+                  maxCount={4}
+                />
+              </div>
+
+              {/* Eligible items (collapsible) */}
+              {eligibleCollections.length > 0 ? (
+                <EligibleSection
+                  items={eligibleCollections}
+                  badgeIds={badgeIds}
+                  featuredIds={featuredIds}
+                  onAdd={handleAdd}
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground italic">
+                  Complete a collection to make it available here.
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="terminalOutline"
+              size="sm"
+              onClick={() => handleOpenChange(false)}
+              disabled={saveMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="terminal"
+              size="sm"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending || editorQuery.isLoading || editorQuery.isError}
+            >
+              {saveMutation.isPending ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Saving
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ── collapsible eligible section ─────────────────────────────────────────────
+
+function getBadgeUnavailableReason(
+  item: EligibleCollectionEntry,
+  badgeIds: string[],
+): string | null {
+  if (badgeIds.includes(item.definitionId)) return "Already selected as badge";
+  if (badgeIds.length >= 5) return "Badge limit reached (5 max)";
+  if (!item.isBadgeEligible) return "Complete the current collection version";
+  return null;
+}
+
+function getFeaturedUnavailableReason(
+  item: EligibleCollectionEntry,
+  featuredIds: string[],
+): string | null {
+  if (featuredIds.includes(item.definitionId)) return "Already selected as featured";
+  if (featuredIds.length >= 4) return "Featured limit reached (4 max)";
+  return null;
+}
+
+function EligibleSection({
+  items,
+  badgeIds,
+  featuredIds,
+  onAdd,
+}: {
+  items: EligibleCollectionEntry[];
+  badgeIds: string[];
+  featuredIds: string[];
+  onAdd: (defId: string, listKind: "badge" | "featured") => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div>
+      <button
+        className="flex min-h-11 w-full items-center justify-between rounded-control px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-hover transition-colors"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="eligible-list"
+      >
+        <span>Available ({items.length})</span>
+        {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+      </button>
+
+      {expanded && (
+        <div id="eligible-list" className="mt-2 space-y-1.5">
+          {items.map((item) => {
+            const badgeReason = getBadgeUnavailableReason(item, badgeIds);
+            const featuredReason = getFeaturedUnavailableReason(item, featuredIds);
+            const badgeDescId = `badge-reason-${item.definitionId}`;
+            const featuredDescId = `featured-reason-${item.definitionId}`;
+
+            return (
+              <div
+                key={item.definitionId}
+                className="flex items-center gap-2 rounded-control border border-border bg-surface px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-semibold text-content">{item.title}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {item.sport} {item.league} &middot; {item.season}
+                  </div>
+                  {badgeReason && (
+                    <p id={badgeDescId} className="mt-0.5 text-[10px] text-status-warning">
+                      Badge: {badgeReason.toLowerCase()}
+                    </p>
+                  )}
+                  {featuredReason && (
+                    <p id={featuredDescId} className="mt-0.5 text-[10px] text-status-warning">
+                      Featured: {featuredReason.toLowerCase()}
+                    </p>
+                  )}
+                </div>
+                <div className="flex shrink-0 gap-1">
                   <Button
                     variant="terminalOutline"
                     size="sm"
-                    className="gap-2"
-                    onClick={toggleTheme}
+                    className="min-h-11 text-[10px]"
+                    disabled={!!badgeReason}
+                    onClick={() => onAdd(item.definitionId, "badge")}
+                    aria-label={`Add ${item.title} as badge`}
+                    aria-describedby={badgeReason ? badgeDescId : undefined}
                   >
-                    {theme === "light" ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
-                    {theme === "light" ? "Dark Mode" : "Light Mode"}
+                    Badge
                   </Button>
-                  {user.isAdmin && (
-                    <Link href="/admin">
-                      <Button variant="terminalOutline" size="sm" className="gap-2">
-                        <Settings className="h-3 w-3" />
-                        Admin
-                      </Button>
-                    </Link>
-                  )}
+                  <Button
+                    variant="terminalOutline"
+                    size="sm"
+                    className="min-h-11 text-[10px]"
+                    disabled={!!featuredReason}
+                    onClick={() => onAdd(item.definitionId, "featured")}
+                    aria-label={`Add ${item.title} as featured`}
+                    aria-describedby={featuredReason ? featuredDescId : undefined}
+                  >
+                    Feature
+                  </Button>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
-          {headlineMetrics.map((metric) => {
-            const Icon = metric.icon;
-            const ranking = rankings[metric.category];
-            return (
-              <Link key={metric.category} href={`/leaderboards#${metric.category}`}>
-                <Card variant="terminal" className="hover-elevate cursor-pointer">
-                  <CardContent className="p-4">
-                    <div className="mb-2 flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-primary" />
-                      <span className={PROFILE_COMPACT_TYPE.label}>{metric.label}</span>
-                    </div>
-                    <div className={PROFILE_COMPACT_TYPE.primaryValue}>{metric.value}</div>
-                    <div
-                      className={cn(
-                        "mt-1 flex items-center justify-between",
-                        PROFILE_COMPACT_TYPE.meta,
-                      )}
-                    >
-                      <span>{ranking.rank ? `Rank #${ranking.rank}` : "Unranked"}</span>
-                      <RankMovement change={ranking.rankChange} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+              </div>
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-3">
-              <PerformanceCard label="24h Change" value={performance.change24h} />
-              <PerformanceCard label="7d Change" value={performance.change7d} />
-              <PerformanceCard label="30d Change" value={performance.change30d} />
-            </div>
+// ── main page component ──────────────────────────────────────────────────────
 
-            <Card variant="terminal">
-              <CardHeader>
-                <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>Net Worth Trend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {history.points.length > 1 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={history.points}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis
-                        dataKey="date"
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={11}
-                        tickFormatter={(value) =>
-                          new Date(value).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          })
-                        }
-                      />
-                      <YAxis
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={11}
-                        tickFormatter={(value) => formatAdaptiveCurrency(Number(value))}
-                      />
-                      <RechartsTooltip
-                        contentStyle={{
-                          backgroundColor: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "4px",
-                        }}
-                        formatter={(value: number) => [formatCurrency(value), "Net Worth"]}
-                        labelFormatter={(value) =>
-                          new Date(value).toLocaleString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })
-                        }
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="netWorth"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={2}
-                        dot={history.points.length < 16}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <EmptyState
-                    icon="chart"
-                    title="No trend history yet"
-                    description="This profile will show a net worth curve once portfolio snapshots accumulate."
-                    size="sm"
-                    className="py-6"
-                    variant="terminal"
-                  />
-                )}
-              </CardContent>
-            </Card>
+export default function UserProfile() {
+  const params = useParams();
+  const userId = params.id as string | undefined;
+  const { user } = useAuth();
 
-            <Card variant="terminal">
-              <CardHeader>
-                <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>
-                  Leaderboard Standing
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(Object.values(rankings) as RankedMetric[]).map((metric) => (
-                  <Link key={metric.category} href={`/leaderboards#${metric.category}`}>
-                    <div className="terminal-shell flex items-center justify-between p-3 hover-elevate">
-                      <div>
-                        <div className="text-sm font-medium">{metric.label}</div>
-                        <div className={PROFILE_COMPACT_TYPE.meta}>
-                          {metric.rank ? `Rank #${metric.rank}` : "Not ranked yet"}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                          {formatMetricValue(metric.category, metric.value)}
-                        </div>
-                        <RankMovement change={metric.rankChange} />
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
+  const {
+    data: profile,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<ProfileData>({
+    queryKey: ["/api/user", userId, "profile", user?.id ?? "anonymous"],
+    queryFn: async () => {
+      const response = await authenticatedFetch(`/api/user/${encodeURIComponent(userId!)}/profile`);
+      if (!response.ok) throw new Error(`${response.status}: Failed to load profile`);
+      return response.json() as Promise<ProfileData>;
+    },
+    enabled: !!userId,
+    staleTime: 30_000,
+  });
 
-            <Card variant="terminal">
-              <CardHeader>
-                <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>
-                  Recent Public Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {activity.length === 0 ? (
-                  <EmptyState
-                    icon="inbox"
-                    title="No recent public activity"
-                    description="Trades and scouting rewards will appear here once this account starts moving."
-                    size="sm"
-                    className="py-6"
-                    variant="terminal"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {activity.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="terminal-shell flex items-start justify-between gap-3 p-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div
-                            className={cn(
-                              "flex flex-wrap items-center gap-2",
-                              PROFILE_COMPACT_TYPE.meta,
-                            )}
-                          >
-                            <span className="uppercase tracking-wide">{entry.category}</span>
-                            <span>-</span>
-                            <span>
-                              {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-sm font-medium">
-                            {entry.metadata.playerId ? (
-                              <Link href={`/player/${entry.metadata.playerId}`}>
-                                <span className="cursor-pointer hover:text-primary">
-                                  {entry.description}
-                                </span>
-                              </Link>
-                            ) : (
-                              entry.description
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          {entry.cashDelta && (
-                            <div
-                              className={cn(
-                                PROFILE_COMPACT_TYPE.secondaryValue,
-                                parseFloat(entry.cashDelta) >= 0
-                                  ? "text-positive"
-                                  : "text-destructive",
-                              )}
-                            >
-                              {formatSignedAdaptiveCurrency(parseFloat(entry.cashDelta))}
-                            </div>
-                          )}
-                          {entry.shareDelta !== undefined && entry.shareDelta !== 0 && (
-                            <div className={PROFILE_COMPACT_TYPE.meta}>
-                              {entry.shareDelta > 0 ? "+" : ""}
-                              {entry.shareDelta} shares
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+  // Loading
+  if (isLoading) return <ProfileSkeleton />;
 
-          <div className="space-y-4">
-            {isOwnProfile && <NotificationSettingsCard />}
-            {isOwnProfile && <MobilePushCard />}
-            {isOwnProfile && <CliAccessCard />}
-            {isOwnProfile && (
-              <Card variant="terminal">
-                <CardHeader>
-                  <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>
-                    Account Controls
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button
-                    variant="destructive"
-                    className="w-full gap-2"
-                    onClick={async () => {
-                      const result = await logout();
+  // Error (generic — retryable), but 404 is not-found not an error
+  if (isError) {
+    const is404 = error instanceof Error && error.message.includes("404");
+    if (is404) return <ProfileNotFound />;
+    return <ProfileError onRetry={() => refetch()} />;
+  }
 
-                      if (!result.success) {
-                        toast({
-                          title: "Logout failed",
-                          description: result.error || "Could not log out right now.",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
+  // No data (shouldn't happen, but handle gracefully)
+  if (!profile) return <ProfileNotFound />;
 
-                      toast({
-                        title: "Logged out",
-                        description: "You have been signed out.",
-                      });
-                      navigate("/");
-                    }}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Log Out
-                  </Button>
-                  <p className={PROFILE_COMPACT_TYPE.body}>
-                    Need to close your account? Start the deletion request from the dedicated page.
-                  </p>
-                  <Button asChild variant="terminalOutline" className="w-full gap-2">
-                    <Link href="/account-deletion">
-                      <Trash2 className="h-4 w-4" />
-                      Request Account Deletion
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+  // Server returned error body or unknown shape — treat as 404
+  if ("error" in (profile as any)) return <ProfileNotFound />;
 
-            <Card variant="terminal">
-              <CardHeader>
-                <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>Top Holdings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {holdingsSummary.topHoldings.length === 0 ? (
-                  <EmptyState
-                    icon="wallet"
-                    title="No public holdings"
-                    description="Once this account holds player shares, its top positions will show here."
-                    size="sm"
-                    className="py-6"
-                    variant="terminal"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {holdingsSummary.topHoldings.map((holding) => {
-                      const player = holding.player;
-                      if (!player) return null;
-                      return (
-                        <Link key={holding.id} href={`/player/${holding.assetId}`}>
-                          <div className="terminal-shell flex items-center justify-between gap-3 p-3 hover-elevate">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium">
-                                <PlayerName
-                                  playerId={player.id}
-                                  firstName={player.firstName}
-                                  lastName={player.lastName}
-                                />
-                              </div>
-                              <div className={PROFILE_COMPACT_TYPE.meta}>
-                                {player.team} - {player.position} -{" "}
-                                {holding.shareOfPortfolio.toFixed(1)}% of portfolio
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                                {formatAdaptiveCurrency(holding.marketValue)}
-                              </div>
-                              <div
-                                className={cn(
-                                  PROFILE_COMPACT_TYPE.meta,
-                                  holding.pnl >= 0 ? "text-positive" : "text-destructive",
-                                )}
-                              >
-                                {formatSignedAdaptiveCurrency(holding.pnl)}
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+  // Private profile sentinel
+  if (
+    "profileVisibility" in profile &&
+    profile.profileVisibility === "private" &&
+    !profile.isOwner
+  ) {
+    return <PrivateProfile />;
+  }
 
-            <Card variant="terminal">
-              <CardHeader>
-                <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>
-                  Portfolio Exposure
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {holdingsSummary.sportExposure.length === 0 ? (
-                  <p className={PROFILE_COMPACT_TYPE.body}>No sport exposure yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {holdingsSummary.sportExposure.map((row) => (
-                      <div key={row.sport} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs sm:text-sm">
-                          <span className="font-medium">{row.sport}</span>
-                          <span className="font-mono">{formatAdaptiveCurrency(row.value)}</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-compact bg-muted">
-                          <div
-                            className="h-full bg-primary"
-                            style={{ width: `${Math.min(row.percentage, 100)}%` }}
-                          />
-                        </div>
-                        <div className={PROFILE_COMPACT_TYPE.meta}>
-                          {row.percentage.toFixed(1)}% of portfolio value
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+  // Cast to public profile (the server only returns one of the two variants)
+  const pub = profile as PublicProfileResponse;
 
-            <Card variant="terminal">
-              <CardHeader>
-                <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>Trader Snapshot</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs sm:text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">24h trading volume</span>
-                  <span className="font-mono">
-                    {formatAdaptiveCurrency(stats.tradingVolume24h)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Market orders</span>
-                  <span className="font-mono">{stats.totalMarketOrders.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Trades executed</span>
-                  <span className="font-mono">{stats.totalTradesExecuted.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Public holdings</span>
-                  <span className="font-mono">{stats.holdingsCount.toLocaleString()}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        <Card variant="terminal">
-          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>
-                All Public Holdings
-              </CardTitle>
-              <p className={PROFILE_COMPACT_TYPE.meta}>
-                {publicHoldings.length.toLocaleString()} positions visible
-              </p>
-            </div>
-            <div className="flex items-center gap-2 sm:hidden">
-              <Select
-                value={publicHoldingsSortField}
-                onValueChange={(value) =>
-                  setPublicHoldingsSortField(value as PublicHoldingsSortField)
-                }
-              >
-                <SelectTrigger
-                  className="h-8 w-[118px] text-xs"
-                  data-testid="select-profile-holdings-sort"
-                >
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PUBLIC_HOLDINGS_SORT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={() =>
-                  setPublicHoldingsSortDirection((current) => (current === "asc" ? "desc" : "asc"))
-                }
-                data-testid="button-profile-holdings-sort-direction"
-              >
-                {publicHoldingsSortDirection === "asc" ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <div
-              className={cn(
-                "hidden items-center gap-2 sm:ml-auto sm:flex",
-                PROFILE_COMPACT_TYPE.meta,
-              )}
-            >
-              <span>Click columns to sort</span>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {publicHoldings.length === 0 ? (
-              <EmptyState
-                icon="wallet"
-                title="No holdings yet"
-                description="This trader has not built a public portfolio yet."
-                size="sm"
-                className="py-4"
-                variant="terminal"
-              />
-            ) : (
-              <div>
-                <div className="divide-y divide-border sm:hidden">
-                  {sortedPublicHoldings.map((holding) => (
-                    <div key={holding.id} className="px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <Link href={`/player/${holding.assetId}`}>
-                            <div className="cursor-pointer text-sm font-medium hover:text-primary">
-                              <PlayerName
-                                playerId={holding.player.id}
-                                firstName={holding.player.firstName}
-                                lastName={holding.player.lastName}
-                              />
-                            </div>
-                          </Link>
-                          <div className={PROFILE_COMPACT_TYPE.meta}>
-                            {holding.player.team} - {holding.player.position} -{" "}
-                            {formatQuantity(holding.quantity)} shares
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                            {formatAdaptiveCurrency(holding.marketValue)}
-                          </div>
-                          <div
-                            className={cn(
-                              PROFILE_COMPACT_TYPE.meta,
-                              holding.pnl >= 0 ? "text-positive" : "text-destructive",
-                            )}
-                          >
-                            {formatSignedAdaptiveCurrency(holding.pnl)} (
-                            {formatSignedPercent(holding.pnlPercent)})
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
-                        <div>
-                          <div className={PROFILE_COMPACT_TYPE.label}>Avg Cost</div>
-                          <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                            {formatCurrency(holding.avgCostBasis)}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={PROFILE_COMPACT_TYPE.label}>Last Price</div>
-                          <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                            {formatCurrency(holding.lastTradePrice)}
-                          </div>
-                        </div>
-                        <div>
-                          <div className={PROFILE_COMPACT_TYPE.label}>Weight</div>
-                          <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                            {holding.shareOfPortfolio.toFixed(1)}%
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={PROFILE_COMPACT_TYPE.label}>Qty</div>
-                          <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                            {formatQuantity(holding.quantity)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="hidden overflow-x-auto sm:block">
-                  <table className="w-full">
-                    <thead className="border-b bg-muted/50">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <button
-                            className="flex items-center hover:text-foreground"
-                            onClick={() => handlePublicHoldingsSort("name")}
-                            data-testid="th-profile-holdings-sort-name"
-                          >
-                            Asset
-                            <SortIcon
-                              active={publicHoldingsSortField === "name"}
-                              direction={publicHoldingsSortDirection}
-                            />
-                          </button>
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <button
-                            className="ml-auto flex items-center justify-end hover:text-foreground"
-                            onClick={() => handlePublicHoldingsSort("quantity")}
-                            data-testid="th-profile-holdings-sort-quantity"
-                          >
-                            Qty
-                            <SortIcon
-                              active={publicHoldingsSortField === "quantity"}
-                              direction={publicHoldingsSortDirection}
-                              align="right"
-                            />
-                          </button>
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <button
-                            className="ml-auto flex items-center justify-end hover:text-foreground"
-                            onClick={() => handlePublicHoldingsSort("avgCost")}
-                            data-testid="th-profile-holdings-sort-avgcost"
-                          >
-                            Avg
-                            <SortIcon
-                              active={publicHoldingsSortField === "avgCost"}
-                              direction={publicHoldingsSortDirection}
-                              align="right"
-                            />
-                          </button>
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <button
-                            className="ml-auto flex items-center justify-end hover:text-foreground"
-                            onClick={() => handlePublicHoldingsSort("price")}
-                            data-testid="th-profile-holdings-sort-price"
-                          >
-                            Price
-                            <SortIcon
-                              active={publicHoldingsSortField === "price"}
-                              direction={publicHoldingsSortDirection}
-                              align="right"
-                            />
-                          </button>
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <button
-                            className="ml-auto flex items-center justify-end hover:text-foreground"
-                            onClick={() => handlePublicHoldingsSort("value")}
-                            data-testid="th-profile-holdings-sort-value"
-                          >
-                            Value
-                            <SortIcon
-                              active={publicHoldingsSortField === "value"}
-                              direction={publicHoldingsSortDirection}
-                              align="right"
-                            />
-                          </button>
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <button
-                            className="ml-auto flex items-center justify-end hover:text-foreground"
-                            onClick={() => handlePublicHoldingsSort("pnl")}
-                            data-testid="th-profile-holdings-sort-pnl"
-                          >
-                            P&amp;L
-                            <SortIcon
-                              active={publicHoldingsSortField === "pnl"}
-                              direction={publicHoldingsSortDirection}
-                              align="right"
-                            />
-                          </button>
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <button
-                            className="ml-auto flex items-center justify-end hover:text-foreground"
-                            onClick={() => handlePublicHoldingsSort("weight")}
-                            data-testid="th-profile-holdings-sort-weight"
-                          >
-                            Weight
-                            <SortIcon
-                              active={publicHoldingsSortField === "weight"}
-                              direction={publicHoldingsSortDirection}
-                              align="right"
-                            />
-                          </button>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedPublicHoldings.map((holding) => (
-                        <tr
-                          key={holding.id}
-                          className="border-b border-border/70 transition-colors hover:bg-muted/30"
-                        >
-                          <td className="px-3 py-2">
-                            <Link href={`/player/${holding.assetId}`}>
-                              <div className="min-w-0 cursor-pointer">
-                                <div className="text-sm font-medium hover:text-primary">
-                                  <PlayerName
-                                    playerId={holding.player.id}
-                                    firstName={holding.player.firstName}
-                                    lastName={holding.player.lastName}
-                                  />
-                                </div>
-                                <div className={PROFILE_COMPACT_TYPE.meta}>
-                                  {holding.player.team} - {holding.player.position} -{" "}
-                                  {holding.player.sport}
-                                </div>
-                              </div>
-                            </Link>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                              {formatQuantity(holding.quantity)}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                              {formatCurrency(holding.avgCostBasis)}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                              {formatCurrency(holding.lastTradePrice)}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                              {formatAdaptiveCurrency(holding.marketValue)}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <div
-                              className={cn(
-                                PROFILE_COMPACT_TYPE.secondaryValue,
-                                holding.pnl >= 0 ? "text-positive" : "text-destructive",
-                              )}
-                            >
-                              {formatSignedAdaptiveCurrency(holding.pnl)}
-                            </div>
-                            <div
-                              className={cn(
-                                PROFILE_COMPACT_TYPE.meta,
-                                holding.pnl >= 0 ? "text-positive" : "text-destructive",
-                              )}
-                            >
-                              {formatSignedPercent(holding.pnlPercent)}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                              {holding.shareOfPortfolio.toFixed(1)}%
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+  return (
+    <div className="terminal-page p-3 sm:p-4">
+      <PublicProfileView profile={pub} />
     </div>
   );
 }

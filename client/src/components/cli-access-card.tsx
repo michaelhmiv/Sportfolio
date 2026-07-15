@@ -41,7 +41,7 @@ export function CliAccessCard() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery<TokensResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<TokensResponse>({
     queryKey: ["/api/account/tokens"],
   });
 
@@ -120,7 +120,11 @@ export function CliAccessCard() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="terminal-kicker">Developer Access</p>
-              <CardTitle className="terminal-heading mt-2 flex items-center gap-2 text-base">
+              <CardTitle
+                role="heading"
+                aria-level={2}
+                className="terminal-heading mt-2 flex items-center gap-2 text-base"
+              >
                 <Terminal className="h-5 w-5 text-primary" />
                 CLI Access
               </CardTitle>
@@ -146,9 +150,11 @@ export function CliAccessCard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="font-mono text-[10px] uppercase">
-              {activeTokenCount}/{data?.maxActiveTokens || 0} active
-            </Badge>
+            {data && (
+              <Badge variant="secondary" className="font-mono text-[10px] uppercase">
+                {activeTokenCount}/{data.maxActiveTokens} active
+              </Badge>
+            )}
             <span className="font-mono text-[11px] text-muted-foreground">
               Prefer one token per device or automation workflow so you can revoke cleanly.
             </span>
@@ -178,8 +184,27 @@ export function CliAccessCard() {
               .
             </p>
           </div>
-          {isLoading ? (
-            <div className="terminal-empty px-4 py-4 text-sm text-muted-foreground">
+          {isError ? (
+            <div
+              role="alert"
+              className="terminal-empty border border-destructive/40 p-4 text-sm text-destructive"
+            >
+              <p>Could not load CLI tokens. Existing credentials may still be active.</p>
+              <Button
+                variant="terminalOutline"
+                size="sm"
+                className="mt-3"
+                onClick={() => void refetch()}
+              >
+                Try again
+              </Button>
+            </div>
+          ) : isLoading ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="terminal-empty px-4 py-4 text-sm text-muted-foreground"
+            >
               Loading CLI tokens...
             </div>
           ) : data?.tokens?.length ? (

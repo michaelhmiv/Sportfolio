@@ -61,6 +61,7 @@ const loadDashboardPage = () => import("@/pages/dashboard");
 const loadPlayerPage = () => import("@/pages/player");
 const loadPortfolioPage = () => import("@/pages/portfolio");
 const loadUserProfilePage = () => import("@/pages/user-profile");
+const loadAccountSettingsPage = () => import("@/pages/account-settings");
 const loadLeaderboardsPage = () => import("@/pages/leaderboards");
 const loadAdminPage = () => import("@/pages/admin");
 const loadAuthErrorPage = () => import("@/pages/auth-error");
@@ -117,6 +118,7 @@ const PlayerPools = lazy(loadPlayerPoolsPage);
 const PlayerPage = lazy(loadPlayerPage);
 const Portfolio = lazy(loadPortfolioPage);
 const UserProfile = lazy(loadUserProfilePage);
+const AccountSettingsPage = lazy(loadAccountSettingsPage);
 const Leaderboards = lazy(loadLeaderboardsPage);
 const Admin = lazy(loadAdminPage);
 const AuthError = lazy(loadAuthErrorPage);
@@ -311,7 +313,12 @@ function RouteLoadingState({ location }: { location: string }) {
   }
 
   return (
-    <div className="terminal-page p-3 sm:p-4">
+    <div
+      className="terminal-page p-3 sm:p-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading page"
+    >
       <div className="mx-auto max-w-7xl space-y-4">
         <div className="terminal-shell p-4">
           <div className="h-5 w-32 animate-pulse rounded-sm bg-muted/70" />
@@ -372,7 +379,7 @@ function getTransitionVariants(
   ];
 }
 
-const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
+export const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/login",
   "/onboarding",
   "/auth/callback",
@@ -384,13 +391,15 @@ const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/premium",
   "/watchlists",
   "/profile",
+  "/settings",
   "/collections",
 ];
 
-function routeRequiresAuthBootstrap(path: string) {
+export function routeRequiresAuthBootstrap(pathname: string): boolean {
   if (
     AUTH_BOOTSTRAP_REQUIRED_PREFIXES.some(
-      (prefix) => path === prefix || (prefix.endsWith("/") ? path.startsWith(prefix) : false),
+      (prefix) =>
+        pathname === prefix || (prefix.endsWith("/") ? pathname.startsWith(prefix) : false),
     )
   ) {
     return true;
@@ -766,7 +775,12 @@ function Router() {
 
   if (shouldShowAuthBootstrapLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div
+        className="flex items-center justify-center h-screen"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading account"
+      >
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
@@ -895,6 +909,11 @@ function Router() {
                 ) : (
                   <Dashboard />
                 )}
+              </Route>
+
+              {/* Account settings — authenticated, owner-only */}
+              <Route path="/settings">
+                {canAccessProtectedRoutes ? <AccountSettingsPage /> : <Dashboard />}
               </Route>
 
               {/* Auth error page - public, always accessible */}

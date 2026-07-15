@@ -33,6 +33,7 @@ interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   };
   size?: "sm" | "md" | "lg";
   variant?: "default" | "terminal";
+  headingLevel?: 1 | 2 | 3;
 }
 
 const iconMap = {
@@ -55,6 +56,7 @@ export function EmptyState({
   className,
   size = "md",
   variant = "default",
+  headingLevel = 3,
   ...props
 }: EmptyStateProps) {
   const isTerminal = variant === "terminal";
@@ -82,6 +84,7 @@ export function EmptyState({
   const IconComponent =
     typeof icon === "string" && icon in iconMap ? iconMap[icon as keyof typeof iconMap] : null;
   const sizes = sizeClasses[size];
+  const Heading: "h1" | "h2" | "h3" = headingLevel === 1 ? "h1" : headingLevel === 2 ? "h2" : "h3";
 
   return (
     <motion.div
@@ -146,10 +149,7 @@ export function EmptyState({
         )}
       </motion.div>
 
-      <motion.h3
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
+      <Heading
         className={cn(
           "mb-1 text-foreground",
           sizes.title,
@@ -159,7 +159,7 @@ export function EmptyState({
         )}
       >
         {title}
-      </motion.h3>
+      </Heading>
 
       {description && (
         <motion.p

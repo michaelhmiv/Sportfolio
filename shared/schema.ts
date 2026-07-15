@@ -34,7 +34,14 @@ export const users = pgTable(
     id: varchar("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    // Auth provider fields
+    // Auth provider fields. Retained on soft deletion as an identity tombstone so
+    // surviving provider credentials cannot recreate an erased account.
+    authProviderSubject: varchar("auth_provider_subject").unique(),
+    authProviderSubjects: text("auth_provider_subjects")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    authEmailIdentityHash: varchar("auth_email_identity_hash", { length: 64 }).unique(),
     email: varchar("email").unique(),
     firstName: varchar("first_name"),
     lastName: varchar("last_name"),
@@ -47,6 +54,7 @@ export const users = pgTable(
     premiumExpiresAt: timestamp("premium_expires_at"),
     hasSeenOnboarding: boolean("has_seen_onboarding").notNull().default(false), // Track if user completed onboarding
     isBot: boolean("is_bot").notNull().default(false), // True for market maker bot accounts
+    profileVisibility: varchar("profile_visibility", { length: 10 }).notNull().default("public"),
     // Profile stats
     totalSharesVested: integer("total_shares_vested").notNull().default(0),
     totalMarketOrders: integer("total_market_orders").notNull().default(0),
@@ -62,6 +70,11 @@ export const users = pgTable(
   },
   (table) => ({
     lastActiveIdx: index("users_last_active_idx").on(table.lastActiveAt),
+    visibilityIdx: index("users_profile_visibility_idx").on(table.profileVisibility),
+    visibilityCheck: check(
+      "users_profile_visibility_check",
+      sql`${table.profileVisibility} IN ('public', 'private')`,
+    ),
   }),
 );
 
@@ -4180,7 +4193,7 @@ export const userBadgePreferences = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     collectionDefinitionId: varchar("collection_definition_id")
       .notNull()
-      .references(() => collectionDefinitions.id, { onDelete: "restrict" }),
+      .references(() => collectionDefinitions.id, { onDelete: "cascade" }),
     priority: integer("priority").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -4194,7 +4207,10 @@ export const userBadgePreferences = pgTable(
       table.userId,
       table.priority,
     ),
-    priorityCheck: check("user_badge_preferences_priority_check", sql`${table.priority} >= 0`),
+    priorityCheck: check(
+      "user_badge_preferences_priority_check",
+      sql`${table.priority} BETWEEN 0 AND 4`,
+    ),
   }),
 );
 
@@ -4209,7 +4225,7 @@ export const userFeaturedCollections = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     collectionDefinitionId: varchar("collection_definition_id")
       .notNull()
-      .references(() => collectionDefinitions.id, { onDelete: "restrict" }),
+      .references(() => collectionDefinitions.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -4223,7 +4239,10 @@ export const userFeaturedCollections = pgTable(
       table.userId,
       table.position,
     ),
-    positionCheck: check("user_featured_collections_position_check", sql`${table.position} >= 0`),
+    positionCheck: check(
+      "user_featured_collections_position_check",
+      sql`${table.position} BETWEEN 0 AND 3`,
+    ),
   }),
 );
 
