@@ -663,6 +663,40 @@ export default function CollectionDetailPage() {
                               aria-label={`Allocation quantity for ${slot.slotLabel}`}
                               data-testid={`input-quantity-${slot.slotId}`}
                             />
+                            <div className="flex items-center gap-0.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-[10px] px-1.5"
+                                onClick={() =>
+                                  setSlotInput(
+                                    slot.slotId,
+                                    formatCanonicalQuantity(
+                                      slot.maxAllocatableQuantity || slot.requiredQuantity,
+                                    ),
+                                  )
+                                }
+                                disabled={isSubmitting || !slot.maxAllocatableQuantity}
+                                aria-label={`Fill max: ${formatCanonicalQuantity(slot.maxAllocatableQuantity || slot.requiredQuantity)}`}
+                              >
+                                Max
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-[10px] px-1.5"
+                                onClick={() =>
+                                  setSlotInput(
+                                    slot.slotId,
+                                    formatCanonicalQuantity(slot.requiredQuantity),
+                                  )
+                                }
+                                disabled={isSubmitting}
+                                aria-label={`Fill required: ${formatCanonicalQuantity(slot.requiredQuantity)}`}
+                              >
+                                Req
+                              </Button>
+                            </div>
                             <Button
                               variant="default"
                               size="sm"
@@ -703,6 +737,40 @@ export default function CollectionDetailPage() {
                             aria-label={`Allocation quantity for ${slot.slotLabel}`}
                             data-testid={`input-quantity-${slot.slotId}`}
                           />
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px] px-1.5"
+                              onClick={() =>
+                                setSlotInput(
+                                  slot.slotId,
+                                  formatCanonicalQuantity(
+                                    slot.maxAllocatableQuantity || slot.requiredQuantity,
+                                  ),
+                                )
+                              }
+                              disabled={isSubmitting || isActive || !slot.maxAllocatableQuantity}
+                              aria-label={`Fill max: ${formatCanonicalQuantity(slot.maxAllocatableQuantity || slot.requiredQuantity)}`}
+                            >
+                              Max
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px] px-1.5"
+                              onClick={() =>
+                                setSlotInput(
+                                  slot.slotId,
+                                  formatCanonicalQuantity(slot.requiredQuantity),
+                                )
+                              }
+                              disabled={isSubmitting || isActive}
+                              aria-label={`Fill required: ${formatCanonicalQuantity(slot.requiredQuantity)}`}
+                            >
+                              Req
+                            </Button>
+                          </div>
                           <Button
                             variant="default"
                             size="sm"
