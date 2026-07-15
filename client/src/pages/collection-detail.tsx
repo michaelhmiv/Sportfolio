@@ -30,6 +30,8 @@ import {
 } from "@/lib/collection-format";
 import { extractCollectionApiError, parseCollectionFetchError } from "@/lib/collection-api-error";
 import { cn } from "@/lib/utils";
+import { formatStatLabel } from "@/lib/collection-stats";
+import { openPlayerModal } from "@/lib/player-modal-events";
 import type { CollectionDetailResponse, CollectionSlotEntry } from "@shared/collection-api";
 
 function buildListQueryKey(userId: string) {
@@ -591,9 +593,22 @@ export default function CollectionDetailPage() {
                           {formatCanonicalQuantity(slot.requiredQuantity)} required
                         </span>
                         {slot.player && (
-                          <span>
-                            {`${slot.player.firstName} ${slot.player.lastName}`.trim() || "--"}{" "}
-                            &middot; {slot.player.team} &middot; {slot.player.position}
+                          <span className="flex items-center gap-1.5">
+                            <span
+                              className="text-primary underline cursor-pointer hover:text-brand transition-colors"
+                              onClick={() => openPlayerModal(slot.player.playerId)}
+                            >
+                              {`${slot.player.firstName} ${slot.player.lastName}`.trim() || "--"}
+                            </span>
+                            <span className="text-muted-foreground">&middot;</span>
+                            <span className="text-muted-foreground">{slot.player.team}</span>
+                            <span className="text-muted-foreground">&middot;</span>
+                            <span className="text-muted-foreground">{slot.player.position}</span>
+                            {slot.qualificationValue && slot.statLabel && (
+                              <span className="font-mono text-xs font-medium text-brand">
+                                {slot.qualificationValue} {slot.statLabel}
+                              </span>
+                            )}
                           </span>
                         )}
                         {slot.maxAllocatableQuantity && (

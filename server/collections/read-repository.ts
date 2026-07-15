@@ -87,6 +87,31 @@ function formatQuantityUnits(units: bigint): string {
   return `${integerPart}.${fractionalPart}`;
 }
 
+function formatStatLabel(statKey: string | null): string | null {
+  if (!statKey) return null;
+  const labels: Record<string, string> = {
+    homeRuns: "HR",
+    rbi: "RBI",
+    ops: "OPS",
+    onBasePlusSlugging: "OPS",
+    strikeOuts: "K",
+    strikeouts: "K",
+    earnedRunAverage: "ERA",
+    era: "ERA",
+    saves: "SV",
+    stolenBases: "SB",
+    battingAverage: "AVG",
+    hits: "H",
+    runs: "R",
+    runsBattedIn: "RBI",
+    walks: "BB",
+    inningsPitched: "IP",
+    pitchingStrikeouts: "K",
+    wins: "W",
+  };
+  return labels[statKey] ?? statKey;
+}
+
 type SlotAvailabilityInput = {
   playerId: string | null;
   lockReferenceId: string | null;
@@ -466,6 +491,8 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
         displayOrder: collectionSlots.displayOrder,
         rank: collectionSlots.rank,
         statKey: collectionSlots.statKey,
+        qualificationValue: collectionSlots.qualificationValue,
+        qualificationMetadata: collectionSlots.qualificationMetadata,
         status: collectionSlots.status,
         // allocation
         allocationId: allocation.id,
@@ -518,6 +545,9 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
       displayOrder: row.displayOrder,
       rank: row.rank,
       statKey: row.statKey,
+      qualificationValue: row.qualificationValue ?? null,
+      qualificationMetadata: row.qualificationMetadata ?? null,
+      statLabel: formatStatLabel(row.statKey),
       allocation: row.allocationId
         ? {
             allocationId: row.allocationId,

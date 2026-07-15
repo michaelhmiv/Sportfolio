@@ -62,6 +62,9 @@ const baseDetail: CollectionDetailResponse = {
       displayOrder: 1,
       rank: 1,
       statKey: "home_runs",
+      qualificationValue: null,
+      qualificationMetadata: null,
+      statLabel: null,
       allocation: null,
       maxAllocatableQuantity: "0.5000",
       player: {

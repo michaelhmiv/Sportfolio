@@ -76,6 +76,9 @@ export interface CollectionSlotEntry {
   displayOrder: number;
   rank: number | null;
   statKey: string | null;
+  qualificationValue: string | null;
+  qualificationMetadata: Record<string, unknown> | null;
+  statLabel: string | null;
 
   /** Active allocation for this user, or null if none. */
   allocation: {
