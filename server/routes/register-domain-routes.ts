@@ -16,6 +16,8 @@ import { registerRedditBotRoutes } from "./reddit-bot";
 import { registerSmsRoutes } from "./sms";
 import { registerProfileRoutes } from "../profile/profile-routes";
 import { profileService, editorService } from "../profile/runtime";
+import { registerPublicIdentityRoutes } from "../public-identities/public-identity-routes";
+import { publicIdentityService } from "../public-identities/runtime";
 
 /**
  * Registers secondary route modules so `server/routes.ts` can stay focused on
@@ -38,4 +40,5 @@ export function registerDomainRoutes(app: Express): void {
   registerInternalAgentToolRoutes(app);
   registerMcpRoutes(app);
   registerProfileRoutes(app, profileService, editorService);
+  registerPublicIdentityRoutes(app, publicIdentityService);
 }

@@ -92,6 +92,8 @@ import { ensureAccountDeletionSchema } from "./services/account-deletion";
 import { redeemPremiumShare } from "./services/premium-redemption";
 import { sendUserNotification } from "./services/notification-dispatcher";
 import { loadUserEntitlements } from "./services/user-entitlements";
+import { invalidateIdentity } from "./public-identities/identity-events";
+import { resolveIdentityBatch, extractActorIds } from "./public-identities/public-identity-surface-adapters";
 import {
   getApiHealthStaleThresholdMs,
   getLatestApiHealthReport,
@@ -3019,7 +3021,13 @@ ${items}
       );
 
       // Return user data immediately - don't block on background sync work
-      res.json(userState?.decoratedUser || null);
+      const publicIdentity = await resolveIdentityBatch([userId]).then(
+        (map) => map.get(userId) ?? null,
+      );
+      res.json({
+        ...(userState?.decoratedUser || null),
+        publicIdentity,
+      });
 
       if (user) {
         // Scout Engine: Update activity timestamp for 24h kill-switch
@@ -4390,6 +4398,7 @@ ${items}
 
       const updatedUser = await storage.updateUsername(userId, username);
       if (updatedUser) {
+        invalidateIdentity(userId);
         void sendUserNotification({
           userId,
           category: "account_security",
@@ -4429,6 +4438,7 @@ ${items}
 
       const updatedUser = await storage.updateProfileImage(userId, profileImageUrl);
       if (updatedUser) {
+        invalidateIdentity(userId);
         void sendUserNotification({
           userId,
           category: "account_security",
@@ -5839,7 +5849,32 @@ ${items}
     try {
       const { playerId } = req.params;
       const roster = await storage.getScoutRoster(playerId);
-      res.json(roster);
+
+      // Resolve identities for all scouters in one batch.
+      const scouterIds = roster
+        .map((r) => r.user?.id)
+        .filter((id): id is string => !!id);
+      const identityMap = scouterIds.length > 0
+        ? await resolveIdentityBatch(scouterIds)
+        : new Map();
+
+      // Decorate each roster entry with identity and map profileImageUrl -> avatarUrl.
+      const decoratedRoster = roster.map((entry) => {
+        const identity = entry.user?.id ? identityMap.get(entry.user.id) ?? null : null;
+        return {
+          scoutCount: entry.scoutCount,
+          user: entry.user
+            ? {
+                id: entry.user.id,
+                username: entry.user.username,
+                avatarUrl: entry.user.avatarUrl ?? (identity?.avatarUrl ?? null),
+              }
+            : null,
+          identity,
+        };
+      });
+
+      res.json(decoratedRoster);
     } catch (error: any) {
       console.error("[Scout API] Error fetching roster:", error);
       res.status(500).json({ error: error.message });

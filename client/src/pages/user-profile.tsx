@@ -42,6 +42,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { CollectionArt } from "@/components/collection-art";
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -208,32 +209,6 @@ function BadgeChip({ badge }: { badge: PublicBadgeEntry }) {
   );
 }
 
-// ── collection art ────────────────────────────────────────────────────────────
-// Deterministic visual from identity metadata — never renders raw artKey text.
-
-function CollectionArt({
-  collection,
-}: {
-  collection: { sport: string; family: string; kind: string; title: string };
-}) {
-  const sportMark = collection.sport.slice(0, 3).toUpperCase();
-  const isMaster = collection.kind === "master";
-
-  return (
-    <div
-      className={cn(
-        "flex h-10 w-10 shrink-0 items-center justify-center rounded-control border font-mono text-[10px] font-bold tracking-[0.08em]",
-        isMaster
-          ? "border-premium/30 bg-premium-subtle/20 text-premium"
-          : "border-border bg-panel text-content",
-      )}
-      aria-hidden="true"
-    >
-      <span>{sportMark}</span>
-    </div>
-  );
-}
-
 // ── featured card ────────────────────────────────────────────────────────────
 
 function FeaturedCard({
@@ -253,7 +228,7 @@ function FeaturedCard({
       )}
     >
       <div className="flex items-start gap-3">
-        <CollectionArt collection={c} />
+        <CollectionArt artKey={c.artKey} sport={c.sport} isBadge={c.kind === "master"} />
         <div className="min-w-0 flex-1">
           <div
             className={cn(

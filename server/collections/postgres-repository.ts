@@ -597,24 +597,20 @@ export class PostgresCollectionRepository implements CollectionRepository {
     userId: string,
     playerId: string,
   ): Promise<CollectionReconciliationCandidate[]> {
+    // Use the full transitive resolver so all alias chains are covered.
+    const identity = await loadPlayerIdentityContext(db, playerId);
+    const identityIds = identity.allIds;
+
+    if (identityIds.length === 0) {
+      return [];
+    }
+
     const result = await db.execute(sql`
-      WITH identity AS (
-        SELECT COALESCE(
-          (SELECT canonical_player_id FROM player_id_aliases WHERE alias_player_id = ${playerId}),
-          ${playerId}
-        ) AS canonical_id
-      ), identity_ids AS (
-        SELECT canonical_id AS player_id FROM identity
-        UNION
-        SELECT alias_player_id
-        FROM player_id_aliases, identity
-        WHERE canonical_player_id = identity.canonical_id
-      )
       SELECT DISTINCT a.user_id, s.collection_version_id
       FROM user_collection_allocations a
       JOIN collection_slots s ON s.id = a.collection_slot_id
       WHERE a.user_id = ${userId}
-        AND a.player_id IN (SELECT player_id FROM identity_ids)
+        AND a.player_id IN (${sql.join(identityIds.map((id) => sql`${id}`), sql`, `)})
       ORDER BY a.user_id, s.collection_version_id
     `);
     return result.rows.map((row) => ({
