@@ -103,7 +103,6 @@ async function validateCompleteExistingCatalog(
       qualificationRules: collectionDefinitionVersions.qualificationRules,
       sourceType: collectionDefinitionVersions.sourceType,
       sourceUri: collectionDefinitionVersions.sourceUri,
-      points: collectionDefinitionVersions.points,
       artKey: collectionDefinitionVersions.artKey,
       sourceMetadata: collectionDefinitionVersions.sourceMetadata,
     })
@@ -151,7 +150,6 @@ async function validateCompleteExistingCatalog(
         (expected.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites") ||
       actual.sourceUri !==
         (expected.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null) ||
-      actual.points !== expected.points ||
       actual.artKey !== expected.slug ||
       snapshotSha256(actual.sourceMetadata) !== preview.sourceSnapshot.sha256
     ) {
@@ -275,7 +273,6 @@ async function validateCompleteExistingCatalog(
         sourceType: actual.sourceType,
         sourceUri: actual.sourceUri,
         sourceMetadata,
-        points: actual.points,
         artKey: actual.artKey,
       },
       slots: [...(slotsByVersion.get(actual.versionId) ?? [])]
@@ -388,7 +385,6 @@ export async function publishInitialMlbCatalog(
               initialCatalogSha256: expectedCatalogSha256,
               initialDefinitionManifestSha256: initialDefinitionManifestSha256(preview),
             },
-            points: definition.points,
             artKey: definition.slug,
             state: "draft",
             createdBy: actorUserId,

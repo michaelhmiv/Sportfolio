@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MlbCollectionSource } from "./catalog-importer";
-import {
-  createMlbCatalogAdminService,
-  existingInitialPublication,
-} from "./catalog-admin-service";
+import { createMlbCatalogAdminService, existingInitialPublication } from "./catalog-admin-service";
 import { initialDefinitionManifestSha256 } from "./catalog-preview";
 import { INITIAL_MLB_CATALOG } from "./initial-catalog";
 
@@ -70,43 +67,42 @@ describe("MLB catalog admin service", () => {
             }))
           : [];
       return {
-      slug: definition.slug,
-      season: definition.season,
-      family: definition.family,
-      kind: definition.kind,
-      sport: definition.sport,
-      league: definition.league,
-      current_version: 1,
-      lifecycle_status: definition.lifecycle,
-      version_state: definition.lifecycle === "tracking" ? "tracking" : "final",
-      title: definition.title,
-      description: definition.description,
-      qualification_description: definition.description,
-      qualification_rules:
-        definition.kind === "player_slots"
-          ? definition.rule
-          : { prerequisiteSlugs: definition.prerequisiteSlugs },
-      source_type: definition.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites",
-      source_uri:
-        definition.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null,
-      points: definition.points,
-      art_key: definition.slug,
-      source_metadata: {
-        ...sourceSnapshot,
-        initialCatalogSha256: "confirmed",
-        initialDefinitionManifestSha256: initialDefinitionManifestSha256({
-          ok: true,
-          definition,
-          members: [],
-          errors: [],
-          sourceSnapshot,
-        }),
-      },
-      manifest_slots: [],
-      manifest_prerequisites: manifestPrerequisites,
-      active_slot_count: 0,
-      prerequisite_count: manifestPrerequisites.length,
-    };
+        slug: definition.slug,
+        season: definition.season,
+        family: definition.family,
+        kind: definition.kind,
+        sport: definition.sport,
+        league: definition.league,
+        current_version: 1,
+        lifecycle_status: definition.lifecycle,
+        version_state: definition.lifecycle === "tracking" ? "tracking" : "final",
+        title: definition.title,
+        description: definition.description,
+        qualification_description: definition.description,
+        qualification_rules:
+          definition.kind === "player_slots"
+            ? definition.rule
+            : { prerequisiteSlugs: definition.prerequisiteSlugs },
+        source_type:
+          definition.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites",
+        source_uri: definition.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null,
+        art_key: definition.slug,
+        source_metadata: {
+          ...sourceSnapshot,
+          initialCatalogSha256: "confirmed",
+          initialDefinitionManifestSha256: initialDefinitionManifestSha256({
+            ok: true,
+            definition,
+            members: [],
+            errors: [],
+            sourceSnapshot,
+          }),
+        },
+        manifest_slots: [],
+        manifest_prerequisites: manifestPrerequisites,
+        active_slot_count: 0,
+        prerequisite_count: manifestPrerequisites.length,
+      };
     });
 
     expect(existingInitialPublication(rows, "confirmed")).toMatchObject({

@@ -23,7 +23,6 @@ function makeEntry(slug: string, overrides?: Partial<CollectionListEntry>): Coll
     title: "Test Collection",
     description: "A test collection",
     artKey: "default-key",
-    points: 100,
     state: "tracking",
     assemblyState: "unstarted",
     allocatedQuantity: "0.0000",
@@ -266,7 +265,7 @@ describe("CollectionListEntry shape", () => {
     expect(typeof entry.versionId).toBe("string");
     expect(typeof entry.version).toBe("number");
     expect(typeof entry.title).toBe("string");
-    expect(typeof entry.points).toBe("number");
+    expect(entry.artKey).toBeDefined();
     expect(typeof entry.assemblyState).toBe("string");
     expect(typeof entry.allocatedQuantity).toBe("string");
     expect(typeof entry.requiredQuantity).toBe("string");

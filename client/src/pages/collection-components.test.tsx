@@ -43,7 +43,6 @@ const baseDetail: CollectionDetailResponse = {
   description: "Rendered production component",
   qualificationDescription: "",
   artKey: "test",
-  points: 100,
   state: "tracking",
   assemblyState: "ready",
   allocatedQuantity: "1.0000",

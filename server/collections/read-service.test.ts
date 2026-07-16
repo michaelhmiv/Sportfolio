@@ -19,7 +19,6 @@ function makeEntry(slug: string): CollectionListEntry {
     title: "Test Collection",
     description: "A test collection",
     artKey: "default-key",
-    points: 100,
     state: "tracking",
     assemblyState: "unstarted",
     allocatedQuantity: "0.0000",

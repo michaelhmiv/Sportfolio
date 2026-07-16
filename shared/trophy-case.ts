@@ -74,7 +74,6 @@ export interface EligibleCollectionEntry {
   family: string;
   title: string;
   artKey: string;
-  points: number;
   lifecycleStatus: "tracking" | "final";
   /** When the award was earned (ISO). */
   earnedAt: string;

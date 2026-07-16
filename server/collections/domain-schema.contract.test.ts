@@ -44,7 +44,6 @@ describe("collections v2 domain schema contract", () => {
         "qualification_rules",
         "source_type",
         "source_uri",
-        "points",
         "art_key",
         "state",
         "finalized_at",

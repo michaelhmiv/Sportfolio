@@ -534,7 +534,6 @@ async function applyTrackingMembership(
       qualificationDescription: definition.description,
       qualificationRules: definition.rule,
       sourceMetadata: preview.sourceSnapshot,
-      points: definition.points,
       updatedAt: now,
     })
     .where(eq(collectionDefinitionVersions.id, context.versionId));
@@ -744,7 +743,6 @@ export async function createFinalCorrectionVersion(
           sourceUri:
             preview.definition.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null,
           sourceMetadata: { ...preview.sourceSnapshot, correctionReason },
-          points: preview.definition.points,
           artKey: preview.definition.slug,
           state: "draft",
           correctionOfVersionId: context.versionId,
@@ -951,9 +949,7 @@ function buildMlbCatalogInspectionQuery() {
       version.qualification_description,
       version.qualification_rules,
       version.source_type,
-      version.source_uri,
-      version.points,
-      version.art_key,
+      version.source_uri,      version.art_key,
       COALESCE((
         SELECT jsonb_agg(
           jsonb_build_object(

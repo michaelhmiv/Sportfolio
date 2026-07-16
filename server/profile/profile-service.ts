@@ -223,7 +223,6 @@ export class PostgresTrophyCaseEditorService implements TrophyCaseEditorService 
         family: a.family,
         title: a.title,
         artKey: a.artKey,
-        points: a.points,
         lifecycleStatus: a.lifecycleStatus as "tracking" | "final",
         earnedAt: iso(a.firstCompletedAt),
         completionSequence: a.completionSequence ?? null,

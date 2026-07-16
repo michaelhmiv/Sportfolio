@@ -178,7 +178,6 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
         title: collectionDefinitionVersions.title,
         description: collectionDefinitionVersions.description,
         artKey: collectionDefinitionVersions.artKey,
-        points: collectionDefinitionVersions.points,
         state: collectionDefinitionVersions.state,
         // user state
         assemblyState: userCollectionStates.assemblyState,
@@ -338,7 +337,6 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
         title: row.title,
         description: row.description,
         artKey: row.artKey,
-        points: row.points,
         state: row.state as "tracking" | "final",
         ...state,
         award,
@@ -368,7 +366,6 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
         description: collectionDefinitionVersions.description,
         qualificationDescription: collectionDefinitionVersions.qualificationDescription,
         artKey: collectionDefinitionVersions.artKey,
-        points: collectionDefinitionVersions.points,
         state: collectionDefinitionVersions.state,
         // user state
         assemblyState: userCollectionStates.assemblyState,
@@ -466,7 +463,6 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
       description: base.description,
       qualificationDescription: base.qualificationDescription,
       artKey: base.artKey,
-      points: base.points,
       state: base.state as "tracking" | "final",
       ...state,
       award,
