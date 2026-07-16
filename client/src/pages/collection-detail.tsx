@@ -486,7 +486,6 @@ export default function CollectionDetailPage() {
                 {detail.qualifiedSlotCount} / {detail.requiredSlotCount} slots qualified
               </span>
             )}
-            <span className="font-mono tabular-nums">{detail.points} pts</span>
             {detail.award && (
               <span className="text-status-live font-mono">
                 Completed {new Date(detail.award.firstCompletedAt).toLocaleDateString()}
