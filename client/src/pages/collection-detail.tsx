@@ -514,7 +514,6 @@ export default function CollectionDetailPage() {
                 {detail.qualifiedSlotCount} / {detail.requiredSlotCount} slots qualified
               </span>
             )}
-            <span className="font-mono tabular-nums">{detail.points} pts</span>
             {detail.award && (
               <span className="text-status-live font-mono">
                 Completed {new Date(detail.award.firstCompletedAt).toLocaleDateString()}
@@ -871,13 +870,10 @@ export default function CollectionDetailPage() {
                 {ceremony.title}
               </h2>
 
-              <div className="mt-4 flex items-center justify-center gap-3">
+              <div className="mt-4 flex items-center justify-center">
                 <span className="flex items-center gap-1.5 rounded-pill border border-premium/30 bg-premium/10 px-3 py-1 text-sm font-medium text-premium">
                   <Award className="h-4 w-4" />
                   {ceremony.awardTier ? ceremony.awardTier : "Award earned"}
-                </span>
-                <span className="rounded-pill border border-border/60 bg-surface px-3 py-1 font-mono text-sm font-semibold text-content-strong">
-                  +{ceremony.points} pts
                 </span>
               </div>
 

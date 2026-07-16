@@ -117,7 +117,6 @@ function CollectionCard({ entry, index }: { entry: CollectionListEntry; index: n
           <span className="flex items-center gap-1 text-xs font-medium text-premium">
             <Award className="h-3.5 w-3.5" />
             {entry.award?.awardId ?? "Award"}
-            {entry.points ? ` · ${entry.points} pts` : ""}
           </span>
         )}
         <span className="flex items-center gap-1 text-xs font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100">
