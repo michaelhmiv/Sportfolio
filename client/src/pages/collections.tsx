@@ -228,15 +228,13 @@ export default function CollectionsPage() {
                     </div>
                   )}
 
-                  {/* Points */}
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">{c.points} pts</span>
-                    {c.award && (
+                  {c.award && (
+                    <div className="mt-2 flex items-center justify-end">
                       <span className="text-[10px] text-status-live font-mono">
                         Completed {new Date(c.award.firstCompletedAt).toLocaleDateString()}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </Link>
               );
             })}
