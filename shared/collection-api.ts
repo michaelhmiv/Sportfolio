@@ -37,7 +37,6 @@ export interface CollectionListEntry {
   title: string;
   description: string;
   artKey: string;
-  points: number;
   /** Version state (always "tracking" or "final" in this response). */
   state: "tracking" | "final";
 

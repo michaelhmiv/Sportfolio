@@ -23,7 +23,6 @@ export interface CollectionCeremonyData {
   sport: string;
   family: string;
   kind: "player_slots" | "master";
-  points: number;
   rarityTier?: string;
   completionSequence?: number;
 }
@@ -382,10 +381,7 @@ export function CollectionCeremonyOverlay({
                 {data.title}
               </h2>
               <div className="mt-2 flex items-center justify-center gap-2">
-                <Badge variant="outline" className={cn("gap-1", visuals.borderColor)}>
-                  <TrendingUp className="w-3 h-3" />
-                  <span className="font-mono font-semibold">+{data.points} pts</span>
-                </Badge>
+                {" "}
                 {data.rarityTier && (
                   <Badge variant="outline" className={cn("gap-1", visuals.borderColor)}>
                     <Sparkles className="w-3 h-3" />

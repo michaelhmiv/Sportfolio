@@ -53,7 +53,6 @@ function makeDetail(
     description: "A test collection",
     qualificationDescription: "Score 5 runs",
     artKey: "k",
-    points: 100,
     state: "tracking",
     assemblyState: "unstarted",
     allocatedQuantity: "0.0000",

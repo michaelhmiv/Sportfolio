@@ -24,7 +24,6 @@ describe("initial MLB collection catalog", () => {
     for (const definition of INITIAL_MLB_CATALOG) {
       expect(definition.sport).toBe("MLB");
       expect(definition.season).toMatch(/^202[56]$/);
-      expect(definition.points).toBeGreaterThan(0);
       if (definition.kind === "player_slots") {
         expect(definition.slotQuantity).toBeGreaterThan(0);
       } else {

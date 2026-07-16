@@ -211,7 +211,6 @@ export interface AwardWithDefinitionAndStateRow {
   version: number;
   title: string;
   artKey: string;
-  points: number;
   state: string;
   // user state for the current version
   assemblyState: string | null;
@@ -241,7 +240,6 @@ export async function getAwardsWithDefinitionsAndStates(
       version: collectionDefinitionVersions.version,
       title: collectionDefinitionVersions.title,
       artKey: collectionDefinitionVersions.artKey,
-      points: collectionDefinitionVersions.points,
       state: collectionDefinitionVersions.state,
       assemblyState: userCollectionStates.assemblyState,
     })

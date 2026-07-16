@@ -81,7 +81,6 @@ function persistedInitialDefinitionManifestMatches(
         sourceType: row.source_type,
         sourceUri: row.source_uri,
         sourceMetadata,
-        points: Number(row.points),
         artKey: row.art_key,
       },
       slots: row.manifest_slots,
@@ -94,14 +93,20 @@ export function existingInitialPublication(
   rows: unknown[],
   expectedCatalogSha256: string,
 ): InitialCatalogPublicationResult | null {
-  const expectedBySlug = new Map(INITIAL_MLB_CATALOG.map((definition) => [definition.slug, definition]));
+  const expectedBySlug = new Map(
+    INITIAL_MLB_CATALOG.map((definition) => [definition.slug, definition]),
+  );
   const selected = rows.filter(
     (row): row is Record<string, unknown> =>
-      !!row && typeof row === "object" && expectedBySlug.has(String((row as Record<string, unknown>).slug)),
+      !!row &&
+      typeof row === "object" &&
+      expectedBySlug.has(String((row as Record<string, unknown>).slug)),
   );
   if (selected.length === 0) return null;
   if (selected.length !== INITIAL_MLB_CATALOG.length) {
-    throw new Error("Refusing partial initial MLB catalog publication; current versions are incomplete");
+    throw new Error(
+      "Refusing partial initial MLB catalog publication; current versions are incomplete",
+    );
   }
   let slotCount = 0;
   let prerequisiteCount = 0;
@@ -111,7 +116,8 @@ export function existingInitialPublication(
     const memberCount = Number(metadata?.memberCount ?? 0);
     const activeSlotCount = Number(row.active_slot_count ?? 0);
     const actualPrerequisites = Number(row.prerequisite_count ?? 0);
-    const expectedPrerequisites = definition.kind === "master" ? definition.prerequisiteSlugs.length : 0;
+    const expectedPrerequisites =
+      definition.kind === "master" ? definition.prerequisiteSlugs.length : 0;
     if (
       Number(row.current_version) !== 1 ||
       String(row.season) !== definition.season ||
@@ -134,7 +140,6 @@ export function existingInitialPublication(
         (definition.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites") ||
       row.source_uri !==
         (definition.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null) ||
-      Number(row.points) !== definition.points ||
       row.art_key !== definition.slug ||
       sourceMetadataCatalogSha256(metadata) !== expectedCatalogSha256 ||
       !persistedInitialDefinitionManifestMatches(row, metadata) ||

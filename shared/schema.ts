@@ -3827,7 +3827,6 @@ export const collectionDefinitionVersions = pgTable(
     sourceMetadata: jsonb("source_metadata")
       .notNull()
       .default(sql`'{}'::jsonb`),
-    points: integer("points").notNull().default(0),
     artKey: text("art_key").notNull(),
     state: varchar("state", { length: 30 }).notNull().default("draft"),
     correctionOfVersionId: varchar("correction_of_version_id"),
@@ -3850,7 +3849,6 @@ export const collectionDefinitionVersions = pgTable(
       foreignColumns: [table.id],
     }).onDelete("restrict"),
     versionCheck: check("collection_versions_version_check", sql`${table.version} > 0`),
-    pointsCheck: check("collection_versions_points_check", sql`${table.points} >= 0`),
     stateCheck: check(
       "collection_versions_state_check",
       sql`${table.state} IN ('draft', 'tracking', 'final')`,

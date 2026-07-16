@@ -170,7 +170,6 @@ export default function CollectionDetailPage() {
     sport: string;
     family: string;
     kind: "player_slots" | "master";
-    points: number;
   } | null>(null);
   // Per-slot input state: slotId → current user input string
   const [slotInputs, setSlotInputs] = useState<Map<string, string>>(new Map());
@@ -227,7 +226,6 @@ export default function CollectionDetailPage() {
             sport: detail.sport,
             family: detail.family,
             kind: detail.kind,
-            points: detail.points,
           });
         }
       } else if (eventType === "reactivated") {

@@ -16,7 +16,6 @@ function preview(
       season: "2026",
       family: "season_leaders",
       lifecycle: "tracking",
-      points: 100,
       kind: "player_slots",
       slotQuantity: 50,
       rule: {

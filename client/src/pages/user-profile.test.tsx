@@ -133,7 +133,6 @@ function makeEligible(overrides?: Partial<EligibleCollectionEntry>): EligibleCol
     family: "sluggers",
     title: "Test Collection",
     artKey: "tk",
-    points: 100,
     lifecycleStatus: "tracking",
     earnedAt: "2025-06-01T00:00:00.000Z",
     completionSequence: 1,

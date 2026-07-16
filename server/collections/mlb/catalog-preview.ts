@@ -73,11 +73,9 @@ export function initialDefinitionManifest(preview: MlbCatalogPreview): Record<st
         definition.kind === "player_slots"
           ? definition.rule
           : { prerequisiteSlugs: definition.prerequisiteSlugs },
-      sourceType:
-        definition.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites",
+      sourceType: definition.kind === "player_slots" ? "mlb_statsapi" : "collection_prerequisites",
       sourceUri: definition.kind === "player_slots" ? "https://statsapi.mlb.com/api/v1" : null,
       sourceMetadata: sourceSnapshot,
-      points: definition.points,
       artKey: definition.slug,
     },
     slots:
@@ -136,7 +134,6 @@ function snapshotSha256(
       kind: definition.kind,
       title: definition.title,
       description: definition.description,
-      points: definition.points,
       membership:
         definition.kind === "player_slots"
           ? {

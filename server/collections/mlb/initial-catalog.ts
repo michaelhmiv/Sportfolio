@@ -17,7 +17,6 @@ interface CatalogDefinitionBase {
   season: string;
   family: MlbCollectionFamily;
   lifecycle: "tracking" | "final";
-  points: number;
 }
 
 export interface MlbPlayerCatalogDefinition extends CatalogDefinitionBase {
@@ -79,7 +78,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The top ten 2025 MLB home run hitters, including ties at the cutoff.",
     season: "2025",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2025, "hitting", "homeRuns", "homeRuns"),
   }),
@@ -89,7 +87,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The top ten 2025 MLB RBI hitters, including ties at the cutoff.",
     season: "2025",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2025, "hitting", "rbi", "runsBattedIn"),
   }),
@@ -99,7 +96,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The top ten officially qualified 2025 MLB hitters by OPS, including ties.",
     season: "2025",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2025, "hitting", "ops", "onBasePlusSlugging", { qualified: true }),
   }),
@@ -109,7 +105,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The top ten 2025 MLB stolen-base leaders, including ties at the cutoff.",
     season: "2025",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2025, "hitting", "stolenBases", "stolenBases"),
   }),
@@ -119,7 +114,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The top ten 2025 MLB pitchers by strikeouts, including ties at the cutoff.",
     season: "2025",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2025, "pitching", "strikeOuts", "strikeOuts"),
   }),
@@ -130,7 +124,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
       "The ten lowest ERAs among officially qualified 2025 MLB pitchers, including ties.",
     season: "2025",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2025, "pitching", "era", "earnedRunAverage", {
       qualified: true,
@@ -143,7 +136,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The top ten 2025 MLB pitchers by saves, including ties at the cutoff.",
     season: "2025",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2025, "pitching", "saves", "saves"),
   }),
@@ -153,7 +145,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Every MLB hitter with at least 30 home runs in 2025.",
     season: "2025",
     family: "threshold_clubs",
-    points: 75,
     slotQuantity: 20,
     expectedMemberCount: 33,
     rule: {
@@ -172,7 +163,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Every MLB hitter with at least 100 RBI in 2025.",
     season: "2025",
     family: "threshold_clubs",
-    points: 75,
     slotQuantity: 20,
     expectedMemberCount: 16,
     rule: {
@@ -191,7 +181,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Every MLB pitcher with at least 200 strikeouts in 2025.",
     season: "2025",
     family: "threshold_clubs",
-    points: 75,
     slotQuantity: 20,
     expectedMemberCount: 12,
     rule: {
@@ -210,7 +199,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The official 2025 American and National League Silver Slugger recipients.",
     season: "2025",
     family: "official_awards",
-    points: 125,
     slotQuantity: 30,
     expectedMemberCount: 20,
     rule: { type: "awards", season: 2025, awardIds: ["ALSS", "NLSS"] },
@@ -221,7 +209,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The official 2025 American and National League Gold Glove recipients.",
     season: "2025",
     family: "official_awards",
-    points: 125,
     slotQuantity: 30,
     expectedMemberCount: 20,
     rule: { type: "awards", season: 2025, awardIds: ["ALGG", "NLGG"] },
@@ -232,7 +219,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The official 2025 All-MLB First Team recipients.",
     season: "2025",
     family: "official_teams",
-    points: 125,
     slotQuantity: 30,
     expectedMemberCount: 16,
     rule: { type: "awards", season: 2025, awardIds: ["MLBAFIRST"] },
@@ -243,7 +229,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The top ten 2025 postseason home run hitters, including ties at the cutoff.",
     season: "2025",
     family: "postseason",
-    points: 110,
     slotQuantity: 35,
     rule: topRule(2025, "hitting", "homeRuns", "homeRuns", { gameType: "P" }),
   }),
@@ -253,7 +238,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "The top ten 2025 postseason pitchers by strikeouts, including ties.",
     season: "2025",
     family: "postseason",
-    points: 110,
     slotQuantity: 35,
     rule: topRule(2025, "pitching", "strikeOuts", "strikeOuts", { gameType: "P" }),
   }),
@@ -263,7 +247,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Live 2026 MLB home run leaders, updated while the season is tracking.",
     season: "2026",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2026, "hitting", "homeRuns", "homeRuns"),
   }),
@@ -273,7 +256,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Live 2026 MLB RBI leaders, updated while the season is tracking.",
     season: "2026",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2026, "hitting", "rbi", "runsBattedIn"),
   }),
@@ -283,7 +265,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Live 2026 MLB stolen-base leaders, updated while the season is tracking.",
     season: "2026",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2026, "hitting", "stolenBases", "stolenBases"),
   }),
@@ -293,7 +274,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Live 2026 MLB pitching strikeout leaders, updated while tracking.",
     season: "2026",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2026, "pitching", "strikeOuts", "strikeOuts"),
   }),
@@ -303,7 +283,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Live officially qualified 2026 MLB ERA leaders, updated while tracking.",
     season: "2026",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2026, "pitching", "era", "earnedRunAverage", {
       qualified: true,
@@ -316,7 +295,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Live officially qualified 2026 MLB OPS leaders, updated while tracking.",
     season: "2026",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2026, "hitting", "ops", "onBasePlusSlugging", { qualified: true }),
   }),
@@ -326,7 +304,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     description: "Live 2026 MLB saves leaders, updated while the season is tracking.",
     season: "2026",
     family: "season_leaders",
-    points: 100,
     slotQuantity: 50,
     rule: topRule(2026, "pitching", "saves", "saves"),
   }),
@@ -340,7 +317,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     season: "2025",
     family: "masters",
     lifecycle: "final",
-    points: 300,
     prerequisiteSlugs: [
       "2025-mlb-home-run-leaders",
       "2025-mlb-rbi-leaders",
@@ -358,7 +334,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     season: "2025",
     family: "masters",
     lifecycle: "final",
-    points: 250,
     prerequisiteSlugs: [
       "2025-mlb-strikeout-leaders",
       "2025-mlb-era-leaders",
@@ -375,7 +350,6 @@ export const INITIAL_MLB_CATALOG: MlbCatalogDefinition[] = [
     season: "2025",
     family: "masters",
     lifecycle: "final",
-    points: 500,
     prerequisiteSlugs: ["2025-mlb-batting-leaders-master", "2025-mlb-pitching-leaders-master"],
   },
 ];
