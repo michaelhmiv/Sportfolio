@@ -224,8 +224,6 @@ export async function distributeScoutShares(): Promise<JobResult> {
       return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
     }
 
-    const ledgerEntries = [];
-
     // CEREMONY DATA COLLECTION
     // Group distributions by user for personalized ceremonies
     const ceremonyDataByUser = new Map<string, any[]>();
@@ -251,9 +249,7 @@ export async function distributeScoutShares(): Promise<JobResult> {
         const sharesEarned = parseFloat(row.sharesEarned);
 
         if (sharesEarned > 0) {
-          await storage.creditScoutShares(row.userId, row.playerId, sharesEarned);
-
-          ledgerEntries.push({
+          const credited = await storage.creditScoutDistribution({
             hourTimestamp: hourEnd, // Timestamp for the ledger is the END of the processed hour
             playerId: row.playerId,
             userId: row.userId,
@@ -261,6 +257,10 @@ export async function distributeScoutShares(): Promise<JobResult> {
             globalScoutMinutes: Math.round(parseFloat(row.globalScoutMinutes)),
             sharesEarned: row.sharesEarned.toString(),
           });
+
+          if (!credited) {
+            continue;
+          }
 
           // Collect ceremony data
           const player = playerMap.get(row.playerId);
@@ -296,15 +296,6 @@ export async function distributeScoutShares(): Promise<JobResult> {
           err.message,
         );
         errorCount++;
-      }
-    }
-
-    // Bulk insert ledger entries
-    if (ledgerEntries.length > 0) {
-      const chunkSize = 1000;
-      for (let i = 0; i < ledgerEntries.length; i += chunkSize) {
-        const chunk = ledgerEntries.slice(i, i + chunkSize);
-        await Promise.all(chunk.map((entry) => storage.createScoutDistribution(entry)));
       }
     }
 

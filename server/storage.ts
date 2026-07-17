@@ -15,6 +15,7 @@ import {
   vestingClaims,
   vestingPresets,
   scoutAssignments,
+  scoutDistributionClaims,
   scoutDistributions,
   scoutHistory,
   playerGameStats,
@@ -433,15 +434,14 @@ export interface IStorage {
   updateLastActive(userId: string): Promise<void>;
   // Scout Distribution Engine methods
   getPlayersWithActiveScouts(): Promise<string[]>;
-  createScoutDistribution(distribution: {
+  creditScoutDistribution(distribution: {
     hourTimestamp: Date;
     playerId: string;
     userId: string;
     userScoutMinutes: number;
     globalScoutMinutes: number;
     sharesEarned: string;
-  }): Promise<void>;
-  creditScoutShares(userId: string, playerId: string, shares: number): Promise<void>;
+  }): Promise<boolean>;
   getScoutRoster(playerId: string): Promise<
     Array<{
       user: { id: string; username: string | null; avatarUrl: string | null } | null;
@@ -1725,64 +1725,82 @@ export class DatabaseStorage implements IStorage {
     return results.map((r) => r.playerId);
   }
 
-  async createScoutDistribution(distribution: {
+  async creditScoutDistribution(distribution: {
     hourTimestamp: Date;
     playerId: string;
     userId: string;
     userScoutMinutes: number;
     globalScoutMinutes: number;
     sharesEarned: string;
-  }): Promise<void> {
-    await db.insert(scoutDistributions).values({
-      hourTimestamp: distribution.hourTimestamp,
-      playerId: distribution.playerId,
-      userId: distribution.userId,
-      userScoutMinutes: distribution.userScoutMinutes,
-      globalScoutMinutes: distribution.globalScoutMinutes,
-      sharesEarned: distribution.sharesEarned,
-    });
-  }
+  }): Promise<boolean> {
+    return db.transaction(async (tx) => {
+      const [claim] = await tx
+        .insert(scoutDistributionClaims)
+        .values({
+          hourTimestamp: distribution.hourTimestamp,
+          playerId: distribution.playerId,
+          userId: distribution.userId,
+        })
+        .onConflictDoNothing()
+        .returning({ id: scoutDistributionClaims.id });
 
-  async creditScoutShares(userId: string, playerId: string, shares: number): Promise<void> {
-    // Use transaction to prevent race conditions during concurrent distributions
-    await db.transaction(async (tx) => {
-      // Lock the player row to prevent concurrent totalShares updates
+      if (!claim) {
+        return false;
+      }
+
+      const shares = parseFloat(distribution.sharesEarned);
+
+      // Lock the player row to serialize totalShares updates.
       const [player] = await tx
         .select()
         .from(players)
-        .where(eq(players.id, playerId))
+        .where(eq(players.id, distribution.playerId))
         .for("update");
 
       if (!player) {
-        throw new Error(`Player ${playerId} not found`);
+        throw new Error(`Player ${distribution.playerId} not found`);
       }
 
-      // Credit shares to the user's regular-share holdings (multiplier field = 1) with $0 cost basis.
-      const existing = await this.getRegularHolding(userId, "player", playerId);
+      // Read the regular holding through this transaction, never through the global db.
+      const identity = await loadPlayerIdentityContext(tx, distribution.playerId);
+      const existingRows = await tx
+        .select()
+        .from(holdings)
+        .where(
+          and(
+            eq(holdings.userId, distribution.userId),
+            eq(holdings.assetType, "player"),
+            buildIdentityMatchSql(holdings.assetId, identity.allIds),
+          ),
+        )
+        .orderBy(
+          desc(
+            sql<number>`CASE WHEN ${holdings.assetId} = ${identity.canonicalId} THEN 1 ELSE 0 END`,
+          ),
+          desc(sql<number>`CAST(${holdings.quantity} AS NUMERIC)`),
+          desc(holdings.lastUpdated),
+        )
+        .limit(1);
+      const existing = existingRows[0];
 
       if (existing) {
-        // Add to existing regular holding - keep existing cost basis for purchased shares
-        // New shares have $0 cost, so weighted average shifts down
         const existingQuantity = parseFloat(existing.quantity);
         const newQuantity = existingQuantity + shares;
         const existingCost = parseFloat(existing.totalCostBasis || "0");
-        // New shares are free, so total cost stays the same
         const newAvgCost = newQuantity > 0 ? (existingCost / newQuantity).toFixed(4) : "0.0000";
         await tx
           .update(holdings)
           .set({
             quantity: newQuantity.toString(),
             avgCostBasis: newAvgCost,
-            // totalCostBasis stays the same since new shares are free
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, existing.id));
       } else {
-        // Create new regular holding with $0 cost basis
         await tx.insert(holdings).values({
-          userId,
+          userId: distribution.userId,
           assetType: "player",
-          assetId: playerId,
+          assetId: distribution.playerId,
           quantity: shares.toString(),
           avgCostBasis: "0.0000",
           totalCostBasis: "0.00",
@@ -1790,14 +1808,17 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
-      // Update player's total shares count (within transaction, with row locked)
       await tx
         .update(players)
         .set({
           totalShares: sql`${players.totalShares} + ${shares}`,
           lastUpdated: new Date(),
         })
-        .where(eq(players.id, playerId));
+        .where(eq(players.id, distribution.playerId));
+
+      await tx.insert(scoutDistributions).values(distribution);
+
+      return true;
     });
   }
 

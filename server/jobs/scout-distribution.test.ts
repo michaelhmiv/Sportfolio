@@ -9,8 +9,7 @@ const dbMocks = vi.hoisted(() => ({
 }));
 
 const storageMocks = vi.hoisted(() => ({
-  creditScoutShares: vi.fn(),
-  createScoutDistribution: vi.fn(),
+  creditScoutDistribution: vi.fn(),
   getTotalScoutsForUser: vi.fn(),
 }));
 
@@ -129,4 +128,65 @@ describe("distributeScoutShares", () => {
     });
     expect(websocketMocks.broadcastToUser).not.toHaveBeenCalled();
   }, 15_000);
+
+  it("does not count or broadcast a distribution whose event claim already exists", async () => {
+    let selectCall = 0;
+    dbMocks.select.mockImplementation(() => {
+      selectCall += 1;
+      if (selectCall === 1) {
+        return {
+          from: () => ({
+            innerJoin: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }),
+          }),
+        };
+      }
+      if (selectCall === 2) return { from: () => Promise.resolve([]) };
+      if (selectCall === 3) return { from: () => ({ where: () => Promise.resolve([]) }) };
+      if (selectCall === 4) {
+        return {
+          from: () => ({
+            where: () =>
+              Promise.resolve([
+                {
+                  id: "player-1",
+                  firstName: "Test",
+                  lastName: "Player",
+                  team: "TST",
+                  position: "G",
+                  sport: "NBA",
+                },
+              ]),
+          }),
+        };
+      }
+      throw new Error(`Unexpected select call ${selectCall}`);
+    });
+    dbMocks.execute.mockResolvedValue({
+      rows: [
+        {
+          userId: "user-1",
+          playerId: "player-1",
+          userScoutMinutes: "60",
+          globalScoutMinutes: "60",
+          sharesEarned: "60.00",
+        },
+      ],
+    });
+    storageMocks.creditScoutDistribution.mockResolvedValue(false);
+    const { distributeScoutShares } = await import("./scout-distribution");
+
+    const result = await distributeScoutShares();
+
+    expect(storageMocks.creditScoutDistribution).toHaveBeenCalledWith({
+      hourTimestamp: new Date("2026-06-03T15:00:00.000Z"),
+      playerId: "player-1",
+      userId: "user-1",
+      userScoutMinutes: 60,
+      globalScoutMinutes: 60,
+      sharesEarned: "60.00",
+    });
+    expect(result.recordsProcessed).toBe(0);
+    expect(websocketMocks.broadcastToUser).not.toHaveBeenCalled();
+    expect(websocketMocks.broadcast).not.toHaveBeenCalled();
+  });
 });
