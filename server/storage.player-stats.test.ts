@@ -145,17 +145,13 @@ describe("DatabaseStorage player stats readers", () => {
     expect(storage.getPlayerIdentityIds).toHaveBeenCalledWith("nba_1");
   });
 
-  it("aggregates batched season stats across alias ids", async () => {
+  it("combines batched alias aggregates using a games-played weighted average", async () => {
     const { DatabaseStorage } = await import("./storage");
     const storage = new DatabaseStorage();
-
-    const batchLog = {
-      playerId: "nba_alias",
-      sport: "NBA",
-      season: "2025-2026-regular",
-      gameDate: new Date("2026-03-10T00:00:00.000Z"),
-      fantasyPoints: "30.00",
-    };
+    const groupByMock = vi.fn(() => [
+      { playerId: "nba_1", gamesPlayed: "2", totalFantasyPoints: "31.00" },
+      { playerId: "nba_alias", gamesPlayed: "1", totalFantasyPoints: "40.00" },
+    ]);
 
     selectMock
       .mockReturnValueOnce({
@@ -177,15 +173,53 @@ describe("DatabaseStorage player stats readers", () => {
       })
       .mockReturnValueOnce({
         from: () => ({
-          where: () => makeWhereOnlyQuery([batchLog]),
+          where: () => ({ groupBy: groupByMock }),
         }),
       });
 
     const statsMap = await storage.getBatchPlayerSeasonStatsFromLogs(["nba_alias"]);
 
     expect(statsMap.get("nba_alias")).toEqual({
-      gamesPlayed: 1,
-      avgFantasyPointsPerGame: "30.00",
+      gamesPlayed: 3,
+      avgFantasyPointsPerGame: "23.67",
+    });
+    expect(groupByMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("selects only grouped aggregate fields for batched season logs", async () => {
+    const { DatabaseStorage } = await import("./storage");
+    const storage = new DatabaseStorage();
+    const groupByMock = vi.fn(() => []);
+
+    selectMock
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => makeWhereOnlyQuery([]),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => makeWhereOnlyQuery([{ id: "nba_1", sport: "NBA" }]),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({ groupBy: groupByMock }),
+        }),
+      });
+
+    const statsMap = await storage.getBatchPlayerSeasonStatsFromLogs(["nba_1"]);
+    const aggregateSelection = selectMock.mock.calls[2]?.[0];
+
+    expect(Object.keys(aggregateSelection)).toEqual([
+      "playerId",
+      "gamesPlayed",
+      "totalFantasyPoints",
+    ]);
+    expect(groupByMock).toHaveBeenCalledTimes(1);
+    expect(statsMap.get("nba_1")).toEqual({
+      gamesPlayed: 0,
+      avgFantasyPointsPerGame: "0.0",
     });
   });
 });

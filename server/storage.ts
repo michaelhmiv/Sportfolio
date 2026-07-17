@@ -4967,16 +4967,34 @@ export class DatabaseStorage implements IStorage {
       })
       .filter(Boolean);
 
-    // Fetch relevant game logs for all target players in one SQL query with season filtering.
-    const filteredGameLogs =
+    // Aggregate relevant game logs in SQL so only one row per identity ID crosses the database boundary.
+    const aggregatedGameLogs =
       seasonScopedFilters.length > 0
         ? await db
-            .select()
+            .select({
+              playerId: playerGameStats.playerId,
+              gamesPlayed: sql<string>`COALESCE(COUNT(*), 0)::text`,
+              totalFantasyPoints: sql<string>`COALESCE(SUM(CAST(${playerGameStats.fantasyPoints} AS numeric)), 0)::text`,
+            })
             .from(playerGameStats)
             .where(
               or(...(seasonScopedFilters as NonNullable<(typeof seasonScopedFilters)[number]>[])),
             )
+            .groupBy(playerGameStats.playerId)
         : [];
+
+    const aggregatesByIdentityId = new Map<
+      string,
+      { gamesPlayed: number; totalFantasyPoints: number }
+    >();
+    for (const row of aggregatedGameLogs) {
+      const gamesPlayed = Number(row.gamesPlayed);
+      const totalFantasyPoints = Number(row.totalFantasyPoints);
+      aggregatesByIdentityId.set(row.playerId, {
+        gamesPlayed: Number.isFinite(gamesPlayed) && gamesPlayed > 0 ? gamesPlayed : 0,
+        totalFantasyPoints: Number.isFinite(totalFantasyPoints) ? totalFantasyPoints : 0,
+      });
+    }
 
     const statsMap = new Map<
       string,
@@ -4988,23 +5006,22 @@ export class DatabaseStorage implements IStorage {
 
     for (const playerId of playerIds) {
       const identityContext = identityContexts.get(playerId);
-      const playerLogs = identityContext
-        ? filteredGameLogs.filter((log) => identityContext.allIds.includes(log.playerId))
-        : [];
+      let gamesPlayed = 0;
+      let totalFantasyPoints = 0;
 
-      if (playerLogs.length === 0) {
+      for (const identityId of identityContext?.allIds || []) {
+        const aggregate = aggregatesByIdentityId.get(identityId);
+        if (!aggregate) continue;
+        gamesPlayed += aggregate.gamesPlayed;
+        totalFantasyPoints += aggregate.totalFantasyPoints;
+      }
+
+      if (gamesPlayed === 0) {
         statsMap.set(playerId, {
           gamesPlayed: 0,
           avgFantasyPointsPerGame: "0.0",
         });
         continue;
-      }
-
-      const gamesPlayed = playerLogs.length;
-      let totalFantasyPoints = 0;
-
-      for (const log of playerLogs) {
-        totalFantasyPoints += parseFloat(log.fantasyPoints);
       }
 
       statsMap.set(playerId, {
