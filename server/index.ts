@@ -28,6 +28,7 @@ import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
 import { nanoid } from "nanoid";
 import { normalizeSiteUrl } from "@shared/seo";
+import { isWriteMaintenanceMode, maintenanceWriteGuard } from "./maintenance-mode";
 
 const serverStartTime = Date.now();
 let serverReady = false;
@@ -139,6 +140,8 @@ app.get("/api/health", (_req, res) => {
   const uptime = Date.now() - serverStartTime;
   res.json({
     status: serverReady ? "ready" : "starting",
+    maintenanceMode: isWriteMaintenanceMode(),
+    writesBlocked: isWriteMaintenanceMode(),
     uptime,
     uptimeSeconds: Math.floor(uptime / 1000),
     timestamp: new Date().toISOString(),
@@ -168,6 +171,11 @@ if (app.get("env") !== "production") {
     throw new Error("Sentry debug route hit");
   });
 }
+
+// Freeze every HTTP mutation during a coordinated database cutover while
+// keeping health checks and read traffic available. This must be global: MCP
+// and internal mutation routes are intentionally not all mounted under /api.
+app.use(maintenanceWriteGuard());
 
 declare module "http" {
   interface IncomingMessage {
@@ -278,39 +286,49 @@ app.use((req, res, next) => {
       startupLog("LISTEN", `Server listening on port ${port}`);
       log(`serving on port ${port}`);
 
-      // Startup migration: Ensure all bot profiles have unlimited daily limits
-      try {
-        await db.update(botProfiles).set({
-          maxDailyOrders: 999999,
-          maxDailyVolume: 999999,
-        });
-        log("Bot profiles updated with unlimited daily limits");
-      } catch (error: any) {
-        console.error("Failed to update bot profiles:", error.message);
+      const maintenanceMode = isWriteMaintenanceMode();
+
+      if (maintenanceMode) {
+        log("Maintenance mode active; startup database writers are disabled");
+      } else {
+        // Startup migration: Ensure all bot profiles have unlimited daily limits
+        try {
+          await db.update(botProfiles).set({
+            maxDailyOrders: 999999,
+            maxDailyVolume: 999999,
+          });
+          log("Bot profiles updated with unlimited daily limits");
+        } catch (error: any) {
+          console.error("Failed to update bot profiles:", error.message);
+        }
+
+        try {
+          startAccountDeletionProcessor();
+        } catch (error: any) {
+          console.error("Failed to start account deletion processor:", error.message);
+        }
       }
 
-      // Always initialize core jobs (database-only, no sports API required)
-      try {
-        await jobScheduler.initializeCoreJobs();
-        jobScheduler.start();
-        log("Core jobs initialized and started");
-      } catch (error: any) {
-        console.error("Failed to initialize core jobs:", error.message);
-      }
+      if (!maintenanceMode && process.env.RUN_SCHEDULED_JOBS === "true") {
+        // Initialize core jobs (database-only, no sports API required).
+        try {
+          await jobScheduler.initializeCoreJobs();
+          jobScheduler.start();
+          log("Core jobs initialized and started");
+        } catch (error: any) {
+          console.error("Failed to initialize core jobs:", error.message);
+        }
 
-      // Initialize sports API-dependent jobs. MLB StatsAPI and NASCAR are public/no-auth;
-      // NBA/NFL paid-provider jobs are disabled in the scheduler while the app is MLB/NASCAR-only.
-      try {
-        await jobScheduler.initializeApiJobs();
-        log("API-dependent jobs initialized and started");
-      } catch (error: any) {
-        console.error("Failed to initialize API jobs:", error.message);
-      }
-
-      try {
-        startAccountDeletionProcessor();
-      } catch (error: any) {
-        console.error("Failed to start account deletion processor:", error.message);
+        // Initialize sports API-dependent jobs. MLB StatsAPI and NASCAR are public/no-auth;
+        // NBA/NFL paid-provider jobs are disabled in the scheduler while the app is MLB/NASCAR-only.
+        try {
+          await jobScheduler.initializeApiJobs();
+          log("API-dependent jobs initialized and started");
+        } catch (error: any) {
+          console.error("Failed to initialize API jobs:", error.message);
+        }
+      } else {
+        log("Automatic scheduled work disabled");
       }
 
       // Mark server as fully ready

@@ -61,6 +61,7 @@ const loadDashboardPage = () => import("@/pages/dashboard");
 const loadPlayerPage = () => import("@/pages/player");
 const loadPortfolioPage = () => import("@/pages/portfolio");
 const loadUserProfilePage = () => import("@/pages/user-profile");
+const loadAccountSettingsPage = () => import("@/pages/account-settings");
 const loadLeaderboardsPage = () => import("@/pages/leaderboards");
 const loadAdminPage = () => import("@/pages/admin");
 const loadAuthErrorPage = () => import("@/pages/auth-error");
@@ -79,10 +80,11 @@ const loadSmsLinkPage = () => import("@/pages/sms-link");
 const loadDiscordLinkPage = () => import("@/pages/discord-link");
 const loadAnalyticsPage = () => import("@/pages/analytics");
 const loadNewsPage = () => import("@/pages/news");
-const loadAgentPage = () => import("@/pages/agent");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
 const loadBoostsPage = () => import("@/pages/boosts");
+const loadCollectionsPage = () => import("@/pages/collections");
+const loadCollectionDetailPage = () => import("@/pages/collection-detail");
 const loadLoginPage = () => import("@/pages/Login");
 const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
@@ -115,6 +117,7 @@ const PlayerPools = lazy(loadPlayerPoolsPage);
 const PlayerPage = lazy(loadPlayerPage);
 const Portfolio = lazy(loadPortfolioPage);
 const UserProfile = lazy(loadUserProfilePage);
+const AccountSettingsPage = lazy(loadAccountSettingsPage);
 const Leaderboards = lazy(loadLeaderboardsPage);
 const Admin = lazy(loadAdminPage);
 const AuthError = lazy(loadAuthErrorPage);
@@ -133,7 +136,6 @@ const SmsLink = lazy(loadSmsLinkPage);
 const DiscordLink = lazy(loadDiscordLinkPage);
 const Analytics = lazy(loadAnalyticsPage);
 const News = lazy(loadNewsPage);
-const Agent = lazy(loadAgentPage);
 const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
 const Boosts = lazy(loadBoostsPage);
@@ -148,6 +150,8 @@ const WhaleAlertBanner = lazy(loadWhaleAlertBanner);
 const BoostCeremonyOverlay = lazy(loadBoostCeremonyOverlay);
 const ScoutCeremonyOverlay = lazy(loadScoutCeremonyOverlay);
 const ScoutReadyBanner = lazy(loadScoutReadyBanner);
+const CollectionsPage = lazy(loadCollectionsPage);
+const CollectionDetailPage = lazy(loadCollectionDetailPage);
 
 function upsertMetaTag(attribute: "name" | "property", value: string): HTMLMetaElement {
   let tag = document.head.querySelector(`meta[${attribute}="${value}"]`) as HTMLMetaElement | null;
@@ -307,7 +311,12 @@ function RouteLoadingState({ location }: { location: string }) {
   }
 
   return (
-    <div className="terminal-page p-3 sm:p-4">
+    <div
+      className="terminal-page p-3 sm:p-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading page"
+    >
       <div className="mx-auto max-w-7xl space-y-4">
         <div className="terminal-shell p-4">
           <div className="h-5 w-32 animate-pulse rounded-sm bg-muted/70" />
@@ -368,7 +377,7 @@ function getTransitionVariants(
   ];
 }
 
-const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
+export const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/login",
   "/onboarding",
   "/auth/callback",
@@ -380,12 +389,15 @@ const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/premium",
   "/watchlists",
   "/profile",
+  "/settings",
+  "/collections",
 ];
 
-function routeRequiresAuthBootstrap(path: string) {
+export function routeRequiresAuthBootstrap(pathname: string): boolean {
   if (
     AUTH_BOOTSTRAP_REQUIRED_PREFIXES.some(
-      (prefix) => path === prefix || (prefix.endsWith("/") ? path.startsWith(prefix) : false),
+      (prefix) =>
+        pathname === prefix || (prefix.endsWith("/") ? pathname.startsWith(prefix) : false),
     )
   ) {
     return true;
@@ -761,7 +773,12 @@ function Router() {
 
   if (shouldShowAuthBootstrapLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div
+        className="flex items-center justify-center h-screen"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading account"
+      >
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
@@ -845,9 +862,6 @@ function Router() {
               <Route path="/analytics" component={Analytics} />
               <Route path="/news" component={News} />
 
-              {/* Hermes workspace - requires authentication */}
-              <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <Dashboard />}</Route>
-
               {/* Boosts - requires authentication */}
               <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
               <Route path="/boosts">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
@@ -878,12 +892,23 @@ function Router() {
               <Route path="/watchlists">
                 {canAccessProtectedRoutes ? <Watchlists /> : <Dashboard />}
               </Route>
+              <Route path="/collections">
+                {canAccessProtectedRoutes ? <CollectionsPage /> : <Dashboard />}
+              </Route>
+              <Route path="/collections/:slug">
+                {canAccessProtectedRoutes ? <CollectionDetailPage /> : <Dashboard />}
+              </Route>
               <Route path="/profile">
                 {canAccessProtectedRoutes && user ? (
                   <ProfileRedirect userId={user.id} />
                 ) : (
                   <Dashboard />
                 )}
+              </Route>
+
+              {/* Account settings — authenticated, owner-only */}
+              <Route path="/settings">
+                {canAccessProtectedRoutes ? <AccountSettingsPage /> : <Dashboard />}
               </Route>
 
               {/* Auth error page - public, always accessible */}

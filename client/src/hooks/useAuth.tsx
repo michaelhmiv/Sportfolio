@@ -346,6 +346,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         debugLog("STATE_CHANGE", `Auth state changed: ${event}`, { hasSession: !!newSession });
         setSession(newSession);
 
+        if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+          queryClient.removeQueries({
+            predicate: (query) => {
+              const key = query.queryKey[0];
+              return (
+                typeof key === "string" &&
+                (key.startsWith("/api/user") || key.startsWith("/api/me/trophy-case"))
+              );
+            },
+          });
+        }
+
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
           queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
         } else if (event === "SIGNED_OUT") {
@@ -648,6 +660,9 @@ export function useAuth() {
             "/api/portfolio",
             "/api/admin",
             "/api/whop",
+            "/api/me/collections",
+            "/api/me/trophy-case",
+            "/api/user",
           ];
           return userScopedPaths.some((path) => key.startsWith(path));
         },

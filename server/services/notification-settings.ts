@@ -155,50 +155,53 @@ export async function updateNotificationSettings(
 export async function registerPushDevice(
   input: RegisterPushDeviceInput,
 ): Promise<RegisterPushDeviceResult> {
-  const [tokenOwnerBefore] = await db
-    .select()
-    .from(userPushDevices)
-    .where(eq(userPushDevices.token, input.token))
-    .limit(1);
+  return db.transaction(async (tx) => {
+    // Serialize registration with account deletion. Deletion locks this same user
+    // row before erasing devices, so a request authenticated before deletion cannot
+    // recreate a push token after the deletion transaction commits.
+    const [activeUser] = await tx
+      .select({
+        id: users.id,
+        newsNotificationsEnabled: users.newsNotificationsEnabled,
+      })
+      .from(users)
+      .where(and(eq(users.id, input.userId), isNull(users.deletedAt)))
+      .for("update")
+      .limit(1);
 
-  const existingForUserWithSameDeviceId =
-    input.deviceId && input.deviceId.length > 0
-      ? await db
-          .select({ id: userPushDevices.id })
-          .from(userPushDevices)
-          .where(
-            and(
-              eq(userPushDevices.userId, input.userId),
-              eq(userPushDevices.deviceId, input.deviceId),
-              eq(userPushDevices.enabled, true),
-              isNull(userPushDevices.invalidatedAt),
-            ),
-          )
-          .limit(1)
-      : [];
+    if (!activeUser) {
+      throw new Error("Cannot register push notifications for a deleted account");
+    }
 
-  const now = new Date();
-  const [device] = await db
-    .insert(userPushDevices)
-    .values({
-      userId: input.userId,
-      platform: input.platform || "android",
-      token: input.token,
-      deviceId: input.deviceId?.trim() || null,
-      appVersion: input.appVersion?.trim() || null,
-      permissionStatus: input.permissionStatus || DEFAULT_PERMISSION_STATUS,
-      lastSeenAt: now,
-      enabled: true,
-      invalidatedAt: null,
-      invalidReason: null,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: userPushDevices.token,
-      set: {
+    const [tokenOwnerBefore] = await tx
+      .select()
+      .from(userPushDevices)
+      .where(eq(userPushDevices.token, input.token))
+      .limit(1);
+
+    const existingForUserWithSameDeviceId =
+      input.deviceId && input.deviceId.length > 0
+        ? await tx
+            .select({ id: userPushDevices.id })
+            .from(userPushDevices)
+            .where(
+              and(
+                eq(userPushDevices.userId, input.userId),
+                eq(userPushDevices.deviceId, input.deviceId),
+                eq(userPushDevices.enabled, true),
+                isNull(userPushDevices.invalidatedAt),
+              ),
+            )
+            .limit(1)
+        : [];
+
+    const now = new Date();
+    const [device] = await tx
+      .insert(userPushDevices)
+      .values({
         userId: input.userId,
         platform: input.platform || "android",
+        token: input.token,
         deviceId: input.deviceId?.trim() || null,
         appVersion: input.appVersion?.trim() || null,
         permissionStatus: input.permissionStatus || DEFAULT_PERMISSION_STATUS,
@@ -206,18 +209,47 @@ export async function registerPushDevice(
         enabled: true,
         invalidatedAt: null,
         invalidReason: null,
+        createdAt: now,
         updatedAt: now,
-      },
-    })
-    .returning();
+      })
+      .onConflictDoUpdate({
+        target: userPushDevices.token,
+        set: {
+          userId: input.userId,
+          platform: input.platform || "android",
+          deviceId: input.deviceId?.trim() || null,
+          appVersion: input.appVersion?.trim() || null,
+          permissionStatus: input.permissionStatus || DEFAULT_PERMISSION_STATUS,
+          lastSeenAt: now,
+          enabled: true,
+          invalidatedAt: null,
+          invalidReason: null,
+          updatedAt: now,
+        },
+      })
+      .returning();
 
-  await ensureNotificationSettings(input.userId);
+    const categoryPreferences = applyLegacyNewsNotificationPreference(
+      activeUser.newsNotificationsEnabled,
+      null,
+    );
+    await tx
+      .insert(userNotificationSettings)
+      .values({
+        userId: input.userId,
+        pushEnabled: true,
+        categoryPreferences,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing({ target: userNotificationSettings.userId });
 
-  return {
-    device,
-    isNewToken: !tokenOwnerBefore,
-    isNewDeviceForUser: existingForUserWithSameDeviceId.length === 0,
-  };
+    return {
+      device,
+      isNewToken: !tokenOwnerBefore,
+      isNewDeviceForUser: existingForUserWithSameDeviceId.length === 0,
+    };
+  });
 }
 
 export async function unregisterPushDevice(input: {

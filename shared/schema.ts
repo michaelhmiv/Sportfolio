@@ -9,6 +9,8 @@ import {
   boolean,
   index,
   uniqueIndex,
+  check,
+  foreignKey,
   jsonb,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -32,7 +34,14 @@ export const users = pgTable(
     id: varchar("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    // Auth provider fields
+    // Auth provider fields. Retained on soft deletion as an identity tombstone so
+    // surviving provider credentials cannot recreate an erased account.
+    authProviderSubject: varchar("auth_provider_subject").unique(),
+    authProviderSubjects: text("auth_provider_subjects")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    authEmailIdentityHash: varchar("auth_email_identity_hash", { length: 64 }).unique(),
     email: varchar("email").unique(),
     firstName: varchar("first_name"),
     lastName: varchar("last_name"),
@@ -45,6 +54,7 @@ export const users = pgTable(
     premiumExpiresAt: timestamp("premium_expires_at"),
     hasSeenOnboarding: boolean("has_seen_onboarding").notNull().default(false), // Track if user completed onboarding
     isBot: boolean("is_bot").notNull().default(false), // True for market maker bot accounts
+    profileVisibility: varchar("profile_visibility", { length: 10 }).notNull().default("public"),
     // Profile stats
     totalSharesVested: integer("total_shares_vested").notNull().default(0),
     totalMarketOrders: integer("total_market_orders").notNull().default(0),
@@ -60,6 +70,11 @@ export const users = pgTable(
   },
   (table) => ({
     lastActiveIdx: index("users_last_active_idx").on(table.lastActiveAt),
+    visibilityIdx: index("users_profile_visibility_idx").on(table.profileVisibility),
+    visibilityCheck: check(
+      "users_profile_visibility_check",
+      sql`${table.profileVisibility} IN ('public', 'private')`,
+    ),
   }),
 );
 
@@ -673,14 +688,17 @@ export const holdingsLocks = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     assetType: text("asset_type").notNull(), // "player" or "premium"
     assetId: text("asset_id").notNull(), // player ID or "premium"
-    lockType: text("lock_type").notNull(), // "order" or "vesting"
-    lockReferenceId: varchar("lock_reference_id").notNull(), // order ID or vesting record ID
-    lockedQuantity: integer("locked_quantity").notNull().default(0),
+    lockType: text("lock_type").notNull(), // 'order', 'vesting', 'pending', 'collection', 'other'
+    lockReferenceId: varchar("lock_reference_id").notNull(), // ID of order, allocation, transaction, etc.
+    lockedQuantity: decimal("locked_quantity", { precision: 20, scale: 4 }).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
     userAssetIdx: index("locks_user_asset_idx").on(table.userId, table.assetType, table.assetId),
     referenceIdx: index("locks_reference_idx").on(table.lockReferenceId),
+    collectionReferenceIdx: uniqueIndex("locks_collection_reference_unique")
+      .on(table.lockReferenceId)
+      .where(sql`${table.lockType} = 'collection'`),
     lockTypeIdx: index("locks_type_idx").on(table.lockType),
   }),
 );
@@ -1002,6 +1020,32 @@ export const scoutDistributions = pgTable(
   (table) => ({
     hourPlayerIdx: index("scout_dist_hour_player_idx").on(table.hourTimestamp, table.playerId),
     userHourIdx: index("scout_dist_user_hour_idx").on(table.userId, table.hourTimestamp),
+  }),
+);
+
+// Durable idempotency claims for scout distribution events. Kept separate from the
+// historical ledger because legacy scout_distributions rows are not unique.
+export const scoutDistributionClaims = pgTable(
+  "scout_distribution_claims",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    hourTimestamp: timestamp("hour_timestamp").notNull(),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    eventUniqueIdx: uniqueIndex("scout_distribution_claims_event_idx").on(
+      table.hourTimestamp,
+      table.playerId,
+      table.userId,
+    ),
   }),
 );
 
@@ -3735,6 +3779,497 @@ export const userCollections = pgTable(
   }),
 );
 
+// Collections v2 — versioned factual definitions, transactional assembly, and public identity.
+// The legacy userCollections table remains additive/read-only until the v2 backend cutover.
+export const collectionDefinitions = pgTable(
+  "collection_definitions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    slug: varchar("slug", { length: 180 }).notNull(),
+    sport: varchar("sport", { length: 20 }).notNull(),
+    league: varchar("league", { length: 40 }).notNull(),
+    season: varchar("season", { length: 20 }).notNull(),
+    family: varchar("family", { length: 60 }).notNull(),
+    kind: varchar("kind", { length: 30 }).notNull().default("player_slots"),
+    lifecycleStatus: varchar("lifecycle_status", { length: 30 }).notNull().default("draft"),
+    currentVersion: integer("current_version").notNull().default(1),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    finalizingAt: timestamp("finalizing_at", { withTimezone: true }),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    disabledReason: text("disabled_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    slugIdx: uniqueIndex("collection_definitions_slug_unique").on(table.slug),
+    catalogIdx: index("collection_definitions_catalog_idx").on(
+      table.sport,
+      table.season,
+      table.family,
+      table.lifecycleStatus,
+    ),
+    lifecycleIdx: index("collection_definitions_lifecycle_idx").on(table.lifecycleStatus),
+    kindCheck: check(
+      "collection_definitions_kind_check",
+      sql`${table.kind} IN ('player_slots', 'master')`,
+    ),
+    lifecycleCheck: check(
+      "collection_definitions_lifecycle_check",
+      sql`${table.lifecycleStatus} IN ('draft', 'tracking', 'finalizing', 'final', 'disabled')`,
+    ),
+    currentVersionCheck: check(
+      "collection_definitions_current_version_check",
+      sql`${table.currentVersion} > 0`,
+    ),
+    disableCheck: check(
+      "collection_definitions_disable_check",
+      sql`(${table.lifecycleStatus} = 'disabled' AND ${table.disabledAt} IS NOT NULL)
+          OR (${table.lifecycleStatus} <> 'disabled' AND ${table.disabledAt} IS NULL)`,
+    ),
+  }),
+);
+
+export const collectionDefinitionVersions = pgTable(
+  "collection_definition_versions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    definitionId: varchar("definition_id")
+      .notNull()
+      .references(() => collectionDefinitions.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    qualificationDescription: text("qualification_description").notNull(),
+    qualificationRules: jsonb("qualification_rules")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    sourceType: varchar("source_type", { length: 60 }).notNull(),
+    sourceUri: text("source_uri"),
+    sourceMetadata: jsonb("source_metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    artKey: text("art_key").notNull(),
+    state: varchar("state", { length: 30 }).notNull().default("draft"),
+    correctionOfVersionId: varchar("correction_of_version_id"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    membershipLockedAt: timestamp("membership_locked_at", { withTimezone: true }),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    definitionVersionIdx: uniqueIndex("collection_versions_definition_version_unique").on(
+      table.definitionId,
+      table.version,
+    ),
+    stateIdx: index("collection_versions_state_idx").on(table.state, table.finalizedAt),
+    correctionFk: foreignKey({
+      name: "collection_versions_correction_fk",
+      columns: [table.correctionOfVersionId],
+      foreignColumns: [table.id],
+    }).onDelete("restrict"),
+    versionCheck: check("collection_versions_version_check", sql`${table.version} > 0`),
+    stateCheck: check(
+      "collection_versions_state_check",
+      sql`${table.state} IN ('draft', 'tracking', 'final')`,
+    ),
+    finalCheck: check(
+      "collection_versions_final_check",
+      sql`(${table.state} = 'final' AND ${table.finalizedAt} IS NOT NULL) OR ${table.state} <> 'final'`,
+    ),
+  }),
+);
+
+export const collectionSlots = pgTable(
+  "collection_slots",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    collectionVersionId: varchar("collection_version_id")
+      .notNull()
+      .references(() => collectionDefinitionVersions.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id").references(() => players.id),
+    slotKey: varchar("slot_key", { length: 120 }).notNull(),
+    slotLabel: text("slot_label").notNull(),
+    requiredQuantity: decimal("required_quantity", { precision: 20, scale: 4 }).notNull(),
+    isRequired: boolean("is_required").notNull().default(true),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    rank: integer("rank"),
+    statKey: varchar("stat_key", { length: 80 }),
+    qualificationValue: decimal("qualification_value", { precision: 20, scale: 6 }),
+    qualificationMetadata: jsonb("qualification_metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    displayOrder: integer("display_order").notNull(),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    versionSlotIdx: uniqueIndex("collection_slots_version_key_unique").on(
+      table.collectionVersionId,
+      table.slotKey,
+    ),
+    versionOrderIdx: index("collection_slots_version_order_idx").on(
+      table.collectionVersionId,
+      table.displayOrder,
+    ),
+    playerIdx: index("collection_slots_player_idx").on(table.playerId, table.status),
+    quantityCheck: check(
+      "collection_slots_required_quantity_check",
+      sql`${table.requiredQuantity} > 0`,
+    ),
+    statusCheck: check(
+      "collection_slots_status_check",
+      sql`${table.status} IN ('active', 'vacant', 'removed')`,
+    ),
+    activePlayerCheck: check(
+      "collection_slots_active_player_check",
+      sql`(${table.status} = 'active' AND ${table.playerId} IS NOT NULL)
+          OR (${table.status} = 'vacant' AND ${table.playerId} IS NULL)
+          OR ${table.status} = 'removed'`,
+    ),
+    removedCheck: check(
+      "collection_slots_removed_check",
+      sql`(${table.status} = 'removed' AND ${table.removedAt} IS NOT NULL)
+          OR (${table.status} <> 'removed' AND ${table.removedAt} IS NULL)`,
+    ),
+    displayOrderCheck: check(
+      "collection_slots_display_order_check",
+      sql`${table.displayOrder} >= 0`,
+    ),
+    rankCheck: check(
+      "collection_slots_rank_check",
+      sql`${table.rank} IS NULL OR ${table.rank} > 0`,
+    ),
+  }),
+);
+
+export const collectionPrerequisites = pgTable(
+  "collection_prerequisites",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    masterVersionId: varchar("master_version_id")
+      .notNull()
+      .references(() => collectionDefinitionVersions.id, { onDelete: "cascade" }),
+    prerequisiteVersionId: varchar("prerequisite_version_id")
+      .notNull()
+      .references(() => collectionDefinitionVersions.id, { onDelete: "restrict" }),
+    isRequired: boolean("is_required").notNull().default(true),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    masterPrerequisiteIdx: uniqueIndex("collection_prerequisites_version_unique").on(
+      table.masterVersionId,
+      table.prerequisiteVersionId,
+    ),
+    prerequisiteIdx: index("collection_prerequisites_lookup_idx").on(table.prerequisiteVersionId),
+    distinctCheck: check(
+      "collection_prerequisites_not_self_check",
+      sql`${table.masterVersionId} <> ${table.prerequisiteVersionId}`,
+    ),
+    displayOrderCheck: check(
+      "collection_prerequisites_display_order_check",
+      sql`${table.displayOrder} >= 0`,
+    ),
+  }),
+);
+
+export const userCollectionAllocations = pgTable(
+  "user_collection_allocations",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionSlotId: varchar("collection_slot_id")
+      .notNull()
+      .references(() => collectionSlots.id, { onDelete: "restrict" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "restrict" }),
+    allocatedQuantity: decimal("allocated_quantity", { precision: 20, scale: 4 }).notNull(),
+    lockReferenceId: varchar("lock_reference_id").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userSlotIdx: uniqueIndex("user_collection_allocations_user_slot_unique").on(
+      table.userId,
+      table.collectionSlotId,
+    ),
+    lockReferenceIdx: uniqueIndex("user_collection_allocations_lock_reference_unique").on(
+      table.lockReferenceId,
+    ),
+    userStatusIdx: index("user_collection_allocations_user_status_idx").on(
+      table.userId,
+      table.status,
+    ),
+    playerStatusIdx: index("user_collection_allocations_player_status_idx").on(
+      table.playerId,
+      table.status,
+    ),
+    quantityCheck: check(
+      "user_collection_allocations_quantity_check",
+      sql`${table.allocatedQuantity} > 0`,
+    ),
+    statusCheck: check(
+      "user_collection_allocations_status_check",
+      sql`${table.status} IN ('active', 'released')`,
+    ),
+    releaseCheck: check(
+      "user_collection_allocations_release_check",
+      sql`(${table.status} = 'released' AND ${table.releasedAt} IS NOT NULL)
+          OR (${table.status} = 'active' AND ${table.releasedAt} IS NULL)`,
+    ),
+  }),
+);
+
+export const userCollectionStates = pgTable(
+  "user_collection_states",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionDefinitionId: varchar("collection_definition_id")
+      .notNull()
+      .references(() => collectionDefinitions.id, { onDelete: "restrict" }),
+    collectionVersionId: varchar("collection_version_id")
+      .notNull()
+      .references(() => collectionDefinitionVersions.id, { onDelete: "restrict" }),
+    assemblyState: varchar("assembly_state", { length: 24 }).notNull().default("unstarted"),
+    allocatedQuantity: decimal("allocated_quantity", { precision: 20, scale: 4 })
+      .notNull()
+      .default("0.0000"),
+    requiredQuantity: decimal("required_quantity", { precision: 20, scale: 4 })
+      .notNull()
+      .default("0.0000"),
+    qualifiedSlotCount: integer("qualified_slot_count").notNull().default(0),
+    requiredSlotCount: integer("required_slot_count").notNull().default(0),
+    progressBps: integer("progress_bps").notNull().default(0),
+    readyAt: timestamp("ready_at", { withTimezone: true }),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+    evaluatedAt: timestamp("evaluated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userVersionIdx: uniqueIndex("user_collection_states_user_version_unique").on(
+      table.userId,
+      table.collectionVersionId,
+    ),
+    userStateIdx: index("user_collection_states_user_state_idx").on(
+      table.userId,
+      table.assemblyState,
+    ),
+    activeDefinitionIdx: index("user_collection_states_active_definition_idx").on(
+      table.collectionDefinitionId,
+      table.assemblyState,
+    ),
+    stateCheck: check(
+      "user_collection_states_assembly_check",
+      sql`${table.assemblyState} IN ('unstarted', 'in_progress', 'ready', 'active', 'inactive')`,
+    ),
+    quantityCheck: check(
+      "user_collection_states_quantity_check",
+      sql`${table.allocatedQuantity} >= 0 AND ${table.requiredQuantity} >= 0`,
+    ),
+    slotsCheck: check(
+      "user_collection_states_slots_check",
+      sql`${table.qualifiedSlotCount} >= 0
+          AND ${table.requiredSlotCount} >= 0
+          AND ${table.qualifiedSlotCount} <= ${table.requiredSlotCount}`,
+    ),
+    progressCheck: check(
+      "user_collection_states_progress_check",
+      sql`${table.progressBps} BETWEEN 0 AND 10000`,
+    ),
+    readyCheck: check(
+      "user_collection_states_ready_check",
+      sql`${table.assemblyState} <> 'ready' OR ${table.readyAt} IS NOT NULL`,
+    ),
+    activeCheck: check(
+      "user_collection_states_active_check",
+      sql`${table.assemblyState} <> 'active' OR ${table.activatedAt} IS NOT NULL`,
+    ),
+  }),
+);
+
+export const userCollectionAwards = pgTable(
+  "user_collection_awards",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionDefinitionId: varchar("collection_definition_id")
+      .notNull()
+      .references(() => collectionDefinitions.id, { onDelete: "restrict" }),
+    collectionVersionId: varchar("collection_version_id")
+      .notNull()
+      .references(() => collectionDefinitionVersions.id, { onDelete: "restrict" }),
+    firstCompletedAt: timestamp("first_completed_at", { withTimezone: true }).notNull(),
+    completionSequence: integer("completion_sequence"),
+    raritySnapshot: jsonb("rarity_snapshot"),
+    rewardMetadata: jsonb("reward_metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userVersionIdx: uniqueIndex("user_collection_awards_user_version_unique").on(
+      table.userId,
+      table.collectionVersionId,
+    ),
+    trophyCaseIdx: index("user_collection_awards_trophy_case_idx").on(
+      table.userId,
+      table.firstCompletedAt,
+    ),
+    definitionIdx: index("user_collection_awards_definition_idx").on(
+      table.collectionDefinitionId,
+      table.firstCompletedAt,
+    ),
+    sequenceCheck: check(
+      "user_collection_awards_sequence_check",
+      sql`${table.completionSequence} IS NULL OR ${table.completionSequence} > 0`,
+    ),
+    rewardMetadataSizeCheck: check(
+      "user_collection_awards_reward_metadata_size_check",
+      sql`${table.rewardMetadata} IS NULL OR octet_length(${table.rewardMetadata}::text) <= 16384`,
+    ),
+  }),
+);
+
+export const userCollectionStateEvents = pgTable(
+  "user_collection_state_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionDefinitionId: varchar("collection_definition_id")
+      .notNull()
+      .references(() => collectionDefinitions.id, { onDelete: "restrict" }),
+    collectionVersionId: varchar("collection_version_id")
+      .notNull()
+      .references(() => collectionDefinitionVersions.id, { onDelete: "restrict" }),
+    eventType: varchar("event_type", { length: 40 }).notNull(),
+    previousState: varchar("previous_state", { length: 24 }),
+    nextState: varchar("next_state", { length: 24 }).notNull(),
+    reason: varchar("reason", { length: 80 }).notNull(),
+    metadata: jsonb("metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userOccurredIdx: index("user_collection_state_events_user_occurred_idx").on(
+      table.userId,
+      table.occurredAt,
+    ),
+    definitionOccurredIdx: index("user_collection_state_events_definition_occurred_idx").on(
+      table.collectionDefinitionId,
+      table.occurredAt,
+    ),
+    eventTypeCheck: check(
+      "user_collection_state_events_type_check",
+      sql`${table.eventType} IN ('progress_changed', 'ready', 'completed', 'deactivated', 'reactivated', 'membership_changed')`,
+    ),
+    previousStateCheck: check(
+      "user_collection_state_events_previous_check",
+      sql`${table.previousState} IS NULL OR ${table.previousState} IN ('unstarted', 'in_progress', 'ready', 'active', 'inactive')`,
+    ),
+    nextStateCheck: check(
+      "user_collection_state_events_next_check",
+      sql`${table.nextState} IN ('unstarted', 'in_progress', 'ready', 'active', 'inactive')`,
+    ),
+  }),
+);
+
+export const userBadgePreferences = pgTable(
+  "user_badge_preferences",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionDefinitionId: varchar("collection_definition_id")
+      .notNull()
+      .references(() => collectionDefinitions.id, { onDelete: "cascade" }),
+    priority: integer("priority").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userDefinitionIdx: uniqueIndex("user_badge_preferences_definition_unique").on(
+      table.userId,
+      table.collectionDefinitionId,
+    ),
+    userPriorityIdx: uniqueIndex("user_badge_preferences_priority_unique").on(
+      table.userId,
+      table.priority,
+    ),
+    priorityCheck: check(
+      "user_badge_preferences_priority_check",
+      sql`${table.priority} BETWEEN 0 AND 4`,
+    ),
+  }),
+);
+
+export const userFeaturedCollections = pgTable(
+  "user_featured_collections",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionDefinitionId: varchar("collection_definition_id")
+      .notNull()
+      .references(() => collectionDefinitions.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userDefinitionIdx: uniqueIndex("user_featured_collections_definition_unique").on(
+      table.userId,
+      table.collectionDefinitionId,
+    ),
+    userPositionIdx: uniqueIndex("user_featured_collections_position_unique").on(
+      table.userId,
+      table.position,
+    ),
+    positionCheck: check(
+      "user_featured_collections_position_check",
+      sql`${table.position} BETWEEN 0 AND 3`,
+    ),
+  }),
+);
+
 // User Milestones table - tracks net worth and achievement milestones
 export const userMilestones = pgTable(
   "user_milestones",
@@ -3806,6 +4341,89 @@ export const insertUserCollectionSchema = createInsertSchema(userCollections).om
   updatedAt: true,
 });
 
+export const insertCollectionDefinitionSchema = createInsertSchema(collectionDefinitions).omit({
+  id: true,
+  lifecycleStatus: true,
+  currentVersion: true,
+  publishedAt: true,
+  finalizingAt: true,
+  finalizedAt: true,
+  disabledAt: true,
+  disabledReason: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCollectionDefinitionVersionSchema = createInsertSchema(
+  collectionDefinitionVersions,
+).omit({
+  id: true,
+  state: true,
+  publishedAt: true,
+  membershipLockedAt: true,
+  finalizedAt: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCollectionSlotSchema = createInsertSchema(collectionSlots).omit({
+  id: true,
+  status: true,
+  removedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCollectionPrerequisiteSchema = createInsertSchema(collectionPrerequisites).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserCollectionAllocationSchema = createInsertSchema(
+  userCollectionAllocations,
+).omit({
+  id: true,
+  status: true,
+  releasedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserCollectionStateSchema = createInsertSchema(userCollectionStates).omit({
+  id: true,
+  readyAt: true,
+  activatedAt: true,
+  deactivatedAt: true,
+  evaluatedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserCollectionAwardSchema = createInsertSchema(userCollectionAwards).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserCollectionStateEventSchema = createInsertSchema(
+  userCollectionStateEvents,
+).omit({
+  id: true,
+  occurredAt: true,
+});
+
+export const insertUserBadgePreferenceSchema = createInsertSchema(userBadgePreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserFeaturedCollectionSchema = createInsertSchema(userFeaturedCollections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertUserMilestoneSchema = createInsertSchema(userMilestones).omit({
   id: true,
   achievedAt: true,
@@ -3839,6 +4457,29 @@ export const insertAccountDeletionRequestSchema = createInsertSchema(accountDele
 // Types for new tables
 export type UserCollection = typeof userCollections.$inferSelect;
 export type InsertUserCollection = z.infer<typeof insertUserCollectionSchema>;
+
+export type CollectionDefinition = typeof collectionDefinitions.$inferSelect;
+export type InsertCollectionDefinition = z.infer<typeof insertCollectionDefinitionSchema>;
+export type CollectionDefinitionVersion = typeof collectionDefinitionVersions.$inferSelect;
+export type InsertCollectionDefinitionVersion = z.infer<
+  typeof insertCollectionDefinitionVersionSchema
+>;
+export type CollectionSlot = typeof collectionSlots.$inferSelect;
+export type InsertCollectionSlot = z.infer<typeof insertCollectionSlotSchema>;
+export type CollectionPrerequisite = typeof collectionPrerequisites.$inferSelect;
+export type InsertCollectionPrerequisite = z.infer<typeof insertCollectionPrerequisiteSchema>;
+export type UserCollectionAllocation = typeof userCollectionAllocations.$inferSelect;
+export type InsertUserCollectionAllocation = z.infer<typeof insertUserCollectionAllocationSchema>;
+export type UserCollectionState = typeof userCollectionStates.$inferSelect;
+export type InsertUserCollectionState = z.infer<typeof insertUserCollectionStateSchema>;
+export type UserCollectionAward = typeof userCollectionAwards.$inferSelect;
+export type InsertUserCollectionAward = z.infer<typeof insertUserCollectionAwardSchema>;
+export type UserCollectionStateEvent = typeof userCollectionStateEvents.$inferSelect;
+export type InsertUserCollectionStateEvent = z.infer<typeof insertUserCollectionStateEventSchema>;
+export type UserBadgePreference = typeof userBadgePreferences.$inferSelect;
+export type InsertUserBadgePreference = z.infer<typeof insertUserBadgePreferenceSchema>;
+export type UserFeaturedCollection = typeof userFeaturedCollections.$inferSelect;
+export type InsertUserFeaturedCollection = z.infer<typeof insertUserFeaturedCollectionSchema>;
 
 export type UserMilestone = typeof userMilestones.$inferSelect;
 export type InsertUserMilestone = z.infer<typeof insertUserMilestoneSchema>;

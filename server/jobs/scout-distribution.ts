@@ -162,8 +162,42 @@ export async function distributeScoutShares(): Promise<JobResult> {
     // We use a CTE to calculate the overlap of each history record with the [hourStart, hourEnd] window.
     // Formula: duration = LEAST(ended_at, hourEnd) - GREATEST(started_at, hourStart)
 
-    const distributions = await db.execute(sql`
-            WITH active_users AS (
+    // Hold one SHARE table lock from identity-dependent calculation through the
+    // complete credit batch. SHARE locks are compatible with other distribution
+    // jobs/credits, but conflict with the alias writer's SHARE ROW EXCLUSIVE lock.
+    const ceremonyDataByUser = new Map<string, any[]>();
+    await db.transaction(async (identityTx) => {
+      await identityTx.execute(sql`LOCK TABLE player_id_aliases IN SHARE MODE`);
+
+      const distributions = await identityTx.execute(sql`
+            WITH RECURSIVE alias_paths AS (
+                SELECT
+                    pia.alias_player_id,
+                    pia.canonical_player_id,
+                    ARRAY[pia.alias_player_id, pia.canonical_player_id]::varchar[] AS path
+                FROM player_id_aliases pia
+
+                UNION ALL
+
+                SELECT
+                    ap.alias_player_id,
+                    next_alias.canonical_player_id,
+                    ap.path || next_alias.canonical_player_id
+                FROM alias_paths ap
+                JOIN player_id_aliases next_alias
+                  ON next_alias.alias_player_id = ap.canonical_player_id
+                WHERE NOT next_alias.canonical_player_id = ANY(ap.path)
+            ),
+            canonical_aliases AS (
+                SELECT ap.alias_player_id, ap.canonical_player_id
+                FROM alias_paths ap
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM player_id_aliases next_alias
+                    WHERE next_alias.alias_player_id = ap.canonical_player_id
+                )
+            ),
+            active_users AS (
                 SELECT id 
                 FROM users 
                 WHERE last_active_at > ${hourStart.toISOString()}::timestamp - INTERVAL '24 hours'
@@ -171,12 +205,13 @@ export async function distributeScoutShares(): Promise<JobResult> {
             history_periods AS (
                 SELECT
                     sh.user_id,
-                    sh.player_id,
+                    COALESCE(ca.canonical_player_id, sh.player_id) AS player_id,
                     sh.scout_count,
                     GREATEST(sh.started_at, ${hourStart.toISOString()}::timestamp) as effective_start,
                     LEAST(COALESCE(sh.ended_at, ${hourEnd.toISOString()}::timestamp), ${hourEnd.toISOString()}::timestamp) as effective_end
                 FROM scout_history sh
                 JOIN active_users u ON sh.user_id = u.id
+                LEFT JOIN canonical_aliases ca ON ca.alias_player_id = sh.player_id
                 WHERE 
                     sh.started_at < ${hourEnd.toISOString()}::timestamp
                     AND (sh.ended_at IS NULL OR sh.ended_at > ${hourStart.toISOString()}::timestamp)
@@ -216,97 +251,85 @@ export async function distributeScoutShares(): Promise<JobResult> {
             WHERE pt.global_scout_minutes > 0
         `);
 
-    // distributions.rows is an array of objects
-    const results = distributions.rows as any[];
-    console.log(`[scout_distribution] Calculated ${results.length} distributions to process.`);
+      // distributions.rows is an array of objects
+      const results = distributions.rows as any[];
+      console.log(`[scout_distribution] Calculated ${results.length} distributions to process.`);
 
-    if (results.length === 0) {
-      return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
-    }
+      if (results.length === 0) {
+        return;
+      }
 
-    const ledgerEntries = [];
+      // Fetch all player details under the same alias-graph lock.
+      const playerIds = [...new Set(results.map((r) => r.playerId))];
+      const playerDetails = await identityTx
+        .select({
+          id: players.id,
+          firstName: players.firstName,
+          lastName: players.lastName,
+          team: players.team,
+          position: players.position,
+          sport: players.sport,
+        })
+        .from(players)
+        .where(inArray(players.id, playerIds));
 
-    // CEREMONY DATA COLLECTION
-    // Group distributions by user for personalized ceremonies
-    const ceremonyDataByUser = new Map<string, any[]>();
+      const playerMap = new Map(playerDetails.map((p) => [p.id, p]));
 
-    // Fetch all player details in one query for efficiency
-    const playerIds = [...new Set(results.map((r) => r.playerId))];
-    const playerDetails = await db
-      .select({
-        id: players.id,
-        firstName: players.firstName,
-        lastName: players.lastName,
-        team: players.team,
-        position: players.position,
-        sport: players.sport,
-      })
-      .from(players)
-      .where(inArray(players.id, playerIds));
+      for (const row of results) {
+        try {
+          const sharesEarned = parseFloat(row.sharesEarned);
 
-    const playerMap = new Map(playerDetails.map((p) => [p.id, p]));
-
-    for (const row of results) {
-      try {
-        const sharesEarned = parseFloat(row.sharesEarned);
-
-        if (sharesEarned > 0) {
-          await storage.creditScoutShares(row.userId, row.playerId, sharesEarned);
-
-          ledgerEntries.push({
-            hourTimestamp: hourEnd, // Timestamp for the ledger is the END of the processed hour
-            playerId: row.playerId,
-            userId: row.userId,
-            userScoutMinutes: Math.round(parseFloat(row.userScoutMinutes)),
-            globalScoutMinutes: Math.round(parseFloat(row.globalScoutMinutes)),
-            sharesEarned: row.sharesEarned.toString(),
-          });
-
-          // Collect ceremony data
-          const player = playerMap.get(row.playerId);
-          if (player) {
-            const userScoutMinutes = parseFloat(row.userScoutMinutes);
-            const globalScoutMinutes = parseFloat(row.globalScoutMinutes);
-            const efficiency =
-              globalScoutMinutes > 0 ? (userScoutMinutes / globalScoutMinutes) * 100 : 0;
-
-            const ceremonyEntry = {
+          if (sharesEarned > 0) {
+            const credited = await storage.creditScoutDistribution({
+              hourTimestamp: hourEnd, // Timestamp for the ledger is the END of the processed hour
               playerId: row.playerId,
-              playerName: `${player.firstName} ${player.lastName}`,
-              playerTeam: player.team,
-              playerPosition: player.position,
-              sport: player.sport,
-              sharesEarned: sharesEarned,
-              scoutMinutes: Math.round(userScoutMinutes),
-              globalMinutes: Math.round(globalScoutMinutes),
-              efficiency: Math.round(efficiency * 100) / 100, // 2 decimal places
-            };
+              userId: row.userId,
+              userScoutMinutes: Math.round(parseFloat(row.userScoutMinutes)),
+              globalScoutMinutes: Math.round(parseFloat(row.globalScoutMinutes)),
+              sharesEarned: row.sharesEarned.toString(),
+            });
 
-            if (!ceremonyDataByUser.has(row.userId)) {
-              ceremonyDataByUser.set(row.userId, []);
+            if (!credited) {
+              continue;
             }
-            ceremonyDataByUser.get(row.userId)!.push(ceremonyEntry);
+
+            // Collect ceremony data
+            const player = playerMap.get(row.playerId);
+            if (player) {
+              const userScoutMinutes = parseFloat(row.userScoutMinutes);
+              const globalScoutMinutes = parseFloat(row.globalScoutMinutes);
+              const efficiency =
+                globalScoutMinutes > 0 ? (userScoutMinutes / globalScoutMinutes) * 100 : 0;
+
+              const ceremonyEntry = {
+                playerId: row.playerId,
+                playerName: `${player.firstName} ${player.lastName}`,
+                playerTeam: player.team,
+                playerPosition: player.position,
+                sport: player.sport,
+                sharesEarned: sharesEarned,
+                scoutMinutes: Math.round(userScoutMinutes),
+                globalMinutes: Math.round(globalScoutMinutes),
+                efficiency: Math.round(efficiency * 100) / 100, // 2 decimal places
+              };
+
+              if (!ceremonyDataByUser.has(row.userId)) {
+                ceremonyDataByUser.set(row.userId, []);
+              }
+              ceremonyDataByUser.get(row.userId)!.push(ceremonyEntry);
+            }
+
+            recordsProcessed++;
           }
-
-          recordsProcessed++;
+        } catch (err: any) {
+          console.error(
+            `[scout_distribution] Error distributing to user ${row.userId} for player ${row.playerId}:`,
+            err.message,
+          );
+          errorCount++;
         }
-      } catch (err: any) {
-        console.error(
-          `[scout_distribution] Error distributing to user ${row.userId} for player ${row.playerId}:`,
-          err.message,
-        );
-        errorCount++;
       }
-    }
-
-    // Bulk insert ledger entries
-    if (ledgerEntries.length > 0) {
-      const chunkSize = 1000;
-      for (let i = 0; i < ledgerEntries.length; i += chunkSize) {
-        const chunk = ledgerEntries.slice(i, i + chunkSize);
-        await Promise.all(chunk.map((entry) => storage.createScoutDistribution(entry)));
-      }
-    }
+    });
 
     // CEREMONY BROADCAST
     // Send personalized ceremonies to each user

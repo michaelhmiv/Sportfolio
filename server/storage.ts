@@ -15,6 +15,7 @@ import {
   vestingClaims,
   vestingPresets,
   scoutAssignments,
+  scoutDistributionClaims,
   scoutDistributions,
   scoutHistory,
   playerGameStats,
@@ -137,6 +138,13 @@ import { choosePreferredDailyGame } from "./lib/daily-game-dedupe";
 import { pickRegularBoostHolding } from "./boost-share-selection";
 import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
 import { resolveUserEntitlements } from "./services/user-entitlements";
+import { normalizeHoldingLockQuantity } from "./holding-lock-quantity";
+import { hashAuthIdentityEmails } from "./auth-identity-tombstone";
+import {
+  holdingReservationDomain,
+  loadPlayerIdentityContext,
+  loadPlayerIdentityContexts,
+} from "./player-identity";
 
 export interface PlayerFinancialMetrics {
   peRatio: number;
@@ -426,15 +434,14 @@ export interface IStorage {
   updateLastActive(userId: string): Promise<void>;
   // Scout Distribution Engine methods
   getPlayersWithActiveScouts(): Promise<string[]>;
-  createScoutDistribution(distribution: {
+  creditScoutDistribution(distribution: {
     hourTimestamp: Date;
     playerId: string;
     userId: string;
     userScoutMinutes: number;
     globalScoutMinutes: number;
     sharesEarned: string;
-  }): Promise<void>;
-  creditScoutShares(userId: string, playerId: string, shares: number): Promise<void>;
+  }): Promise<boolean>;
   getScoutRoster(playerId: string): Promise<
     Array<{
       user: { id: string; username: string | null; avatarUrl: string | null } | null;
@@ -840,148 +847,21 @@ function formatActivityQuantity(value: number): string {
   });
 }
 
-type DbExecutor = typeof db | any;
-
-interface PlayerIdentityContext {
-  requestedId: string;
-  canonicalId: string;
-  aliasIds: string[];
-  allIds: string[];
-}
-
-async function loadPlayerIdentityContext(
-  executor: DbExecutor,
-  playerId: string,
-): Promise<PlayerIdentityContext> {
-  const requestedId = (playerId || "").trim();
-  if (!requestedId) {
-    return {
-      requestedId,
-      canonicalId: requestedId,
-      aliasIds: [],
-      allIds: requestedId ? [requestedId] : [],
-    };
-  }
-
-  let canonicalId = requestedId;
-  const seen = new Set<string>();
-
-  while (!seen.has(canonicalId)) {
-    seen.add(canonicalId);
-    const [directAlias] = await executor
-      .select()
-      .from(playerIdAliases)
-      .where(eq(playerIdAliases.aliasPlayerId, canonicalId))
-      .limit(1);
-    if (!directAlias || directAlias.canonicalPlayerId === canonicalId) {
-      break;
-    }
-    canonicalId = directAlias.canonicalPlayerId;
-  }
-
-  const aliasRows = await executor
-    .select()
-    .from(playerIdAliases)
-    .where(eq(playerIdAliases.canonicalPlayerId, canonicalId));
-  const aliasIds = aliasRows
-    .map((row: PlayerIdAlias) => row.aliasPlayerId)
-    .filter((aliasId: string) => aliasId !== canonicalId);
-
-  return {
-    requestedId,
-    canonicalId,
-    aliasIds,
-    allIds: Array.from(new Set([canonicalId, ...aliasIds])),
-  };
-}
-
-async function loadPlayerIdentityContexts(
-  executor: DbExecutor,
-  playerIds: string[],
-): Promise<Map<string, PlayerIdentityContext>> {
-  const requestedIds = Array.from(
-    new Set(playerIds.map((playerId) => String(playerId || "").trim()).filter(Boolean)),
-  );
-  const contextMap = new Map<string, PlayerIdentityContext>();
-
-  if (requestedIds.length === 0) {
-    return contextMap;
-  }
-
-  const directAliasRows = await executor
-    .select({
-      aliasPlayerId: playerIdAliases.aliasPlayerId,
-      canonicalPlayerId: playerIdAliases.canonicalPlayerId,
-    })
-    .from(playerIdAliases)
-    .where(inArray(playerIdAliases.aliasPlayerId, requestedIds));
-
-  const directAliasMap = new Map<string, string>();
-  for (const row of directAliasRows) {
-    directAliasMap.set(row.aliasPlayerId, row.canonicalPlayerId);
-  }
-
-  const canonicalIds = new Set<string>();
-  const requestedToCanonical = new Map<string, string>();
-
-  for (const requestedId of requestedIds) {
-    let canonicalId = requestedId;
-    const seen = new Set<string>();
-
-    while (!seen.has(canonicalId)) {
-      seen.add(canonicalId);
-      const nextCanonicalId = directAliasMap.get(canonicalId);
-      if (!nextCanonicalId || nextCanonicalId === canonicalId) {
-        break;
-      }
-      canonicalId = nextCanonicalId;
-    }
-
-    requestedToCanonical.set(requestedId, canonicalId);
-    canonicalIds.add(canonicalId);
-  }
-
-  const canonicalAliasRows = await executor
-    .select({
-      canonicalPlayerId: playerIdAliases.canonicalPlayerId,
-      aliasPlayerId: playerIdAliases.aliasPlayerId,
-    })
-    .from(playerIdAliases)
-    .where(inArray(playerIdAliases.canonicalPlayerId, Array.from(canonicalIds)));
-
-  const aliasIdsByCanonical = new Map<string, string[]>();
-  for (const canonicalId of canonicalIds) {
-    aliasIdsByCanonical.set(canonicalId, []);
-  }
-
-  for (const row of canonicalAliasRows) {
-    const existing = aliasIdsByCanonical.get(row.canonicalPlayerId) || [];
-    if (row.aliasPlayerId !== row.canonicalPlayerId) {
-      existing.push(row.aliasPlayerId);
-    }
-    aliasIdsByCanonical.set(row.canonicalPlayerId, existing);
-  }
-
-  for (const requestedId of requestedIds) {
-    const canonicalId = requestedToCanonical.get(requestedId) || requestedId;
-    const aliasIds = aliasIdsByCanonical.get(canonicalId) || [];
-    contextMap.set(requestedId, {
-      requestedId,
-      canonicalId,
-      aliasIds,
-      allIds: Array.from(new Set([canonicalId, ...aliasIds])),
-    });
-  }
-
-  return contextMap;
-}
-
 function buildIdentityMatchSql(column: unknown, ids: string[]) {
   if (ids.length <= 1) {
     return eq(column as never, ids[0] ?? "");
   }
 
   return inArray(column as never, ids);
+}
+
+export class DeletedUserSyncError extends Error {
+  readonly code = "USER_DELETED";
+
+  constructor() {
+    super("User account has been deleted");
+    this.name = "DeletedUserSyncError";
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1087,9 +967,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    const authEmailIdentityHashes = hashAuthIdentityEmails(userData.email);
+    const authEmailIdentityHash = authEmailIdentityHashes[0] || null;
     // IDEMPOTENCY GUARD: Check if target user ID already exists
     // This handles duplicate requests/retries where migration already completed
-    const [existingTargetUser] = await db.select().from(users).where(eq(users.id, userData.id!));
+    const [existingTargetUser] = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.id, userData.id!),
+          eq(users.authProviderSubject, userData.id!),
+          sql`${userData.id!} = ANY(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]))`,
+        ),
+      );
     if (existingTargetUser) {
       console.log(
         `[LAZY_MIGRATION] User ${userData.email} already exists with ID ${userData.id}, skipping migration`,
@@ -1098,6 +989,13 @@ export class DatabaseStorage implements IStorage {
       const [updatedUser] = await db
         .update(users)
         .set({
+          authProviderSubject: existingTargetUser.authProviderSubject || userData.id,
+          authProviderSubjects: sql`CASE
+            WHEN ${userData.id!} = ANY(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]))
+              THEN COALESCE(${users.authProviderSubjects}, ARRAY[]::text[])
+            ELSE array_append(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]), ${userData.id!})
+          END`,
+          authEmailIdentityHash,
           email: userData.email || existingTargetUser.email,
           firstName: userData.firstName ?? existingTargetUser.firstName,
           lastName: userData.lastName ?? existingTargetUser.lastName,
@@ -1105,178 +1003,60 @@ export class DatabaseStorage implements IStorage {
           username: userData.username || existingTargetUser.username,
           updatedAt: new Date(),
         })
-        .where(eq(users.id, userData.id!))
+        .where(and(eq(users.id, existingTargetUser.id), isNull(users.deletedAt)))
         .returning();
+      if (!updatedUser) {
+        throw new DeletedUserSyncError();
+      }
       return updatedUser;
     }
 
-    // Lazy migration: Look up existing user by email first to preserve their data
-    // This handles the case where users have existing accounts with different IDs
-    // (e.g., migrating from old auth system to Supabase)
+    // Resolve an existing account by email without rewriting its primary key. Collection
+    // awards and state events are intentionally immutable, so changing the user id would
+    // either fail or cascade-delete identity history. The auth layer uses the returned
+    // canonical id for request authorization.
     if (userData.email) {
-      // Use transaction with FOR UPDATE to prevent race conditions
       const migrationResult = await db.transaction(async (tx) => {
-        // Lock the row to prevent concurrent migrations of the same user
-        // Use case-insensitive email matching to handle OAuth providers returning different cases
         const [existingUserByEmail] = await tx
           .select()
           .from(users)
-          .where(sql`LOWER(${users.email}) = LOWER(${userData.email})`)
+          .where(
+            and(sql`LOWER(${users.email}) = LOWER(${userData.email})`, isNull(users.deletedAt)),
+          )
           .for("update");
 
         if (!existingUserByEmail || existingUserByEmail.id === userData.id) {
-          // No migration needed - either no user with this email, or same ID
           return null;
         }
 
-        // Found existing user with different ID - update their record with new auth ID
-        // This preserves all their holdings, orders, trades, and balances
         console.log(
-          `[LAZY_MIGRATION] Migrating user ${userData.email} from ID ${existingUserByEmail.id} to ${userData.id}`,
+          `[AUTH_IDENTITY] Reusing canonical user ${existingUserByEmail.id} for auth identity ${userData.id}`,
         );
 
-        const oldId = existingUserByEmail.id;
-        const newId = userData.id;
-
-        // Step 1: Temporarily clear unique constraints on old row to allow new row insert
-        // Email and username have unique constraints, so we clear them first
-        await tx
+        const [canonicalUser] = await tx
           .update(users)
           .set({
-            email: null,
-            username: `__migrating_${oldId}`,
+            authProviderSubject: userData.id,
+            authProviderSubjects: sql`CASE
+              WHEN ${userData.id!} = ANY(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]))
+                THEN COALESCE(${users.authProviderSubjects}, ARRAY[]::text[])
+              ELSE array_append(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]), ${userData.id!})
+            END`,
+            authEmailIdentityHash,
+            email: userData.email || existingUserByEmail.email,
+            username: userData.username || existingUserByEmail.username,
+            firstName: userData.firstName ?? existingUserByEmail.firstName,
+            lastName: userData.lastName ?? existingUserByEmail.lastName,
+            profileImageUrl: userData.profileImageUrl ?? existingUserByEmail.profileImageUrl,
+            updatedAt: new Date(),
           })
-          .where(eq(users.id, oldId));
+          .where(and(eq(users.id, existingUserByEmail.id), isNull(users.deletedAt)))
+          .returning();
 
-        // Step 2: Insert a new user row with the new ID, copying all data from old row
-        await tx.insert(users).values({
-          id: newId,
-          email: existingUserByEmail.email,
-          username: userData.username || existingUserByEmail.username,
-          firstName: userData.firstName ?? existingUserByEmail.firstName,
-          lastName: userData.lastName ?? existingUserByEmail.lastName,
-          profileImageUrl: userData.profileImageUrl ?? existingUserByEmail.profileImageUrl,
-          balance: existingUserByEmail.balance,
-          isAdmin: existingUserByEmail.isAdmin,
-          isPremium: existingUserByEmail.isPremium,
-          premiumExpiresAt: existingUserByEmail.premiumExpiresAt,
-          hasSeenOnboarding: existingUserByEmail.hasSeenOnboarding,
-          isBot: existingUserByEmail.isBot,
-          totalSharesVested: existingUserByEmail.totalSharesVested,
-          totalMarketOrders: existingUserByEmail.totalMarketOrders,
-          totalTradesExecuted: existingUserByEmail.totalTradesExecuted,
-          createdAt: existingUserByEmail.createdAt,
-          updatedAt: new Date(),
-        });
-
-        // Step 3: Update all FK references to point to the new user ID
-        // (New ID now exists, so FK constraints are satisfied)
-
-        // Update vesting records
-        await tx.update(vesting).set({ userId: newId }).where(eq(vesting.userId, oldId));
-
-        // Update holdings
-        await tx.update(holdings).set({ userId: newId }).where(eq(holdings.userId, oldId));
-
-        // Update holdings locks
-        await tx
-          .update(holdingsLocks)
-          .set({ userId: newId })
-          .where(eq(holdingsLocks.userId, oldId));
-
-        // Update balance locks
-        await tx.update(balanceLocks).set({ userId: newId }).where(eq(balanceLocks.userId, oldId));
-
-        // Update orders
-        await tx.update(orders).set({ userId: newId }).where(eq(orders.userId, oldId));
-
-        // Update trades (buyer and seller)
-        await tx.update(trades).set({ buyerId: newId }).where(eq(trades.buyerId, oldId));
-
-        await tx.update(trades).set({ sellerId: newId }).where(eq(trades.sellerId, oldId));
-
-        // Update vesting splits
-        await tx
-          .update(vestingSplits)
-          .set({ userId: newId })
-          .where(eq(vestingSplits.userId, oldId));
-
-        // Update vesting claims
-        await tx
-          .update(vestingClaims)
-          .set({ userId: newId })
-          .where(eq(vestingClaims.userId, oldId));
-
-        // Update vesting presets
-        await tx
-          .update(vestingPresets)
-          .set({ userId: newId })
-          .where(eq(vestingPresets.userId, oldId));
-
-        // Update portfolio snapshots
-        await tx
-          .update(portfolioSnapshots)
-          .set({ userId: newId })
-          .where(eq(portfolioSnapshots.userId, oldId));
-
-        // Update premium checkout sessions
-        await tx
-          .update(premiumCheckoutSessions)
-          .set({ userId: newId })
-          .where(eq(premiumCheckoutSessions.userId, oldId));
-
-        // Update premium orders
-        await tx
-          .update(premiumOrders)
-          .set({ userId: newId })
-          .where(eq(premiumOrders.userId, oldId));
-
-        // Update premium trades (buyer and seller)
-        await tx
-          .update(premiumTrades)
-          .set({ buyerId: newId })
-          .where(eq(premiumTrades.buyerId, oldId));
-
-        await tx
-          .update(premiumTrades)
-          .set({ sellerId: newId })
-          .where(eq(premiumTrades.sellerId, oldId));
-
-        // Update whop payments
-        await tx.update(whopPayments).set({ userId: newId }).where(eq(whopPayments.userId, oldId));
-
-        // Update rewarded scout boost grants
-        await tx
-          .update(rewardedScoutBoostGrants)
-          .set({ userId: newId })
-          .where(eq(rewardedScoutBoostGrants.userId, oldId));
-
-        // Update push notification delivery state
-        await tx
-          .update(userPushTokens)
-          .set({ userId: newId })
-          .where(eq(userPushTokens.userId, oldId));
-
-        await tx
-          .update(userNotificationPreferences)
-          .set({ userId: newId })
-          .where(eq(userNotificationPreferences.userId, oldId));
-
-        await tx
-          .update(pushNotificationEvents)
-          .set({ userId: newId })
-          .where(eq(pushNotificationEvents.userId, oldId));
-
-        // Update blog posts (author)
-        await tx.update(blogPosts).set({ authorId: newId }).where(eq(blogPosts.authorId, oldId));
-
-        // Step 4: Delete the old user row (all FKs now point to new row)
-        await tx.delete(users).where(eq(users.id, oldId));
-
-        // Return the migrated user
-        const [result] = await tx.select().from(users).where(eq(users.id, newId!));
-        console.log(`[LAZY_MIGRATION] Successfully migrated user ${userData.email} to new auth ID`);
-        return result;
+        if (!canonicalUser) {
+          throw new DeletedUserSyncError();
+        }
+        return canonicalUser;
       });
 
       // If migration happened, return the migrated user
@@ -1285,27 +1065,68 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Standard upsert: either new user or same ID (no migration needed)
-    const [user] = await db
-      .insert(users)
-      .values({
-        ...userData,
-        balance: userData.balance || "10000.00", // Starting balance if new user
-      })
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          profileImageUrl: userData.profileImageUrl,
-          username: userData.username,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+    if (authEmailIdentityHashes.length > 0) {
+      const [deletedEmailIdentity] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            inArray(users.authEmailIdentityHash, authEmailIdentityHashes),
+            isNotNull(users.deletedAt),
+          ),
+        );
+      if (deletedEmailIdentity) {
+        throw new DeletedUserSyncError();
+      }
+    }
 
-    return user;
+    // Standard upsert: either new user or same ID (no migration needed). The
+    // email identity hash is retained after erasure and uniquely serializes a
+    // concurrent first authentication against account deletion.
+    try {
+      const [user] = await db
+        .insert(users)
+        .values({
+          ...userData,
+          authProviderSubject: userData.id,
+          authProviderSubjects: [userData.id!],
+          authEmailIdentityHash,
+          balance: userData.balance || "10000.00", // Starting balance if new user
+        })
+        .onConflictDoUpdate({
+          target: users.id,
+          setWhere: isNull(users.deletedAt),
+          set: {
+            authProviderSubject: userData.id,
+            authProviderSubjects: sql`CASE
+              WHEN ${userData.id!} = ANY(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]))
+                THEN COALESCE(${users.authProviderSubjects}, ARRAY[]::text[])
+              ELSE array_append(COALESCE(${users.authProviderSubjects}, ARRAY[]::text[]), ${userData.id!})
+            END`,
+            authEmailIdentityHash,
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            profileImageUrl: userData.profileImageUrl,
+            username: userData.username,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      if (!user) {
+        throw new DeletedUserSyncError();
+      }
+      return user;
+    } catch (error: any) {
+      if (
+        error?.code === "23505" &&
+        String(error?.constraint || "").includes("auth_email_identity_hash")
+      ) {
+        throw new DeletedUserSyncError();
+      }
+      throw error;
+    }
   }
 
   async listUserApiTokens(userId: string): Promise<UserApiToken[]> {
@@ -1317,17 +1138,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUserApiToken(token: InsertUserApiToken): Promise<UserApiToken> {
-    const [created] = await db.insert(userApiTokens).values(token).returning();
-    return created;
+    return db.transaction(async (tx) => {
+      const [activeUser] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, token.userId), isNull(users.deletedAt)))
+        .for("update");
+      if (!activeUser) {
+        throw new Error("Cannot create an API token for a deleted or missing user");
+      }
+      const [created] = await tx.insert(userApiTokens).values(token).returning();
+      return created;
+    });
   }
 
   async getUserApiTokenByHash(tokenHash: string): Promise<UserApiToken | undefined> {
-    const [token] = await db
-      .select()
+    const [row] = await db
+      .select({ token: userApiTokens })
       .from(userApiTokens)
-      .where(and(eq(userApiTokens.tokenHash, tokenHash), isNull(userApiTokens.revokedAt)));
+      .innerJoin(users, eq(users.id, userApiTokens.userId))
+      .where(
+        and(
+          eq(userApiTokens.tokenHash, tokenHash),
+          isNull(userApiTokens.revokedAt),
+          isNull(users.deletedAt),
+        ),
+      );
 
-    return token || undefined;
+    return row?.token;
   }
 
   async markUserApiTokenUsed(tokenId: string): Promise<void> {
@@ -1386,6 +1224,15 @@ export class DatabaseStorage implements IStorage {
     }
 
     return db.transaction(async (tx) => {
+      const [activeUser] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, tokenInput.userId), isNull(users.deletedAt)))
+        .for("update");
+      if (!activeUser) {
+        throw new DeletedUserSyncError();
+      }
+
       if (normalizedDeviceId) {
         await tx
           .update(userPushTokens)
@@ -1878,64 +1725,104 @@ export class DatabaseStorage implements IStorage {
     return results.map((r) => r.playerId);
   }
 
-  async createScoutDistribution(distribution: {
+  async creditScoutDistribution(distribution: {
     hourTimestamp: Date;
     playerId: string;
     userId: string;
     userScoutMinutes: number;
     globalScoutMinutes: number;
     sharesEarned: string;
-  }): Promise<void> {
-    await db.insert(scoutDistributions).values({
-      hourTimestamp: distribution.hourTimestamp,
-      playerId: distribution.playerId,
-      userId: distribution.userId,
-      userScoutMinutes: distribution.userScoutMinutes,
-      globalScoutMinutes: distribution.globalScoutMinutes,
-      sharesEarned: distribution.sharesEarned,
-    });
-  }
+  }): Promise<boolean> {
+    return db.transaction(async (tx) => {
+      // Alias writers take ROW EXCLUSIVE on this table. A SHARE lock keeps the
+      // identity graph stable for the entire credit transaction while allowing
+      // concurrent scout credits (SHARE locks are mutually compatible).
+      await tx.execute(sql`LOCK TABLE player_id_aliases IN SHARE MODE`);
 
-  async creditScoutShares(userId: string, playerId: string, shares: number): Promise<void> {
-    // Use transaction to prevent race conditions during concurrent distributions
-    await db.transaction(async (tx) => {
-      // Lock the player row to prevent concurrent totalShares updates
+      // Resolve the complete alias chain before deriving any durable identity.
+      const identity = await loadPlayerIdentityContext(tx, distribution.playerId);
+      const canonicalDistribution = {
+        ...distribution,
+        playerId: identity.canonicalId,
+      };
+
+      const [claim] = await tx
+        .insert(scoutDistributionClaims)
+        .values({
+          hourTimestamp: canonicalDistribution.hourTimestamp,
+          playerId: canonicalDistribution.playerId,
+          userId: canonicalDistribution.userId,
+        })
+        .onConflictDoNothing()
+        .returning({ id: scoutDistributionClaims.id });
+
+      if (!claim) {
+        return false;
+      }
+
+      const shares = parseFloat(canonicalDistribution.sharesEarned);
+      const identityIds = identity.allIds.length ? identity.allIds : [identity.canonicalId];
+      const reservationDomain = holdingReservationDomain(
+        canonicalDistribution.userId,
+        "player",
+        identityIds,
+      );
+
+      // Share the same transaction lock used by reservations. This serializes both
+      // existing-row updates and the no-row-yet insert case across holding writers.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+      );
+
+      // Lock every equivalent holding in deterministic order before choosing the
+      // canonical row. Alias rows remain readable as historical inventory, but all
+      // new scout shares are credited to the terminal canonical identity.
+      const holdingRows = await tx
+        .select()
+        .from(holdings)
+        .where(
+          and(
+            eq(holdings.userId, canonicalDistribution.userId),
+            eq(holdings.assetType, "player"),
+            buildIdentityMatchSql(holdings.assetId, identityIds),
+          ),
+        )
+        .orderBy(asc(holdings.id))
+        .for("update");
+      const canonicalHolding = holdingRows.find(
+        (holding) => holding.assetId === canonicalDistribution.playerId,
+      );
+
       const [player] = await tx
         .select()
         .from(players)
-        .where(eq(players.id, playerId))
+        .where(eq(players.id, canonicalDistribution.playerId))
         .for("update");
 
       if (!player) {
-        throw new Error(`Player ${playerId} not found`);
+        throw new Error(`Player ${canonicalDistribution.playerId} not found`);
       }
 
-      // Credit shares to the user's regular-share holdings (multiplier field = 1) with $0 cost basis.
-      const existing = await this.getRegularHolding(userId, "player", playerId);
-
-      if (existing) {
-        // Add to existing regular holding - keep existing cost basis for purchased shares
-        // New shares have $0 cost, so weighted average shifts down
-        const existingQuantity = parseFloat(existing.quantity);
-        const newQuantity = existingQuantity + shares;
-        const existingCost = parseFloat(existing.totalCostBasis || "0");
-        // New shares are free, so total cost stays the same
-        const newAvgCost = newQuantity > 0 ? (existingCost / newQuantity).toFixed(4) : "0.0000";
+      if (canonicalHolding) {
+        // Compute from the locked row in SQL so no stale application-side quantity
+        // can overwrite a concurrent holding credit.
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity.toString(),
-            avgCostBasis: newAvgCost,
-            // totalCostBasis stays the same since new shares are free
+            quantity: sql`${holdings.quantity} + ${shares}`,
+            avgCostBasis: sql`CASE
+              WHEN (${holdings.quantity} + ${shares}) > 0
+              THEN ROUND(${holdings.totalCostBasis} / (${holdings.quantity} + ${shares}), 4)
+              ELSE 0
+            END`,
             lastUpdated: new Date(),
           })
-          .where(eq(holdings.id, existing.id));
+          .where(eq(holdings.id, canonicalHolding.id));
       } else {
-        // Create new regular holding with $0 cost basis
         await tx.insert(holdings).values({
-          userId,
+          userId: canonicalDistribution.userId,
           assetType: "player",
-          assetId: playerId,
+          assetId: canonicalDistribution.playerId,
           quantity: shares.toString(),
           avgCostBasis: "0.0000",
           totalCostBasis: "0.00",
@@ -1943,14 +1830,17 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
-      // Update player's total shares count (within transaction, with row locked)
       await tx
         .update(players)
         .set({
           totalShares: sql`${players.totalShares} + ${shares}`,
           lastUpdated: new Date(),
         })
-        .where(eq(players.id, playerId));
+        .where(eq(players.id, canonicalDistribution.playerId));
+
+      await tx.insert(scoutDistributions).values(canonicalDistribution);
+
+      return true;
     });
   }
 
@@ -2019,7 +1909,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUsername(userId: string, username: string): Promise<User | undefined> {
-    await db.update(users).set({ username, updatedAt: new Date() }).where(eq(users.id, userId));
+    await db
+      .update(users)
+      .set({ username, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), isNull(users.deletedAt)));
 
     return await this.getUser(userId);
   }
@@ -2028,7 +1921,7 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(users)
       .set({ profileImageUrl: imageUrl, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+      .where(and(eq(users.id, userId), isNull(users.deletedAt)));
 
     return await this.getUser(userId);
   }
@@ -2448,24 +2341,76 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertPlayerIdAlias(alias: InsertPlayerIdAlias): Promise<PlayerIdAlias> {
-    const [stored] = await db
-      .insert(playerIdAliases)
-      .values({
-        ...alias,
-        sport: alias.sport.toUpperCase(),
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: playerIdAliases.aliasPlayerId,
-        set: {
-          canonicalPlayerId: alias.canonicalPlayerId,
+    return db.transaction(async (tx) => {
+      // Distribution jobs hold SHARE while calculating and crediting. This conflicting
+      // lock makes the graph update, cycle validation, and claim re-key one atomic cutover.
+      await tx.execute(sql`LOCK TABLE player_id_aliases IN SHARE ROW EXCLUSIVE MODE`);
+
+      const [existingAlias] = await tx
+        .select({ canonicalPlayerId: playerIdAliases.canonicalPlayerId })
+        .from(playerIdAliases)
+        .where(eq(playerIdAliases.aliasPlayerId, alias.aliasPlayerId));
+      if (existingAlias && existingAlias.canonicalPlayerId !== alias.canonicalPlayerId) {
+        throw new Error(
+          `Player alias ${alias.aliasPlayerId} is already bound to ${existingAlias.canonicalPlayerId}`,
+        );
+      }
+
+      const [stored] = await tx
+        .insert(playerIdAliases)
+        .values({
+          ...alias,
           sport: alias.sport.toUpperCase(),
-          reason: alias.reason,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return stored;
+        })
+        .onConflictDoUpdate({
+          target: playerIdAliases.aliasPlayerId,
+          set: {
+            canonicalPlayerId: alias.canonicalPlayerId,
+            sport: alias.sport.toUpperCase(),
+            reason: alias.reason,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      // Resolving after the tentative write rejects cycles by throwing, which rolls
+      // back both the edge and every claim mutation below.
+      const identity = await loadPlayerIdentityContext(tx, alias.aliasPlayerId);
+      const identityIds = identity.allIds.length ? identity.allIds : [identity.canonicalId];
+      const existingClaims = await tx
+        .select({
+          hourTimestamp: scoutDistributionClaims.hourTimestamp,
+          userId: scoutDistributionClaims.userId,
+          createdAt: scoutDistributionClaims.createdAt,
+        })
+        .from(scoutDistributionClaims)
+        .where(inArray(scoutDistributionClaims.playerId, identityIds));
+
+      if (existingClaims.length > 0) {
+        await tx
+          .insert(scoutDistributionClaims)
+          .values(
+            existingClaims.map((claim) => ({
+              ...claim,
+              playerId: identity.canonicalId,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      // Delete obsolete alias-keyed claims only after their canonical key exists.
+      await tx
+        .delete(scoutDistributionClaims)
+        .where(
+          and(
+            inArray(scoutDistributionClaims.playerId, identityIds),
+            ne(scoutDistributionClaims.playerId, identity.canonicalId),
+          ),
+        );
+
+      return stored;
+    });
   }
 
   async getPlayersByIds(ids: string[]): Promise<Player[]> {
@@ -2839,46 +2784,76 @@ export class DatabaseStorage implements IStorage {
     lockReferenceId: string,
     quantity: number,
   ): Promise<HoldingsLock> {
-    // CRITICAL: Use transaction with row-level lock to prevent race conditions
+    const normalizedQuantity = normalizeHoldingLockQuantity(quantity);
+
+    // Use every ordinary holding in a player identity as the shared serialization
+    // point. Collection, order, stacking, and boost locks must not be able to
+    // reserve canonical and alias rows independently.
     return await db.transaction(async (tx) => {
-      // Step 1: Lock the holdings row to prevent concurrent modifications
-      const [holding] = await tx
-        .select()
+      const identity =
+        assetType === "player" ? await loadPlayerIdentityContext(tx, assetId) : undefined;
+      const identityIds = identity?.allIds.length ? identity.allIds : [assetId];
+      const reservationDomain = holdingReservationDomain(userId, assetType, identityIds);
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+      );
+      const holdingRows = await tx
+        .select({ id: holdings.id })
         .from(holdings)
         .where(
           and(
             eq(holdings.userId, userId),
             eq(holdings.assetType, assetType),
-            eq(holdings.assetId, assetId),
+            inArray(holdings.assetId, identityIds),
           ),
         )
-        .for("update"); // SELECT ... FOR UPDATE - prevents concurrent reservations
+        .orderBy(asc(holdings.id))
+        .for("update");
 
-      if (!holding) {
+      if (holdingRows.length === 0) {
         throw new Error(`No holdings found for user ${userId}, asset ${assetId}`);
       }
 
-      // Step 2: Calculate currently locked shares within the same transaction
-      const lockedResult = await tx
-        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
-        .from(holdingsLocks)
-        .where(
-          and(
-            eq(holdingsLocks.userId, userId),
-            eq(holdingsLocks.assetType, assetType),
-            eq(holdingsLocks.assetId, assetId),
-          ),
+      const totals = await tx.execute(sql`
+        SELECT
+          COALESCE((
+            SELECT SUM(quantity)
+            FROM holdings
+            WHERE user_id = ${userId}
+              AND asset_type = ${assetType}
+              AND asset_id IN (${sql.join(
+                identityIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})
+          ), 0)::text AS held_quantity,
+          COALESCE((
+            SELECT SUM(locked_quantity)
+            FROM holdings_locks
+            WHERE user_id = ${userId}
+              AND asset_type = ${assetType}
+              AND asset_id IN (${sql.join(
+                identityIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})
+          ), 0)::text AS locked_quantity
+      `);
+      const total = totals.rows[0] as { held_quantity: string; locked_quantity: string };
+      const availability = await tx.execute(sql`
+        SELECT
+          (${total.held_quantity}::numeric - ${total.locked_quantity}::numeric) >=
+            ${normalizedQuantity}::numeric AS enough,
+          GREATEST(
+            ${total.held_quantity}::numeric - ${total.locked_quantity}::numeric,
+            0::numeric
+          )::text AS available
+      `);
+      const available = availability.rows[0] as { enough: boolean; available: string };
+      if (!available.enough) {
+        throw new Error(
+          `Insufficient available shares: have ${available.available}, need ${normalizedQuantity}`,
         );
-
-      const totalLocked = Number(lockedResult[0]?.total || 0);
-      const available = parseFloat(holding.quantity) - totalLocked;
-
-      // Step 3: Check if sufficient shares are available
-      if (available < quantity) {
-        throw new Error(`Insufficient available shares: have ${available}, need ${quantity}`);
       }
 
-      // Step 4: Create the lock (round quantity to nearest integer)
       const [lock] = await tx
         .insert(holdingsLocks)
         .values({
@@ -2887,7 +2862,7 @@ export class DatabaseStorage implements IStorage {
           assetId,
           lockType,
           lockReferenceId,
-          lockedQuantity: Math.round(quantity),
+          lockedQuantity: normalizedQuantity,
         })
         .returning();
 
@@ -3059,14 +3034,100 @@ export class DatabaseStorage implements IStorage {
   }
 
   async adjustLockQuantity(lockReferenceId: string, newQuantity: number): Promise<void> {
-    if (newQuantity <= 0) {
-      await this.releaseSharesByReference(lockReferenceId);
-    } else {
-      await db
-        .update(holdingsLocks)
-        .set({ lockedQuantity: Math.round(newQuantity) })
-        .where(eq(holdingsLocks.lockReferenceId, lockReferenceId));
+    if (Number.isFinite(newQuantity) && newQuantity <= 0) {
+      await db.transaction(async (tx) => {
+        await tx
+          .select({ id: holdingsLocks.id })
+          .from(holdingsLocks)
+          .where(eq(holdingsLocks.lockReferenceId, lockReferenceId))
+          .orderBy(asc(holdingsLocks.id))
+          .for("update");
+        await tx.delete(holdingsLocks).where(eq(holdingsLocks.lockReferenceId, lockReferenceId));
+      });
+      return;
     }
+
+    const normalizedQuantity = normalizeHoldingLockQuantity(newQuantity);
+    const [snapshot] = await db
+      .select({
+        userId: holdingsLocks.userId,
+        assetType: holdingsLocks.assetType,
+        assetId: holdingsLocks.assetId,
+      })
+      .from(holdingsLocks)
+      .where(eq(holdingsLocks.lockReferenceId, lockReferenceId))
+      .limit(1);
+    if (!snapshot) return;
+
+    await db.transaction(async (tx) => {
+      const identity =
+        snapshot.assetType === "player"
+          ? await loadPlayerIdentityContext(tx, snapshot.assetId)
+          : {
+              requestedId: snapshot.assetId,
+              canonicalId: snapshot.assetId,
+              aliasIds: [],
+              allIds: [snapshot.assetId],
+            };
+      const identityIds = identity.allIds;
+      const lockedHoldingRows = await tx
+        .select({ id: holdings.id, quantity: holdings.quantity })
+        .from(holdings)
+        .where(
+          and(
+            eq(holdings.userId, snapshot.userId),
+            eq(holdings.assetType, snapshot.assetType),
+            buildIdentityMatchSql(holdings.assetId, identityIds),
+          ),
+        )
+        .orderBy(asc(holdings.id))
+        .for("update");
+
+      const currentLocks = await tx
+        .select()
+        .from(holdingsLocks)
+        .where(eq(holdingsLocks.lockReferenceId, lockReferenceId))
+        .orderBy(asc(holdingsLocks.id))
+        .for("update");
+      if (currentLocks.length === 0) return;
+      if (
+        currentLocks.some(
+          (lock) =>
+            lock.userId !== snapshot.userId ||
+            lock.assetType !== snapshot.assetType ||
+            !identityIds.includes(lock.assetId),
+        )
+      ) {
+        throw new Error("Lock identity changed while adjusting quantity");
+      }
+
+      const totalHeld = lockedHoldingRows.reduce(
+        (sum, holding) => sum + Number(holding.quantity || 0),
+        0,
+      );
+      const [otherLockTotal] = await tx
+        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, snapshot.userId),
+            eq(holdingsLocks.assetType, snapshot.assetType),
+            buildIdentityMatchSql(holdingsLocks.assetId, identityIds),
+            ne(holdingsLocks.lockReferenceId, lockReferenceId),
+          ),
+        );
+      const availableForAdjustedLock = totalHeld - Number(otherLockTotal?.total || 0);
+      if (availableForAdjustedLock + 1e-9 < Number(normalizedQuantity)) {
+        throw new Error(
+          `Insufficient available shares. Available: ${availableForAdjustedLock.toFixed(4)}, Requested: ${normalizedQuantity}`,
+        );
+      }
+
+      await tx
+        .update(holdingsLocks)
+        .set({ lockedQuantity: normalizedQuantity })
+        .where(eq(holdingsLocks.lockReferenceId, lockReferenceId));
+    });
   }
 
   // Cash lock methods - prevent double-spending balance on buy orders
@@ -5001,16 +5062,34 @@ export class DatabaseStorage implements IStorage {
       })
       .filter(Boolean);
 
-    // Fetch relevant game logs for all target players in one SQL query with season filtering.
-    const filteredGameLogs =
+    // Aggregate relevant game logs in SQL so only one row per identity ID crosses the database boundary.
+    const aggregatedGameLogs =
       seasonScopedFilters.length > 0
         ? await db
-            .select()
+            .select({
+              playerId: playerGameStats.playerId,
+              gamesPlayed: sql<string>`COALESCE(COUNT(*), 0)::text`,
+              totalFantasyPoints: sql<string>`COALESCE(SUM(CAST(${playerGameStats.fantasyPoints} AS numeric)), 0)::text`,
+            })
             .from(playerGameStats)
             .where(
               or(...(seasonScopedFilters as NonNullable<(typeof seasonScopedFilters)[number]>[])),
             )
+            .groupBy(playerGameStats.playerId)
         : [];
+
+    const aggregatesByIdentityId = new Map<
+      string,
+      { gamesPlayed: number; totalFantasyPoints: number }
+    >();
+    for (const row of aggregatedGameLogs) {
+      const gamesPlayed = Number(row.gamesPlayed);
+      const totalFantasyPoints = Number(row.totalFantasyPoints);
+      aggregatesByIdentityId.set(row.playerId, {
+        gamesPlayed: Number.isFinite(gamesPlayed) && gamesPlayed > 0 ? gamesPlayed : 0,
+        totalFantasyPoints: Number.isFinite(totalFantasyPoints) ? totalFantasyPoints : 0,
+      });
+    }
 
     const statsMap = new Map<
       string,
@@ -5022,23 +5101,22 @@ export class DatabaseStorage implements IStorage {
 
     for (const playerId of playerIds) {
       const identityContext = identityContexts.get(playerId);
-      const playerLogs = identityContext
-        ? filteredGameLogs.filter((log) => identityContext.allIds.includes(log.playerId))
-        : [];
+      let gamesPlayed = 0;
+      let totalFantasyPoints = 0;
 
-      if (playerLogs.length === 0) {
+      for (const identityId of identityContext?.allIds || []) {
+        const aggregate = aggregatesByIdentityId.get(identityId);
+        if (!aggregate) continue;
+        gamesPlayed += aggregate.gamesPlayed;
+        totalFantasyPoints += aggregate.totalFantasyPoints;
+      }
+
+      if (gamesPlayed === 0) {
         statsMap.set(playerId, {
           gamesPlayed: 0,
           avgFantasyPointsPerGame: "0.0",
         });
         continue;
-      }
-
-      const gamesPlayed = playerLogs.length;
-      let totalFantasyPoints = 0;
-
-      for (const log of playerLogs) {
-        totalFantasyPoints += parseFloat(log.fantasyPoints);
       }
 
       statsMap.set(playerId, {
@@ -7130,15 +7208,23 @@ export class DatabaseStorage implements IStorage {
               buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
             ),
           )
-          .orderBy(
-            desc(
-              sql<number>`CASE WHEN ${playerMultipliers.playerId} = ${canonicalPlayerId} THEN 1 ELSE 0 END`,
-            ),
-            desc(playerMultipliers.multiplier),
-            desc(playerMultipliers.updatedAt),
-          )
+          .orderBy(asc(playerMultipliers.id))
           .for("update");
-        const [multiplierRow] = multiplierRows;
+        const [multiplierRow] = [...multiplierRows].sort((left, right) => {
+          const canonicalPreference =
+            Number(right.playerId === canonicalPlayerId) -
+            Number(left.playerId === canonicalPlayerId);
+          if (canonicalPreference !== 0) return canonicalPreference;
+
+          const multiplierPreference = Number(right.multiplier) - Number(left.multiplier);
+          if (multiplierPreference !== 0) return multiplierPreference;
+
+          const updatedPreference =
+            new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
+          if (updatedPreference !== 0) return updatedPreference;
+
+          return left.id.localeCompare(right.id);
+        });
 
         if (!multiplierRow) {
           throw new Error(
@@ -7194,11 +7280,7 @@ export class DatabaseStorage implements IStorage {
             buildIdentityMatchSql(holdings.assetId, identity.allIds),
           ),
         )
-        .orderBy(
-          desc(sql<number>`CASE WHEN ${holdings.assetId} = ${canonicalPlayerId} THEN 1 ELSE 0 END`),
-          desc(sql<number>`CAST(${holdings.quantity} AS NUMERIC)`),
-          desc(holdings.lastUpdated),
-        )
+        .orderBy(asc(holdings.id))
         .for("update");
       const lockRows = await tx
         .select()
@@ -7210,6 +7292,7 @@ export class DatabaseStorage implements IStorage {
             buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds),
           ),
         )
+        .orderBy(asc(holdingsLocks.id))
         .for("update");
       const lockedByAssetId = new Map<string, number>();
       for (const lockRow of lockRows) {
@@ -7620,74 +7703,122 @@ export class DatabaseStorage implements IStorage {
     const effectiveSharesBurned = rawShareCount - multiplierGained;
 
     return await db.transaction(async (tx) => {
-      const [regularHolding] = await tx
+      const identity = await loadPlayerIdentityContext(tx, playerId);
+      const canonicalPlayerId = identity.canonicalId;
+      const regularHoldings = await tx
         .select()
         .from(holdings)
         .where(
           and(
             eq(holdings.userId, userId),
             eq(holdings.assetType, "player"),
-            eq(holdings.assetId, playerId),
+            buildIdentityMatchSql(holdings.assetId, identity.allIds),
           ),
         )
+        .orderBy(asc(holdings.id))
         .for("update");
 
-      if (!regularHolding) {
+      if (regularHoldings.length === 0) {
         throw new Error("No regular shares found to stack");
       }
 
-      const [lockedResult] = await tx
-        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+      const lockRows = await tx
+        .select()
         .from(holdingsLocks)
         .where(
           and(
             eq(holdingsLocks.userId, userId),
             eq(holdingsLocks.assetType, "player"),
-            eq(holdingsLocks.assetId, playerId),
+            buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds),
           ),
-        );
-      const lockedShares = Number(lockedResult?.total || 0);
-      const availableShares = parseFloat(regularHolding.quantity) - lockedShares;
+        )
+        .orderBy(asc(holdingsLocks.id))
+        .for("update");
+      const lockedShares = lockRows.reduce(
+        (sum, lock) => sum + Number(lock.lockedQuantity || 0),
+        0,
+      );
+      const totalHeld = regularHoldings.reduce(
+        (sum, holding) => sum + Number(holding.quantity || 0),
+        0,
+      );
+      const availableShares = totalHeld - lockedShares;
 
-      if (availableShares < rawShareCount) {
+      if (availableShares + 1e-9 < rawShareCount) {
         throw new Error(`Only ${availableShares} shares available (${lockedShares} locked)`);
       }
 
-      const avgCostBasis = toHoldingNumber(regularHolding.avgCostBasis);
-      const consumedTotalCostBasis = avgCostBasis * rawShareCount;
-      const retainedTotalCostBasis = avgCostBasis * multiplierGained;
-      const newRegularQuantity = parseFloat(regularHolding.quantity) - rawShareCount;
-      const newRegularTotalCostBasis = avgCostBasis * newRegularQuantity;
+      let remainingToConsume = rawShareCount;
+      let consumedTotalCostBasis = 0;
+      for (const regularHolding of regularHoldings) {
+        if (remainingToConsume <= 1e-9) break;
+        const currentQuantity = Number(regularHolding.quantity || 0);
+        const consumedFromHolding = Math.min(currentQuantity, remainingToConsume);
+        if (consumedFromHolding <= 0) continue;
 
-      if (newRegularQuantity <= 0) {
-        await tx.delete(holdings).where(eq(holdings.id, regularHolding.id));
-      } else {
-        await tx
-          .update(holdings)
-          .set({
-            quantity: newRegularQuantity.toString(),
-            totalCostBasis: newRegularTotalCostBasis.toFixed(2),
-            lastUpdated: new Date(),
-          })
-          .where(eq(holdings.id, regularHolding.id));
+        const avgCostBasis = toHoldingNumber(regularHolding.avgCostBasis);
+        consumedTotalCostBasis += avgCostBasis * consumedFromHolding;
+        const newRegularQuantity = currentQuantity - consumedFromHolding;
+        const newRegularTotalCostBasis = avgCostBasis * newRegularQuantity;
+        if (newRegularQuantity <= 1e-9) {
+          await tx.delete(holdings).where(eq(holdings.id, regularHolding.id));
+        } else {
+          await tx
+            .update(holdings)
+            .set({
+              quantity: newRegularQuantity.toString(),
+              totalCostBasis: newRegularTotalCostBasis.toFixed(2),
+              lastUpdated: new Date(),
+            })
+            .where(eq(holdings.id, regularHolding.id));
+        }
+        remainingToConsume -= consumedFromHolding;
+      }
+      if (remainingToConsume > 1e-9) {
+        throw new Error("Unable to consume the requested identity-equivalent shares");
       }
 
-      const [existingMultiplier] = await tx
+      const consumedAvgCostBasis = consumedTotalCostBasis / rawShareCount;
+      const retainedTotalCostBasis = consumedTotalCostBasis * (multiplierGained / rawShareCount);
+
+      const multiplierRows = await tx
         .select()
         .from(playerMultipliers)
-        .where(and(eq(playerMultipliers.userId, userId), eq(playerMultipliers.playerId, playerId)))
+        .where(
+          and(
+            eq(playerMultipliers.userId, userId),
+            buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
+          ),
+        )
+        .orderBy(asc(playerMultipliers.id))
         .for("update");
+      const existingMultiplier =
+        multiplierRows.find((row) => row.playerId === canonicalPlayerId) || multiplierRows[0];
 
       let multiplierAfter = multiplierGained;
       if (existingMultiplier) {
-        const existingTotalCostBasis = toHoldingNumber(existingMultiplier.totalCostBasis);
-        multiplierAfter = existingMultiplier.multiplier + multiplierGained;
+        const existingMultiplierTotal = multiplierRows.reduce(
+          (sum, row) => sum + Number(row.multiplier || 0),
+          0,
+        );
+        const existingTotalCostBasis = multiplierRows.reduce(
+          (sum, row) => sum + toHoldingNumber(row.totalCostBasis),
+          0,
+        );
+        multiplierAfter = existingMultiplierTotal + multiplierGained;
         const nextTotalCostBasis = existingTotalCostBasis + retainedTotalCostBasis;
         const nextAvgCostBasis =
-          multiplierAfter > 0 ? nextTotalCostBasis / multiplierAfter : avgCostBasis;
+          multiplierAfter > 0 ? nextTotalCostBasis / multiplierAfter : consumedAvgCostBasis;
+        const duplicateIds = multiplierRows
+          .filter((row) => row.id !== existingMultiplier.id)
+          .map((row) => row.id);
+        if (duplicateIds.length > 0) {
+          await tx.delete(playerMultipliers).where(inArray(playerMultipliers.id, duplicateIds));
+        }
         await tx
           .update(playerMultipliers)
           .set({
+            playerId: canonicalPlayerId,
             multiplier: multiplierAfter,
             avgCostBasis: nextAvgCostBasis.toFixed(4),
             totalCostBasis: nextTotalCostBasis.toFixed(2),
@@ -7697,9 +7828,9 @@ export class DatabaseStorage implements IStorage {
       } else {
         await tx.insert(playerMultipliers).values({
           userId,
-          playerId,
+          playerId: canonicalPlayerId,
           multiplier: multiplierGained,
-          avgCostBasis: toFixedString(avgCostBasis, 4),
+          avgCostBasis: toFixedString(consumedAvgCostBasis, 4),
           totalCostBasis: retainedTotalCostBasis.toFixed(2),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -7708,7 +7839,7 @@ export class DatabaseStorage implements IStorage {
 
       await tx.insert(playerMultiplierEvents).values({
         userId,
-        playerId,
+        playerId: canonicalPlayerId,
         eventType: "stack_shares",
         sharesConsumed: rawShareCount,
         effectiveSharesBurned,
@@ -7723,10 +7854,10 @@ export class DatabaseStorage implements IStorage {
           totalShares: sql`GREATEST(${players.totalShares} - ${effectiveSharesBurned}, 0)`,
           lastUpdated: new Date(),
         })
-        .where(eq(players.id, playerId));
+        .where(eq(players.id, canonicalPlayerId));
 
       console.log(
-        `[stackShares] User ${userId} stacked ${rawShareCount} shares of ${playerId} into 1 stacked share at ${multiplierAfter.toFixed(2)}x`,
+        `[stackShares] User ${userId} stacked ${rawShareCount} shares of ${canonicalPlayerId} into 1 stacked share at ${multiplierAfter.toFixed(2)}x`,
       );
 
       return {

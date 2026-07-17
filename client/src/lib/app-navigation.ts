@@ -2,10 +2,10 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   BookOpen,
-  Bot,
   BriefcaseBusiness,
   Crown,
   House,
+  Layers,
   Newspaper,
   TrendingUp,
   Zap,
@@ -20,7 +20,8 @@ export type AppNavItemId =
   | "boosts"
   | "portfolio"
   | "premium"
-  | "news";
+  | "news"
+  | "collections";
 
 export interface AppNavItem {
   id: AppNavItemId;
@@ -37,7 +38,6 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   { id: "pools", label: "Player Pools", shortLabel: "Pools", href: "/pools", icon: TrendingUp },
   { id: "analytics", label: "Analytics", href: "/analytics", icon: BarChart3 },
   { id: "wiki", label: "Wiki", href: "/wiki", icon: BookOpen },
-  { id: "agent", label: "Agent", href: "/agent", icon: Bot, requiresAuth: true },
   { id: "boosts", label: "Boosts", href: "/boosts", icon: Zap, tone: "boost" },
   {
     id: "portfolio",
@@ -55,6 +55,13 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     tone: "premium",
   },
   { id: "news", label: "News", href: "/news", icon: Newspaper },
+  {
+    id: "collections",
+    label: "Collections",
+    href: "/collections",
+    icon: Layers,
+    requiresAuth: true,
+  },
 ] as const;
 
 export const MOBILE_NAV_ITEM_IDS = [
@@ -62,7 +69,7 @@ export const MOBILE_NAV_ITEM_IDS = [
   "pools",
   "boosts",
   "portfolio",
-  "agent",
+  "collections",
 ] as const satisfies readonly AppNavItemId[];
 
 const navItemById = new Map(APP_NAV_ITEMS.map((item) => [item.id, item]));

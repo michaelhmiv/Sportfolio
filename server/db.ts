@@ -28,8 +28,22 @@ if (!databaseUrl) {
 
 export const pool = new Pool({
   connectionString: databaseUrl,
-  max: 5, // Limit pool to 5 connections to prevent Supabase "MaxClientsInSessionMode" errors
+  max: 20, // Tuned for Railway PostgreSQL direct connection (was 5 for Supabase pooler)
   connectionTimeoutMillis: 5000, // Fail fast if pool is full
   idleTimeoutMillis: 30000, // Close idle connections
+});
+
+// Advisory locks must not consume clients from the application query pool while
+// the locked job performs its normal database work. A separate, deliberately
+// small pool prevents a top-of-hour burst from exhausting `pool` and deadlocking
+// every locked callback while it waits for an application connection.
+export const jobLockPool = new Pool({
+  connectionString: databaseUrl,
+  max: 2,
+  // Wait for one of the two lock clients instead of dropping simultaneous cron
+  // callbacks when both lock slots are occupied by longer-running jobs.
+  connectionTimeoutMillis: 0,
+  idleTimeoutMillis: 30000,
+  application_name: "sportfolio-job-lock",
 });
 export const db = drizzle(pool, { schema });

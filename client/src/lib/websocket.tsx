@@ -24,6 +24,20 @@ function debugLog(stage: string, message: string, data?: any) {
   console.log(`[WS ${elapsed}ms] ${stage}: ${message}`, data || "");
 }
 
+export function rememberCollectionEvent(
+  seenEventIds: Set<string>,
+  eventId: string,
+  limit = 512,
+): boolean {
+  if (seenEventIds.has(eventId)) return false;
+  seenEventIds.add(eventId);
+  if (seenEventIds.size > limit) {
+    const oldest = seenEventIds.values().next().value;
+    if (oldest) seenEventIds.delete(oldest);
+  }
+  return true;
+}
+
 interface WebSocketContextValue {
   isConnected: boolean;
   connectionState: "connecting" | "connected" | "disconnected" | "error";
@@ -45,6 +59,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
   const wsRef = useRef<WebSocket | null>(null);
   const handlersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map());
+  const seenCollectionEventIdsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const reconnectAttemptsRef = useRef(0);
 
@@ -81,6 +96,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           setLastMessageAt(Date.now());
           const message = JSON.parse(event.data);
 
+          if (message.type === "collections" && typeof message.eventId === "string") {
+            if (!rememberCollectionEvent(seenCollectionEventIdsRef.current, message.eventId))
+              return;
+          }
+
           const handlers = handlersRef.current.get(message.type);
           if (handlers) {
             handlers.forEach((handler) => handler(message));
@@ -97,6 +117,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
             case "trade":
               debouncedInvalidatePlayer(message.playerId);
+              break;
+
+            case "collections":
+              queryClient.invalidateQueries({ queryKey: ["/api/me/collections"] });
               break;
 
             case "liveStats":

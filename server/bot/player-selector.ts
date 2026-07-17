@@ -379,11 +379,18 @@ export async function selectCandidates(
     if (context.actionType === "boost_assign" && !context.heldPlayerIds.has(playerId)) {
       continue; // Need shares to boost
     }
+    if (context.actionType === "stack_shares" && !context.heldPlayerIds.has(playerId)) {
+      continue; // Must hold shares to stack
+    }
+    if (context.actionType === "stack_shares" && availableShares < 4) {
+      continue; // Need at least 4 shares to stack
+    }
     if (
       (context.actionType === "sell" ||
         context.actionType === "pool_create" ||
         context.actionType === "pool_add_liquidity" ||
-        context.actionType === "boost_assign") &&
+        context.actionType === "boost_assign" ||
+        context.actionType === "stack_shares") &&
       availableShares < 1
     ) {
       continue; // Can't use locked-only holdings
@@ -437,10 +444,14 @@ export async function selectCandidates(
     const sportDeficit = Math.max(0, 3 - sportCount);
     score += sportDeficit * 40;
 
-    // Already held → slight preference for sell/LP actions
+    // Already held → slight preference for sell/LP/stack actions
     if (context.heldPlayerIds.has(playerId)) {
       if (context.actionType === "sell" || context.actionType === "pool_add_liquidity") {
         score += 80;
+      }
+      if (context.actionType === "stack_shares") {
+        // Prefer players with more available shares (bigger stacks = more multiplier)
+        score += Math.min(80, availableShares * 2);
       }
     }
 
