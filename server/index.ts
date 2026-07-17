@@ -173,9 +173,10 @@ if (app.get("env") !== "production") {
   });
 }
 
-// Freeze every application mutation during a coordinated database cutover while
-// keeping health checks and read traffic available.
-app.use("/api", maintenanceWriteGuard());
+// Freeze every HTTP mutation during a coordinated database cutover while
+// keeping health checks and read traffic available. This must be global: MCP
+// and internal mutation routes are intentionally not all mounted under /api.
+app.use(maintenanceWriteGuard());
 
 declare module "http" {
   interface IncomingMessage {
@@ -286,20 +287,50 @@ app.use((req, res, next) => {
       startupLog("LISTEN", `Server listening on port ${port}`);
       log(`serving on port ${port}`);
 
-      await initializeScheduledWork(process.env.RUN_SCHEDULED_JOBS, {
-        scheduler: jobScheduler,
-        updateBotProfiles: async () => {
+      const maintenanceMode = isWriteMaintenanceMode();
+
+      if (maintenanceMode) {
+        log("Maintenance mode active; startup database writers are disabled");
+      } else {
+        // Startup migration: Ensure all bot profiles have unlimited daily limits
+        try {
           await db.update(botProfiles).set({
             maxDailyOrders: 999999,
             maxDailyVolume: 999999,
           });
-        },
-        startAccountDeletionProcessor,
-        log,
-        logError: (message, error) => {
-          console.error(`${message}:`, error instanceof Error ? error.message : error);
-        },
-      });
+          log("Bot profiles updated with unlimited daily limits");
+        } catch (error: any) {
+          console.error("Failed to update bot profiles:", error.message);
+        }
+
+        try {
+          startAccountDeletionProcessor();
+        } catch (error: any) {
+          console.error("Failed to start account deletion processor:", error.message);
+        }
+      }
+
+      if (!maintenanceMode && process.env.RUN_SCHEDULED_JOBS === "true") {
+        // Initialize core jobs (database-only, no sports API required).
+        try {
+          await jobScheduler.initializeCoreJobs();
+          jobScheduler.start();
+          log("Core jobs initialized and started");
+        } catch (error: any) {
+          console.error("Failed to initialize core jobs:", error.message);
+        }
+
+        // Initialize sports API-dependent jobs. MLB StatsAPI and NASCAR are public/no-auth;
+        // NBA/NFL paid-provider jobs are disabled in the scheduler while the app is MLB/NASCAR-only.
+        try {
+          await jobScheduler.initializeApiJobs();
+          log("API-dependent jobs initialized and started");
+        } catch (error: any) {
+          console.error("Failed to initialize API jobs:", error.message);
+        }
+      } else {
+        log("Automatic scheduled work disabled");
+      }
 
       // Mark server as fully ready
       serverReady = true;

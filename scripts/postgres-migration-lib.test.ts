@@ -4,8 +4,13 @@ import {
   buildRestoreArgs,
   filterRestoreList,
   parseVerificationInventory,
+  postgresConnectionEnvironment,
+  postgresDatabaseName,
   verifyInventoryParity,
 } from "./postgres-migration-lib.mjs";
+
+const hashA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const hashB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
 describe("postgres migration tooling", () => {
   it("removes Supabase RLS policy and row-security entries only", () => {
@@ -31,8 +36,7 @@ describe("postgres migration tooling", () => {
   });
 
   it("builds owner-free custom dump and transactional restore arguments", () => {
-    expect(buildDumpArgs("postgres://source", "/tmp/public.dump")).toEqual([
-      "postgres://source",
+    expect(buildDumpArgs("/tmp/public.dump")).toEqual([
       "--format=custom",
       "--compress=9",
       "--no-owner",
@@ -40,8 +44,8 @@ describe("postgres migration tooling", () => {
       "--schema=public",
       "--file=/tmp/public.dump",
     ]);
-    expect(buildRestoreArgs("postgres://target", "/tmp/public.dump", "/tmp/restore.list")).toEqual([
-      "--dbname=postgres://target",
+    expect(buildRestoreArgs("/tmp/public.dump", "/tmp/restore.list", "railway")).toEqual([
+      "--dbname=railway",
       "--clean",
       "--if-exists",
       "--no-owner",
@@ -53,11 +57,33 @@ describe("postgres migration tooling", () => {
     ]);
   });
 
-  it("rejects row-count, object-count, constraint, policy, and auth-reference drift", () => {
+  it("moves database credentials out of process arguments", () => {
+    const env = postgresConnectionEnvironment(
+      "postgresql://user:p%40ss@db.example:6543/app?sslmode=require",
+      { PATH: "/bin" },
+    );
+    expect(env).toMatchObject({
+      PATH: "/bin",
+      PGHOST: "db.example",
+      PGPORT: "6543",
+      PGDATABASE: "app",
+      PGUSER: "user",
+      PGPASSWORD: "p@ss",
+      PGSSLMODE: "require",
+    });
+    expect(buildDumpArgs("/tmp/public.dump").join(" ")).not.toContain("postgresql://");
+    expect(postgresDatabaseName("postgresql://user:secret@db.example:5432/app")).toBe("app");
+    expect(buildRestoreArgs("/tmp/public.dump", "/tmp/list", "app").join(" ")).not.toContain(
+      "postgresql://",
+    );
+  });
+
+  it("rejects row-count, structural, constraint, policy, and auth-reference drift", () => {
     const source = parseVerificationInventory(
       JSON.stringify({
         tables: { users: 4, holdings: 8 },
         objects: { tables: 2, views: 0, functions: 3, triggers: 1 },
+        definitions: { columns: hashA },
         invalidForeignKeys: 0,
         policies: 7,
         rowSecurityTables: 2,
@@ -68,6 +94,7 @@ describe("postgres migration tooling", () => {
       JSON.stringify({
         tables: { users: 4, holdings: 7 },
         objects: { tables: 2, views: 0, functions: 3, triggers: 1 },
+        definitions: { columns: hashB },
         invalidForeignKeys: 1,
         policies: 0,
         rowSecurityTables: 0,
@@ -77,16 +104,18 @@ describe("postgres migration tooling", () => {
 
     expect(verifyInventoryParity(source, target)).toEqual([
       "row count mismatch for holdings: source=8 target=7",
+      "definition mismatch for columns",
       "target has 1 invalid foreign key(s)",
       "target has 1 public function(s) referencing auth.*",
     ]);
   });
 
-  it("accepts matching data with RLS removed from the target", () => {
+  it("accepts matching data and definitions with RLS removed from the target", () => {
     const source = parseVerificationInventory(
       JSON.stringify({
         tables: { users: 4 },
         objects: { tables: 1, views: 0, functions: 0, triggers: 0 },
+        definitions: { columns: hashA },
         invalidForeignKeys: 0,
         policies: 5,
         rowSecurityTables: 1,
@@ -97,6 +126,7 @@ describe("postgres migration tooling", () => {
       JSON.stringify({
         tables: { users: 4 },
         objects: { tables: 1, views: 0, functions: 0, triggers: 0 },
+        definitions: { columns: hashA },
         invalidForeignKeys: 0,
         policies: 0,
         rowSecurityTables: 0,

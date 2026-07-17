@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   isWriteMaintenanceMode,
   maintenanceWriteGuard,
@@ -48,5 +50,19 @@ describe("maintenance write guard", () => {
     const middleware = maintenanceWriteGuard(() => true);
     middleware({ method: "GET" } as any, {} as any, next);
     expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("is mounted globally and gates every startup database writer", () => {
+    const indexSource = readFileSync(resolve(process.cwd(), "server/index.ts"), "utf8");
+    const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+
+    expect(indexSource).toContain("app.use(maintenanceWriteGuard());");
+    expect(indexSource).not.toContain('app.use("/api", maintenanceWriteGuard());');
+    expect(indexSource).toContain('process.env.RUN_SCHEDULED_JOBS === "true"');
+    expect(indexSource).toMatch(
+      /if \(maintenanceMode\)[\s\S]+startup database writers are disabled/,
+    );
+    expect(routesSource).toContain("if (!isWriteMaintenanceMode())");
+    expect(routesSource).toContain("database warmups are disabled");
   });
 });

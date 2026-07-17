@@ -1,3 +1,4 @@
+/* global process, URL */
 const RLS_TOC_ENTRY = /^\d+;\s+\d+\s+\d+\s+(?:POLICY|ROW SECURITY)\s+/;
 
 export function filterRestoreList(input) {
@@ -13,9 +14,27 @@ export function filterRestoreList(input) {
   return { content: kept.join("\n"), removed };
 }
 
-export function buildDumpArgs(sourceUrl, dumpPath) {
+export function postgresConnectionEnvironment(databaseUrl, baseEnvironment = process.env) {
+  const parsed = new URL(databaseUrl);
+  const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+  if (!parsed.hostname || !database || !parsed.username) {
+    throw new Error("database URL must include host, database, and user");
+  }
+  const environment = {
+    ...baseEnvironment,
+    PGHOST: parsed.hostname,
+    PGPORT: parsed.port || "5432",
+    PGDATABASE: database,
+    PGUSER: decodeURIComponent(parsed.username),
+    PGPASSWORD: decodeURIComponent(parsed.password),
+  };
+  const sslMode = parsed.searchParams.get("sslmode");
+  if (sslMode) environment.PGSSLMODE = sslMode;
+  return environment;
+}
+
+export function buildDumpArgs(dumpPath) {
   return [
-    sourceUrl,
     "--format=custom",
     "--compress=9",
     "--no-owner",
@@ -25,9 +44,15 @@ export function buildDumpArgs(sourceUrl, dumpPath) {
   ];
 }
 
-export function buildRestoreArgs(targetUrl, dumpPath, listPath) {
+export function postgresDatabaseName(databaseUrl) {
+  const database = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ""));
+  if (!database) throw new Error("database URL must include a database name");
+  return database;
+}
+
+export function buildRestoreArgs(dumpPath, listPath, databaseName) {
   return [
-    `--dbname=${targetUrl}`,
+    `--dbname=${databaseName}`,
     "--clean",
     "--if-exists",
     "--no-owner",
@@ -54,6 +79,18 @@ export function parseVerificationInventory(json) {
   const value = JSON.parse(json);
   assertCountRecord(value.tables, "tables");
   assertCountRecord(value.objects, "objects");
+  if (
+    !value.definitions ||
+    typeof value.definitions !== "object" ||
+    Array.isArray(value.definitions)
+  ) {
+    throw new Error("definitions must be an object");
+  }
+  for (const [key, hash] of Object.entries(value.definitions)) {
+    if (!key || typeof hash !== "string" || !/^[a-f0-9]{32}$/.test(hash)) {
+      throw new Error(`definitions.${key} must be an md5 fingerprint`);
+    }
+  }
   for (const key of [
     "invalidForeignKeys",
     "policies",
@@ -88,6 +125,16 @@ export function verifyInventoryParity(source, target) {
       errors.push(
         `object count mismatch for ${kind}: source=${sourceCount ?? "missing"} target=${targetCount ?? "missing"}`,
       );
+    }
+  }
+
+  const definitionKinds = new Set([
+    ...Object.keys(source.definitions),
+    ...Object.keys(target.definitions),
+  ]);
+  for (const kind of [...definitionKinds].sort()) {
+    if (source.definitions[kind] !== target.definitions[kind]) {
+      errors.push(`definition mismatch for ${kind}`);
     }
   }
 
