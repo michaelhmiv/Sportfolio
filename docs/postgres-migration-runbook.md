@@ -10,7 +10,9 @@ This runbook moves the application-owned `public` schema. Supabase Auth remains 
 - Never point source and target variables at the same database.
 - `restore` is destructive: it uses `pg_restore --clean --if-exists` inside one transaction.
 - `restore` requires both source and target URLs, refuses identical endpoints before touching the target, and verifies that the restore list is the RLS-filtered table of contents of the supplied dump.
-- `restore` refuses a target with existing `public` relations, functions, or standalone types unless `ALLOW_NONEMPTY_TARGET=true`. Only use that override for a disposable rehearsal database.
+- `restore` refuses a target with existing `public` relations, functions, or standalone types unless both `ALLOW_NONEMPTY_TARGET=true` and the target-specific `CONFIRM_NONEMPTY_TARGET` token printed by the failed command are supplied. Only use that override for a disposable rehearsal database; the token has the form `ERASE host:port/database`.
+- `restore` refuses to start while another client connection is using the target. Stop every target-connected application, worker, console, and pool first, and keep them stopped until restore and verification finish. This idle-target check narrows the race window; maintenance mode and stopped deployments remain the primary write-exclusion controls.
+- Artifact directories must be owned by the invoking user with mode `0700`. Every dump, restore list, manifest, and verification inventory must be an owned regular file (not a symlink) with mode `0600`; insecure pre-existing paths are rejected.
 - Use PostgreSQL client tools at least as new as the source server. Set the explicit binary variables when the system defaults are older.
 
 ## Required environment
@@ -27,7 +29,7 @@ export PG_RESTORE_BIN='/usr/lib/postgresql/17/bin/pg_restore'
 export PSQL_BIN='/usr/lib/postgresql/17/bin/psql'
 ```
 
-Keep the artifact directory private. The custom dump contains production data. Database credentials are passed to PostgreSQL tools through `PG*` environment variables rather than process arguments.
+Create the artifact parent on a trusted local filesystem. The tooling creates the final directory as `0700` and files as `0600`, and rejects pre-existing paths with broader permissions, wrong ownership, or symlinks. The custom dump contains production data. Database credentials are passed to PostgreSQL tools through `PG*` environment variables rather than process arguments.
 
 ## Rehearsal and cutover sequence
 
@@ -49,6 +51,14 @@ Keep the artifact directory private. The custom dump contains production data. D
    ```bash
    export DUMP_PATH="$MIGRATION_ARTIFACT_DIR/public.dump"
    export RESTORE_LIST_PATH="$MIGRATION_ARTIFACT_DIR/public.railway.list"
+   npm run db:migration:restore
+   ```
+
+   If this is an intentionally nonempty disposable rehearsal target, first run the command without an override and copy its exact target-specific confirmation token, then rerun with both variables (example only):
+
+   ```bash
+   export ALLOW_NONEMPTY_TARGET=true
+   export CONFIRM_NONEMPTY_TARGET='ERASE railway.example:5432/sportfolio'
    npm run db:migration:restore
    ```
 

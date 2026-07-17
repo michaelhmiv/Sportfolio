@@ -1,17 +1,25 @@
 #!/usr/bin/env node
-/* global process, console, URL */
+/* global process, console */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { accessSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  assertDifferentDatabases,
+  assertNoActiveTargetClients,
+  assertNonemptyTargetOverride,
+  assertPrivateArtifactFile,
   buildDumpArgs,
   buildRestoreArgs,
+  ensurePrivateArtifactDirectory,
   filterRestoreList,
   parseVerificationInventory,
   postgresConnectionEnvironment,
   postgresDatabaseName,
+  SEQUENCE_VALUES_SQL,
+  STRUCTURAL_DEFINITIONS_SQL,
   verifyInventoryParity,
+  writePrivateArtifactFile,
 } from "./postgres-migration-lib.mjs";
 
 function requiredEnv(name) {
@@ -42,13 +50,12 @@ function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
-function assertDifferentDatabases(sourceUrl, targetUrl) {
-  const source = new URL(sourceUrl);
-  const target = new URL(targetUrl);
-  const sourceIdentity = `${source.hostname}:${source.port}/${source.pathname}`;
-  const targetIdentity = `${target.hostname}:${target.port}/${target.pathname}`;
-  if (sourceIdentity === targetIdentity) {
-    throw new Error("source and target database URLs resolve to the same host, port, and database");
+function withPrivateUmask(operation) {
+  const previous = process.umask(0o077);
+  try {
+    return operation();
+  } finally {
+    process.umask(previous);
   }
 }
 
@@ -63,7 +70,7 @@ function artifactDirectory() {
   const directory = resolve(
     process.env.MIGRATION_ARTIFACT_DIR || `/tmp/sportfolio-postgres-migration-${timestamp()}`,
   );
-  mkdirSync(directory, { recursive: true });
+  ensurePrivateArtifactDirectory(directory);
   return directory;
 }
 
@@ -114,57 +121,12 @@ function collectInventory(databaseUrl) {
   }
 
   const definitions = {};
-  const definitionRows = psql(
-    databaseUrl,
-    `WITH definitions(object_key, definition) AS (
-       SELECT 'columns/' || table_name || '.' || column_name,
-         format('%s|%s|%s|%s', udt_schema || '.' || udt_name, is_nullable,
-           COALESCE(column_default, ''), COALESCE(identity_generation, ''))
-       FROM information_schema.columns WHERE table_schema = 'public'
-       UNION ALL
-       SELECT 'constraints/' || con.conrelid::regclass::text || '.' || con.conname,
-         format('%s|%s|%s|%s|%s|%s|%s|%s', con.contype,
-           (SELECT array_agg(a.attname ORDER BY keys.ordinality)
-              FROM unnest(con.conkey) WITH ORDINALITY keys(attnum, ordinality)
-              JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = keys.attnum),
-           con.confrelid::regclass::text,
-           (SELECT array_agg(a.attname ORDER BY keys.ordinality)
-              FROM unnest(con.confkey) WITH ORDINALITY keys(attnum, ordinality)
-              JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = keys.attnum),
-           con.confupdtype, con.confdeltype, con.confmatchtype, con.condeferrable)
-       FROM pg_constraint con JOIN pg_namespace n ON n.oid = con.connamespace
-       WHERE n.nspname = 'public' AND con.contype <> 'n'
-       UNION ALL
-       SELECT 'indexes/' || ic.relname, pg_get_indexdef(i.indexrelid)
-       FROM pg_index i JOIN pg_class c ON c.oid = i.indrelid
-       JOIN pg_class ic ON ic.oid = i.indexrelid
-       JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'
-       UNION ALL
-       SELECT 'views/' || c.relname, pg_get_viewdef(c.oid, true)
-       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-       WHERE n.nspname = 'public' AND c.relkind IN ('v', 'm')
-       UNION ALL
-       SELECT 'functions/' || p.oid::regprocedure::text, pg_get_functiondef(p.oid)
-       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-       WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
-       UNION ALL
-       SELECT 'triggers/' || c.relname || '.' || t.tgname, pg_get_triggerdef(t.oid, true)
-       FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
-       JOIN pg_namespace n ON n.oid = c.relnamespace
-       WHERE n.nspname = 'public' AND NOT t.tgisinternal
-       UNION ALL
-       SELECT 'sequences/' || sequence_name, format('%s|%s|%s|%s|%s', data_type,
-         start_value, minimum_value, maximum_value, increment)
-       FROM information_schema.sequences WHERE sequence_schema = 'public'
-       UNION ALL
-       SELECT 'relations/' || c.relname, format('%s|%s|%s', c.relkind, c.relpersistence,
-         COALESCE(pg_get_partkeydef(c.oid), ''))
-       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-       WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
-     )
-     SELECT object_key, md5(definition) FROM definitions ORDER BY object_key;
-`,
-  );
+  const definitionRows = [
+    psql(databaseUrl, STRUCTURAL_DEFINITIONS_SQL),
+    psql(databaseUrl, SEQUENCE_VALUES_SQL),
+  ]
+    .filter(Boolean)
+    .join("\n");
   for (const line of definitionRows.split("\n").filter(Boolean)) {
     const [objectKey, hash] = line.split("\t");
     definitions[objectKey] = hash;
@@ -215,15 +177,18 @@ function dump() {
   const rawListPath = resolve(directory, "public.list");
   const filteredListPath = resolve(directory, "public.railway.list");
 
-  run(process.env.PG_DUMP_BIN || "pg_dump", buildDumpArgs(dumpPath), {
-    capture: false,
-    databaseUrl: sourceUrl,
-  });
+  withPrivateUmask(() =>
+    run(process.env.PG_DUMP_BIN || "pg_dump", buildDumpArgs(dumpPath), {
+      capture: false,
+      databaseUrl: sourceUrl,
+    }),
+  );
+  assertPrivateArtifactFile(dumpPath, "public.dump");
   const rawList = run(process.env.PG_RESTORE_BIN || "pg_restore", ["--list", dumpPath]);
   const filtered = filterRestoreList(rawList);
-  writeFileSync(rawListPath, rawList);
-  writeFileSync(filteredListPath, filtered.content);
-  writeFileSync(
+  writePrivateArtifactFile(rawListPath, rawList);
+  writePrivateArtifactFile(filteredListPath, filtered.content);
+  writePrivateArtifactFile(
     resolve(directory, "manifest.json"),
     `${JSON.stringify(
       {
@@ -258,11 +223,8 @@ function restore() {
 
   const dumpPath = resolve(requiredEnv("DUMP_PATH"));
   const listPath = resolve(requiredEnv("RESTORE_LIST_PATH"));
-  accessSync(dumpPath);
-  accessSync(listPath);
-  if (!statSync(dumpPath).isFile() || statSync(dumpPath).size === 0) {
-    throw new Error("DUMP_PATH must be a non-empty regular file");
-  }
+  assertPrivateArtifactFile(dumpPath, "DUMP_PATH");
+  assertPrivateArtifactFile(listPath, "RESTORE_LIST_PATH");
   const suppliedList = readFileSync(listPath, "utf8");
   const archiveList = run(process.env.PG_RESTORE_BIN || "pg_restore", ["--list", dumpPath]);
   const expectedList = filterRestoreList(archiveList).content;
@@ -284,11 +246,19 @@ function restore() {
            WHERE n.nspname = 'public' AND t.typrelid = 0 AND t.typelem = 0);\n`,
     ),
   );
-  if (existingObjects > 0 && process.env.ALLOW_NONEMPTY_TARGET !== "true") {
-    throw new Error(
-      `target public schema has ${existingObjects} object(s); set ALLOW_NONEMPTY_TARGET=true only for a disposable target`,
-    );
-  }
+  assertNonemptyTargetOverride(existingObjects, targetUrl);
+
+  const activeClients = Number(
+    psql(
+      targetUrl,
+      `SELECT count(*)
+         FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND backend_type = 'client backend';\n`,
+    ),
+  );
+  assertNoActiveTargetClients(activeClients);
 
   run(
     process.env.PG_RESTORE_BIN || "pg_restore",
@@ -308,15 +278,15 @@ function verify() {
   const source = collectInventory(sourceUrl);
   const target = collectInventory(targetUrl);
   const errors = verifyInventoryParity(source, target);
-  writeFileSync(
+  writePrivateArtifactFile(
     resolve(directory, "source-inventory.json"),
     `${JSON.stringify(source, null, 2)}\n`,
   );
-  writeFileSync(
+  writePrivateArtifactFile(
     resolve(directory, "target-inventory.json"),
     `${JSON.stringify(target, null, 2)}\n`,
   );
-  writeFileSync(
+  writePrivateArtifactFile(
     resolve(directory, "verification.json"),
     `${JSON.stringify({ errors }, null, 2)}\n`,
   );
