@@ -33,6 +33,18 @@ describe("player identity graph", () => {
     expect(contexts.get("mlb_X")?.allIds).toEqual(["mlb_X", "mlb_Y"]);
   });
 
+  it("rejects cyclic alias components instead of choosing an unstable canonical identity", () => {
+    expect(() =>
+      buildPlayerIdentityContexts(
+        ["mlb_A"],
+        [
+          { aliasPlayerId: "mlb_A", canonicalPlayerId: "mlb_B" },
+          { aliasPlayerId: "mlb_B", canonicalPlayerId: "mlb_A" },
+        ],
+      ),
+    ).toThrow("Player alias cycle detected");
+  });
+
   it("uses one deterministic reservation domain for an identity class", () => {
     expect(holdingReservationDomain("user-1", "player", ["mlb_B", "mlb_A", "mlb_B"])).toBe(
       holdingReservationDomain("user-1", "player", ["mlb_A", "mlb_B"]),

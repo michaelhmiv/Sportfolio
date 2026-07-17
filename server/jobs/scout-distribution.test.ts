@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 const dbMocks = vi.hoisted(() => ({
+  transaction: vi.fn(),
   select: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
@@ -102,6 +103,16 @@ describe("distributeScoutShares", () => {
     });
 
     dbMocks.execute.mockResolvedValue({ rows: [] });
+    dbMocks.transaction.mockImplementation(async (callback: (tx: any) => Promise<unknown>) =>
+      callback({
+        select: dbMocks.select,
+        execute: async (query: unknown) => {
+          const statement = new PgDialect().sqlToQuery(query as any).sql;
+          if (/^LOCK TABLE player_id_aliases/i.test(statement)) return { rows: [] };
+          return dbMocks.execute(query);
+        },
+      }),
+    );
 
     entitlementsMocks.loadUserEntitlements.mockResolvedValue({
       entitlements: {

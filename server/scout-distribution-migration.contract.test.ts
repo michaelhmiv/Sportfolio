@@ -14,6 +14,11 @@ describe("scout distribution claim migration", () => {
     expect(migration).toMatch(/LOCK TABLE\s+"scout_distributions"[\s\S]+ACCESS EXCLUSIVE/i);
   });
 
+  it("fails closed when any alias component has a cycle or no terminal identity", () => {
+    expect(migration).toMatch(/IF EXISTS[\s\S]+RAISE EXCEPTION[\s\S]+alias graph/i);
+    expect(migration).toMatch(/cycle|non-terminal/i);
+  });
+
   it("backfills terminal canonical identities across alias chains", () => {
     expect(migration).toMatch(/WITH RECURSIVE\s+"alias_paths"/i);
     expect(migration).toMatch(/NOT EXISTS[\s\S]+"player_id_aliases"/i);

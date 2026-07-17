@@ -162,7 +162,14 @@ export async function distributeScoutShares(): Promise<JobResult> {
     // We use a CTE to calculate the overlap of each history record with the [hourStart, hourEnd] window.
     // Formula: duration = LEAST(ended_at, hourEnd) - GREATEST(started_at, hourStart)
 
-    const distributions = await db.execute(sql`
+    // Hold one SHARE table lock from identity-dependent calculation through the
+    // complete credit batch. SHARE locks are compatible with other distribution
+    // jobs/credits, but conflict with the alias writer's SHARE ROW EXCLUSIVE lock.
+    const ceremonyDataByUser = new Map<string, any[]>();
+    await db.transaction(async (identityTx) => {
+      await identityTx.execute(sql`LOCK TABLE player_id_aliases IN SHARE MODE`);
+
+      const distributions = await identityTx.execute(sql`
             WITH RECURSIVE alias_paths AS (
                 SELECT
                     pia.alias_player_id,
@@ -244,88 +251,85 @@ export async function distributeScoutShares(): Promise<JobResult> {
             WHERE pt.global_scout_minutes > 0
         `);
 
-    // distributions.rows is an array of objects
-    const results = distributions.rows as any[];
-    console.log(`[scout_distribution] Calculated ${results.length} distributions to process.`);
+      // distributions.rows is an array of objects
+      const results = distributions.rows as any[];
+      console.log(`[scout_distribution] Calculated ${results.length} distributions to process.`);
 
-    if (results.length === 0) {
-      return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
-    }
-
-    // CEREMONY DATA COLLECTION
-    // Group distributions by user for personalized ceremonies
-    const ceremonyDataByUser = new Map<string, any[]>();
-
-    // Fetch all player details in one query for efficiency
-    const playerIds = [...new Set(results.map((r) => r.playerId))];
-    const playerDetails = await db
-      .select({
-        id: players.id,
-        firstName: players.firstName,
-        lastName: players.lastName,
-        team: players.team,
-        position: players.position,
-        sport: players.sport,
-      })
-      .from(players)
-      .where(inArray(players.id, playerIds));
-
-    const playerMap = new Map(playerDetails.map((p) => [p.id, p]));
-
-    for (const row of results) {
-      try {
-        const sharesEarned = parseFloat(row.sharesEarned);
-
-        if (sharesEarned > 0) {
-          const credited = await storage.creditScoutDistribution({
-            hourTimestamp: hourEnd, // Timestamp for the ledger is the END of the processed hour
-            playerId: row.playerId,
-            userId: row.userId,
-            userScoutMinutes: Math.round(parseFloat(row.userScoutMinutes)),
-            globalScoutMinutes: Math.round(parseFloat(row.globalScoutMinutes)),
-            sharesEarned: row.sharesEarned.toString(),
-          });
-
-          if (!credited) {
-            continue;
-          }
-
-          // Collect ceremony data
-          const player = playerMap.get(row.playerId);
-          if (player) {
-            const userScoutMinutes = parseFloat(row.userScoutMinutes);
-            const globalScoutMinutes = parseFloat(row.globalScoutMinutes);
-            const efficiency =
-              globalScoutMinutes > 0 ? (userScoutMinutes / globalScoutMinutes) * 100 : 0;
-
-            const ceremonyEntry = {
-              playerId: row.playerId,
-              playerName: `${player.firstName} ${player.lastName}`,
-              playerTeam: player.team,
-              playerPosition: player.position,
-              sport: player.sport,
-              sharesEarned: sharesEarned,
-              scoutMinutes: Math.round(userScoutMinutes),
-              globalMinutes: Math.round(globalScoutMinutes),
-              efficiency: Math.round(efficiency * 100) / 100, // 2 decimal places
-            };
-
-            if (!ceremonyDataByUser.has(row.userId)) {
-              ceremonyDataByUser.set(row.userId, []);
-            }
-            ceremonyDataByUser.get(row.userId)!.push(ceremonyEntry);
-          }
-
-          recordsProcessed++;
-        }
-      } catch (err: any) {
-        console.error(
-          `[scout_distribution] Error distributing to user ${row.userId} for player ${row.playerId}:`,
-          err.message,
-        );
-        errorCount++;
+      if (results.length === 0) {
+        return;
       }
-    }
+
+      // Fetch all player details under the same alias-graph lock.
+      const playerIds = [...new Set(results.map((r) => r.playerId))];
+      const playerDetails = await identityTx
+        .select({
+          id: players.id,
+          firstName: players.firstName,
+          lastName: players.lastName,
+          team: players.team,
+          position: players.position,
+          sport: players.sport,
+        })
+        .from(players)
+        .where(inArray(players.id, playerIds));
+
+      const playerMap = new Map(playerDetails.map((p) => [p.id, p]));
+
+      for (const row of results) {
+        try {
+          const sharesEarned = parseFloat(row.sharesEarned);
+
+          if (sharesEarned > 0) {
+            const credited = await storage.creditScoutDistribution({
+              hourTimestamp: hourEnd, // Timestamp for the ledger is the END of the processed hour
+              playerId: row.playerId,
+              userId: row.userId,
+              userScoutMinutes: Math.round(parseFloat(row.userScoutMinutes)),
+              globalScoutMinutes: Math.round(parseFloat(row.globalScoutMinutes)),
+              sharesEarned: row.sharesEarned.toString(),
+            });
+
+            if (!credited) {
+              continue;
+            }
+
+            // Collect ceremony data
+            const player = playerMap.get(row.playerId);
+            if (player) {
+              const userScoutMinutes = parseFloat(row.userScoutMinutes);
+              const globalScoutMinutes = parseFloat(row.globalScoutMinutes);
+              const efficiency =
+                globalScoutMinutes > 0 ? (userScoutMinutes / globalScoutMinutes) * 100 : 0;
+
+              const ceremonyEntry = {
+                playerId: row.playerId,
+                playerName: `${player.firstName} ${player.lastName}`,
+                playerTeam: player.team,
+                playerPosition: player.position,
+                sport: player.sport,
+                sharesEarned: sharesEarned,
+                scoutMinutes: Math.round(userScoutMinutes),
+                globalMinutes: Math.round(globalScoutMinutes),
+                efficiency: Math.round(efficiency * 100) / 100, // 2 decimal places
+              };
+
+              if (!ceremonyDataByUser.has(row.userId)) {
+                ceremonyDataByUser.set(row.userId, []);
+              }
+              ceremonyDataByUser.get(row.userId)!.push(ceremonyEntry);
+            }
+
+            recordsProcessed++;
+          }
+        } catch (err: any) {
+          console.error(
+            `[scout_distribution] Error distributing to user ${row.userId} for player ${row.playerId}:`,
+            err.message,
+          );
+          errorCount++;
+        }
+      }
+    });
 
     // CEREMONY BROADCAST
     // Send personalized ceremonies to each user

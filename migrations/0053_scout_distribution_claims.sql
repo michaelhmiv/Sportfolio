@@ -19,6 +19,36 @@ BEGIN
   END IF;
 
   LOCK TABLE "scout_distributions" IN ACCESS EXCLUSIVE MODE;
+  LOCK TABLE "player_id_aliases" IN SHARE MODE;
+
+  -- A finite directed alias component without a terminal node necessarily contains
+  -- a cycle. Fail closed instead of silently treating its raw IDs as independent.
+  IF EXISTS (
+    WITH RECURSIVE "alias_walk" AS (
+      SELECT
+        pia."alias_player_id" AS "start_id",
+        pia."canonical_player_id" AS "current_id",
+        ARRAY[pia."alias_player_id", pia."canonical_player_id"]::varchar[] AS "path",
+        pia."alias_player_id" = pia."canonical_player_id" AS "cycle"
+      FROM "player_id_aliases" pia
+
+      UNION ALL
+
+      SELECT
+        aw."start_id",
+        next_alias."canonical_player_id",
+        aw."path" || next_alias."canonical_player_id",
+        next_alias."canonical_player_id" = ANY(aw."path")
+      FROM "alias_walk" aw
+      JOIN "player_id_aliases" next_alias
+        ON next_alias."alias_player_id" = aw."current_id"
+      WHERE NOT aw."cycle"
+    )
+    SELECT 1 FROM "alias_walk" WHERE "cycle"
+  ) THEN
+    RAISE EXCEPTION
+      'Player alias graph contains a cycle or non-terminal component; refusing scout claim backfill';
+  END IF;
 
   CREATE TABLE "scout_distribution_claims" (
     "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),

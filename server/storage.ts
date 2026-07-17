@@ -2341,24 +2341,76 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertPlayerIdAlias(alias: InsertPlayerIdAlias): Promise<PlayerIdAlias> {
-    const [stored] = await db
-      .insert(playerIdAliases)
-      .values({
-        ...alias,
-        sport: alias.sport.toUpperCase(),
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: playerIdAliases.aliasPlayerId,
-        set: {
-          canonicalPlayerId: alias.canonicalPlayerId,
+    return db.transaction(async (tx) => {
+      // Distribution jobs hold SHARE while calculating and crediting. This conflicting
+      // lock makes the graph update, cycle validation, and claim re-key one atomic cutover.
+      await tx.execute(sql`LOCK TABLE player_id_aliases IN SHARE ROW EXCLUSIVE MODE`);
+
+      const [existingAlias] = await tx
+        .select({ canonicalPlayerId: playerIdAliases.canonicalPlayerId })
+        .from(playerIdAliases)
+        .where(eq(playerIdAliases.aliasPlayerId, alias.aliasPlayerId));
+      if (existingAlias && existingAlias.canonicalPlayerId !== alias.canonicalPlayerId) {
+        throw new Error(
+          `Player alias ${alias.aliasPlayerId} is already bound to ${existingAlias.canonicalPlayerId}`,
+        );
+      }
+
+      const [stored] = await tx
+        .insert(playerIdAliases)
+        .values({
+          ...alias,
           sport: alias.sport.toUpperCase(),
-          reason: alias.reason,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return stored;
+        })
+        .onConflictDoUpdate({
+          target: playerIdAliases.aliasPlayerId,
+          set: {
+            canonicalPlayerId: alias.canonicalPlayerId,
+            sport: alias.sport.toUpperCase(),
+            reason: alias.reason,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      // Resolving after the tentative write rejects cycles by throwing, which rolls
+      // back both the edge and every claim mutation below.
+      const identity = await loadPlayerIdentityContext(tx, alias.aliasPlayerId);
+      const identityIds = identity.allIds.length ? identity.allIds : [identity.canonicalId];
+      const existingClaims = await tx
+        .select({
+          hourTimestamp: scoutDistributionClaims.hourTimestamp,
+          userId: scoutDistributionClaims.userId,
+          createdAt: scoutDistributionClaims.createdAt,
+        })
+        .from(scoutDistributionClaims)
+        .where(inArray(scoutDistributionClaims.playerId, identityIds));
+
+      if (existingClaims.length > 0) {
+        await tx
+          .insert(scoutDistributionClaims)
+          .values(
+            existingClaims.map((claim) => ({
+              ...claim,
+              playerId: identity.canonicalId,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      // Delete obsolete alias-keyed claims only after their canonical key exists.
+      await tx
+        .delete(scoutDistributionClaims)
+        .where(
+          and(
+            inArray(scoutDistributionClaims.playerId, identityIds),
+            ne(scoutDistributionClaims.playerId, identity.canonicalId),
+          ),
+        );
+
+      return stored;
+    });
   }
 
   async getPlayersByIds(ids: string[]): Promise<Player[]> {
