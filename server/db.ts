@@ -28,7 +28,7 @@ if (!databaseUrl) {
 
 export const pool = new Pool({
   connectionString: databaseUrl,
-  max: 5, // Limit pool to 5 connections to prevent Supabase "MaxClientsInSessionMode" errors
+  max: 20, // Tuned for Railway PostgreSQL direct connection (was 5 for Supabase pooler)
   connectionTimeoutMillis: 5000, // Fail fast if pool is full
   idleTimeoutMillis: 30000, // Close idle connections
 });

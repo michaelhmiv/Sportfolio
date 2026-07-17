@@ -28,7 +28,6 @@ import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
 import { nanoid } from "nanoid";
 import { normalizeSiteUrl } from "@shared/seo";
-import { initializeScheduledWork } from "./scheduler-startup";
 import { isWriteMaintenanceMode, maintenanceWriteGuard } from "./maintenance-mode";
 
 const serverStartTime = Date.now();

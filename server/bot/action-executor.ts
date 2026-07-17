@@ -109,6 +109,8 @@ async function executeRaw(
         return await executePoolSell(botUserId, player, params);
       case "boost_assign":
         return await executeBoostAssign(botUserId, player, params);
+      case "stack_shares":
+        return await executeStackShares(botUserId, player, params);
       default:
         return {
           ...base,
@@ -325,6 +327,49 @@ async function executeBoostAssign(
       success: false,
       details: { slotTier },
       errorMessage: error?.message || "Boost assignment failed",
+    };
+  }
+}
+
+async function executeStackShares(
+  botUserId: string,
+  player: PlayerCandidate,
+  params: ActionParams,
+): Promise<ActionResult> {
+  const sharesToStack = Math.floor(params.shares || 4);
+  if (sharesToStack < 4 || sharesToStack % 2 !== 0) {
+    return {
+      actionType: "stack_shares",
+      playerId: player.playerId,
+      playerName: player.playerName,
+      success: false,
+      details: { sharesToStack },
+      errorMessage: `Invalid share count: ${sharesToStack} (need >=4, even)`,
+    };
+  }
+
+  try {
+    const result = await storage.stackShares(botUserId, player.playerId, sharesToStack);
+    return {
+      actionType: "stack_shares",
+      playerId: player.playerId,
+      playerName: player.playerName,
+      success: true,
+      details: {
+        sharesStacked: sharesToStack,
+        newMultiplier: result.newMultiplier,
+        multiplier: result.multiplier,
+        effectiveSharesBurned: result.effectiveSharesBurned,
+      },
+    };
+  } catch (error: any) {
+    return {
+      actionType: "stack_shares",
+      playerId: player.playerId,
+      playerName: player.playerName,
+      success: false,
+      details: { sharesToStack },
+      errorMessage: error?.message || "Stack failed",
     };
   }
 }
