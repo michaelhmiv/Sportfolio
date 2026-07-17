@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const selectMock = vi.hoisted(() => vi.fn());
 
@@ -34,6 +36,10 @@ describe("DatabaseStorage player stats readers", () => {
   beforeEach(() => {
     selectMock.mockReset();
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("includes alias rows when building season stats", async () => {
@@ -221,5 +227,117 @@ describe("DatabaseStorage player stats readers", () => {
       gamesPlayed: 0,
       avgFantasyPointsPerGame: "0.0",
     });
+  });
+
+  it("scopes each sport to its current competitive season identifiers", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-15T12:00:00.000Z"));
+
+    const { DatabaseStorage } = await import("./storage");
+    const storage = new DatabaseStorage();
+    const whereMock = vi.fn((_filter: SQL) => ({ groupBy: vi.fn(() => []) }));
+
+    selectMock
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => makeWhereOnlyQuery([]),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () =>
+            makeWhereOnlyQuery([
+              { id: "nba_1", sport: "NBA" },
+              { id: "nhl_1", sport: "NHL" },
+              { id: "mlb_1", sport: "MLB" },
+              { id: "nascar_1", sport: "NASCAR" },
+              { id: "nfl_1", sport: "NFL" },
+            ]),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({ where: whereMock }),
+      });
+
+    const playerIds = ["nba_1", "nhl_1", "mlb_1", "nascar_1", "nfl_1"];
+    await storage.getBatchPlayerSeasonStatsFromLogs(playerIds);
+
+    expect(whereMock).toHaveBeenCalledTimes(1);
+    const compiledFilter = new PgDialect().sqlToQuery(whereMock.mock.calls[0][0]);
+    expect(compiledFilter.params).toEqual([
+      "nba_1",
+      "2025-2026-regular",
+      "2025-2026-playoff",
+      "2024-2025-regular",
+      "2024-2025-playoff",
+      "nhl_1",
+      "20252026",
+      "20242025",
+      "mlb_1",
+      "2026",
+      "2025",
+      "nascar_1",
+      "2026",
+      "2025",
+      "nfl_1",
+      "2025",
+      "2024",
+    ]);
+    expect(compiledFilter.sql).toContain('\"player_game_stats\".\"season\" in');
+    expect(compiledFilter.sql.match(/\"player_game_stats\"\.\"season\" in/g)).toHaveLength(5);
+  });
+
+  it("defensively normalizes malformed aggregate numbers without discarding valid negatives", async () => {
+    const { DatabaseStorage } = await import("./storage");
+    const storage = new DatabaseStorage();
+    const groupByMock = vi.fn(() => [
+      { playerId: "nba_bad_count", gamesPlayed: "NaN", totalFantasyPoints: "100" },
+      { playerId: "nba_negative_count", gamesPlayed: "-2", totalFantasyPoints: "100" },
+      { playerId: "nba_bad_total", gamesPlayed: "2", totalFantasyPoints: "Infinity" },
+      { playerId: "nba_negative_total", gamesPlayed: "2", totalFantasyPoints: "-3" },
+    ]);
+    const playerIds = [
+      "nba_bad_count",
+      "nba_negative_count",
+      "nba_bad_total",
+      "nba_negative_total",
+    ];
+
+    selectMock
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => makeWhereOnlyQuery([]),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => makeWhereOnlyQuery(playerIds.map((id) => ({ id, sport: "NBA" }))),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({ groupBy: groupByMock }),
+        }),
+      });
+
+    const statsMap = await storage.getBatchPlayerSeasonStatsFromLogs(playerIds);
+
+    expect(statsMap.get("nba_bad_count")).toEqual({
+      gamesPlayed: 0,
+      avgFantasyPointsPerGame: "0.0",
+    });
+    expect(statsMap.get("nba_negative_count")).toEqual({
+      gamesPlayed: 0,
+      avgFantasyPointsPerGame: "0.0",
+    });
+    expect(statsMap.get("nba_bad_total")).toEqual({
+      gamesPlayed: 2,
+      avgFantasyPointsPerGame: "0.00",
+    });
+    expect(statsMap.get("nba_negative_total")).toEqual({
+      gamesPlayed: 2,
+      avgFantasyPointsPerGame: "-1.50",
+    });
+    expect(groupByMock).toHaveBeenCalledTimes(1);
   });
 });
