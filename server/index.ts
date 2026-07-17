@@ -29,6 +29,7 @@ import { logger } from "./lib/logger";
 import { nanoid } from "nanoid";
 import { normalizeSiteUrl } from "@shared/seo";
 import { initializeScheduledWork } from "./scheduler-startup";
+import { isWriteMaintenanceMode, maintenanceWriteGuard } from "./maintenance-mode";
 
 const serverStartTime = Date.now();
 let serverReady = false;
@@ -140,6 +141,8 @@ app.get("/api/health", (_req, res) => {
   const uptime = Date.now() - serverStartTime;
   res.json({
     status: serverReady ? "ready" : "starting",
+    maintenanceMode: isWriteMaintenanceMode(),
+    writesBlocked: isWriteMaintenanceMode(),
     uptime,
     uptimeSeconds: Math.floor(uptime / 1000),
     timestamp: new Date().toISOString(),
@@ -169,6 +172,10 @@ if (app.get("env") !== "production") {
     throw new Error("Sentry debug route hit");
   });
 }
+
+// Freeze every application mutation during a coordinated database cutover while
+// keeping health checks and read traffic available.
+app.use("/api", maintenanceWriteGuard());
 
 declare module "http" {
   interface IncomingMessage {
