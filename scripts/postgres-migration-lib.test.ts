@@ -13,11 +13,13 @@ import {
   ensurePrivateArtifactDirectory,
   filterRestoreList,
   nonemptyTargetConfirmationToken,
+  normalizeStructuralDefinition,
   parseVerificationInventory,
   postgresConnectionEnvironment,
   postgresDatabaseName,
   SEQUENCE_VALUES_SQL,
   STRUCTURAL_DEFINITIONS_SQL,
+  structuralDefinitionFingerprint,
   verifyInventoryParity,
   writePrivateArtifactFile,
 } from "./postgres-migration-lib.mjs";
@@ -26,6 +28,19 @@ const hashA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const hashB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
 describe("postgres migration tooling", () => {
+  it("normalizes equivalent PostgreSQL 17 and 18 varchar-array CHECK deparsing", () => {
+    const pg17 =
+      "((state)::text = ANY ((ARRAY['draft'::character varying, 'final'::character varying])::text[]))";
+    const pg18 =
+      "((state)::text = ANY (ARRAY[('draft'::character varying)::text, ('final'::character varying)::text]))";
+
+    expect(normalizeStructuralDefinition(pg17)).toBe(normalizeStructuralDefinition(pg18));
+    expect(structuralDefinitionFingerprint(pg17)).toBe(structuralDefinitionFingerprint(pg18));
+    expect(structuralDefinitionFingerprint(pg17)).not.toBe(
+      structuralDefinitionFingerprint(pg18.replace("final", "disabled")),
+    );
+  });
+
   it("removes Supabase RLS policy and row-security entries only", () => {
     const input = [
       "; archive header",

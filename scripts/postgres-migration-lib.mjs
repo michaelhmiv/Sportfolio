@@ -1,5 +1,6 @@
 /* global process, URL */
 import { lstatSync, mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const RLS_TOC_ENTRY = /^\d+;\s+\d+\s+\d+\s+(?:POLICY|ROW SECURITY)\s+/;
 
@@ -146,6 +147,17 @@ export function writePrivateArtifactFile(path, content) {
   assertPrivateArtifactFile(path, "artifact file", { nonempty: content.length > 0 });
 }
 
+export function normalizeStructuralDefinition(definition) {
+  return definition
+    .replace(/\('((?:''|[^'])*)'::character varying\)::text/g, "'$1'")
+    .replace(/'((?:''|[^'])*)'::(?:character varying|text)/g, "'$1'")
+    .replace(/\(ARRAY\[([^\]]*)\]\)::text\[\]/g, "ARRAY[$1]");
+}
+
+export function structuralDefinitionFingerprint(definition) {
+  return createHash("md5").update(normalizeStructuralDefinition(definition)).digest("hex");
+}
+
 export function buildRestoreArgs(dumpPath, listPath, databaseName) {
   return [
     `--dbname=${databaseName}`,
@@ -208,7 +220,7 @@ export const STRUCTURAL_DEFINITIONS_SQL = `WITH definitions(object_key, definiti
   JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'
   UNION ALL
   SELECT 'sequence-ownership/' || seq.relname,
-    COALESCE(owner.relname || '.' || attr.attname || '|' || dep.deptype, '')
+    COALESCE(owner.relname || '.' || attr.attname || '|' || dep.deptype::text, '')
   FROM pg_class seq JOIN pg_namespace n ON n.oid = seq.relnamespace
   LEFT JOIN pg_depend dep ON dep.classid = 'pg_class'::regclass AND dep.objid = seq.oid
     AND dep.objsubid = 0 AND dep.refclassid = 'pg_class'::regclass AND dep.deptype IN ('a', 'i')
@@ -249,7 +261,8 @@ export const STRUCTURAL_DEFINITIONS_SQL = `WITH definitions(object_key, definiti
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
   WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
 )
-SELECT object_key, md5(definition) FROM definitions ORDER BY object_key;
+SELECT json_build_object('objectKey', object_key, 'definition', definition)::text
+FROM definitions ORDER BY object_key;
 `;
 
 export const SEQUENCE_VALUES_SQL = `SELECT format(

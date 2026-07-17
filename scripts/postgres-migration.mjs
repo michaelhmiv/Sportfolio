@@ -18,6 +18,7 @@ import {
   postgresDatabaseName,
   SEQUENCE_VALUES_SQL,
   STRUCTURAL_DEFINITIONS_SQL,
+  structuralDefinitionFingerprint,
   verifyInventoryParity,
   writePrivateArtifactFile,
 } from "./postgres-migration-lib.mjs";
@@ -128,6 +129,11 @@ function collectInventory(databaseUrl) {
     .filter(Boolean)
     .join("\n");
   for (const line of definitionRows.split("\n").filter(Boolean)) {
+    if (line.startsWith("{")) {
+      const row = JSON.parse(line);
+      definitions[row.objectKey] = structuralDefinitionFingerprint(row.definition);
+      continue;
+    }
     const [objectKey, hash] = line.split("\t");
     definitions[objectKey] = hash;
   }
