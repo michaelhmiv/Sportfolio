@@ -16,7 +16,8 @@ export type ActionType =
   | "pool_add_liquidity"
   | "buy"
   | "sell"
-  | "boost_assign";
+  | "boost_assign"
+  | "stack_shares";
 
 export interface BotEnginePolicy {
   marketActionTypes: ActionType[];
@@ -39,7 +40,14 @@ export interface BotEnginePolicy {
 }
 
 export const BOT_ENGINE_POLICY: BotEnginePolicy = {
-  marketActionTypes: ["pool_create", "pool_add_liquidity", "buy", "sell", "boost_assign"],
+  marketActionTypes: [
+    "pool_create",
+    "pool_add_liquidity",
+    "buy",
+    "sell",
+    "boost_assign",
+    "stack_shares",
+  ],
   lookbackHours: {
     playerCooldown: 24,
     sportMix: 24,
@@ -113,17 +121,17 @@ export interface RoleDefaults {
 
 export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
   market_maker: {
-    actionProbability: 0.55,
-    maxDailyActions: 20,
-    playerCooldownHours: 8,
+    actionProbability: 0.75,
+    maxDailyActions: 40,
+    playerCooldownHours: 4,
     maxPlayerExposurePercent: 12,
     maxSportConcentration: 0.5,
-    activeHoursStart: 8,
-    activeHoursEnd: 23,
+    activeHoursStart: 0,
+    activeHoursEnd: 24,
     minOrderSb: 15,
     maxOrderSb: 200,
     scoutTargetCount: 8,
-    scoutRotationHours: 168, // weekly
+    scoutRotationHours: 48,
     allowedActions: [
       "scout_assign",
       "scout_rebalance",
@@ -131,76 +139,28 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
       "pool_add_liquidity",
       "buy",
       "sell",
+      "stack_shares",
     ],
     actionWeights: {
-      pool_create: 35,
-      pool_add_liquidity: 25,
-      buy: 15,
-      sell: 10,
+      stack_shares: 30,
+      pool_create: 25,
+      pool_add_liquidity: 15,
+      buy: 10,
+      sell: 5,
       scout_assign: 10,
       scout_rebalance: 5,
     },
   },
   trader: {
-    actionProbability: 0.35,
-    maxDailyActions: 15,
-    playerCooldownHours: 12,
+    actionProbability: 0.7,
+    maxDailyActions: 30,
+    playerCooldownHours: 4,
     maxPlayerExposurePercent: 15,
     maxSportConcentration: 0.55,
-    activeHoursStart: 9,
-    activeHoursEnd: 23,
+    activeHoursStart: 0,
+    activeHoursEnd: 24,
     minOrderSb: 20,
     maxOrderSb: 400,
-    scoutTargetCount: 4,
-    scoutRotationHours: 72,
-    allowedActions: [
-      "scout_assign",
-      "scout_rebalance",
-      "pool_create",
-      "buy",
-      "sell",
-      "boost_assign",
-    ],
-    actionWeights: {
-      buy: 35,
-      sell: 25,
-      pool_create: 15,
-      boost_assign: 10,
-      scout_assign: 10,
-      scout_rebalance: 5,
-    },
-  },
-  casual: {
-    actionProbability: 0.15,
-    maxDailyActions: 8,
-    playerCooldownHours: 24,
-    maxPlayerExposurePercent: 10,
-    maxSportConcentration: 0.6,
-    activeHoursStart: 11,
-    activeHoursEnd: 22,
-    minOrderSb: 10,
-    maxOrderSb: 80,
-    scoutTargetCount: 3,
-    scoutRotationHours: 48,
-    allowedActions: ["scout_assign", "scout_rebalance", "pool_create", "buy", "sell"],
-    actionWeights: {
-      buy: 30,
-      sell: 20,
-      scout_assign: 25,
-      scout_rebalance: 10,
-      pool_create: 15,
-    },
-  },
-  contest: {
-    actionProbability: 0.3,
-    maxDailyActions: 12,
-    playerCooldownHours: 12,
-    maxPlayerExposurePercent: 15,
-    maxSportConcentration: 0.6,
-    activeHoursStart: 10,
-    activeHoursEnd: 23,
-    minOrderSb: 15,
-    maxOrderSb: 150,
     scoutTargetCount: 5,
     scoutRotationHours: 48,
     allowedActions: [
@@ -210,35 +170,105 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
       "buy",
       "sell",
       "boost_assign",
+      "stack_shares",
     ],
     actionWeights: {
-      boost_assign: 30,
+      stack_shares: 25,
       buy: 25,
-      scout_assign: 20,
-      sell: 10,
+      sell: 15,
       pool_create: 10,
+      boost_assign: 10,
+      scout_assign: 10,
+      scout_rebalance: 5,
+    },
+  },
+  casual: {
+    actionProbability: 0.5,
+    maxDailyActions: 20,
+    playerCooldownHours: 6,
+    maxPlayerExposurePercent: 10,
+    maxSportConcentration: 0.6,
+    activeHoursStart: 0,
+    activeHoursEnd: 24,
+    minOrderSb: 10,
+    maxOrderSb: 80,
+    scoutTargetCount: 4,
+    scoutRotationHours: 48,
+    allowedActions: [
+      "scout_assign",
+      "scout_rebalance",
+      "pool_create",
+      "buy",
+      "sell",
+      "stack_shares",
+    ],
+    actionWeights: {
+      stack_shares: 25,
+      buy: 25,
+      sell: 15,
+      scout_assign: 15,
+      scout_rebalance: 10,
+      pool_create: 10,
+    },
+  },
+  contest: {
+    actionProbability: 0.65,
+    maxDailyActions: 25,
+    playerCooldownHours: 4,
+    maxPlayerExposurePercent: 15,
+    maxSportConcentration: 0.6,
+    activeHoursStart: 0,
+    activeHoursEnd: 24,
+    minOrderSb: 15,
+    maxOrderSb: 150,
+    scoutTargetCount: 5,
+    scoutRotationHours: 24,
+    allowedActions: [
+      "scout_assign",
+      "scout_rebalance",
+      "pool_create",
+      "buy",
+      "sell",
+      "boost_assign",
+      "stack_shares",
+    ],
+    actionWeights: {
+      stack_shares: 30,
+      boost_assign: 20,
+      buy: 20,
+      sell: 10,
+      scout_assign: 10,
+      pool_create: 5,
       scout_rebalance: 5,
     },
   },
   cold_market: {
-    actionProbability: 0.2,
-    maxDailyActions: 8,
-    playerCooldownHours: 48,
+    actionProbability: 0.55,
+    maxDailyActions: 20,
+    playerCooldownHours: 6,
     maxPlayerExposurePercent: 8,
     maxSportConcentration: 0.45,
-    activeHoursStart: 8,
-    activeHoursEnd: 22,
+    activeHoursStart: 0,
+    activeHoursEnd: 24,
     minOrderSb: 10,
     maxOrderSb: 60,
     scoutTargetCount: 10,
-    scoutRotationHours: 120,
-    allowedActions: ["scout_assign", "scout_rebalance", "pool_create", "pool_add_liquidity", "buy"],
+    scoutRotationHours: 72,
+    allowedActions: [
+      "scout_assign",
+      "scout_rebalance",
+      "pool_create",
+      "pool_add_liquidity",
+      "buy",
+      "stack_shares",
+    ],
     actionWeights: {
-      scout_assign: 30,
-      pool_create: 35,
-      pool_add_liquidity: 15,
+      stack_shares: 35,
+      scout_assign: 20,
+      pool_create: 20,
+      pool_add_liquidity: 10,
       buy: 10,
-      scout_rebalance: 10,
+      scout_rebalance: 5,
     },
   },
 };
@@ -257,7 +287,7 @@ export function determineBotStage(state: {
     return "scouting";
   }
 
-  if (state.uniquePlayersHeld < 3 || state.balance < 5000) {
+  if (state.uniquePlayersHeld < 3 || state.balance < 500) {
     return "accumulating";
   }
 
@@ -276,7 +306,7 @@ export function getStageAllowedActions(stage: BotStage): ActionType[] {
     case "scouting":
       return ["scout_assign"];
     case "accumulating":
-      return ["scout_assign", "scout_rebalance", "buy"];
+      return ["scout_assign", "scout_rebalance", "buy", "stack_shares"];
     case "pool_building":
       return [
         "scout_assign",
@@ -285,6 +315,7 @@ export function getStageAllowedActions(stage: BotStage): ActionType[] {
         "pool_add_liquidity",
         "buy",
         "sell",
+        "stack_shares",
       ];
     case "steady_state":
       return [
@@ -295,6 +326,7 @@ export function getStageAllowedActions(stage: BotStage): ActionType[] {
         "buy",
         "sell",
         "boost_assign",
+        "stack_shares",
       ];
   }
 }
