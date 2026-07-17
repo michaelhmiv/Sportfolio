@@ -772,12 +772,7 @@ async function runBotTick(
     return { success: false, reason: "outside_active_hours" };
   }
 
-  // 3. Probability roll
-  if (Math.random() > profile.actionProbability) {
-    return { success: false, reason: "probability_skip" };
-  }
-
-  // 4. Get recent action types for this bot (last 20 actions)
+  // 3. Get recent action types for this bot (last 20 actions)
   const recentActionsResult = await db.execute(sql`
     SELECT action_type
     FROM bot_actions_log
@@ -838,9 +833,16 @@ async function runBotTick(
     }
 
     if (actionType === "scout_rebalance") {
-      const scoutResult = await handleScoutRebalance(state);
-      if (scoutResult.success) return scoutResult;
-      lastReason = scoutResult.reason;
+      try {
+        const scoutResult = await handleScoutRebalance(state);
+        if (scoutResult.success) {
+          lastReason = "scout_rebalanced";
+          continue; // Don't let scout shuffle satisfy the tick
+        }
+        lastReason = scoutResult.reason;
+      } catch {
+        lastReason = "scout_rebalance_failed";
+      }
       continue;
     }
 
