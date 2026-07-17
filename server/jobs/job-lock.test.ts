@@ -83,7 +83,7 @@ describe("withJobAdvisoryLock", () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
-  it("releases the client when unlocking errors", async () => {
+  it("destroys the client when unlocking errors so a session lock cannot leak", async () => {
     const release = vi.fn();
     const query = vi
       .fn()
@@ -95,6 +95,21 @@ describe("withJobAdvisoryLock", () => {
         connect: vi.fn().mockResolvedValue({ query, release }),
       } as never),
     ).rejects.toThrow("unlock failed");
-    expect(release).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledWith(true);
+  });
+
+  it("destroys the client when PostgreSQL reports that the lock was not released", async () => {
+    const release = vi.fn();
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ acquired: true }] })
+      .mockResolvedValueOnce({ rows: [{ unlocked: false }] });
+
+    await expect(
+      withJobAdvisoryLock("news_fetch", async () => "done", {
+        connect: vi.fn().mockResolvedValue({ query, release }),
+      } as never),
+    ).rejects.toThrow("Failed to release advisory lock for job news_fetch");
+    expect(release).toHaveBeenCalledWith(true);
   });
 });

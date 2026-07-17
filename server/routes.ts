@@ -93,7 +93,10 @@ import { redeemPremiumShare } from "./services/premium-redemption";
 import { sendUserNotification } from "./services/notification-dispatcher";
 import { loadUserEntitlements } from "./services/user-entitlements";
 import { invalidateIdentity, setBroadcastFn } from "./public-identities/identity-events";
-import { resolveIdentityBatch, extractActorIds } from "./public-identities/public-identity-surface-adapters";
+import {
+  resolveIdentityBatch,
+  extractActorIds,
+} from "./public-identities/public-identity-surface-adapters";
 import {
   getApiHealthStaleThresholdMs,
   getLatestApiHealthReport,
@@ -4557,7 +4560,7 @@ ${items}
         ...result,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(error?.statusCode || 500).json({ error: error.message });
     }
   });
 
@@ -5854,23 +5857,20 @@ ${items}
       const roster = await storage.getScoutRoster(playerId);
 
       // Resolve identities for all scouters in one batch.
-      const scouterIds = roster
-        .map((r) => r.user?.id)
-        .filter((id): id is string => !!id);
-      const identityMap = scouterIds.length > 0
-        ? await resolveIdentityBatch(scouterIds)
-        : new Map();
+      const scouterIds = roster.map((r) => r.user?.id).filter((id): id is string => !!id);
+      const identityMap =
+        scouterIds.length > 0 ? await resolveIdentityBatch(scouterIds) : new Map();
 
       // Decorate each roster entry with identity and map profileImageUrl -> avatarUrl.
       const decoratedRoster = roster.map((entry) => {
-        const identity = entry.user?.id ? identityMap.get(entry.user.id) ?? null : null;
+        const identity = entry.user?.id ? (identityMap.get(entry.user.id) ?? null) : null;
         return {
           scoutCount: entry.scoutCount,
           user: entry.user
             ? {
                 id: entry.user.id,
                 username: entry.user.username,
-                avatarUrl: entry.user.avatarUrl ?? (identity?.avatarUrl ?? null),
+                avatarUrl: entry.user.avatarUrl ?? identity?.avatarUrl ?? null,
               }
             : null,
           identity,
@@ -9814,7 +9814,7 @@ ${items}
       });
     } catch (error: any) {
       console.error("[admin/jobs/trigger] Error:", error.message);
-      res.status(500).json({ error: error.message });
+      res.status(error?.statusCode || 500).json({ error: error.message });
     }
   });
 
