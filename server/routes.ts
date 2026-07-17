@@ -5,6 +5,7 @@ import { performance } from "node:perf_hooks";
 import { readFile } from "node:fs/promises";
 import { storage } from "./storage";
 import { db } from "./db";
+import { isWriteMaintenanceMode } from "./maintenance-mode";
 import type {
   InsertPlayer,
   Player,
@@ -11549,9 +11550,13 @@ ${items}
     await initializePlayers();
   };
 
-  void runStartupWarmups().catch((error: any) => {
-    console.warn("[startup] Warmup tasks failed:", error?.message || error);
-  });
+  if (!isWriteMaintenanceMode()) {
+    void runStartupWarmups().catch((error: any) => {
+      console.warn("[startup] Warmup tasks failed:", error?.message || error);
+    });
+  } else {
+    console.log("[startup] Maintenance mode active; database warmups are disabled");
+  }
 
   // Register secondary domain route modules after core APIs are available
   registerDomainRoutes(app);
