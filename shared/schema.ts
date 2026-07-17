@@ -1023,6 +1023,32 @@ export const scoutDistributions = pgTable(
   }),
 );
 
+// Durable idempotency claims for scout distribution events. Kept separate from the
+// historical ledger because legacy scout_distributions rows are not unique.
+export const scoutDistributionClaims = pgTable(
+  "scout_distribution_claims",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    hourTimestamp: timestamp("hour_timestamp").notNull(),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    eventUniqueIdx: uniqueIndex("scout_distribution_claims_event_idx").on(
+      table.hourTimestamp,
+      table.playerId,
+      table.userId,
+    ),
+  }),
+);
+
 // Scout Engine: Scout History - Tracks duration of assignments for minute-level precision
 // Used to calculate "Scout-Minutes" when users change scouts mid-hour.
 export const scoutHistory = pgTable(

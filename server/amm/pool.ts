@@ -502,46 +502,32 @@ export async function executeBuy(
         .set({ balance: newBalance.toFixed(2) })
         .where(eq(users.id, userId));
 
-      // 7. Add shares to user holdings
-      const [existingHolding] = await tx
-        .select()
-        .from(holdings)
-        .where(
-          and(
-            eq(holdings.userId, userId),
-            eq(holdings.assetType, "player"),
-            eq(holdings.assetId, playerId),
-          ),
-        );
-
-      if (existingHolding) {
-        const currentQuantity = parseFloat(existingHolding.quantity);
-        const newQuantity = currentQuantity + quote.sharesOut;
-        const currentTotalCost = parseFloat(existingHolding.totalCostBasis);
-        const newTotalCost = currentTotalCost + quote.totalCost;
-        const newAvgCost = newTotalCost / newQuantity;
-
-        await tx
-          .update(holdings)
-          .set({
-            quantity: formatHoldingQuantity(newQuantity),
-            avgCostBasis: newAvgCost.toFixed(4),
-            totalCostBasis: newTotalCost.toFixed(2),
-            lastUpdated: new Date(),
-          })
-          .where(eq(holdings.id, existingHolding.id));
-      } else {
-        const newQuantity = quote.sharesOut;
-        await tx.insert(holdings).values({
+      // 7. Add shares with one conflict-safe statement. The unique index serializes
+      // both the existing-row and no-row-yet cases against every other atomic credit.
+      await tx
+        .insert(holdings)
+        .values({
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: formatHoldingQuantity(newQuantity),
+          quantity: formatHoldingQuantity(quote.sharesOut),
           avgCostBasis: quote.effectivePrice.toFixed(4),
           totalCostBasis: quote.totalCost.toFixed(2),
           lastUpdated: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [holdings.userId, holdings.assetType, holdings.assetId],
+          set: {
+            quantity: sql`${holdings.quantity} + excluded.quantity`,
+            totalCostBasis: sql`${holdings.totalCostBasis} + excluded.total_cost_basis`,
+            avgCostBasis: sql`ROUND(
+              (${holdings.totalCostBasis} + excluded.total_cost_basis) /
+              (${holdings.quantity} + excluded.quantity),
+              4
+            )`,
+            lastUpdated: new Date(),
+          },
         });
-      }
 
       // 8. Record trade
       const [trade] = await tx
@@ -2077,30 +2063,10 @@ export async function removeLiquidity(
           .where(eq(lpPositions.id, position.id));
       }
 
-      // 5. Add shares back to user holdings
-      const [existingHolding] = await tx
-        .select()
-        .from(holdings)
-        .where(
-          and(
-            eq(holdings.userId, userId),
-            eq(holdings.assetType, "player"),
-            eq(holdings.assetId, playerId),
-          ),
-        );
-
-      if (existingHolding) {
-        const existingQuantity = parseFloat(existingHolding.quantity);
-        const newQuantity = existingQuantity + sharesToReturn;
-        await tx
-          .update(holdings)
-          .set({
-            quantity: formatHoldingQuantity(newQuantity),
-            lastUpdated: new Date(),
-          })
-          .where(eq(holdings.id, existingHolding.id));
-      } else {
-        await tx.insert(holdings).values({
+      // 5. Add shares back atomically, including concurrent first-row creation.
+      await tx
+        .insert(holdings)
+        .values({
           userId,
           assetType: "player",
           assetId: playerId,
@@ -2108,8 +2074,14 @@ export async function removeLiquidity(
           avgCostBasis: poolData.currentPrice.toFixed(4),
           totalCostBasis: playMoneyToReturn.toFixed(2),
           lastUpdated: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [holdings.userId, holdings.assetType, holdings.assetId],
+          set: {
+            quantity: sql`${holdings.quantity} + excluded.quantity`,
+            lastUpdated: new Date(),
+          },
         });
-      }
 
       // 6. Add play money to user balance
       const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");

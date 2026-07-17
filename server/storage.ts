@@ -15,6 +15,7 @@ import {
   vestingClaims,
   vestingPresets,
   scoutAssignments,
+  scoutDistributionClaims,
   scoutDistributions,
   scoutHistory,
   playerGameStats,
@@ -433,15 +434,14 @@ export interface IStorage {
   updateLastActive(userId: string): Promise<void>;
   // Scout Distribution Engine methods
   getPlayersWithActiveScouts(): Promise<string[]>;
-  createScoutDistribution(distribution: {
+  creditScoutDistribution(distribution: {
     hourTimestamp: Date;
     playerId: string;
     userId: string;
     userScoutMinutes: number;
     globalScoutMinutes: number;
     sharesEarned: string;
-  }): Promise<void>;
-  creditScoutShares(userId: string, playerId: string, shares: number): Promise<void>;
+  }): Promise<boolean>;
   getScoutRoster(playerId: string): Promise<
     Array<{
       user: { id: string; username: string | null; avatarUrl: string | null } | null;
@@ -1725,64 +1725,104 @@ export class DatabaseStorage implements IStorage {
     return results.map((r) => r.playerId);
   }
 
-  async createScoutDistribution(distribution: {
+  async creditScoutDistribution(distribution: {
     hourTimestamp: Date;
     playerId: string;
     userId: string;
     userScoutMinutes: number;
     globalScoutMinutes: number;
     sharesEarned: string;
-  }): Promise<void> {
-    await db.insert(scoutDistributions).values({
-      hourTimestamp: distribution.hourTimestamp,
-      playerId: distribution.playerId,
-      userId: distribution.userId,
-      userScoutMinutes: distribution.userScoutMinutes,
-      globalScoutMinutes: distribution.globalScoutMinutes,
-      sharesEarned: distribution.sharesEarned,
-    });
-  }
+  }): Promise<boolean> {
+    return db.transaction(async (tx) => {
+      // Alias writers take ROW EXCLUSIVE on this table. A SHARE lock keeps the
+      // identity graph stable for the entire credit transaction while allowing
+      // concurrent scout credits (SHARE locks are mutually compatible).
+      await tx.execute(sql`LOCK TABLE player_id_aliases IN SHARE MODE`);
 
-  async creditScoutShares(userId: string, playerId: string, shares: number): Promise<void> {
-    // Use transaction to prevent race conditions during concurrent distributions
-    await db.transaction(async (tx) => {
-      // Lock the player row to prevent concurrent totalShares updates
+      // Resolve the complete alias chain before deriving any durable identity.
+      const identity = await loadPlayerIdentityContext(tx, distribution.playerId);
+      const canonicalDistribution = {
+        ...distribution,
+        playerId: identity.canonicalId,
+      };
+
+      const [claim] = await tx
+        .insert(scoutDistributionClaims)
+        .values({
+          hourTimestamp: canonicalDistribution.hourTimestamp,
+          playerId: canonicalDistribution.playerId,
+          userId: canonicalDistribution.userId,
+        })
+        .onConflictDoNothing()
+        .returning({ id: scoutDistributionClaims.id });
+
+      if (!claim) {
+        return false;
+      }
+
+      const shares = parseFloat(canonicalDistribution.sharesEarned);
+      const identityIds = identity.allIds.length ? identity.allIds : [identity.canonicalId];
+      const reservationDomain = holdingReservationDomain(
+        canonicalDistribution.userId,
+        "player",
+        identityIds,
+      );
+
+      // Share the same transaction lock used by reservations. This serializes both
+      // existing-row updates and the no-row-yet insert case across holding writers.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+      );
+
+      // Lock every equivalent holding in deterministic order before choosing the
+      // canonical row. Alias rows remain readable as historical inventory, but all
+      // new scout shares are credited to the terminal canonical identity.
+      const holdingRows = await tx
+        .select()
+        .from(holdings)
+        .where(
+          and(
+            eq(holdings.userId, canonicalDistribution.userId),
+            eq(holdings.assetType, "player"),
+            buildIdentityMatchSql(holdings.assetId, identityIds),
+          ),
+        )
+        .orderBy(asc(holdings.id))
+        .for("update");
+      const canonicalHolding = holdingRows.find(
+        (holding) => holding.assetId === canonicalDistribution.playerId,
+      );
+
       const [player] = await tx
         .select()
         .from(players)
-        .where(eq(players.id, playerId))
+        .where(eq(players.id, canonicalDistribution.playerId))
         .for("update");
 
       if (!player) {
-        throw new Error(`Player ${playerId} not found`);
+        throw new Error(`Player ${canonicalDistribution.playerId} not found`);
       }
 
-      // Credit shares to the user's regular-share holdings (multiplier field = 1) with $0 cost basis.
-      const existing = await this.getRegularHolding(userId, "player", playerId);
-
-      if (existing) {
-        // Add to existing regular holding - keep existing cost basis for purchased shares
-        // New shares have $0 cost, so weighted average shifts down
-        const existingQuantity = parseFloat(existing.quantity);
-        const newQuantity = existingQuantity + shares;
-        const existingCost = parseFloat(existing.totalCostBasis || "0");
-        // New shares are free, so total cost stays the same
-        const newAvgCost = newQuantity > 0 ? (existingCost / newQuantity).toFixed(4) : "0.0000";
+      if (canonicalHolding) {
+        // Compute from the locked row in SQL so no stale application-side quantity
+        // can overwrite a concurrent holding credit.
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity.toString(),
-            avgCostBasis: newAvgCost,
-            // totalCostBasis stays the same since new shares are free
+            quantity: sql`${holdings.quantity} + ${shares}`,
+            avgCostBasis: sql`CASE
+              WHEN (${holdings.quantity} + ${shares}) > 0
+              THEN ROUND(${holdings.totalCostBasis} / (${holdings.quantity} + ${shares}), 4)
+              ELSE 0
+            END`,
             lastUpdated: new Date(),
           })
-          .where(eq(holdings.id, existing.id));
+          .where(eq(holdings.id, canonicalHolding.id));
       } else {
-        // Create new regular holding with $0 cost basis
         await tx.insert(holdings).values({
-          userId,
+          userId: canonicalDistribution.userId,
           assetType: "player",
-          assetId: playerId,
+          assetId: canonicalDistribution.playerId,
           quantity: shares.toString(),
           avgCostBasis: "0.0000",
           totalCostBasis: "0.00",
@@ -1790,14 +1830,17 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
-      // Update player's total shares count (within transaction, with row locked)
       await tx
         .update(players)
         .set({
           totalShares: sql`${players.totalShares} + ${shares}`,
           lastUpdated: new Date(),
         })
-        .where(eq(players.id, playerId));
+        .where(eq(players.id, canonicalDistribution.playerId));
+
+      await tx.insert(scoutDistributions).values(canonicalDistribution);
+
+      return true;
     });
   }
 
@@ -2298,24 +2341,76 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertPlayerIdAlias(alias: InsertPlayerIdAlias): Promise<PlayerIdAlias> {
-    const [stored] = await db
-      .insert(playerIdAliases)
-      .values({
-        ...alias,
-        sport: alias.sport.toUpperCase(),
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: playerIdAliases.aliasPlayerId,
-        set: {
-          canonicalPlayerId: alias.canonicalPlayerId,
+    return db.transaction(async (tx) => {
+      // Distribution jobs hold SHARE while calculating and crediting. This conflicting
+      // lock makes the graph update, cycle validation, and claim re-key one atomic cutover.
+      await tx.execute(sql`LOCK TABLE player_id_aliases IN SHARE ROW EXCLUSIVE MODE`);
+
+      const [existingAlias] = await tx
+        .select({ canonicalPlayerId: playerIdAliases.canonicalPlayerId })
+        .from(playerIdAliases)
+        .where(eq(playerIdAliases.aliasPlayerId, alias.aliasPlayerId));
+      if (existingAlias && existingAlias.canonicalPlayerId !== alias.canonicalPlayerId) {
+        throw new Error(
+          `Player alias ${alias.aliasPlayerId} is already bound to ${existingAlias.canonicalPlayerId}`,
+        );
+      }
+
+      const [stored] = await tx
+        .insert(playerIdAliases)
+        .values({
+          ...alias,
           sport: alias.sport.toUpperCase(),
-          reason: alias.reason,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return stored;
+        })
+        .onConflictDoUpdate({
+          target: playerIdAliases.aliasPlayerId,
+          set: {
+            canonicalPlayerId: alias.canonicalPlayerId,
+            sport: alias.sport.toUpperCase(),
+            reason: alias.reason,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      // Resolving after the tentative write rejects cycles by throwing, which rolls
+      // back both the edge and every claim mutation below.
+      const identity = await loadPlayerIdentityContext(tx, alias.aliasPlayerId);
+      const identityIds = identity.allIds.length ? identity.allIds : [identity.canonicalId];
+      const existingClaims = await tx
+        .select({
+          hourTimestamp: scoutDistributionClaims.hourTimestamp,
+          userId: scoutDistributionClaims.userId,
+          createdAt: scoutDistributionClaims.createdAt,
+        })
+        .from(scoutDistributionClaims)
+        .where(inArray(scoutDistributionClaims.playerId, identityIds));
+
+      if (existingClaims.length > 0) {
+        await tx
+          .insert(scoutDistributionClaims)
+          .values(
+            existingClaims.map((claim) => ({
+              ...claim,
+              playerId: identity.canonicalId,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      // Delete obsolete alias-keyed claims only after their canonical key exists.
+      await tx
+        .delete(scoutDistributionClaims)
+        .where(
+          and(
+            inArray(scoutDistributionClaims.playerId, identityIds),
+            ne(scoutDistributionClaims.playerId, identity.canonicalId),
+          ),
+        );
+
+      return stored;
+    });
   }
 
   async getPlayersByIds(ids: string[]): Promise<Player[]> {
