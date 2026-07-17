@@ -1734,12 +1734,24 @@ export class DatabaseStorage implements IStorage {
     sharesEarned: string;
   }): Promise<boolean> {
     return db.transaction(async (tx) => {
+      // Alias writers take ROW EXCLUSIVE on this table. A SHARE lock keeps the
+      // identity graph stable for the entire credit transaction while allowing
+      // concurrent scout credits (SHARE locks are mutually compatible).
+      await tx.execute(sql`LOCK TABLE player_id_aliases IN SHARE MODE`);
+
+      // Resolve the complete alias chain before deriving any durable identity.
+      const identity = await loadPlayerIdentityContext(tx, distribution.playerId);
+      const canonicalDistribution = {
+        ...distribution,
+        playerId: identity.canonicalId,
+      };
+
       const [claim] = await tx
         .insert(scoutDistributionClaims)
         .values({
-          hourTimestamp: distribution.hourTimestamp,
-          playerId: distribution.playerId,
-          userId: distribution.userId,
+          hourTimestamp: canonicalDistribution.hourTimestamp,
+          playerId: canonicalDistribution.playerId,
+          userId: canonicalDistribution.userId,
         })
         .onConflictDoNothing()
         .returning({ id: scoutDistributionClaims.id });
@@ -1748,59 +1760,69 @@ export class DatabaseStorage implements IStorage {
         return false;
       }
 
-      const shares = parseFloat(distribution.sharesEarned);
+      const shares = parseFloat(canonicalDistribution.sharesEarned);
+      const identityIds = identity.allIds.length ? identity.allIds : [identity.canonicalId];
+      const reservationDomain = holdingReservationDomain(
+        canonicalDistribution.userId,
+        "player",
+        identityIds,
+      );
 
-      // Lock the player row to serialize totalShares updates.
-      const [player] = await tx
-        .select()
-        .from(players)
-        .where(eq(players.id, distribution.playerId))
-        .for("update");
+      // Share the same transaction lock used by reservations. This serializes both
+      // existing-row updates and the no-row-yet insert case across holding writers.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+      );
 
-      if (!player) {
-        throw new Error(`Player ${distribution.playerId} not found`);
-      }
-
-      // Read the regular holding through this transaction, never through the global db.
-      const identity = await loadPlayerIdentityContext(tx, distribution.playerId);
-      const existingRows = await tx
+      // Lock every equivalent holding in deterministic order before choosing the
+      // canonical row. Alias rows remain readable as historical inventory, but all
+      // new scout shares are credited to the terminal canonical identity.
+      const holdingRows = await tx
         .select()
         .from(holdings)
         .where(
           and(
-            eq(holdings.userId, distribution.userId),
+            eq(holdings.userId, canonicalDistribution.userId),
             eq(holdings.assetType, "player"),
-            buildIdentityMatchSql(holdings.assetId, identity.allIds),
+            buildIdentityMatchSql(holdings.assetId, identityIds),
           ),
         )
-        .orderBy(
-          desc(
-            sql<number>`CASE WHEN ${holdings.assetId} = ${identity.canonicalId} THEN 1 ELSE 0 END`,
-          ),
-          desc(sql<number>`CAST(${holdings.quantity} AS NUMERIC)`),
-          desc(holdings.lastUpdated),
-        )
-        .limit(1);
-      const existing = existingRows[0];
+        .orderBy(asc(holdings.id))
+        .for("update");
+      const canonicalHolding = holdingRows.find(
+        (holding) => holding.assetId === canonicalDistribution.playerId,
+      );
 
-      if (existing) {
-        const existingQuantity = parseFloat(existing.quantity);
-        const newQuantity = existingQuantity + shares;
-        const existingCost = parseFloat(existing.totalCostBasis || "0");
-        const newAvgCost = newQuantity > 0 ? (existingCost / newQuantity).toFixed(4) : "0.0000";
+      const [player] = await tx
+        .select()
+        .from(players)
+        .where(eq(players.id, canonicalDistribution.playerId))
+        .for("update");
+
+      if (!player) {
+        throw new Error(`Player ${canonicalDistribution.playerId} not found`);
+      }
+
+      if (canonicalHolding) {
+        // Compute from the locked row in SQL so no stale application-side quantity
+        // can overwrite a concurrent holding credit.
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity.toString(),
-            avgCostBasis: newAvgCost,
+            quantity: sql`${holdings.quantity} + ${shares}`,
+            avgCostBasis: sql`CASE
+              WHEN (${holdings.quantity} + ${shares}) > 0
+              THEN ROUND(${holdings.totalCostBasis} / (${holdings.quantity} + ${shares}), 4)
+              ELSE 0
+            END`,
             lastUpdated: new Date(),
           })
-          .where(eq(holdings.id, existing.id));
+          .where(eq(holdings.id, canonicalHolding.id));
       } else {
         await tx.insert(holdings).values({
-          userId: distribution.userId,
+          userId: canonicalDistribution.userId,
           assetType: "player",
-          assetId: distribution.playerId,
+          assetId: canonicalDistribution.playerId,
           quantity: shares.toString(),
           avgCostBasis: "0.0000",
           totalCostBasis: "0.00",
@@ -1814,9 +1836,9 @@ export class DatabaseStorage implements IStorage {
           totalShares: sql`${players.totalShares} + ${shares}`,
           lastUpdated: new Date(),
         })
-        .where(eq(players.id, distribution.playerId));
+        .where(eq(players.id, canonicalDistribution.playerId));
 
-      await tx.insert(scoutDistributions).values(distribution);
+      await tx.insert(scoutDistributions).values(canonicalDistribution);
 
       return true;
     });

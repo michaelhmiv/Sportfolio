@@ -163,7 +163,34 @@ export async function distributeScoutShares(): Promise<JobResult> {
     // Formula: duration = LEAST(ended_at, hourEnd) - GREATEST(started_at, hourStart)
 
     const distributions = await db.execute(sql`
-            WITH active_users AS (
+            WITH RECURSIVE alias_paths AS (
+                SELECT
+                    pia.alias_player_id,
+                    pia.canonical_player_id,
+                    ARRAY[pia.alias_player_id, pia.canonical_player_id]::varchar[] AS path
+                FROM player_id_aliases pia
+
+                UNION ALL
+
+                SELECT
+                    ap.alias_player_id,
+                    next_alias.canonical_player_id,
+                    ap.path || next_alias.canonical_player_id
+                FROM alias_paths ap
+                JOIN player_id_aliases next_alias
+                  ON next_alias.alias_player_id = ap.canonical_player_id
+                WHERE NOT next_alias.canonical_player_id = ANY(ap.path)
+            ),
+            canonical_aliases AS (
+                SELECT ap.alias_player_id, ap.canonical_player_id
+                FROM alias_paths ap
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM player_id_aliases next_alias
+                    WHERE next_alias.alias_player_id = ap.canonical_player_id
+                )
+            ),
+            active_users AS (
                 SELECT id 
                 FROM users 
                 WHERE last_active_at > ${hourStart.toISOString()}::timestamp - INTERVAL '24 hours'
@@ -171,12 +198,13 @@ export async function distributeScoutShares(): Promise<JobResult> {
             history_periods AS (
                 SELECT
                     sh.user_id,
-                    sh.player_id,
+                    COALESCE(ca.canonical_player_id, sh.player_id) AS player_id,
                     sh.scout_count,
                     GREATEST(sh.started_at, ${hourStart.toISOString()}::timestamp) as effective_start,
                     LEAST(COALESCE(sh.ended_at, ${hourEnd.toISOString()}::timestamp), ${hourEnd.toISOString()}::timestamp) as effective_end
                 FROM scout_history sh
                 JOIN active_users u ON sh.user_id = u.id
+                LEFT JOIN canonical_aliases ca ON ca.alias_player_id = sh.player_id
                 WHERE 
                     sh.started_at < ${hourEnd.toISOString()}::timestamp
                     AND (sh.ended_at IS NULL OR sh.ended_at > ${hourStart.toISOString()}::timestamp)

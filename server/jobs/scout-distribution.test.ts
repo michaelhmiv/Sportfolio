@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const dbMocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -188,5 +189,78 @@ describe("distributeScoutShares", () => {
     expect(result.recordsProcessed).toBe(0);
     expect(websocketMocks.broadcastToUser).not.toHaveBeenCalled();
     expect(websocketMocks.broadcast).not.toHaveBeenCalled();
+  });
+
+  it("collapses alias and canonical scout minutes into one canonical same-hour payout", async () => {
+    let selectCall = 0;
+    dbMocks.select.mockImplementation(() => {
+      selectCall += 1;
+      if (selectCall === 1) {
+        return {
+          from: () => ({
+            innerJoin: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }),
+          }),
+        };
+      }
+      if (selectCall === 2) return { from: () => Promise.resolve([]) };
+      if (selectCall === 3) return { from: () => ({ where: () => Promise.resolve([]) }) };
+      if (selectCall === 4) {
+        return {
+          from: () => ({
+            where: () =>
+              Promise.resolve([
+                {
+                  id: "canonical-player",
+                  firstName: "Canonical",
+                  lastName: "Player",
+                  team: "TST",
+                  position: "G",
+                  sport: "NBA",
+                },
+              ]),
+          }),
+        };
+      }
+      throw new Error(`Unexpected select call ${selectCall}`);
+    });
+    dbMocks.execute.mockResolvedValue({
+      rows: [
+        {
+          userId: "user-1",
+          playerId: "canonical-player",
+          userScoutMinutes: "90",
+          globalScoutMinutes: "120",
+          sharesEarned: "45.00",
+        },
+      ],
+    });
+    storageMocks.creditScoutDistribution.mockResolvedValue(true);
+    const { distributeScoutShares } = await import("./scout-distribution");
+
+    const result = await distributeScoutShares();
+
+    const distributionSql = new PgDialect().sqlToQuery(dbMocks.execute.mock.calls[0]?.[0]).sql;
+    expect(distributionSql).toMatch(/WITH RECURSIVE\s+alias_paths/i);
+    expect(distributionSql).toMatch(/COALESCE\([^)]*canonical_player_id[^)]*,\s*sh\.player_id\)/i);
+    expect(distributionSql).toMatch(/GROUP BY\s+user_id,\s*player_id/i);
+    expect(storageMocks.creditScoutDistribution).toHaveBeenCalledTimes(1);
+    expect(storageMocks.creditScoutDistribution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        playerId: "canonical-player",
+        userScoutMinutes: 90,
+        globalScoutMinutes: 120,
+        sharesEarned: "45.00",
+      }),
+    );
+    expect(websocketMocks.broadcastToUser).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({
+        data: expect.objectContaining({
+          totalPlayers: 1,
+          distributions: [expect.objectContaining({ playerId: "canonical-player" })],
+        }),
+      }),
+    );
+    expect(result.recordsProcessed).toBe(1);
   });
 });
