@@ -17,6 +17,7 @@ import {
 } from "./job-registry";
 import { refreshPlayerMarketMetricsJob } from "./refresh-player-metrics";
 import type { JobResult } from "./types";
+import { withJobAdvisoryLock } from "./job-lock";
 
 export type { JobResult } from "./types";
 
@@ -53,63 +54,71 @@ export class JobScheduler {
 
         this.runningJobs.add(jobConfig.name);
         try {
-          logJobEvent(`[${jobConfig.name}] Starting scheduled run...`);
+          const lockResult = await withJobAdvisoryLock(jobConfig.name, async () => {
+            logJobEvent(`[${jobConfig.name}] Starting scheduled run...`);
 
-          // Best-effort job execution logging: job failures should never crash the server.
-          let jobLog: { id: string } | null = null;
-          try {
-            jobLog = await storage.createJobLog({
-              jobName: jobConfig.name,
-              scheduledFor: new Date(),
-              status: "running",
-            });
-          } catch (err: any) {
-            warn(`[${jobConfig.name}] Failed to create job log: ${err?.message || err}`);
-          }
+            // Best-effort job execution logging: job failures should never crash the server.
+            let jobLog: { id: string } | null = null;
+            try {
+              jobLog = await storage.createJobLog({
+                jobName: jobConfig.name,
+                scheduledFor: new Date(),
+                status: "running",
+              });
+            } catch (err: any) {
+              warn(`[${jobConfig.name}] Failed to create job log: ${err?.message || err}`);
+            }
 
-          try {
-            const result = await jobConfig.handler();
-            const status = result.errorCount > 0 ? "degraded" : "success";
+            try {
+              const result = await jobConfig.handler();
+              const status = result.errorCount > 0 ? "degraded" : "success";
 
-            if (jobLog) {
-              try {
-                await storage.updateJobLog(jobLog.id, {
-                  status,
-                  finishedAt: new Date(),
-                  requestCount: result.requestCount || 0,
-                  recordsProcessed: result.recordsProcessed || 0,
-                  errorCount: result.errorCount || 0,
-                });
-              } catch (err: any) {
-                warn(`[${jobConfig.name}] Failed to update job log: ${err?.message || err}`);
+              if (jobLog) {
+                try {
+                  await storage.updateJobLog(jobLog.id, {
+                    status,
+                    finishedAt: new Date(),
+                    requestCount: result.requestCount || 0,
+                    recordsProcessed: result.recordsProcessed || 0,
+                    errorCount: result.errorCount || 0,
+                  });
+                } catch (err: any) {
+                  warn(`[${jobConfig.name}] Failed to update job log: ${err?.message || err}`);
+                }
               }
-            }
 
-            if (status === "degraded") {
-              warn(
-                `[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`,
-              );
-            } else {
-              logJobEvent(
-                `[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`,
-              );
-            }
-          } catch (err: any) {
-            error(`[${jobConfig.name}] Failed:`, err?.message || err);
-
-            if (jobLog) {
-              try {
-                await storage.updateJobLog(jobLog.id, {
-                  status: "failed",
-                  errorMessage: err?.message || String(err),
-                  finishedAt: new Date(),
-                });
-              } catch (logErr: any) {
+              if (status === "degraded") {
                 warn(
-                  `[${jobConfig.name}] Failed to update failed job log: ${logErr?.message || logErr}`,
+                  `[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`,
+                );
+              } else {
+                logJobEvent(
+                  `[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`,
                 );
               }
+            } catch (err: any) {
+              error(`[${jobConfig.name}] Failed:`, err?.message || err);
+
+              if (jobLog) {
+                try {
+                  await storage.updateJobLog(jobLog.id, {
+                    status: "failed",
+                    errorMessage: err?.message || String(err),
+                    finishedAt: new Date(),
+                  });
+                } catch (logErr: any) {
+                  warn(
+                    `[${jobConfig.name}] Failed to update failed job log: ${logErr?.message || logErr}`,
+                  );
+                }
+              }
             }
+          });
+
+          if (!lockResult.acquired) {
+            warn(
+              `[${jobConfig.name}] Skipping scheduled run because another process holds the job lock`,
+            );
           }
         } finally {
           this.runningJobs.delete(jobConfig.name);
@@ -210,65 +219,77 @@ export class JobScheduler {
 
     this.runningJobs.add(jobName);
     try {
-      info(`[${jobName}] Manual trigger started${progressCallback ? " with live logging" : ""}...`);
+      const lockResult = await withJobAdvisoryLock(jobName, async () => {
+        info(
+          `[${jobName}] Manual trigger started${progressCallback ? " with live logging" : ""}...`,
+        );
 
-      // Best-effort job logging; manual triggers should still run if logs fail.
-      let jobLog: { id: string } | null = null;
-      try {
-        jobLog = await storage.createJobLog({
-          jobName,
-          scheduledFor: new Date(),
-          status: "running",
-        });
-      } catch (err: any) {
-        warn(`[${jobName}] Failed to create job log: ${err?.message || err}`);
+        // Best-effort job logging; manual triggers should still run if logs fail.
+        let jobLog: { id: string } | null = null;
+        try {
+          jobLog = await storage.createJobLog({
+            jobName,
+            scheduledFor: new Date(),
+            status: "running",
+          });
+        } catch (err: any) {
+          warn(`[${jobName}] Failed to create job log: ${err?.message || err}`);
+        }
+
+        try {
+          const result = await handler(progressCallback);
+          const status = result.errorCount > 0 ? "degraded" : "success";
+
+          if (jobLog) {
+            try {
+              await storage.updateJobLog(jobLog.id, {
+                status,
+                finishedAt: new Date(),
+                requestCount: result.requestCount,
+                recordsProcessed: result.recordsProcessed,
+                errorCount: result.errorCount,
+              });
+            } catch (err: any) {
+              warn(`[${jobName}] Failed to update job log: ${err?.message || err}`);
+            }
+          }
+
+          if (status === "degraded") {
+            warn(
+              `[${jobName}] Manual trigger completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`,
+            );
+          } else {
+            logJobEvent(
+              `[${jobName}] Manual trigger completed - ${result.recordsProcessed} records, ${result.requestCount} requests`,
+            );
+          }
+          return result;
+        } catch (err: any) {
+          error(`[${jobName}] Manual trigger failed:`, err.message);
+
+          if (jobLog) {
+            try {
+              await storage.updateJobLog(jobLog.id, {
+                status: "failed",
+                errorMessage: err?.message || String(err),
+                finishedAt: new Date(),
+              });
+            } catch (logErr: any) {
+              warn(`[${jobName}] Failed to update failed job log: ${logErr?.message || logErr}`);
+            }
+          }
+
+          throw err;
+        }
+      });
+
+      if (!lockResult.acquired) {
+        const alreadyRunningError = new Error(`Job ${jobName} is already running`);
+        (alreadyRunningError as any).statusCode = 409;
+        throw alreadyRunningError;
       }
 
-      try {
-        const result = await handler(progressCallback);
-        const status = result.errorCount > 0 ? "degraded" : "success";
-
-        if (jobLog) {
-          try {
-            await storage.updateJobLog(jobLog.id, {
-              status,
-              finishedAt: new Date(),
-              requestCount: result.requestCount,
-              recordsProcessed: result.recordsProcessed,
-              errorCount: result.errorCount,
-            });
-          } catch (err: any) {
-            warn(`[${jobName}] Failed to update job log: ${err?.message || err}`);
-          }
-        }
-
-        if (status === "degraded") {
-          warn(
-            `[${jobName}] Manual trigger completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`,
-          );
-        } else {
-          logJobEvent(
-            `[${jobName}] Manual trigger completed - ${result.recordsProcessed} records, ${result.requestCount} requests`,
-          );
-        }
-        return result;
-      } catch (err: any) {
-        error(`[${jobName}] Manual trigger failed:`, err.message);
-
-        if (jobLog) {
-          try {
-            await storage.updateJobLog(jobLog.id, {
-              status: "failed",
-              errorMessage: err?.message || String(err),
-              finishedAt: new Date(),
-            });
-          } catch (logErr: any) {
-            warn(`[${jobName}] Failed to update failed job log: ${logErr?.message || logErr}`);
-          }
-        }
-
-        throw err;
-      }
+      return lockResult.value;
     } finally {
       this.runningJobs.delete(jobName);
     }

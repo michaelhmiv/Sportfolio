@@ -28,6 +28,7 @@ import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
 import { nanoid } from "nanoid";
 import { normalizeSiteUrl } from "@shared/seo";
+import { initializeScheduledWork } from "./scheduler-startup";
 
 const serverStartTime = Date.now();
 let serverReady = false;
@@ -278,40 +279,20 @@ app.use((req, res, next) => {
       startupLog("LISTEN", `Server listening on port ${port}`);
       log(`serving on port ${port}`);
 
-      // Startup migration: Ensure all bot profiles have unlimited daily limits
-      try {
-        await db.update(botProfiles).set({
-          maxDailyOrders: 999999,
-          maxDailyVolume: 999999,
-        });
-        log("Bot profiles updated with unlimited daily limits");
-      } catch (error: any) {
-        console.error("Failed to update bot profiles:", error.message);
-      }
-
-      // Always initialize core jobs (database-only, no sports API required)
-      try {
-        await jobScheduler.initializeCoreJobs();
-        jobScheduler.start();
-        log("Core jobs initialized and started");
-      } catch (error: any) {
-        console.error("Failed to initialize core jobs:", error.message);
-      }
-
-      // Initialize sports API-dependent jobs. MLB StatsAPI and NASCAR are public/no-auth;
-      // NBA/NFL paid-provider jobs are disabled in the scheduler while the app is MLB/NASCAR-only.
-      try {
-        await jobScheduler.initializeApiJobs();
-        log("API-dependent jobs initialized and started");
-      } catch (error: any) {
-        console.error("Failed to initialize API jobs:", error.message);
-      }
-
-      try {
-        startAccountDeletionProcessor();
-      } catch (error: any) {
-        console.error("Failed to start account deletion processor:", error.message);
-      }
+      await initializeScheduledWork(process.env.RUN_SCHEDULED_JOBS, {
+        scheduler: jobScheduler,
+        updateBotProfiles: async () => {
+          await db.update(botProfiles).set({
+            maxDailyOrders: 999999,
+            maxDailyVolume: 999999,
+          });
+        },
+        startAccountDeletionProcessor,
+        log,
+        logError: (message, error) => {
+          console.error(`${message}:`, error instanceof Error ? error.message : error);
+        },
+      });
 
       // Mark server as fully ready
       serverReady = true;

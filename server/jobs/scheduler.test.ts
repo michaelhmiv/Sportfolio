@@ -15,6 +15,9 @@ const schedulerMocks = vi.hoisted(() => ({
   toApiHealthJobResult: vi.fn(),
   createJobLog: vi.fn(),
   updateJobLog: vi.fn(),
+  lockQuery: vi.fn(),
+  lockRelease: vi.fn(),
+  connect: vi.fn(),
 }));
 
 const defaultJobResult = {
@@ -107,6 +110,10 @@ vi.mock("../storage", () => ({
     createJobLog: schedulerMocks.createJobLog,
     updateJobLog: schedulerMocks.updateJobLog,
   },
+}));
+
+vi.mock("../db", () => ({
+  jobLockPool: { connect: schedulerMocks.connect },
 }));
 
 vi.mock("../lib/log-utility", () => ({
@@ -285,6 +292,17 @@ describe("JobScheduler registration and manual dispatch", () => {
     });
     schedulerMocks.createJobLog.mockResolvedValue({ id: "job-log-1" });
     schedulerMocks.updateJobLog.mockResolvedValue(undefined);
+    schedulerMocks.lockQuery.mockImplementation((statement: string) =>
+      Promise.resolve({
+        rows: [
+          statement.includes("pg_try_advisory_lock") ? { acquired: true } : { unlocked: true },
+        ],
+      }),
+    );
+    schedulerMocks.connect.mockResolvedValue({
+      query: schedulerMocks.lockQuery,
+      release: schedulerMocks.lockRelease,
+    });
   });
 
   it("includes nascar_stats_sync in available manual job names", async () => {
@@ -566,5 +584,46 @@ describe("JobScheduler registration and manual dispatch", () => {
     const scheduler = new JobScheduler();
 
     await expect(scheduler.triggerJob("not_a_job")).rejects.toThrow("Unknown job: not_a_job");
+  });
+
+  it("skips a scheduled run cleanly when another process holds its advisory lock", async () => {
+    schedulerMocks.lockQuery.mockResolvedValueOnce({ rows: [{ acquired: false }] });
+    const { JobScheduler } = await import("./scheduler");
+    const scheduler = new JobScheduler();
+
+    await scheduler.initializeApiJobs();
+    const statsScheduleCall = schedulerMocks.schedule.mock.calls.find(
+      ([schedule]) => schedule === "20 * * * *",
+    );
+    await statsScheduleCall?.[1]();
+
+    expect(schedulerMocks.syncNascarStats).not.toHaveBeenCalled();
+    expect(schedulerMocks.createJobLog).not.toHaveBeenCalled();
+    expect(schedulerMocks.lockRelease).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the existing-compatible already-running error for manual lock contention", async () => {
+    schedulerMocks.lockQuery.mockResolvedValueOnce({ rows: [{ acquired: false }] });
+    const { JobScheduler } = await import("./scheduler");
+    const scheduler = new JobScheduler();
+
+    const result = scheduler.triggerJob("nascar_stats_sync");
+
+    await expect(result).rejects.toMatchObject({
+      message: "Job nascar_stats_sync is already running",
+      statusCode: 409,
+    });
+    expect(schedulerMocks.syncNascarStats).not.toHaveBeenCalled();
+    expect(schedulerMocks.createJobLog).not.toHaveBeenCalled();
+  });
+
+  it("keeps manual dispatch callable without scheduler initialization", async () => {
+    const { JobScheduler } = await import("./scheduler");
+    const scheduler = new JobScheduler();
+
+    await expect(scheduler.triggerJob("nascar_stats_sync")).resolves.toMatchObject({
+      recordsProcessed: 78,
+    });
+    expect(schedulerMocks.schedule).not.toHaveBeenCalled();
   });
 });
