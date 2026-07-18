@@ -9,6 +9,8 @@ import {
 } from "@/lib/collection-format";
 import {
   allocationInputWithinMaximum,
+  canManageSlotAllocation,
+  getFirstActionableSlot,
   mutationErrorRequiresProjectionRefresh,
 } from "./collection-detail";
 
@@ -119,6 +121,30 @@ describe("allocation quantity validation", () => {
   it("preserves the API maximum even when it exceeds the slot requirement", () => {
     expect(allocationInputWithinMaximum("2.0000", "3.0000")).toBe(true);
     expect(allocationInputWithinMaximum("3.0001", "3.0000")).toBe(false);
+  });
+
+  it("does not expose new allocations after a collection becomes active", () => {
+    expect(canManageSlotAllocation(makeSlot({ allocation: null }), true)).toBe(false);
+    expect(
+      canManageSlotAllocation(
+        makeSlot({
+          allocation: { allocationId: "a1", allocatedQuantity: "1.0000", status: "active" },
+        }),
+        true,
+      ),
+    ).toBe(true);
+  });
+
+  it("selects the next incomplete slot with additional shares available", () => {
+    const completed = makeSlot({
+      slotId: "completed",
+      allocation: { allocationId: "a1", allocatedQuantity: "1.0000", status: "active" },
+    });
+    const unavailable = makeSlot({ slotId: "unavailable", maxAllocatableQuantity: "0.0000" });
+    const next = makeSlot({ slotId: "next", maxAllocatableQuantity: "2.0000" });
+
+    expect(getFirstActionableSlot([completed, unavailable, next], false)?.slotId).toBe("next");
+    expect(getFirstActionableSlot([next], true)).toBeUndefined();
   });
 });
 

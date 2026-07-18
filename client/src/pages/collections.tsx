@@ -90,6 +90,28 @@ export function getFeaturedCollection(collections: CollectionListEntry[]) {
     .at(0);
 }
 
+export function getFilteredCollectionView(
+  collections: CollectionListEntry[],
+  activeFilter: CollectionFilter,
+  sportFilter: string,
+  seasonFilter: string,
+  familyFilter: string,
+) {
+  const facetMatches = collections.filter(
+    (item) =>
+      (sportFilter === "All" || item.sport === sportFilter) &&
+      (seasonFilter === "All" || item.season === seasonFilter) &&
+      (familyFilter === "All" || item.family === familyFilter),
+  );
+  const featuredCollection =
+    activeFilter === "all" ? getFeaturedCollection(facetMatches) : undefined;
+  const visibleCollections =
+    activeFilter === "all"
+      ? facetMatches.filter((item) => item.slug !== featuredCollection?.slug)
+      : facetMatches.filter((item) => getCollectionPresentation(item).filter === activeFilter);
+  return { featuredCollection, visibleCollections };
+}
+
 export function getCollectionPresentation(collection: CollectionListEntry): CollectionPresentation {
   if (collection.award != null) {
     if (collection.assemblyState === "ready") {
@@ -502,7 +524,11 @@ function FacetFilter({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-2 overflow-x-auto" aria-label={`${label} filter`}>
+    <div
+      className="flex items-center gap-2 overflow-x-auto"
+      role="group"
+      aria-label={`${label} filter`}
+    >
       <span className="w-12 shrink-0 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
@@ -545,23 +571,17 @@ export default function CollectionsPage() {
     enabled: isAuthenticated && userId.length > 0,
   });
 
-  const featuredCollection = collections ? getFeaturedCollection(collections) : undefined;
-  const visibleCollections = useMemo(() => {
-    if (!collections) return [];
-    const matchesFacet = (item: CollectionListEntry) =>
-      (sportFilter === "All" || item.sport === sportFilter) &&
-      (seasonFilter === "All" || item.season === seasonFilter) &&
-      (familyFilter === "All" || item.family === familyFilter);
-    if (activeFilter === "all")
-      return (
-        featuredCollection
-          ? collections.filter((item) => item.slug !== featuredCollection.slug)
-          : collections
-      ).filter(matchesFacet);
-    return collections.filter(
-      (item) => getCollectionPresentation(item).filter === activeFilter && matchesFacet(item),
-    );
-  }, [activeFilter, collections, familyFilter, featuredCollection, seasonFilter, sportFilter]);
+  const { featuredCollection, visibleCollections } = useMemo(
+    () =>
+      getFilteredCollectionView(
+        collections ?? [],
+        activeFilter,
+        sportFilter,
+        seasonFilter,
+        familyFilter,
+      ),
+    [activeFilter, collections, familyFilter, seasonFilter, sportFilter],
+  );
 
   const ready = visibleCollections.filter(
     (item) => item.assemblyState === "ready" && item.award == null,
@@ -654,7 +674,7 @@ export default function CollectionsPage() {
                   />
                 </div>
               </div>
-            ) : (
+            ) : !featuredCollection ? (
               <div
                 className="terminal-shell p-6 text-center"
                 data-testid="collections-filter-empty"
@@ -664,7 +684,7 @@ export default function CollectionsPage() {
                   Keep building your collections and this shelf will fill in.
                 </p>
               </div>
-            )}
+            ) : null}
           </>
         )}
       </div>

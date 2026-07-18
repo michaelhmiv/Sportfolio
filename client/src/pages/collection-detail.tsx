@@ -76,6 +76,32 @@ export function allocationInputWithinMaximum(input: string, maximum: string | nu
   );
 }
 
+export function canManageSlotAllocation(slot: CollectionSlotEntry, isActive: boolean): boolean {
+  if (!slot.player) return false;
+  if (slot.allocation?.status === "active") return true;
+  return (
+    !isActive &&
+    slot.maxAllocatableQuantity !== null &&
+    compareCanonicalQuantities(slot.maxAllocatableQuantity, "0.0000") > 0
+  );
+}
+
+export function getFirstActionableSlot(
+  slots: CollectionSlotEntry[],
+  isActive: boolean,
+): CollectionSlotEntry | undefined {
+  if (isActive) return undefined;
+  return slots.find((slot) => {
+    if (!slot.player || slot.maxAllocatableQuantity === null) return false;
+    const allocated =
+      slot.allocation?.status === "active" ? slot.allocation.allocatedQuantity : "0.0000";
+    return (
+      compareCanonicalQuantities(allocated, slot.requiredQuantity) < 0 &&
+      compareCanonicalQuantities(slot.maxAllocatableQuantity, allocated) > 0
+    );
+  });
+}
+
 async function fetchDetail(slug: string): Promise<CollectionDetailResponse> {
   const res = await authenticatedFetch(`/api/me/collections/${encodeURIComponent(slug)}`);
   if (!res.ok) {
@@ -463,12 +489,11 @@ export default function CollectionDetailPage() {
     compareCanonicalQuantities(selectedParsed, selectedSlot.maxAllocatableQuantity) <= 0;
   const selectedCanSubmit =
     selectedSlot !== null &&
+    (!isActive || selectedSlot.allocation?.status === "active") &&
     !submittingSlots.has(selectedSlot.slotId) &&
     allocationInputWithinMaximum(selectedInput, selectedSlot.maxAllocatableQuantity);
   const remainingSlots = Math.max(0, detail.requiredSlotCount - detail.qualifiedSlotCount);
-  const firstManageableSlot = detail.slots.find(
-    (slot) => slot.player !== null && slot.maxAllocatableQuantity !== null,
-  );
+  const firstManageableSlot = getFirstActionableSlot(detail.slots, isActive);
 
   return (
     <div
@@ -746,7 +771,7 @@ export default function CollectionDetailPage() {
                         {slot.statLabel || (slot.statKey ? formatStatLabel(slot.statKey) : "")}
                       </p>
                     )}
-                    {slot.player && slot.maxAllocatableQuantity !== null && (
+                    {canManageSlotAllocation(slot, isActive) && (
                       <Button
                         type="button"
                         variant={allocationActive ? "outline" : "default"}

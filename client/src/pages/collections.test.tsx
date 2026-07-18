@@ -10,6 +10,7 @@ import {
   getCollectionPresentation,
   getCollectionSummary,
   getFeaturedCollection,
+  getFilteredCollectionView,
   groupCollectionsByFamily,
 } from "@/pages/collections";
 
@@ -106,6 +107,24 @@ describe("Collection experience helpers", () => {
     expect(getFeaturedCollection(entries)?.slug).toBe("ready");
     expect(getFeaturedCollection(entries.slice(0, 2))?.slug).toBe("progress");
     expect(getFeaturedCollection([entries[0]])?.slug).toBe("unstarted");
+  });
+
+  it("applies facets before selecting and removing the featured collection", () => {
+    const mlb = makeEntry("mlb-ready", {
+      sport: "MLB",
+      assemblyState: "ready",
+      progressBps: 10000,
+    });
+    const nfl = makeEntry("nfl-progress", {
+      sport: "NFL",
+      assemblyState: "in_progress",
+      progressBps: 5000,
+    });
+
+    const view = getFilteredCollectionView([mlb, nfl], "all", "NFL", "All", "All");
+
+    expect(view.featuredCollection?.slug).toBe("nfl-progress");
+    expect(view.visibleCollections).toEqual([]);
   });
 
   it("distinguishes ready, active, and inactive lifetime awards", () => {
