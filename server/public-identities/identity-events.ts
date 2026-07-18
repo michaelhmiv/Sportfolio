@@ -1,3 +1,6 @@
+import type { WebSocket } from "ws";
+import type { SubscriptionType } from "../websocket";
+
 /**
  * Identity WebSocket events — publication and invalidation hook.
  *
@@ -15,9 +18,13 @@ export interface IdentityChangedEvent {
 
 // ── publication (must be imported after the websocket module is loaded) ──────
 
-let _broadcast: ((message: { type: string; [key: string]: unknown }) => void) | null = null;
+let _broadcast:
+  | ((message: { type: SubscriptionType; [key: string]: unknown }, excludeWs?: WebSocket) => void)
+  | null = null;
 
-export function setBroadcastFn(fn: (message: { type: string; [key: string]: unknown }) => void): void {
+export function setBroadcastFn(
+  fn: (message: { type: SubscriptionType; [key: string]: unknown }, excludeWs?: WebSocket) => void,
+): void {
   _broadcast = fn;
 }
 

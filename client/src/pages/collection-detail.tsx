@@ -609,7 +609,10 @@ export default function CollectionDetailPage() {
                           <span className="flex items-center gap-1.5">
                             <span
                               className="text-primary underline cursor-pointer hover:text-brand transition-colors"
-                              onClick={() => openPlayerModal(slot.player.playerId)}
+                              onClick={() => {
+                                const playerId = slot.player?.playerId;
+                                if (playerId) openPlayerModal(playerId);
+                              }}
                             >
                               {`${slot.player.firstName} ${slot.player.lastName}`.trim() || "--"}
                             </span>
