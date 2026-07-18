@@ -16,6 +16,7 @@ import {
 import { extractCollectionApiError } from "@/lib/collection-api-error";
 import { cn } from "@/lib/utils";
 import type { CollectionAssemblyState, CollectionListEntry } from "@shared/collection-api";
+import { normalizeCollectionFamily } from "@/components/collections/collection-visual-theme";
 
 function buildListQueryKey(userId: string) {
   return ["/api/me/collections", userId] as const;
@@ -48,7 +49,7 @@ export const COLLECTION_FILTERS: Array<{ id: CollectionFilter; label: string }> 
 ];
 
 export function getCollectionSummary(collections: CollectionListEntry[]) {
-  return collections.reduce(
+  const summary = collections.reduce(
     (summary, collection) => {
       summary.total += 1;
       if (collection.assemblyState === "ready" && collection.award == null) summary.ready += 1;
@@ -58,6 +59,22 @@ export function getCollectionSummary(collections: CollectionListEntry[]) {
     },
     { total: 0, ready: 0, inProgress: 0, earned: 0 },
   );
+  return { ...summary, closest: getFeaturedCollection(collections)?.slug ?? null };
+}
+
+export function groupCollectionsByFamily(collections: CollectionListEntry[]) {
+  const groups = new Map<
+    string,
+    { id: string; label: string; collections: CollectionListEntry[] }
+  >();
+  for (const collection of collections) {
+    if (collection.kind === "master") continue;
+    const id = normalizeCollectionFamily(collection.family) || "other";
+    const group = groups.get(id) ?? { id, label: collection.family || "Other", collections: [] };
+    group.collections.push(collection);
+    groups.set(id, group);
+  }
+  return [...groups.values()];
 }
 
 function featuredRank(collection: CollectionListEntry) {
@@ -73,12 +90,37 @@ export function getFeaturedCollection(collections: CollectionListEntry[]) {
     .at(0);
 }
 
+export function getFilteredCollectionView(
+  collections: CollectionListEntry[],
+  activeFilter: CollectionFilter,
+  sportFilter: string,
+  seasonFilter: string,
+  familyFilter: string,
+) {
+  const facetMatches = collections.filter(
+    (item) =>
+      (sportFilter === "All" || item.sport === sportFilter) &&
+      (seasonFilter === "All" || item.season === seasonFilter) &&
+      (familyFilter === "All" || item.family === familyFilter),
+  );
+  const featuredCollection =
+    activeFilter === "all" ? getFeaturedCollection(facetMatches) : undefined;
+  const visibleCollections =
+    activeFilter === "all"
+      ? facetMatches.filter((item) => item.slug !== featuredCollection?.slug)
+      : facetMatches.filter((item) => getCollectionPresentation(item).filter === activeFilter);
+  return { featuredCollection, visibleCollections };
+}
+
 export function getCollectionPresentation(collection: CollectionListEntry): CollectionPresentation {
   if (collection.award != null) {
     if (collection.assemblyState === "ready") {
       return { label: "Reactivate", filter: "earned", tone: "live" };
     }
-    return { label: "Earned", filter: "earned", tone: "live" };
+    if (collection.assemblyState === "active") {
+      return { label: "Active", filter: "earned", tone: "live" };
+    }
+    return { label: "Earned · Inactive", filter: "earned", tone: "muted" };
   }
 
   switch (collection.assemblyState) {
@@ -94,10 +136,20 @@ export function getCollectionPresentation(collection: CollectionListEntry): Coll
 }
 
 function stateBadge(state: CollectionAssemblyState, hasAward: boolean) {
+  if (hasAward && state === "active")
+    return {
+      label: "Active",
+      className: "border-status-live/30 bg-status-live/15 text-status-live",
+    };
+  if (hasAward && state === "ready")
+    return {
+      label: "Earned · Ready",
+      className: "border-status-live/30 bg-status-live/15 text-status-live",
+    };
   if (hasAward)
     return {
-      label: "Earned",
-      className: "border-status-live/30 bg-status-live/15 text-status-live",
+      label: "Earned · Inactive",
+      className: "border-border-strong bg-surface-raised text-content-muted",
     };
   switch (state) {
     case "ready":
@@ -113,7 +165,7 @@ function stateBadge(state: CollectionAssemblyState, hasAward: boolean) {
     case "in_progress":
       return {
         label: "In progress",
-        className: "border-amber-500/30 bg-amber-500/15 text-amber-500",
+        className: "border-status-warning/30 bg-status-warning/15 text-status-warning",
       };
     case "inactive":
       return { label: "Inactive", className: "border-border bg-muted text-muted-foreground" };
@@ -180,6 +232,7 @@ function PageHeader({ collections }: { collections: CollectionListEntry[] }) {
           Chase the next set, finish what you started, and keep your best runs.
         </p>
       </div>
+      <div className="sr-only">Closest {summary.closest ?? "none"}</div>
       <div className="hidden shrink-0 text-right sm:block">
         <p className="font-mono text-2xl font-bold text-content">{summary.total}</p>
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground">sets</p>
@@ -188,7 +241,35 @@ function PageHeader({ collections }: { collections: CollectionListEntry[] }) {
   );
 }
 
-function FeaturedCollection({ collection }: { collection: CollectionListEntry }) {
+export function SummaryRail({ collections }: { collections: CollectionListEntry[] }) {
+  const summary = getCollectionSummary(collections);
+  const closest = collections.find((collection) => collection.slug === summary.closest);
+  return (
+    <dl
+      className="grid grid-cols-[repeat(3,minmax(0,1fr))] overflow-hidden rounded-panel border border-border-strong bg-surface shadow-low"
+      data-testid="collection-summary-rail"
+    >
+      {[
+        ["In progress", summary.inProgress],
+        ["Ready", summary.ready],
+        ["Completed", summary.earned],
+      ].map(([label, value]) => (
+        <div key={label} className="border-r border-border-subtle px-3 py-2 last:border-r-0">
+          <dt className="truncate text-[9px] uppercase tracking-wider text-muted-foreground">
+            {label}
+          </dt>
+          <dd className="font-mono text-lg font-black tabular-nums text-content">{value}</dd>
+        </div>
+      ))}
+      <div className="col-span-3 flex items-center justify-between border-t border-border-subtle px-3 py-2">
+        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">Closest</dt>
+        <dd className="truncate text-xs font-semibold text-content">{closest?.title ?? "—"}</dd>
+      </div>
+    </dl>
+  );
+}
+
+export function FeaturedCollection({ collection }: { collection: CollectionListEntry }) {
   const presentation = getCollectionPresentation(collection);
   const hasAward = collection.award != null;
   const pctLabel = allocationProgressDisplay(collection.progressBps);
@@ -217,9 +298,14 @@ function FeaturedCollection({ collection }: { collection: CollectionListEntry })
         <CollectionArt
           artKey={collection.artKey}
           sport={collection.sport}
+          family={collection.family}
+          season={collection.season}
+          title={collection.title}
+          kind={collection.kind}
+          assemblyState={collection.assemblyState}
+          award={collection.award}
           size="lg"
-          isBadge={hasAward}
-          className="h-16 w-16 rounded-panel text-base sm:h-20 sm:w-20 sm:text-lg"
+          className="h-28 w-24 sm:h-32 sm:w-28"
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -272,18 +358,22 @@ function FeaturedCollection({ collection }: { collection: CollectionListEntry })
   );
 }
 
-function CollectionCard({ collection }: { collection: CollectionListEntry }) {
+export function CollectionCard({ collection }: { collection: CollectionListEntry }) {
   const presentation = getCollectionPresentation(collection);
   const badge = stateBadge(collection.assemblyState, collection.award != null);
   const hasAward = collection.award != null;
+  const isMaster = collection.kind === "master";
   const pctLabel = allocationProgressDisplay(collection.progressBps);
 
   return (
     <Link
       href={`/collections/${collection.slug}`}
       className={cn(
-        "group flex min-h-[148px] flex-col rounded-panel border border-border/80 bg-panel/60 p-3 transition-colors hover:border-brand/50 hover:bg-panel sm:p-4",
-        hasAward && "border-status-live/20 bg-status-live/[0.025]",
+        "group flex min-h-[190px] w-[78vw] max-w-[20rem] shrink-0 snap-start flex-col rounded-panel border border-border/80 bg-panel/60 p-3 transition-colors hover:border-brand/50 hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-[19rem] sm:p-4",
+        hasAward &&
+          "border-status-live/25 bg-status-live/[0.035] ring-1 ring-inset ring-status-live/10",
+        isMaster &&
+          "min-h-[220px] w-[82vw] border-brand/35 bg-brand-subtle/[0.08] shadow-medium sm:w-[22rem]",
         collection.assemblyState === "ready" && !hasAward && "border-status-live/30",
       )}
       data-testid={`collection-card-${collection.slug}`}
@@ -292,8 +382,14 @@ function CollectionCard({ collection }: { collection: CollectionListEntry }) {
         <CollectionArt
           artKey={collection.artKey}
           sport={collection.sport}
-          size="md"
-          isBadge={hasAward}
+          family={collection.family}
+          season={collection.season}
+          title={collection.title}
+          kind={collection.kind}
+          assemblyState={collection.assemblyState}
+          award={collection.award}
+          size={isMaster ? "lg" : "md"}
+          className={isMaster ? "h-20 w-20" : undefined}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -335,7 +431,7 @@ function CollectionCard({ collection }: { collection: CollectionListEntry }) {
             className={cn(
               "shrink-0 font-mono font-bold uppercase",
               presentation.tone === "live" && "text-status-live",
-              presentation.tone === "amber" && "text-amber-500",
+              presentation.tone === "amber" && "text-status-warning",
               presentation.tone === "muted" && "text-muted-foreground",
             )}
           >
@@ -347,18 +443,23 @@ function CollectionCard({ collection }: { collection: CollectionListEntry }) {
   );
 }
 
-function Shelf({
+export function Shelf({
   title,
   icon,
   collections,
+  testId,
 }: {
   title: string;
   icon: ReactNode;
   collections: CollectionListEntry[];
+  testId?: string;
 }) {
   if (collections.length === 0) return null;
   return (
-    <section aria-labelledby={`shelf-${title.replaceAll(" ", "-").toLowerCase()}`}>
+    <section
+      aria-labelledby={`shelf-${title.replaceAll(" ", "-").toLowerCase()}`}
+      data-testid={testId}
+    >
       <div className="mb-2 flex items-center gap-2">
         <span className="text-muted-foreground">{icon}</span>
         <h2
@@ -369,7 +470,7 @@ function Shelf({
         </h2>
         <span className="font-mono text-[10px] text-muted-foreground">{collections.length}</span>
       </div>
-      <div className="grid gap-2.5 sm:grid-cols-2">
+      <div className="-mx-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-2 [scrollbar-width:none] sm:mx-0 sm:px-0">
         {collections.map((collection) => (
           <CollectionCard key={collection.slug} collection={collection} />
         ))}
@@ -411,10 +512,53 @@ function FilterBar({
   );
 }
 
+function FacetFilter({
+  label,
+  values,
+  active,
+  onChange,
+}: {
+  label: string;
+  values: string[];
+  active: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-2 overflow-x-auto"
+      role="group"
+      aria-label={`${label} filter`}
+    >
+      <span className="w-12 shrink-0 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
+      {["All", ...values].map((value) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onChange(value)}
+          aria-pressed={active === value}
+          className={cn(
+            "min-h-11 shrink-0 rounded-pill border px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+            active === value
+              ? "border-selected-border bg-selected text-selected-foreground"
+              : "border-border-subtle bg-surface text-muted-foreground",
+          )}
+        >
+          {value}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function CollectionsPage() {
   const { user, isAuthenticated } = useAuth();
   const userId = user?.id ?? "";
   const [activeFilter, setActiveFilter] = useState<CollectionFilter>("all");
+  const [sportFilter, setSportFilter] = useState("All");
+  const [seasonFilter, setSeasonFilter] = useState("All");
+  const [familyFilter, setFamilyFilter] = useState("All");
   const {
     data: collections,
     isLoading,
@@ -427,25 +571,27 @@ export default function CollectionsPage() {
     enabled: isAuthenticated && userId.length > 0,
   });
 
-  const featuredCollection = collections ? getFeaturedCollection(collections) : undefined;
-  const visibleCollections = useMemo(() => {
-    if (!collections) return [];
-    if (activeFilter === "all")
-      return featuredCollection
-        ? collections.filter((item) => item.slug !== featuredCollection.slug)
-        : collections;
-    return collections.filter((item) => getCollectionPresentation(item).filter === activeFilter);
-  }, [activeFilter, collections, featuredCollection]);
+  const { featuredCollection, visibleCollections } = useMemo(
+    () =>
+      getFilteredCollectionView(
+        collections ?? [],
+        activeFilter,
+        sportFilter,
+        seasonFilter,
+        familyFilter,
+      ),
+    [activeFilter, collections, familyFilter, seasonFilter, sportFilter],
+  );
 
   const ready = visibleCollections.filter(
     (item) => item.assemblyState === "ready" && item.award == null,
   );
-  const inProgress = visibleCollections.filter(
-    (item) => item.assemblyState === "in_progress" || item.assemblyState === "active",
-  );
   const earned = visibleCollections.filter((item) => item.award != null);
-  const other = visibleCollections.filter(
-    (item) => !ready.includes(item) && !inProgress.includes(item) && !earned.includes(item),
+  const masters = visibleCollections.filter((item) => item.kind === "master" && item.award == null);
+  const familyGroups = groupCollectionsByFamily(
+    visibleCollections.filter(
+      (item) => item.award == null && item.kind !== "master" && !ready.includes(item),
+    ),
   );
 
   return (
@@ -471,34 +617,64 @@ export default function CollectionsPage() {
           <EmptyState />
         ) : (
           <>
+            <SummaryRail collections={collections} />
+            <div className="space-y-2" data-testid="collection-filters">
+              <FilterBar activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+              <FacetFilter
+                label="Sport"
+                values={[...new Set(collections.map((item) => item.sport))]}
+                active={sportFilter}
+                onChange={setSportFilter}
+              />
+              <FacetFilter
+                label="Season"
+                values={[...new Set(collections.map((item) => item.season))]}
+                active={seasonFilter}
+                onChange={setSeasonFilter}
+              />
+              <FacetFilter
+                label="Family"
+                values={[...new Set(collections.map((item) => item.family))]}
+                active={familyFilter}
+                onChange={setFamilyFilter}
+              />
+            </div>
             {activeFilter === "all" && featuredCollection && (
               <FeaturedCollection collection={featuredCollection} />
             )}
-            <FilterBar activeFilter={activeFilter} onFilterChange={setActiveFilter} />
             {visibleCollections.length > 0 ? (
-              <div className="space-y-6" data-testid="collections-list">
+              <div className="space-y-8" data-testid="collections-list">
                 <Shelf
-                  title="Ready to finish"
+                  title="Ready to complete"
                   icon={<Sparkles className="h-3.5 w-3.5" />}
                   collections={ready}
+                  testId="ready-to-complete"
                 />
-                <Shelf
-                  title="In progress"
-                  icon={<Layers className="h-3.5 w-3.5" />}
-                  collections={inProgress}
-                />
-                <Shelf
-                  title="Earned shelf"
-                  icon={<Trophy className="h-3.5 w-3.5" />}
-                  collections={earned}
-                />
-                <Shelf
-                  title="Explore"
-                  icon={<ChevronRight className="h-3.5 w-3.5" />}
-                  collections={other}
-                />
+                {familyGroups.map((group) => (
+                  <Shelf
+                    key={group.id}
+                    title={group.label}
+                    icon={<Layers className="h-3.5 w-3.5" />}
+                    collections={group.collections}
+                    testId={`family-shelf-${group.id}`}
+                  />
+                ))}
+                <div data-testid="master-prestige">
+                  <Shelf
+                    title="Master Collections"
+                    icon={<Award className="h-3.5 w-3.5" />}
+                    collections={masters}
+                  />
+                </div>
+                <div data-testid="trophy-case">
+                  <Shelf
+                    title="Trophy Case"
+                    icon={<Trophy className="h-3.5 w-3.5" />}
+                    collections={earned}
+                  />
+                </div>
               </div>
-            ) : (
+            ) : !featuredCollection ? (
               <div
                 className="terminal-shell p-6 text-center"
                 data-testid="collections-filter-empty"
@@ -508,7 +684,7 @@ export default function CollectionsPage() {
                   Keep building your collections and this shelf will fill in.
                 </p>
               </div>
-            )}
+            ) : null}
           </>
         )}
       </div>

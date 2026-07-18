@@ -138,9 +138,18 @@ describe("production collection page rendering", () => {
       qualifiedSlotCount: 0,
       award,
     });
-    expect(html).toContain("button-allocate-slot-1");
-    expect(html).toContain("Allocate Leader");
-    expect(html).toContain('value="0.5"');
+    expect(html).toContain("button-open-allocation-slot-1");
+    expect(html).toContain("Manage allocation for Leader");
+    expect(html).not.toContain("input-quantity-slot-1");
+  });
+
+  it("renders an immersive family hero, visual slot cards, and a safe-area sticky action", () => {
+    const html = renderDetail(baseDetail);
+    expect(html).toContain('data-testid="collection-immersive-hero"');
+    expect(html).toContain('data-silhouette="scoreboard"');
+    expect(html).toContain('data-testid="collection-slot-card-slot-1"');
+    expect(html).toContain('data-testid="collection-mobile-action-bar"');
+    expect(html).toContain("safe-area-inset-bottom");
   });
 
   it("renders exact 99.99 percent progress in the production list", () => {
@@ -157,5 +166,48 @@ describe("production collection page rendering", () => {
     const html = renderList([entry]);
     expect(html).toContain("99.99%");
     expect(html).not.toContain("100.00%");
+  });
+
+  it("renders an immersive summary, family snap shelves, master prestige, and trophy case", () => {
+    const { slots: _s, prerequisites: _p, qualificationDescription: _q, ...baseEntry } = baseDetail;
+    const entries: CollectionListEntry[] = [
+      { ...baseEntry, slug: "featured", family: "Season Leaders", assemblyState: "ready" },
+      {
+        ...baseEntry,
+        slug: "threshold",
+        title: "30/30 Club",
+        family: "Threshold Clubs",
+        assemblyState: "in_progress",
+        progressBps: 5000,
+      },
+      {
+        ...baseEntry,
+        slug: "master",
+        title: "Master Collection",
+        family: "Master",
+        kind: "master",
+        assemblyState: "unstarted",
+        progressBps: 0,
+      },
+      {
+        ...baseEntry,
+        slug: "trophy",
+        title: "Earned Award",
+        family: "Official Awards",
+        assemblyState: "inactive",
+        award,
+      },
+    ];
+
+    const html = renderList(entries);
+    expect(html).toContain('data-testid="collection-summary-rail"');
+    expect(html).toContain("Closest");
+    expect(html).toContain("Sport");
+    expect(html).toContain("Season");
+    expect(html).toContain("Family");
+    expect(html).toContain('data-testid="family-shelf-threshold-clubs"');
+    expect(html).toContain("snap-x");
+    expect(html).toContain('data-testid="master-prestige"');
+    expect(html).toContain('data-testid="trophy-case"');
   });
 });

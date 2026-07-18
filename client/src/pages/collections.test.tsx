@@ -10,6 +10,8 @@ import {
   getCollectionPresentation,
   getCollectionSummary,
   getFeaturedCollection,
+  getFilteredCollectionView,
+  groupCollectionsByFamily,
 } from "@/pages/collections";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -86,7 +88,13 @@ describe("Collection experience helpers", () => {
       makeEntry("earned", { assemblyState: "active", award: awarded, progressBps: 10000 }),
     ]);
 
-    expect(summary).toEqual({ total: 3, ready: 1, inProgress: 1, earned: 1 });
+    expect(summary).toEqual({
+      total: 3,
+      ready: 1,
+      inProgress: 1,
+      earned: 1,
+      closest: "ready",
+    });
   });
 
   it("features ready, then in-progress, then unstarted collections", () => {
@@ -101,7 +109,25 @@ describe("Collection experience helpers", () => {
     expect(getFeaturedCollection([entries[0]])?.slug).toBe("unstarted");
   });
 
-  it("presents awarded ready collections as reactivate and active awards as earned", () => {
+  it("applies facets before selecting and removing the featured collection", () => {
+    const mlb = makeEntry("mlb-ready", {
+      sport: "MLB",
+      assemblyState: "ready",
+      progressBps: 10000,
+    });
+    const nfl = makeEntry("nfl-progress", {
+      sport: "NFL",
+      assemblyState: "in_progress",
+      progressBps: 5000,
+    });
+
+    const view = getFilteredCollectionView([mlb, nfl], "all", "NFL", "All", "All");
+
+    expect(view.featuredCollection?.slug).toBe("nfl-progress");
+    expect(view.visibleCollections).toEqual([]);
+  });
+
+  it("distinguishes ready, active, and inactive lifetime awards", () => {
     expect(getCollectionPresentation(makeEntry("ready", { assemblyState: "ready" }))).toMatchObject(
       {
         label: "Complete",
@@ -116,12 +142,12 @@ describe("Collection experience helpers", () => {
     ).toMatchObject({ label: "Reactivate", filter: "earned", tone: "live" });
     expect(
       getCollectionPresentation(makeEntry("earned", { assemblyState: "active", award: awarded })),
-    ).toMatchObject({ label: "Earned", filter: "earned", tone: "live" });
+    ).toMatchObject({ label: "Active", filter: "earned", tone: "live" });
     expect(
       getCollectionPresentation(
         makeEntry("inactive", { assemblyState: "inactive", award: awarded }),
       ),
-    ).toMatchObject({ filter: "earned" });
+    ).toMatchObject({ label: "Earned · Inactive", filter: "earned", tone: "muted" });
     expect(
       getCollectionPresentation(makeEntry("new", { assemblyState: "unstarted" })),
     ).toMatchObject({
@@ -142,6 +168,22 @@ describe("Collection experience helpers", () => {
         makeEntry("inactive", { assemblyState: "inactive", award: awarded }),
       ).filter,
     ).toBe("earned");
+  });
+
+  it("groups ordinary collections into normalized family shelves and excludes masters", () => {
+    const groups = groupCollectionsByFamily([
+      makeEntry("leaders-a", { family: "Season Leaders" }),
+      makeEntry("leaders-b", { family: "season_leaders" }),
+      makeEntry("awards", { family: "Official Awards" }),
+      makeEntry("master", { family: "Season Leaders", kind: "master" }),
+    ]);
+
+    expect(groups.map((group) => [group.id, group.collections.map((entry) => entry.slug)])).toEqual(
+      [
+        ["season-leaders", ["leaders-a", "leaders-b"]],
+        ["official-awards", ["awards"]],
+      ],
+    );
   });
 });
 
