@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Award, ChevronRight, Layers, RefreshCw, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Award, ChevronRight, Layers, RefreshCw, Sparkles, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CollectionArt } from "@/components/collection-art";
@@ -94,31 +94,29 @@ export function getCollectionPresentation(collection: CollectionListEntry): Coll
 }
 
 function stateBadge(state: CollectionAssemblyState, hasAward: boolean) {
-  if (hasAward) {
+  if (hasAward)
     return {
       label: "Earned",
-      className: "bg-status-live/15 text-status-live border-status-live/30",
+      className: "border-status-live/30 bg-status-live/15 text-status-live",
     };
-  }
-
   switch (state) {
     case "ready":
       return {
         label: "Ready",
-        className: "bg-status-live/15 text-status-live border-status-live/30",
+        className: "border-status-live/30 bg-status-live/15 text-status-live",
       };
     case "active":
       return {
         label: "Active",
-        className: "bg-status-live/15 text-status-live border-status-live/30",
+        className: "border-status-live/30 bg-status-live/15 text-status-live",
       };
     case "in_progress":
       return {
-        label: "In Progress",
-        className: "bg-amber-500/15 text-amber-500 border-amber-500/30",
+        label: "In progress",
+        className: "border-amber-500/30 bg-amber-500/15 text-amber-500",
       };
     case "inactive":
-      return { label: "Inactive", className: "bg-muted text-muted-foreground border-border" };
+      return { label: "Inactive", className: "border-border bg-muted text-muted-foreground" };
     default:
       return null;
   }
@@ -159,123 +157,115 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
         <p className="text-sm font-medium text-destructive">Failed to load collections</p>
         <p className="mt-1 max-w-xs text-xs text-muted-foreground">{message}</p>
       </div>
-      <Button variant="outline" size="sm" onClick={onRetry} data-testid="button-retry-collections">
-        <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+      <button
+        type="button"
+        className="min-h-9 rounded-control border border-border px-3 text-xs font-medium text-content hover:border-brand/50"
+        onClick={onRetry}
+        data-testid="button-retry-collections"
+      >
         Retry
-      </Button>
+      </button>
     </div>
   );
 }
 
-function SummaryHeader({ collections }: { collections: CollectionListEntry[] }) {
+function PageHeader({ collections }: { collections: CollectionListEntry[] }) {
   const summary = getCollectionSummary(collections);
   return (
-    <div className="terminal-shell overflow-hidden p-4 md:p-5">
-      <div className="terminal-strip mb-2">Collections</div>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="terminal-heading text-xl">Your collection shelf</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Keep building your sets through the season.
-          </p>
-        </div>
-        <Layers className="mt-1 h-5 w-5 shrink-0 text-brand/70" aria-hidden="true" />
+    <header className="flex items-end justify-between gap-4 border-b border-border/70 pb-4">
+      <div>
+        <p className="terminal-strip mb-2 inline-block text-[10px]">Collections</p>
+        <h1 className="terminal-heading text-2xl">Build your shelf</h1>
+        <p className="mt-1 max-w-md text-xs text-muted-foreground">
+          Chase the next set, finish what you started, and keep your best runs.
+        </p>
       </div>
-      <div className="mt-4 grid grid-cols-3 divide-x divide-border border-t border-border pt-3 text-center">
-        <div>
-          <p className="font-mono text-base font-bold text-content">{summary.ready}</p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">ready</p>
-        </div>
-        <div>
-          <p className="font-mono text-base font-bold text-content">{summary.inProgress}</p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">in progress</p>
-        </div>
-        <div>
-          <p className="font-mono text-base font-bold text-status-live">{summary.earned}</p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">earned</p>
-        </div>
+      <div className="hidden shrink-0 text-right sm:block">
+        <p className="font-mono text-2xl font-bold text-content">{summary.total}</p>
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">sets</p>
       </div>
-    </div>
+    </header>
   );
 }
 
 function FeaturedCollection({ collection }: { collection: CollectionListEntry }) {
   const presentation = getCollectionPresentation(collection);
   const hasAward = collection.award != null;
-  const pctValue = basisPointsToProgressValue(collection.progressBps);
   const pctLabel = allocationProgressDisplay(collection.progressBps);
+  const eyebrow = hasAward
+    ? "Your latest trophy"
+    : collection.assemblyState === "ready"
+      ? "Ready to complete"
+      : collection.assemblyState === "in_progress"
+        ? "Continue collecting"
+        : "Start a new set";
 
   return (
     <Link
       href={`/collections/${collection.slug}`}
       className={cn(
-        "terminal-shell group block overflow-hidden border-brand/30 bg-brand/[0.04] p-4 transition-colors hover:border-brand/60 sm:p-5",
-        hasAward && "border-status-live/30 bg-status-live/[0.04]",
+        "group relative block overflow-hidden rounded-panel border border-brand/30 bg-gradient-to-br from-brand/[0.14] via-panel to-panel p-4 transition-colors hover:border-brand/70 sm:p-6",
+        hasAward && "border-status-live/30 from-status-live/[0.12]",
       )}
       data-testid="featured-collection"
     >
-      <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.14em] text-brand">
-        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-        Continue collecting
-      </div>
-      <div className="mt-3 flex items-start gap-3">
+      <div
+        className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-brand/[0.08] blur-2xl"
+        aria-hidden="true"
+      />
+      <div className="relative flex items-start gap-4 sm:gap-5">
         <CollectionArt
           artKey={collection.artKey}
           sport={collection.sport}
           size="lg"
           isBadge={hasAward}
+          className="h-16 w-16 rounded-panel text-base sm:h-20 sm:w-20 sm:text-lg"
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="terminal-strip text-[10px]">
-              {collection.sport} · {collection.season}
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-brand">
+              {eyebrow}
             </span>
             <Badge
               variant="outline"
               className={cn(
                 "px-1.5 py-0 text-[10px]",
-                hasAward
-                  ? "border-status-live/30 bg-status-live/15 text-status-live"
-                  : presentation.tone === "amber"
-                    ? "border-amber-500/30 bg-amber-500/15 text-amber-500"
-                    : "border-status-live/30 bg-status-live/15 text-status-live",
+                stateBadge(collection.assemblyState, hasAward)?.className,
               )}
             >
               {presentation.label}
             </Badge>
           </div>
-          <h2 className="mt-2 font-mono text-base font-bold uppercase tracking-tight text-content group-hover:text-brand">
+          <h2 className="mt-2 text-lg font-bold tracking-tight text-content group-hover:text-brand sm:text-xl">
             {collection.title}
           </h2>
-          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
             {collection.description}
           </p>
         </div>
       </div>
-      <div className="mt-4 space-y-1.5">
+      <div className="relative mt-5 space-y-2">
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
           <span>
-            {formatCanonicalQuantity(collection.allocatedQuantity)} /{" "}
-            {formatCanonicalQuantity(collection.requiredQuantity)}{" "}
-            {collection.kind === "player_slots" ? "allocated" : "completed"}
+            {collection.kind === "player_slots"
+              ? `${collection.qualifiedSlotCount} of ${collection.requiredSlotCount} slots qualified`
+              : "Milestone collection"}
           </span>
-          <span className="font-mono text-content">{pctLabel}</span>
+          <span className="font-mono font-bold text-content">{pctLabel}</span>
         </div>
         <Progress
-          value={pctValue}
+          value={basisPointsToProgressValue(collection.progressBps)}
           className={cn("h-2", hasAward && "[&>div]:bg-status-live")}
           aria-label={`${pctLabel} progress`}
         />
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3 text-[10px]">
-        <span className="text-muted-foreground">
-          {collection.kind === "player_slots"
-            ? `${collection.qualifiedSlotCount} of ${collection.requiredSlotCount} slots qualified`
-            : "Milestone collection"}
+      <div className="relative mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+        <span className="text-[10px] text-muted-foreground">
+          {formatCanonicalQuantity(collection.allocatedQuantity)} /{" "}
+          {formatCanonicalQuantity(collection.requiredQuantity)} allocated
         </span>
-        <span className="flex shrink-0 items-center gap-1 font-mono font-bold uppercase tracking-wide text-brand">
-          {presentation.label}
-          <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-brand">
+          Open set <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </span>
       </div>
     </Link>
@@ -286,16 +276,15 @@ function CollectionCard({ collection }: { collection: CollectionListEntry }) {
   const presentation = getCollectionPresentation(collection);
   const badge = stateBadge(collection.assemblyState, collection.award != null);
   const hasAward = collection.award != null;
-  const pctValue = basisPointsToProgressValue(collection.progressBps);
   const pctLabel = allocationProgressDisplay(collection.progressBps);
 
   return (
     <Link
       href={`/collections/${collection.slug}`}
       className={cn(
-        "terminal-shell group block p-4 transition-colors hover:border-brand/40",
-        hasAward && "border-status-live/20",
-        collection.assemblyState === "ready" && !hasAward && "border-status-live/25",
+        "group flex min-h-[148px] flex-col rounded-panel border border-border/80 bg-panel/60 p-3 transition-colors hover:border-brand/50 hover:bg-panel sm:p-4",
+        hasAward && "border-status-live/20 bg-status-live/[0.025]",
+        collection.assemblyState === "ready" && !hasAward && "border-status-live/30",
       )}
       data-testid={`collection-card-${collection.slug}`}
     >
@@ -307,75 +296,85 @@ function CollectionCard({ collection }: { collection: CollectionListEntry }) {
           isBadge={hasAward}
         />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="terminal-strip text-[10px]">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               {collection.sport} · {collection.season}
             </span>
-            {collection.lifecycleStatus === "final" && (
-              <span className="terminal-strip text-[10px]">Final</span>
-            )}
             {badge && (
               <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px]", badge.className)}>
                 {badge.label}
               </Badge>
             )}
           </div>
-          <h2 className="mt-1.5 font-mono text-sm font-bold uppercase tracking-tight text-content group-hover:text-brand">
+          <h2 className="mt-1.5 line-clamp-2 text-sm font-bold leading-tight text-content group-hover:text-brand">
             {collection.title}
           </h2>
-          {collection.description && (
-            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-              {collection.description}
-            </p>
-          )}
         </div>
         <ChevronRight
-          className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-content"
+          className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/40 group-hover:text-brand"
           aria-hidden="true"
         />
       </div>
-
-      <div className="mt-3 space-y-1">
+      <div className="mt-auto space-y-2 pt-4">
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
           <span>
-            {formatCanonicalQuantity(collection.allocatedQuantity)} /{" "}
-            {formatCanonicalQuantity(collection.requiredQuantity)}{" "}
-            {collection.kind === "player_slots" ? "allocated" : "completed"}
+            {collection.kind === "player_slots"
+              ? `${collection.qualifiedSlotCount} / ${collection.requiredSlotCount} slots`
+              : "Milestone"}
           </span>
-          <span className="font-mono text-content">{pctLabel}</span>
+          <span className="font-mono font-bold text-content">{pctLabel}</span>
         </div>
         <Progress
-          value={pctValue}
+          value={basisPointsToProgressValue(collection.progressBps)}
           className={cn("h-1.5", hasAward && "[&>div]:bg-status-live")}
           aria-label={`${pctLabel} progress`}
         />
-      </div>
-
-      <div className="mt-2 flex items-center justify-between gap-3 text-[10px]">
-        <span className="text-muted-foreground">
-          {collection.kind === "player_slots"
-            ? `${collection.qualifiedSlotCount} / ${collection.requiredSlotCount} slots`
-            : "Milestone collection"}
-        </span>
-        <span
-          className={cn(
-            "font-mono font-bold uppercase tracking-wide",
-            presentation.tone === "live" && "text-status-live",
-            presentation.tone === "amber" && "text-amber-500",
-            presentation.tone === "muted" && "text-muted-foreground",
-          )}
-        >
-          {presentation.label}
-        </span>
-      </div>
-
-      {collection.award && (
-        <div className="mt-3 flex items-center gap-1.5 border-t border-status-live/15 pt-2 text-[10px] font-mono text-status-live">
-          <Award className="h-3.5 w-3.5" aria-hidden="true" />
-          Earned {new Date(collection.award.firstCompletedAt).toLocaleDateString()}
+        <div className="flex items-center justify-between gap-2 text-[10px]">
+          <span className="truncate text-muted-foreground">{collection.description}</span>
+          <span
+            className={cn(
+              "shrink-0 font-mono font-bold uppercase",
+              presentation.tone === "live" && "text-status-live",
+              presentation.tone === "amber" && "text-amber-500",
+              presentation.tone === "muted" && "text-muted-foreground",
+            )}
+          >
+            {presentation.label}
+          </span>
         </div>
-      )}
+      </div>
     </Link>
+  );
+}
+
+function Shelf({
+  title,
+  icon,
+  collections,
+}: {
+  title: string;
+  icon: ReactNode;
+  collections: CollectionListEntry[];
+}) {
+  if (collections.length === 0) return null;
+  return (
+    <section aria-labelledby={`shelf-${title.replaceAll(" ", "-").toLowerCase()}`}>
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-muted-foreground">{icon}</span>
+        <h2
+          id={`shelf-${title.replaceAll(" ", "-").toLowerCase()}`}
+          className="text-xs font-bold uppercase tracking-[0.14em] text-content"
+        >
+          {title}
+        </h2>
+        <span className="font-mono text-[10px] text-muted-foreground">{collections.length}</span>
+      </div>
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        {collections.map((collection) => (
+          <CollectionCard key={collection.slug} collection={collection} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -387,7 +386,7 @@ function FilterBar({
   onFilterChange: (filter: CollectionFilter) => void;
 }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter collections">
+    <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Filter collections">
       {COLLECTION_FILTERS.map((filter) => {
         const isActive = filter.id === activeFilter;
         return (
@@ -395,10 +394,10 @@ function FilterBar({
             key={filter.id}
             type="button"
             className={cn(
-              "min-h-9 shrink-0 rounded-control border px-3 font-mono text-[10px] font-bold uppercase tracking-wide transition-colors",
+              "min-h-8 shrink-0 rounded-control px-2.5 font-mono text-[10px] font-bold uppercase tracking-wide transition-colors",
               isActive
-                ? "border-brand/50 bg-brand/10 text-brand"
-                : "border-border bg-panel text-muted-foreground hover:border-brand/30 hover:text-content",
+                ? "bg-content text-canvas"
+                : "border border-border/70 text-muted-foreground hover:border-brand/40 hover:text-content",
             )}
             aria-pressed={isActive}
             onClick={() => onFilterChange(filter.id)}
@@ -431,30 +430,35 @@ export default function CollectionsPage() {
   const featuredCollection = collections ? getFeaturedCollection(collections) : undefined;
   const visibleCollections = useMemo(() => {
     if (!collections) return [];
-    if (activeFilter === "all") {
+    if (activeFilter === "all")
       return featuredCollection
-        ? collections.filter((collection) => collection.slug !== featuredCollection.slug)
+        ? collections.filter((item) => item.slug !== featuredCollection.slug)
         : collections;
-    }
-    return collections.filter(
-      (collection) => getCollectionPresentation(collection).filter === activeFilter,
-    );
+    return collections.filter((item) => getCollectionPresentation(item).filter === activeFilter);
   }, [activeFilter, collections, featuredCollection]);
 
-  return (
-    <div className="terminal-page p-3 sm:p-4">
-      <div className="mx-auto max-w-3xl space-y-4">
-        {collections && collections.length > 0 && <SummaryHeader collections={collections} />}
+  const ready = visibleCollections.filter(
+    (item) => item.assemblyState === "ready" && item.award == null,
+  );
+  const inProgress = visibleCollections.filter(
+    (item) => item.assemblyState === "in_progress" || item.assemblyState === "active",
+  );
+  const earned = visibleCollections.filter((item) => item.award != null);
+  const other = visibleCollections.filter(
+    (item) => !ready.includes(item) && !inProgress.includes(item) && !earned.includes(item),
+  );
 
+  return (
+    <div className="terminal-page p-3 sm:p-5">
+      <div className="mx-auto max-w-4xl space-y-5">
+        {collections && collections.length > 0 && <PageHeader collections={collections} />}
         {isLoading && (
           <div role="status" aria-live="polite" className="sr-only">
             Loading collections…
           </div>
         )}
-
         {isLoading ? (
           <div className="space-y-3" data-testid="collections-loading">
-            <CollectionSkeleton />
             <CollectionSkeleton />
             <CollectionSkeleton />
           </div>
@@ -472,10 +476,27 @@ export default function CollectionsPage() {
             )}
             <FilterBar activeFilter={activeFilter} onFilterChange={setActiveFilter} />
             {visibleCollections.length > 0 ? (
-              <div className="space-y-3" data-testid="collections-list">
-                {visibleCollections.map((collection) => (
-                  <CollectionCard key={collection.slug} collection={collection} />
-                ))}
+              <div className="space-y-6" data-testid="collections-list">
+                <Shelf
+                  title="Ready to finish"
+                  icon={<Sparkles className="h-3.5 w-3.5" />}
+                  collections={ready}
+                />
+                <Shelf
+                  title="In progress"
+                  icon={<Layers className="h-3.5 w-3.5" />}
+                  collections={inProgress}
+                />
+                <Shelf
+                  title="Earned shelf"
+                  icon={<Trophy className="h-3.5 w-3.5" />}
+                  collections={earned}
+                />
+                <Shelf
+                  title="Explore"
+                  icon={<ChevronRight className="h-3.5 w-3.5" />}
+                  collections={other}
+                />
               </div>
             ) : (
               <div
