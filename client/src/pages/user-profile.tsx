@@ -253,7 +253,15 @@ function FeaturedCard({
       )}
     >
       <div className="flex items-start gap-3">
-        <CollectionArt artKey={c.artKey} sport={c.sport} isBadge={c.kind === "master"} />
+        <CollectionArt
+          artKey={c.artKey}
+          sport={c.sport}
+          family={c.family}
+          season={c.season}
+          kind={c.kind}
+          assemblyState="active"
+          award={{ completionSequence: null }}
+        />
         <div className="min-w-0 flex-1">
           <div
             className={cn(

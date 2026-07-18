@@ -58,11 +58,35 @@ describe("CollectionArt", () => {
     expect(el.textContent).toContain("SOC");
   });
 
-  it("marks as premium/badge when isBadge is true", () => {
-    render(<CollectionArt artKey="mlb-badge" isBadge={true} />);
+  it("renders deterministic family artwork with season, title, state, and completion sequence", () => {
+    render(
+      <CollectionArt
+        artKey="mlb-leaders-2026"
+        sport="MLB"
+        family="Season Leaders"
+        season="2026"
+        title="Home Run Leaders"
+        kind="player_slots"
+        assemblyState="active"
+        award={{ completionSequence: 7 }}
+      />,
+    );
 
     const el = screen.getByTestId("collection-art");
-    expect(el).toBeTruthy();
+    expect(el.getAttribute("data-silhouette")).toBe("scoreboard");
+    expect(el.getAttribute("data-state")).toBe("active");
+    expect(el.textContent).toContain("2026");
+    expect(el.textContent).toContain("Home Run Leaders");
+    expect(el.textContent).toContain("No. 7");
+    expect(el.className).not.toContain("premium");
+  });
+
+  it("uses a prestige crest for master collections without premium styling", () => {
+    render(<CollectionArt artKey="mlb-master" family="Master" kind="master" />);
+
+    const el = screen.getByTestId("collection-art");
+    expect(el.getAttribute("data-silhouette")).toBe("crest");
+    expect(el.className).not.toContain("premium");
   });
 
   it("renders fallback for empty artKey", () => {

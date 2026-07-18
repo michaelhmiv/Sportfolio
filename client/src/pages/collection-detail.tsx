@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Layers,
   RefreshCw,
-  Lock,
   CheckCircle2,
   XCircle,
   Trophy,
@@ -18,6 +17,15 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { CollectionArt } from "@/components/collection-art";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { authenticatedFetch } from "@/lib/queryClient";
@@ -58,6 +66,16 @@ export function mutationErrorRequiresProjectionRefresh(error: {
   return error.status === 409 || STALE_PROJECTION_ERROR_CODES.has(error.code);
 }
 
+export function allocationInputWithinMaximum(input: string, maximum: string | null): boolean {
+  const parsed = parseUserQuantityInput(input);
+  return (
+    parsed !== null &&
+    parsed !== "0.0000" &&
+    maximum !== null &&
+    compareCanonicalQuantities(parsed, maximum) <= 0
+  );
+}
+
 async function fetchDetail(slug: string): Promise<CollectionDetailResponse> {
   const res = await authenticatedFetch(`/api/me/collections/${encodeURIComponent(slug)}`);
   if (!res.ok) {
@@ -84,7 +102,7 @@ function stateBadge(state: string) {
     case "in_progress":
       return {
         label: "In Progress",
-        className: "bg-amber-500/15 text-amber-500 border-amber-500/30",
+        className: "bg-status-warning/15 text-status-warning border-status-warning/30",
       };
     case "inactive":
       return { label: "Inactive", className: "bg-muted text-muted-foreground border-border" };
@@ -162,6 +180,7 @@ export default function CollectionDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [prereqsOpen, setPrereqsOpen] = useState(false);
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [submittingSlots, setSubmittingSlots] = useState<Set<string>>(new Set());
   const [isCompleting, setIsCompleting] = useState(false);
   const [ceremonyData, setCeremonyData] = useState<{
@@ -434,9 +453,28 @@ export default function CollectionDetailPage() {
   const hasAward = detail.award != null;
   const isReady = detail.assemblyState === "ready";
   const isActive = detail.assemblyState === "active";
+  const selectedSlot = detail.slots.find((slot) => slot.slotId === selectedSlotId) ?? null;
+  const selectedInput = selectedSlot ? getDefaultInput(selectedSlot) : "";
+  const selectedParsed = parseUserQuantityInput(selectedInput);
+  const selectedWithinMaximum =
+    selectedSlot !== null &&
+    selectedParsed !== null &&
+    selectedSlot.maxAllocatableQuantity !== null &&
+    compareCanonicalQuantities(selectedParsed, selectedSlot.maxAllocatableQuantity) <= 0;
+  const selectedCanSubmit =
+    selectedSlot !== null &&
+    !submittingSlots.has(selectedSlot.slotId) &&
+    allocationInputWithinMaximum(selectedInput, selectedSlot.maxAllocatableQuantity);
+  const remainingSlots = Math.max(0, detail.requiredSlotCount - detail.qualifiedSlotCount);
+  const firstManageableSlot = detail.slots.find(
+    (slot) => slot.player !== null && slot.maxAllocatableQuantity !== null,
+  );
 
   return (
-    <div className="terminal-page p-3 sm:p-4" data-testid="collection-detail">
+    <div
+      className="terminal-page p-3 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:p-4"
+      data-testid="collection-detail"
+    >
       <div className="mx-auto max-w-3xl space-y-4">
         {/* Back navigation */}
         <div>
@@ -451,347 +489,282 @@ export default function CollectionDetailPage() {
         {/* Header */}
         <div
           className={cn(
-            "terminal-shell overflow-hidden p-4 md:p-5",
-            hasAward && "border-status-live/20",
+            "relative overflow-hidden rounded-panel border border-border-strong bg-surface p-4 shadow-medium md:p-6",
+            hasAward && "border-brand/40",
           )}
+          data-testid="collection-immersive-hero"
         >
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="terminal-strip text-[10px]">
-              {detail.sport} &middot; {detail.season} &middot; {detail.family}
-            </span>
-            {detail.lifecycleStatus === "final" && (
-              <span className="terminal-strip text-[10px]">Final</span>
-            )}
-            {badge && (
-              <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", badge.className)}>
-                {badge.label}
-              </Badge>
-            )}
-            {hasAward && <Award className="h-4 w-4 text-status-live" aria-label="Award earned" />}
-          </div>
-          <h1 className="mt-2 font-mono text-xl font-bold uppercase tracking-tight text-content">
-            {detail.title}
-          </h1>
-          {detail.description && (
-            <p className="mt-1.5 text-sm text-muted-foreground">{detail.description}</p>
-          )}
-          {detail.qualificationDescription && (
-            <p className="mt-2 text-xs text-muted-foreground/80 italic">
-              {detail.qualificationDescription}
-            </p>
-          )}
-
-          {/* Progress */}
-          <div className="mt-4 space-y-1.5">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                {formatCanonicalQuantity(detail.allocatedQuantity)} /{" "}
-                {formatCanonicalQuantity(detail.requiredQuantity)}{" "}
-                {detail.kind === "player_slots" ? "allocated" : "completed"}
-              </span>
-              <span className="font-mono tabular-nums">{pctLabel}</span>
-            </div>
-            <Progress
-              value={pctValue}
-              className={cn("h-2", hasAward && "[&>div]:bg-status-live")}
-              aria-label={`${pctLabel} progress`}
+          <div
+            className="absolute inset-0 bg-gradient-to-br from-brand/10 via-transparent to-status-info/10"
+            aria-hidden="true"
+          />
+          <div className="relative flex items-start gap-4">
+            <CollectionArt
+              artKey={detail.artKey}
+              sport={detail.sport}
+              family={detail.family}
+              season={detail.season}
+              title={detail.title}
+              kind={detail.kind}
+              assemblyState={detail.assemblyState}
+              award={detail.award}
+              size="lg"
+              className="h-36 w-28"
             />
-          </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="terminal-strip text-[10px]">
+                  {detail.sport} &middot; {detail.season} &middot; {detail.family}
+                </span>
+                {detail.lifecycleStatus === "final" && (
+                  <span className="terminal-strip text-[10px]">Final</span>
+                )}
+                {badge && (
+                  <Badge
+                    variant="outline"
+                    className={cn("text-[10px] px-1.5 py-0", badge.className)}
+                  >
+                    {hasAward && detail.assemblyState === "inactive"
+                      ? "Earned · Inactive"
+                      : badge.label}
+                  </Badge>
+                )}
+                {hasAward && (
+                  <Award className="h-4 w-4 text-status-live" aria-label="Award earned" />
+                )}
+              </div>
+              <h1 className="mt-2 font-mono text-xl font-bold uppercase tracking-tight text-content">
+                {detail.title}
+              </h1>
+              {detail.description && (
+                <p className="mt-1.5 text-sm text-muted-foreground">{detail.description}</p>
+              )}
+              {detail.qualificationDescription && (
+                <p className="mt-2 text-xs text-muted-foreground/80 italic">
+                  {detail.qualificationDescription}
+                </p>
+              )}
 
-          {/* Stats row */}
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {detail.kind === "player_slots" && (
-              <span>
-                {detail.qualifiedSlotCount} / {detail.requiredSlotCount} slots qualified
-              </span>
-            )}
-            {detail.award && (
-              <span className="text-status-live font-mono">
-                Completed {new Date(detail.award.firstCompletedAt).toLocaleDateString()}
-              </span>
-            )}
-          </div>
+              {/* Progress */}
+              <div className="mt-4 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {formatCanonicalQuantity(detail.allocatedQuantity)} /{" "}
+                    {formatCanonicalQuantity(detail.requiredQuantity)}{" "}
+                    {detail.kind === "player_slots" ? "allocated" : "completed"}
+                  </span>
+                  <span className="font-mono tabular-nums">{pctLabel}</span>
+                </div>
+                <Progress
+                  value={pctValue}
+                  className={cn("h-2", hasAward && "[&>div]:bg-status-live")}
+                  aria-label={`${pctLabel} progress`}
+                />
+              </div>
 
-          {/* Complete / Reactivate button */}
-          {isReady && !hasAward && (
-            <div className="mt-4">
-              <Button
-                variant="default"
-                size="sm"
-                className="h-8 gap-1.5"
-                onClick={() => completeMutation.mutate()}
-                disabled={isCompleting}
-                aria-busy={isCompleting}
-                data-testid="button-complete-collection"
-              >
-                <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
-                {isCompleting ? "Completing…" : "Complete"}
-              </Button>
+              {/* Stats row */}
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {detail.kind === "player_slots" && (
+                  <span>
+                    {detail.qualifiedSlotCount} / {detail.requiredSlotCount} slots qualified
+                  </span>
+                )}
+                {detail.award && (
+                  <span className="text-status-live font-mono">
+                    Completed {new Date(detail.award.firstCompletedAt).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+
+              {/* Complete / Reactivate button */}
+              {isReady && !hasAward && (
+                <div className="mt-4">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    onClick={() => completeMutation.mutate()}
+                    disabled={isCompleting}
+                    aria-busy={isCompleting}
+                    data-testid="button-complete-collection"
+                  >
+                    <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
+                    {isCompleting ? "Completing…" : "Complete"}
+                  </Button>
+                </div>
+              )}
+              {isReady && hasAward && (
+                <div className="mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    onClick={() => completeMutation.mutate()}
+                    disabled={isCompleting}
+                    aria-busy={isCompleting}
+                    data-testid="button-reactivate-collection"
+                  >
+                    <Award className="h-3.5 w-3.5" aria-hidden="true" />
+                    {isCompleting ? "Reactivating…" : "Reactivate"}
+                  </Button>
+                </div>
+              )}
+              {isActive && (
+                <div className="mt-4 flex items-center gap-2 text-xs text-status-live">
+                  <Award className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Active</span>
+                </div>
+              )}
             </div>
-          )}
-          {isReady && hasAward && (
-            <div className="mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5"
-                onClick={() => completeMutation.mutate()}
-                disabled={isCompleting}
-                aria-busy={isCompleting}
-                data-testid="button-reactivate-collection"
-              >
-                <Award className="h-3.5 w-3.5" aria-hidden="true" />
-                {isCompleting ? "Reactivating…" : "Reactivate"}
-              </Button>
-            </div>
-          )}
-          {isActive && (
-            <div className="mt-4 flex items-center gap-2 text-xs text-status-live">
-              <Award className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Active</span>
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Slots section (player_slots) */}
+        {/* Player slots are scan-friendly cards; quantity management lives in one focus-trapped sheet. */}
         {detail.kind === "player_slots" && detail.slots.length > 0 && (
-          <div className="terminal-shell overflow-hidden p-4 md:p-5">
-            <div className="terminal-strip mb-3">Slots</div>
-            <div className="space-y-2" data-testid="collection-slots">
+          <section aria-labelledby="collection-slots-heading" className="space-y-3">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-brand">
+                  Roster
+                </p>
+                <h2 id="collection-slots-heading" className="text-lg font-bold text-content">
+                  Collection slots
+                </h2>
+              </div>
+              <span className="font-mono text-xs text-muted-foreground">
+                {detail.qualifiedSlotCount}/{detail.requiredSlotCount} qualified
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2" data-testid="collection-slots">
               {detail.slots.map((slot) => {
-                const hasAllocation = slot.allocation != null;
-                const isAllocated = hasAllocation && slot.allocation!.status === "active";
-                const isSubmitting = submittingSlots.has(slot.slotId);
-                const isAllocating =
-                  allocateMutation.isPending && allocateMutation.variables?.slotId === slot.slotId;
-                const isReleasing =
-                  releaseMutation.isPending && releaseMutation.variables?.slotId === slot.slotId;
-                const inputValue = getDefaultInput(slot);
-                const parsed = parseUserQuantityInput(inputValue);
-                const withinAvailableMaximum =
-                  parsed !== null &&
-                  slot.maxAllocatableQuantity !== null &&
-                  compareCanonicalQuantities(parsed, slot.maxAllocatableQuantity) <= 0;
-                const canSubmit =
-                  !isSubmitting && parsed !== null && parsed !== "0.0000" && withinAvailableMaximum;
+                const allocationActive = slot.allocation?.status === "active";
+                const allocated = slot.allocation?.allocatedQuantity ?? "0.0000";
+                const ownsAny =
+                  slot.maxAllocatableQuantity !== null && slot.maxAllocatableQuantity !== "0.0000";
+                const fullyAllocated =
+                  allocationActive &&
+                  compareCanonicalQuantities(allocated, slot.requiredQuantity) >= 0;
+                const slotState =
+                  slot.player === null
+                    ? "Vacant"
+                    : fullyAllocated
+                      ? "Fully allocated"
+                      : allocationActive
+                        ? "Partially allocated"
+                        : ownsAny &&
+                            compareCanonicalQuantities(
+                              slot.maxAllocatableQuantity!,
+                              slot.requiredQuantity,
+                            ) >= 0
+                          ? "Ready to allocate"
+                          : ownsAny
+                            ? "More shares needed"
+                            : "No shares owned";
+                const playerName = slot.player
+                  ? `${slot.player.firstName} ${slot.player.lastName}`.trim() || slot.slotLabel
+                  : slot.slotLabel;
 
                 return (
-                  <div
+                  <article
                     key={slot.slotId}
                     className={cn(
-                      "terminal-shell flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between",
-                      isAllocated && "border-status-live/20",
+                      "relative overflow-hidden rounded-panel border border-border-subtle bg-surface p-4 shadow-low",
+                      fullyAllocated && "border-status-live/35",
+                      !slot.isRequired && "border-dashed",
                     )}
-                    data-testid={`slot-${slot.slotId}`}
+                    data-testid={`collection-slot-card-${slot.slotId}`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        {!slot.isRequired && (
-                          <span className="text-[10px] text-muted-foreground">Optional</span>
-                        )}
-                        {isAllocated && (
-                          <CheckCircle2
-                            className="h-3.5 w-3.5 text-status-live flex-shrink-0"
-                            aria-label="Allocated"
-                          />
-                        )}
-                        {isSubmitting && (
-                          <span className="text-[10px] text-amber-500" aria-live="polite">
-                            {isReleasing ? "Releasing…" : "Allocating…"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                        <span className="font-mono">
-                          {formatCanonicalQuantity(slot.requiredQuantity)} required
-                        </span>
-                        {slot.player && (
-                          <span className="flex items-center gap-1.5">
-                            <span
-                              className="text-primary underline cursor-pointer hover:text-brand transition-colors"
-                              onClick={() => {
-                                const playerId = slot.player?.playerId;
-                                if (playerId) openPlayerModal(playerId);
-                              }}
-                            >
-                              {`${slot.player.firstName} ${slot.player.lastName}`.trim() || "--"}
-                            </span>
-                            <span className="text-muted-foreground">&middot;</span>
-                            <span className="text-muted-foreground">{slot.player.team}</span>
-                            <span className="text-muted-foreground">&middot;</span>
-                            <span className="text-muted-foreground">{slot.player.position}</span>
-                            {slot.qualificationValue && slot.statLabel && (
-                              <span className="font-mono text-xs font-medium text-brand">
-                                {slot.qualificationValue} {slot.statLabel}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                        {slot.maxAllocatableQuantity && (
-                          <span className="font-mono">
-                            Max: {formatCanonicalQuantity(slot.maxAllocatableQuantity)}
-                          </span>
-                        )}
-                      </div>
-                      {hasAllocation && (
-                        <div className="mt-1 text-[10px] text-muted-foreground">
-                          <span className="font-mono">
-                            Allocated: {formatCanonicalQuantity(slot.allocation!.allocatedQuantity)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action area */}
                     <div
-                      className="flex-shrink-0 self-end sm:self-center"
-                      role="region"
-                      aria-label={slot.slotLabel}
-                      aria-busy={isSubmitting}
+                      className="absolute right-3 top-2 font-mono text-4xl font-black text-content/[0.06]"
+                      aria-hidden="true"
                     >
-                      {isAllocated ? (
-                        <div className="flex items-center gap-1.5">
-                          {/* Quantity input for adjusting active allocation */}
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              className="h-7 w-20 text-[10px] font-mono px-1.5"
-                              value={inputValue}
-                              onChange={(e) => setSlotInput(slot.slotId, e.target.value)}
-                              disabled={isSubmitting}
-                              aria-label={`Allocation quantity for ${slot.slotLabel}`}
-                              data-testid={`input-quantity-${slot.slotId}`}
-                            />
-                            <div className="flex items-center gap-0.5">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-[10px] px-1.5"
-                                onClick={() =>
-                                  setSlotInput(
-                                    slot.slotId,
-                                    formatCanonicalQuantity(
-                                      slot.maxAllocatableQuantity || slot.requiredQuantity,
-                                    ),
-                                  )
-                                }
-                                disabled={isSubmitting || !slot.maxAllocatableQuantity}
-                                aria-label={`Fill max: ${formatCanonicalQuantity(slot.maxAllocatableQuantity || slot.requiredQuantity)}`}
-                              >
-                                Max
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-[10px] px-1.5"
-                                onClick={() =>
-                                  setSlotInput(
-                                    slot.slotId,
-                                    formatCanonicalQuantity(slot.requiredQuantity),
-                                  )
-                                }
-                                disabled={isSubmitting}
-                                aria-label={`Fill required: ${formatCanonicalQuantity(slot.requiredQuantity)}`}
-                              >
-                                Req
-                              </Button>
-                            </div>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="h-7 text-[10px] gap-1"
-                              onClick={() => handleAllocate(slot.slotId, inputValue)}
-                              disabled={!canSubmit}
-                              data-testid={`button-allocate-${slot.slotId}`}
-                              aria-busy={isSubmitting}
-                              aria-label={`${isAllocating ? "Allocating" : "Set allocation"} for ${slot.slotLabel}`}
-                            >
-                              <Lock className="h-3 w-3" aria-hidden="true" />
-                              {isAllocating ? "Allocating…" : "Set"}
-                            </Button>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-[10px] gap-1"
-                            onClick={() => handleRelease(slot.slotId)}
-                            disabled={isSubmitting}
-                            data-testid={`button-release-${slot.slotId}`}
-                            aria-busy={isSubmitting}
-                            aria-label={`${isReleasing ? "Releasing" : "Release allocation"} from ${slot.slotLabel}`}
+                      {slot.rank ?? slot.displayOrder}
+                    </div>
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+                          <span
+                            className={
+                              fullyAllocated ? "text-status-live" : "text-muted-foreground"
+                            }
                           >
-                            <XCircle className="h-3 w-3" aria-hidden="true" />
-                            {isReleasing ? "Releasing…" : "Release"}
-                          </Button>
+                            {slotState}
+                          </span>
+                          {!slot.isRequired && <span className="text-brand">Optional</span>}
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            className="h-7 w-20 text-[10px] font-mono px-1.5"
-                            value={inputValue}
-                            onChange={(e) => setSlotInput(slot.slotId, e.target.value)}
-                            disabled={isSubmitting || isActive}
-                            aria-label={`Allocation quantity for ${slot.slotLabel}`}
-                            data-testid={`input-quantity-${slot.slotId}`}
-                          />
-                          <div className="flex items-center gap-0.5">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-[10px] px-1.5"
-                              onClick={() =>
-                                setSlotInput(
-                                  slot.slotId,
-                                  formatCanonicalQuantity(
-                                    slot.maxAllocatableQuantity || slot.requiredQuantity,
-                                  ),
-                                )
-                              }
-                              disabled={isSubmitting || isActive || !slot.maxAllocatableQuantity}
-                              aria-label={`Fill max: ${formatCanonicalQuantity(slot.maxAllocatableQuantity || slot.requiredQuantity)}`}
-                            >
-                              Max
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-[10px] px-1.5"
-                              onClick={() =>
-                                setSlotInput(
-                                  slot.slotId,
-                                  formatCanonicalQuantity(slot.requiredQuantity),
-                                )
-                              }
-                              disabled={isSubmitting || isActive}
-                              aria-label={`Fill required: ${formatCanonicalQuantity(slot.requiredQuantity)}`}
-                            >
-                              Req
-                            </Button>
-                          </div>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="h-7 text-[10px] gap-1"
-                            onClick={() => handleAllocate(slot.slotId, inputValue)}
-                            disabled={!canSubmit || isActive}
-                            data-testid={`button-allocate-${slot.slotId}`}
-                            aria-busy={isSubmitting}
-                            aria-label={`${isAllocating ? "Allocating" : "Allocate"} ${slot.slotLabel}`}
+                        {slot.player ? (
+                          <button
+                            type="button"
+                            className="mt-2 min-h-11 text-left text-base font-bold text-content underline-offset-4 hover:text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                            onClick={() => openPlayerModal(slot.player!.playerId)}
                           >
-                            <Lock className="h-3 w-3" aria-hidden="true" />
-                            {isAllocating ? "Allocating…" : "Allocate"}
-                          </Button>
-                        </div>
+                            {playerName}
+                          </button>
+                        ) : (
+                          <h3 className="mt-3 text-base font-bold text-muted-foreground">
+                            {playerName}
+                          </h3>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {slot.player
+                            ? `${slot.player.team} · ${slot.player.position}`
+                            : "Awaiting assignment"}
+                        </p>
+                      </div>
+                      {fullyAllocated && (
+                        <CheckCircle2
+                          className="h-5 w-5 shrink-0 text-status-live"
+                          aria-label="Fully allocated"
+                        />
                       )}
                     </div>
-                  </div>
+                    <dl className="relative mt-4 grid grid-cols-3 gap-2 border-t border-border-subtle pt-3 text-xs">
+                      <div>
+                        <dt className="text-[9px] uppercase text-muted-foreground">Required</dt>
+                        <dd className="font-mono font-bold">
+                          {formatCanonicalQuantity(slot.requiredQuantity)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[9px] uppercase text-muted-foreground">Available</dt>
+                        <dd className="font-mono font-bold">
+                          {slot.maxAllocatableQuantity
+                            ? formatCanonicalQuantity(slot.maxAllocatableQuantity)
+                            : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[9px] uppercase text-muted-foreground">Allocated</dt>
+                        <dd className="font-mono font-bold">
+                          {formatCanonicalQuantity(allocated)}
+                        </dd>
+                      </div>
+                    </dl>
+                    {slot.qualificationValue && (
+                      <p className="relative mt-3 text-xs font-semibold text-brand">
+                        {slot.qualificationValue}{" "}
+                        {slot.statLabel || (slot.statKey ? formatStatLabel(slot.statKey) : "")}
+                      </p>
+                    )}
+                    {slot.player && slot.maxAllocatableQuantity !== null && (
+                      <Button
+                        type="button"
+                        variant={allocationActive ? "outline" : "default"}
+                        className="relative mt-4 min-h-11 w-full"
+                        onClick={() => setSelectedSlotId(slot.slotId)}
+                        disabled={submittingSlots.has(slot.slotId)}
+                        aria-label={`Manage allocation for ${slot.slotLabel}`}
+                        data-testid={`button-open-allocation-${slot.slotId}`}
+                      >
+                        {allocationActive ? "Manage allocation" : "Allocate shares"}
+                        <span className="sr-only"> for {slot.slotLabel}</span>
+                      </Button>
+                    )}
+                  </article>
                 );
               })}
             </div>
-          </div>
+          </section>
         )}
 
         {/* Prerequisites section (master collections) */}
@@ -878,6 +851,184 @@ export default function CollectionDetailPage() {
           </div>
         )}
       </div>
+
+      <Sheet open={selectedSlot !== null} onOpenChange={(open) => !open && setSelectedSlotId(null)}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[85dvh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]"
+          data-testid="collection-allocation-sheet"
+        >
+          {selectedSlot && (
+            <>
+              <SheetHeader className="pr-10 text-left">
+                <SheetTitle>Manage allocation for {selectedSlot.slotLabel}</SheetTitle>
+                <SheetDescription>
+                  {selectedSlot.player
+                    ? `${selectedSlot.player.firstName} ${selectedSlot.player.lastName} · ${selectedSlot.player.team} · ${selectedSlot.player.position}`
+                    : "Choose the exact number of shares to allocate."}
+                </SheetDescription>
+              </SheetHeader>
+              <dl className="my-5 grid grid-cols-3 gap-2 rounded-panel border border-border-subtle bg-surface p-3 text-sm">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Required</dt>
+                  <dd className="font-mono font-bold">
+                    {formatCanonicalQuantity(selectedSlot.requiredQuantity)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Available</dt>
+                  <dd className="font-mono font-bold">
+                    {selectedSlot.maxAllocatableQuantity
+                      ? formatCanonicalQuantity(selectedSlot.maxAllocatableQuantity)
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Allocated</dt>
+                  <dd className="font-mono font-bold">
+                    {formatCanonicalQuantity(
+                      selectedSlot.allocation?.allocatedQuantity ?? "0.0000",
+                    )}
+                  </dd>
+                </div>
+              </dl>
+              <div className="space-y-2">
+                <label
+                  htmlFor={`allocation-${selectedSlot.slotId}`}
+                  className="text-sm font-semibold text-content"
+                >
+                  Allocation quantity
+                </label>
+                <Input
+                  id={`allocation-${selectedSlot.slotId}`}
+                  type="text"
+                  inputMode="decimal"
+                  className="h-12 text-base font-mono"
+                  value={selectedInput}
+                  onChange={(event) => setSlotInput(selectedSlot.slotId, event.target.value)}
+                  disabled={submittingSlots.has(selectedSlot.slotId)}
+                  aria-invalid={selectedInput.length > 0 && !selectedCanSubmit}
+                  aria-describedby={`allocation-help-${selectedSlot.slotId}`}
+                  data-testid={`input-quantity-${selectedSlot.slotId}`}
+                />
+                <p
+                  id={`allocation-help-${selectedSlot.slotId}`}
+                  className={cn(
+                    "text-xs",
+                    selectedInput.length > 0 && !selectedCanSubmit
+                      ? "text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {selectedInput.length === 0 || selectedParsed === null
+                    ? "Enter a positive quantity with up to four decimal places."
+                    : !selectedWithinMaximum
+                      ? "Quantity exceeds the shares currently available."
+                      : "This sets the total allocation for this slot."}
+                </p>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={() =>
+                      setSlotInput(
+                        selectedSlot.slotId,
+                        formatCanonicalQuantity(selectedSlot.requiredQuantity),
+                      )
+                    }
+                    disabled={submittingSlots.has(selectedSlot.slotId)}
+                  >
+                    Use Required
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={() =>
+                      selectedSlot.maxAllocatableQuantity &&
+                      setSlotInput(
+                        selectedSlot.slotId,
+                        formatCanonicalQuantity(selectedSlot.maxAllocatableQuantity),
+                      )
+                    }
+                    disabled={
+                      submittingSlots.has(selectedSlot.slotId) ||
+                      !selectedSlot.maxAllocatableQuantity
+                    }
+                  >
+                    Use Maximum
+                  </Button>
+                </div>
+              </div>
+              <SheetFooter className="mt-5 gap-2 sm:space-x-0">
+                {selectedSlot.allocation?.status === "active" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={() => handleRelease(selectedSlot.slotId)}
+                    disabled={submittingSlots.has(selectedSlot.slotId)}
+                    data-testid={`button-release-${selectedSlot.slotId}`}
+                  >
+                    <XCircle className="h-4 w-4" aria-hidden="true" />
+                    Release allocation
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  className="min-h-11"
+                  onClick={() => handleAllocate(selectedSlot.slotId, selectedInput)}
+                  disabled={!selectedCanSubmit}
+                  aria-busy={submittingSlots.has(selectedSlot.slotId)}
+                  data-testid={`button-allocate-${selectedSlot.slotId}`}
+                >
+                  Confirm allocation
+                </Button>
+              </SheetFooter>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {(isReady || firstManageableSlot) && (
+        <div
+          className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-panel border border-border-strong bg-overlay/95 p-3 shadow-overlay backdrop-blur sm:sticky sm:inset-x-auto sm:bottom-4"
+          data-testid="collection-mobile-action-bar"
+        >
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-content">
+              {isReady
+                ? hasAward
+                  ? "Earned · Ready to reactivate"
+                  : "Ready to complete"
+                : isActive
+                  ? "Active · Manage shares"
+                  : `${remainingSlots} slots remaining`}
+            </p>
+            <p className="text-xs text-muted-foreground">Your next collection action</p>
+          </div>
+          {isReady ? (
+            <Button
+              type="button"
+              className="min-h-11 shrink-0"
+              onClick={() => completeMutation.mutate()}
+              disabled={isCompleting}
+              aria-busy={isCompleting}
+            >
+              {hasAward ? "Reactivate" : "Complete Collection"}
+            </Button>
+          ) : firstManageableSlot ? (
+            <Button
+              type="button"
+              className="min-h-11 shrink-0"
+              onClick={() => setSelectedSlotId(firstManageableSlot.slotId)}
+            >
+              {isActive ? "Manage Shares" : "Continue"}
+            </Button>
+          ) : null}
+        </div>
+      )}
       <CollectionCeremonyOverlay
         isOpen={!!ceremonyData}
         data={ceremonyData}

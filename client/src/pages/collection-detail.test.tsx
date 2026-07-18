@@ -7,7 +7,10 @@ import {
   parseUserQuantityInput,
   looksLikeCanonicalQuantity,
 } from "@/lib/collection-format";
-import { mutationErrorRequiresProjectionRefresh } from "./collection-detail";
+import {
+  allocationInputWithinMaximum,
+  mutationErrorRequiresProjectionRefresh,
+} from "./collection-detail";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -111,6 +114,13 @@ function getDefaultInput(slot: CollectionSlotEntry, slotInputs: Map<string, stri
   if (max) return formatCanonicalQuantity(max);
   return formatCanonicalQuantity(slot.requiredQuantity);
 }
+
+describe("allocation quantity validation", () => {
+  it("preserves the API maximum even when it exceeds the slot requirement", () => {
+    expect(allocationInputWithinMaximum("2.0000", "3.0000")).toBe(true);
+    expect(allocationInputWithinMaximum("3.0001", "3.0000")).toBe(false);
+  });
+});
 
 // ── Completion lifecycle helpers ────────────────────────────────────────────
 

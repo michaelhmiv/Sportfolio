@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CollectionArt } from "@/components/collection-art";
+import { normalizeCollectionFamily } from "@/components/collections/collection-visual-theme";
 
 export interface CollectionCeremonyData {
   title: string;
@@ -37,83 +38,75 @@ function getFamilyVisuals(family: string, kind: "player_slots" | "master") {
   if (kind === "master") {
     return {
       icon: "Trophy",
-      color: "hsl(var(--premium))",
-      bgColor: "bg-premium/10",
-      borderColor: "border-premium/30",
-      textColor: "text-premium",
-      glowColor: "shadow-premium/30",
+      color: "hsl(var(--brand))",
+      bgColor: "bg-brand-subtle/30",
+      borderColor: "border-brand/40",
+      textColor: "text-brand",
       label: "Master Collection",
     };
   }
-  switch (family) {
-    case "season_leaders":
+  switch (normalizeCollectionFamily(family)) {
+    case "season-leaders":
       return {
         icon: "Award",
-        color: "hsl(45 100% 55%)",
-        bgColor: "bg-yellow-500/10",
-        borderColor: "border-yellow-500/30",
-        textColor: "text-yellow-400",
-        glowColor: "shadow-yellow-500/30",
+        color: "hsl(var(--status-warning))",
+        bgColor: "bg-status-warning/10",
+        borderColor: "border-status-warning/30",
+        textColor: "text-status-warning",
         label: "Season Leader",
       };
-    case "threshold_clubs":
+    case "threshold-clubs":
       return {
         icon: "Target",
-        color: "hsl(195 100% 50%)",
-        bgColor: "bg-cyan-500/10",
-        borderColor: "border-cyan-500/30",
-        textColor: "text-cyan-400",
-        glowColor: "shadow-cyan-500/30",
+        color: "hsl(var(--status-info))",
+        bgColor: "bg-status-info/10",
+        borderColor: "border-status-info/30",
+        textColor: "text-status-info",
         label: "Threshold Club",
       };
     case "milestone":
       return {
         icon: "Flag",
-        color: "hsl(270 100% 65%)",
-        bgColor: "bg-violet-500/10",
-        borderColor: "border-violet-500/30",
-        textColor: "text-violet-400",
-        glowColor: "shadow-violet-500/30",
+        color: "hsl(var(--brand))",
+        bgColor: "bg-brand-subtle/30",
+        borderColor: "border-brand/30",
+        textColor: "text-brand",
         label: "Milestone",
       };
-    case "official_awards":
+    case "official-awards":
       return {
         icon: "Medal",
-        color: "hsl(35 100% 55%)",
-        bgColor: "bg-amber-500/10",
-        borderColor: "border-amber-500/30",
-        textColor: "text-amber-400",
-        glowColor: "shadow-amber-500/30",
+        color: "hsl(var(--boost))",
+        bgColor: "bg-boost-subtle/30",
+        borderColor: "border-boost/30",
+        textColor: "text-boost",
         label: "Official Award",
       };
-    case "official_teams":
+    case "official-teams":
       return {
         icon: "Users",
-        color: "hsl(210 100% 55%)",
-        bgColor: "bg-blue-500/10",
-        borderColor: "border-blue-500/30",
-        textColor: "text-blue-400",
-        glowColor: "shadow-blue-500/30",
+        color: "hsl(var(--brand))",
+        bgColor: "bg-category-community/10",
+        borderColor: "border-category-community/30",
+        textColor: "text-category-community",
         label: "Team Collection",
       };
     case "postseason":
       return {
         icon: "Crown",
-        color: "hsl(300 100% 60%)",
-        bgColor: "bg-fuchsia-500/10",
-        borderColor: "border-fuchsia-500/30",
-        textColor: "text-fuchsia-400",
-        glowColor: "shadow-fuchsia-500/30",
+        color: "hsl(var(--status-live))",
+        bgColor: "bg-status-live/10",
+        borderColor: "border-status-live/30",
+        textColor: "text-status-live",
         label: "Postseason",
       };
     default:
       return {
         icon: "Trophy",
-        color: "hsl(var(--premium))",
-        bgColor: "bg-premium/10",
-        borderColor: "border-premium/30",
-        textColor: "text-premium",
-        glowColor: "shadow-premium/30",
+        color: "hsl(var(--brand))",
+        bgColor: "bg-brand-subtle/20",
+        borderColor: "border-brand/30",
+        textColor: "text-brand",
         label: "Collection",
       };
   }
@@ -326,7 +319,11 @@ export function CollectionCeremonyOverlay({
               <CollectionArt
                 artKey={data.artKey}
                 sport={data.sport}
-                isBadge={data.kind === "master"}
+                family={data.family}
+                kind={data.kind}
+                title={data.title}
+                assemblyState="active"
+                award={{ completionSequence: data.completionSequence ?? null }}
                 className="w-24 h-24 mx-auto"
               />
 

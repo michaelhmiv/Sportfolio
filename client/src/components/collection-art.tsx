@@ -1,64 +1,83 @@
+import type { CollectionAssemblyState } from "@shared/collection-api";
 import { cn } from "@/lib/utils";
-
-// ── types ────────────────────────────────────────────────────────────────────
+import { resolveCollectionVisualTheme } from "@/components/collections/collection-visual-theme";
 
 export interface CollectionArtProps {
-  /** Canonical artKey from the collection identity metadata. */
   artKey: string;
-  /** Optional explicit sport override (takes precedence over artKey parsing). */
   sport?: string;
-  /** Size variant. */
+  family?: string;
+  season?: string;
+  title?: string;
+  kind?: "player_slots" | "master";
+  assemblyState?: CollectionAssemblyState;
+  award?: { completionSequence: number | null } | null;
   size?: "sm" | "md" | "lg";
-  /** Whether this art represents a badge/premium collection. */
+  /** @deprecated Achievement art is derived from award/state, never premium entitlement. */
   isBadge?: boolean;
   className?: string;
 }
 
-// ── size config ──────────────────────────────────────────────────────────────
+const SIZE_CLASSES = {
+  sm: "h-10 w-10 text-[8px]",
+  md: "h-14 w-14 text-[9px]",
+  lg: "h-24 w-20 text-[10px]",
+} as const;
 
-const SIZE_CLASSES: Record<"sm" | "md" | "lg", string> = {
-  sm: "h-8 w-8 text-[9px]",
-  md: "h-10 w-10 text-[10px]",
-  lg: "h-12 w-12 text-xs",
-};
-
-// ── art key → sport abbreviation ─────────────────────────────────────────────
-
-function deriveSportMark(artKey: string, explicitSport?: string): string {
-  if (explicitSport) {
-    return explicitSport.slice(0, 3).toUpperCase();
-  }
-  // Parse the first segment of the artKey (before any hyphen) as the sport
-  const firstSegment = artKey.split("-")[0] || "";
-  if (!firstSegment) return "??";
-  return firstSegment.slice(0, 3).toUpperCase();
+function deriveSportMark(artKey: string, sport?: string): string {
+  const source = sport || artKey.split("-")[0] || "??";
+  return source.slice(0, 3).toUpperCase();
 }
-
-// ── component ────────────────────────────────────────────────────────────────
 
 export function CollectionArt({
   artKey,
   sport,
+  family = "",
+  season,
+  title,
+  kind = "player_slots",
+  assemblyState = "unstarted",
+  award,
   size = "md",
-  isBadge = false,
   className,
 }: CollectionArtProps) {
   const mark = deriveSportMark(artKey, sport);
+  const theme = resolveCollectionVisualTheme({ family, kind });
+  const earned = award != null;
 
   return (
     <div
       data-testid="collection-art"
+      data-silhouette={theme.silhouette}
+      data-state={assemblyState}
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-control border font-mono font-bold tracking-[0.08em]",
+        "relative isolate flex shrink-0 flex-col items-center justify-center overflow-hidden border-2 bg-surface text-center font-mono font-bold text-content shadow-low",
+        "motion-safe:transition-transform motion-safe:duration-standard group-hover:scale-[1.02]",
         SIZE_CLASSES[size],
-        isBadge
-          ? "border-premium/30 bg-premium-subtle/20 text-premium"
-          : "border-border bg-panel text-content",
+        theme.frameClass,
+        theme.artClass,
+        assemblyState === "unstarted" && "saturate-50 opacity-75",
+        assemblyState === "ready" && "border-status-warning shadow-medium",
+        earned && "border-brand/60 bg-brand-subtle/20",
         className,
       )}
       aria-hidden="true"
     >
-      <span>{mark}</span>
+      <span className="absolute inset-x-1 top-1 border-b border-current/20 pb-0.5 tracking-[0.18em]">
+        {mark}
+      </span>
+      {season && (
+        <span className="relative z-10 mt-2 text-[0.85em] tabular-nums text-muted-foreground">
+          {season}
+        </span>
+      )}
+      <span className="relative z-10 line-clamp-2 max-w-[90%] break-words leading-tight tracking-[0.08em]">
+        {title || mark}
+      </span>
+      {award?.completionSequence != null && (
+        <span className="absolute bottom-1 rounded-pill bg-brand px-1 text-[0.75em] text-brand-foreground">
+          No. {award.completionSequence}
+        </span>
+      )}
     </div>
   );
 }
