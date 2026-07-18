@@ -89,6 +89,16 @@ describe("CollectionArt", () => {
     expect(el.className).not.toContain("premium");
   });
 
+  it("keeps legacy badge callers visibly earned without premium styling", () => {
+    render(<CollectionArt artKey="mlb-award" isBadge />);
+
+    const el = screen.getByTestId("collection-art");
+    expect(el.getAttribute("data-silhouette")).toBe("crest");
+    expect(el.getAttribute("data-state")).toBe("active");
+    expect(el.className).not.toContain("opacity-75");
+    expect(el.className).not.toContain("premium");
+  });
+
   it("renders fallback for empty artKey", () => {
     render(<CollectionArt artKey="" />);
 

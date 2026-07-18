@@ -249,7 +249,7 @@ function FeaturedCard({
       className={cn(
         "rounded-control border border-border p-3",
         canNavigate &&
-          "group cursor-pointer transition-colors hover:border-premium/30 hover:bg-premium-subtle/10 hover-elevate",
+          "group cursor-pointer transition-colors hover:border-brand/30 hover:bg-brand-subtle/10 hover-elevate",
       )}
     >
       <div className="flex items-start gap-3">
@@ -266,7 +266,7 @@ function FeaturedCard({
           <div
             className={cn(
               "truncate text-sm font-semibold text-content",
-              canNavigate && "transition-colors group-hover:text-premium",
+              canNavigate && "transition-colors group-hover:text-brand",
             )}
           >
             {c.title}

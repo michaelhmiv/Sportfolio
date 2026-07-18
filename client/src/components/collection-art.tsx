@@ -38,25 +38,27 @@ export function CollectionArt({
   assemblyState = "unstarted",
   award,
   size = "md",
+  isBadge = false,
   className,
 }: CollectionArtProps) {
   const mark = deriveSportMark(artKey, sport);
-  const theme = resolveCollectionVisualTheme({ family, kind });
-  const earned = award != null;
+  const effectiveState = isBadge && assemblyState === "unstarted" ? "active" : assemblyState;
+  const theme = resolveCollectionVisualTheme({ family, kind: isBadge ? "master" : kind });
+  const earned = award != null || isBadge;
 
   return (
     <div
       data-testid="collection-art"
       data-silhouette={theme.silhouette}
-      data-state={assemblyState}
+      data-state={effectiveState}
       className={cn(
         "relative isolate flex shrink-0 flex-col items-center justify-center overflow-hidden border-2 bg-surface text-center font-mono font-bold text-content shadow-low",
         "motion-safe:transition-transform motion-safe:duration-standard group-hover:scale-[1.02]",
         SIZE_CLASSES[size],
         theme.frameClass,
         theme.artClass,
-        assemblyState === "unstarted" && "saturate-50 opacity-75",
-        assemblyState === "ready" && "border-status-warning shadow-medium",
+        effectiveState === "unstarted" && "saturate-50 opacity-75",
+        effectiveState === "ready" && "border-status-warning shadow-medium",
         earned && "border-brand/60 bg-brand-subtle/20",
         className,
       )}
