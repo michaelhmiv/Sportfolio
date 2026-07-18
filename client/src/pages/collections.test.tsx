@@ -5,6 +5,12 @@ import {
   basisPointsToProgressValue,
   allocationProgressDisplay,
 } from "@/lib/collection-format";
+import {
+  COLLECTION_FILTERS,
+  getCollectionPresentation,
+  getCollectionSummary,
+  getFeaturedCollection,
+} from "@/pages/collections";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,6 +69,81 @@ function stateBadge(state: string) {
       return null;
   }
 }
+
+// ── collection experience helpers ────────────────────────────────────────────
+
+describe("Collection experience helpers", () => {
+  const awarded = {
+    awardId: "a1",
+    firstCompletedAt: "2025-01-01T00:00:00Z",
+    completionSequence: 1,
+  };
+
+  it("summarizes actionable and earned collections", () => {
+    const summary = getCollectionSummary([
+      makeEntry("ready", { assemblyState: "ready", progressBps: 10000 }),
+      makeEntry("progress", { assemblyState: "in_progress", progressBps: 4200 }),
+      makeEntry("earned", { assemblyState: "active", award: awarded, progressBps: 10000 }),
+    ]);
+
+    expect(summary).toEqual({ total: 3, ready: 1, inProgress: 1, earned: 1 });
+  });
+
+  it("features ready, then in-progress, then unstarted collections", () => {
+    const entries = [
+      makeEntry("unstarted"),
+      makeEntry("progress", { assemblyState: "in_progress", progressBps: 4200 }),
+      makeEntry("ready", { assemblyState: "ready", progressBps: 10000 }),
+    ];
+
+    expect(getFeaturedCollection(entries)?.slug).toBe("ready");
+    expect(getFeaturedCollection(entries.slice(0, 2))?.slug).toBe("progress");
+    expect(getFeaturedCollection([entries[0]])?.slug).toBe("unstarted");
+  });
+
+  it("presents awarded ready collections as reactivate and active awards as earned", () => {
+    expect(getCollectionPresentation(makeEntry("ready", { assemblyState: "ready" }))).toMatchObject(
+      {
+        label: "Complete",
+        filter: "ready",
+        tone: "live",
+      },
+    );
+    expect(
+      getCollectionPresentation(
+        makeEntry("reactivate", { assemblyState: "ready", award: awarded }),
+      ),
+    ).toMatchObject({ label: "Reactivate", filter: "earned", tone: "live" });
+    expect(
+      getCollectionPresentation(makeEntry("earned", { assemblyState: "active", award: awarded })),
+    ).toMatchObject({ label: "Earned", filter: "earned", tone: "live" });
+    expect(
+      getCollectionPresentation(
+        makeEntry("inactive", { assemblyState: "inactive", award: awarded }),
+      ),
+    ).toMatchObject({ filter: "earned" });
+    expect(
+      getCollectionPresentation(makeEntry("new", { assemblyState: "unstarted" })),
+    ).toMatchObject({
+      label: "Start exploring",
+      filter: "all",
+    });
+  });
+
+  it("exposes stable filters and groups earned collections by award presence", () => {
+    expect(COLLECTION_FILTERS.map((filter) => filter.id)).toEqual([
+      "all",
+      "ready",
+      "in_progress",
+      "earned",
+    ]);
+    expect(
+      getCollectionPresentation(
+        makeEntry("inactive", { assemblyState: "inactive", award: awarded }),
+      ).filter,
+    ).toBe("earned");
+  });
+});
 
 // ── list fetch / query-key helpers ─────────────────────────────────────────
 

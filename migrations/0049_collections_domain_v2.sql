@@ -53,7 +53,6 @@ CREATE TABLE collection_definition_versions (
   source_type varchar(60) NOT NULL,
   source_uri text,
   source_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  points integer NOT NULL DEFAULT 0,
   art_key text NOT NULL,
   state varchar(30) NOT NULL DEFAULT 'draft',
   correction_of_version_id varchar,
@@ -65,7 +64,6 @@ CREATE TABLE collection_definition_versions (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT collection_versions_definition_version_unique UNIQUE (definition_id, version),
   CONSTRAINT collection_versions_version_check CHECK (version > 0),
-  CONSTRAINT collection_versions_points_check CHECK (points >= 0),
   CONSTRAINT collection_versions_state_check CHECK (state IN ('draft', 'tracking', 'final')),
   CONSTRAINT collection_versions_final_check
     CHECK ((state = 'final' AND finalized_at IS NOT NULL) OR state <> 'final')

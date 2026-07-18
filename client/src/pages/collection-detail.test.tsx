@@ -21,6 +21,9 @@ function makeSlot(overrides?: Partial<CollectionSlotEntry>): CollectionSlotEntry
     displayOrder: 1,
     rank: 1,
     statKey: "hr",
+    qualificationValue: null,
+    qualificationMetadata: null,
+    statLabel: null,
     allocation: null,
     maxAllocatableQuantity: "1.0000",
     player: {
