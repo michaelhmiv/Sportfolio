@@ -105,7 +105,17 @@ function featuredRank(collection: CollectionListEntry) {
 
 export function getFeaturedCollection(collections: CollectionListEntry[]) {
   return [...collections]
-    .sort((a, b) => featuredRank(a) - featuredRank(b) || b.progressBps - a.progressBps)
+    .sort((a, b) => {
+      const rankDelta = featuredRank(a) - featuredRank(b);
+      if (rankDelta !== 0) return rankDelta;
+      if (a.award && b.award) {
+        return (
+          new Date(b.award.firstCompletedAt).getTime() -
+          new Date(a.award.firstCompletedAt).getTime()
+        );
+      }
+      return b.progressBps - a.progressBps;
+    })
     .at(0);
 }
 

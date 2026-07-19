@@ -90,7 +90,9 @@ export function getFirstActionableSlot(
   slots: CollectionSlotEntry[],
   isActive: boolean,
 ): CollectionSlotEntry | undefined {
-  if (isActive) return undefined;
+  if (isActive) {
+    return slots.find((slot) => slot.allocation?.status === "active");
+  }
   return slots.find((slot) => {
     if (!slot.player || slot.maxAllocatableQuantity === null) return false;
     const allocated =
@@ -100,6 +102,41 @@ export function getFirstActionableSlot(
       compareCanonicalQuantities(slot.maxAllocatableQuantity, allocated) > 0
     );
   });
+}
+
+function parseCanonicalQuantityUnits(value: string): bigint {
+  const [whole = "0", fraction = ""] = value.split(".");
+  return BigInt(whole || "0") * BigInt(10_000) + BigInt(`${fraction}0000`.slice(0, 4));
+}
+
+function formatCanonicalQuantityUnits(value: bigint): string {
+  const whole = value / BigInt(10_000);
+  const fraction = (value % BigInt(10_000)).toString().padStart(4, "0");
+  return `${whole}.${fraction}`;
+}
+
+export function getCollectionCompletionPlan(slots: CollectionSlotEntry[]): {
+  missingQuantity: string;
+  missingSlotCount: number;
+} {
+  let missingUnits = BigInt(0);
+  let missingSlotCount = 0;
+
+  for (const slot of slots) {
+    if (!slot.isRequired) continue;
+    const requiredUnits = parseCanonicalQuantityUnits(slot.requiredQuantity);
+    const allocatedUnits = parseCanonicalQuantityUnits(
+      slot.allocation?.allocatedQuantity ?? "0.0000",
+    );
+    if (allocatedUnits >= requiredUnits) continue;
+    missingUnits += requiredUnits - allocatedUnits;
+    missingSlotCount += 1;
+  }
+
+  return {
+    missingQuantity: formatCanonicalQuantityUnits(missingUnits),
+    missingSlotCount,
+  };
 }
 
 async function fetchDetail(slug: string): Promise<CollectionDetailResponse> {
@@ -205,7 +242,7 @@ export default function CollectionDetailPage() {
   const userId = user?.id ?? "";
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [prereqsOpen, setPrereqsOpen] = useState(false);
+  const [prereqsOpen, setPrereqsOpen] = useState(true);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [submittingSlots, setSubmittingSlots] = useState<Set<string>>(new Set());
   const [isCompleting, setIsCompleting] = useState(false);
@@ -494,6 +531,10 @@ export default function CollectionDetailPage() {
     allocationInputWithinMaximum(selectedInput, selectedSlot.maxAllocatableQuantity);
   const remainingSlots = Math.max(0, detail.requiredSlotCount - detail.qualifiedSlotCount);
   const firstManageableSlot = getFirstActionableSlot(detail.slots, isActive);
+  const completionPlan = getCollectionCompletionPlan(detail.slots);
+  const firstIncompletePrerequisite = detail.prerequisites.find(
+    (prerequisite) => prerequisite.state.assemblyState !== "active",
+  );
 
   return (
     <div
@@ -644,6 +685,28 @@ export default function CollectionDetailPage() {
           </div>
         </div>
 
+        {detail.kind === "player_slots" && completionPlan.missingSlotCount > 0 && (
+          <div
+            className="terminal-shell space-y-2 p-3 text-xs"
+            data-testid="collection-completion-plan"
+          >
+            <p className="font-semibold text-content">
+              {formatCanonicalQuantity(completionPlan.missingQuantity)} shares still needed across{" "}
+              {completionPlan.missingSlotCount}{" "}
+              {completionPlan.missingSlotCount === 1 ? "slot" : "slots"}
+            </p>
+            <p className="text-muted-foreground">
+              Allocated shares are locked from selling until you reduce or release them.
+            </p>
+            {detail.lifecycleStatus === "tracking" && (
+              <p className="text-status-warning">
+                Leaderboard membership can change. Shares assigned to displaced players are released
+                automatically.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Player slots are scan-friendly cards; quantity management lives in one focus-trapped sheet. */}
         {detail.kind === "player_slots" && detail.slots.length > 0 && (
           <section aria-labelledby="collection-slots-heading" className="space-y-3">
@@ -665,7 +728,16 @@ export default function CollectionDetailPage() {
                 const allocationActive = slot.allocation?.status === "active";
                 const allocated = slot.allocation?.allocatedQuantity ?? "0.0000";
                 const ownsAny =
+                  slot.ownedQuantity !== undefined
+                    ? slot.ownedQuantity !== null && slot.ownedQuantity !== "0.0000"
+                    : slot.maxAllocatableQuantity !== null &&
+                      slot.maxAllocatableQuantity !== "0.0000";
+                const hasAvailableShares =
                   slot.maxAllocatableQuantity !== null && slot.maxAllocatableQuantity !== "0.0000";
+                const lockedElsewhere =
+                  slot.lockedElsewhereQuantity !== undefined &&
+                  slot.lockedElsewhereQuantity !== null &&
+                  slot.lockedElsewhereQuantity !== "0.0000";
                 const fullyAllocated =
                   allocationActive &&
                   compareCanonicalQuantities(allocated, slot.requiredQuantity) >= 0;
@@ -676,15 +748,17 @@ export default function CollectionDetailPage() {
                       ? "Fully allocated"
                       : allocationActive
                         ? "Partially allocated"
-                        : ownsAny &&
+                        : hasAvailableShares &&
                             compareCanonicalQuantities(
                               slot.maxAllocatableQuantity!,
                               slot.requiredQuantity,
                             ) >= 0
                           ? "Ready to allocate"
-                          : ownsAny
+                          : hasAvailableShares
                             ? "More shares needed"
-                            : "No shares owned";
+                            : lockedElsewhere && ownsAny
+                              ? "Shares locked elsewhere"
+                              : "No shares owned";
                 const playerName = slot.player
                   ? `${slot.player.firstName} ${slot.player.lastName}`.trim() || slot.slotLabel
                   : slot.slotLabel;
@@ -785,6 +859,26 @@ export default function CollectionDetailPage() {
                         <span className="sr-only"> for {slot.slotLabel}</span>
                       </Button>
                     )}
+                    {!isActive && slot.player && !canManageSlotAllocation(slot, isActive) && (
+                      <div className="relative mt-4 space-y-2">
+                        {lockedElsewhere && ownsAny && (
+                          <p className="text-xs text-muted-foreground">
+                            Release shares from another collection or get more to continue.
+                          </p>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="min-h-11 w-full"
+                          onClick={() => openPlayerModal(slot.player!.playerId)}
+                          data-testid={`button-acquire-${slot.slotId}`}
+                        >
+                          {lockedElsewhere && ownsAny
+                            ? "View player options"
+                            : "Buy or scout shares"}
+                        </Button>
+                      </div>
+                    )}
                   </article>
                 );
               })}
@@ -860,6 +954,13 @@ export default function CollectionDetailPage() {
                   </Link>
                 );
               })}
+              {firstIncompletePrerequisite && (
+                <Button asChild className="min-h-11 w-full">
+                  <Link href={`/collections/${firstIncompletePrerequisite.slug}`}>
+                    Continue {firstIncompletePrerequisite.title}
+                  </Link>
+                </Button>
+              )}
             </CollapsibleContent>
           </Collapsible>
         )}
@@ -901,7 +1002,7 @@ export default function CollectionDetailPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Available</dt>
+                  <dt className="text-xs text-muted-foreground">Max total</dt>
                   <dd className="font-mono font-bold">
                     {selectedSlot.maxAllocatableQuantity
                       ? formatCanonicalQuantity(selectedSlot.maxAllocatableQuantity)
@@ -985,6 +1086,15 @@ export default function CollectionDetailPage() {
                     Use Maximum
                   </Button>
                 </div>
+              </div>
+              <div className="mt-4 rounded-panel border border-status-warning/30 bg-status-warning/10 p-3 text-xs text-muted-foreground">
+                <p>Allocated shares are locked from selling until you reduce or release them.</p>
+                {selectedSlot.allocation?.status === "active" && (
+                  <p className="mt-1 text-status-warning">
+                    Reducing or releasing below requirements deactivates this collection and may
+                    deactivate dependent master collections.
+                  </p>
+                )}
               </div>
               <SheetFooter className="mt-5 gap-2 sm:space-x-0">
                 {selectedSlot.allocation?.status === "active" && (

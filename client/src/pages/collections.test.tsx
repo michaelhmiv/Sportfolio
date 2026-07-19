@@ -110,6 +110,19 @@ describe("Collection experience helpers", () => {
     expect(getFeaturedCollection([entries[0]])?.slug).toBe("unstarted");
   });
 
+  it("features the most recently earned trophy when only awarded sets remain", () => {
+    const older = makeEntry("older", {
+      assemblyState: "active",
+      award: { ...awarded, firstCompletedAt: "2025-01-01T00:00:00Z" },
+    });
+    const newer = makeEntry("newer", {
+      assemblyState: "active",
+      award: { ...awarded, awardId: "a2", firstCompletedAt: "2025-06-01T00:00:00Z" },
+    });
+
+    expect(getFeaturedCollection([older, newer])?.slug).toBe("newer");
+  });
+
   it("applies facets before selecting and removing the featured collection", () => {
     const mlb = makeEntry("mlb-ready", {
       sport: "MLB",

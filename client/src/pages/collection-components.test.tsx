@@ -143,6 +143,93 @@ describe("production collection page rendering", () => {
     expect(html).not.toContain("input-quantity-slot-1");
   });
 
+  it("gives an unowned required player a direct acquisition action", () => {
+    const html = renderDetail({
+      ...baseDetail,
+      assemblyState: "unstarted",
+      progressBps: 0,
+      allocatedQuantity: "0.0000",
+      qualifiedSlotCount: 0,
+      slots: [
+        {
+          ...baseDetail.slots[0],
+          maxAllocatableQuantity: "0.0000",
+          ownedQuantity: "0.0000",
+          lockedElsewhereQuantity: "0.0000",
+        },
+      ],
+    });
+
+    expect(html).toContain("No shares owned");
+    expect(html).toContain("Buy or scout shares");
+    expect(html).toContain("button-acquire-slot-1");
+  });
+
+  it("explains when owned shares are locked by another collection", () => {
+    const html = renderDetail({
+      ...baseDetail,
+      assemblyState: "unstarted",
+      progressBps: 0,
+      allocatedQuantity: "0.0000",
+      qualifiedSlotCount: 0,
+      slots: [
+        {
+          ...baseDetail.slots[0],
+          maxAllocatableQuantity: "0.0000",
+          ownedQuantity: "1.0000",
+          lockedElsewhereQuantity: "1.0000",
+        },
+      ],
+    });
+
+    expect(html).toContain("Shares locked elsewhere");
+    expect(html).toContain("Release shares from another collection or get more");
+  });
+
+  it("shows tracking volatility and an exact completion plan", () => {
+    const html = renderDetail({
+      ...baseDetail,
+      assemblyState: "in_progress",
+      progressBps: 5000,
+      allocatedQuantity: "0.5000",
+      qualifiedSlotCount: 0,
+      slots: [
+        {
+          ...baseDetail.slots[0],
+          allocation: { allocationId: "a1", allocatedQuantity: "0.5000", status: "active" },
+        },
+      ],
+    });
+
+    expect(html).toContain("0.5 shares still needed across 1 slot");
+    expect(html).toContain("Leaderboard membership can change");
+    expect(html).toContain("Allocated shares are locked from selling");
+  });
+
+  it("opens master prerequisites and offers a direct continue action", () => {
+    const html = renderDetail({
+      ...baseDetail,
+      kind: "master",
+      assemblyState: "in_progress",
+      slots: [],
+      prerequisites: [
+        {
+          prerequisiteId: "prereq-1",
+          slug: "child-set",
+          title: "Child Set",
+          artKey: "child",
+          isRequired: true,
+          displayOrder: 1,
+          state: { assemblyState: "in_progress", progressBps: 5000 },
+        },
+      ],
+    });
+
+    expect(html).toContain("Child Set");
+    expect(html).toContain("Continue Child Set");
+    expect(html).toContain('href="/collections/child-set"');
+  });
+
   it("renders an immersive family hero, visual slot cards, and a safe-area sticky action", () => {
     const html = renderDetail(baseDetail);
     expect(html).toContain('data-testid="collection-immersive-hero"');

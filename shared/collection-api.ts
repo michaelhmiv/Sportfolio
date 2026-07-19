@@ -94,6 +94,12 @@ export interface CollectionSlotEntry {
    */
   maxAllocatableQuantity: string | null;
 
+  /** Total shares held across canonical player identities. */
+  ownedQuantity?: string | null;
+
+  /** Shares unavailable because another collection currently locks them. */
+  lockedElsewhereQuantity?: string | null;
+
   /** Player display metadata, or null for vacant/unassigned slots. */
   player: {
     playerId: string;
@@ -111,6 +117,7 @@ export interface CollectionPrerequisiteEntry {
   artKey: string;
   isRequired: boolean;
   displayOrder: number;
+  isAvailable?: boolean;
 
   /** User state for the prerequisite collection (unstarted default if absent). */
   state: {

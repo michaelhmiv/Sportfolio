@@ -15,6 +15,7 @@ import {
   debouncedInvalidateMarketActivity,
 } from "@/lib/cache-invalidation";
 import { resolveWebSocketUrl } from "@/lib/native-runtime";
+import { useToast } from "@/hooks/use-toast";
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -38,6 +39,17 @@ export function rememberCollectionEvent(
   return true;
 }
 
+export function collectionMembershipNotice(message: any): string | null {
+  if (
+    message.type !== "collections" ||
+    message.eventType !== "membership_changed" ||
+    !["tracking_refresh", "final_correction"].includes(message.reason)
+  ) {
+    return null;
+  }
+  return "Leaderboard membership changed. Any displaced-player shares were automatically released.";
+}
+
 interface WebSocketContextValue {
   isConnected: boolean;
   connectionState: "connecting" | "connected" | "disconnected" | "error";
@@ -50,6 +62,7 @@ interface WebSocketContextValue {
 const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
+  const { toast } = useToast();
   const [isConnected, setIsConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<
     "connecting" | "connected" | "disconnected" | "error"
@@ -119,9 +132,17 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               debouncedInvalidatePlayer(message.playerId);
               break;
 
-            case "collections":
+            case "collections": {
               queryClient.invalidateQueries({ queryKey: ["/api/me/collections"] });
+              const notice = collectionMembershipNotice(message);
+              if (notice) {
+                toast({
+                  title: "Collection roster updated",
+                  description: notice,
+                });
+              }
               break;
+            }
 
             case "liveStats":
               if (message.gameId) {
