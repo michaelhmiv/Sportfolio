@@ -2,9 +2,25 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Award, ChevronRight, Layers, RefreshCw, Sparkles, Trophy } from "lucide-react";
+import {
+  Award,
+  ChevronRight,
+  Layers,
+  RefreshCw,
+  SlidersHorizontal,
+  Sparkles,
+  Trophy,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { CollectionArt } from "@/components/collection-art";
 import { useAuth } from "@/hooks/useAuth";
 import { authenticatedFetch } from "@/lib/queryClient";
@@ -33,7 +49,7 @@ async function fetchCollections(): Promise<CollectionListEntry[]> {
   return json.data as CollectionListEntry[];
 }
 
-type CollectionFilter = "all" | "ready" | "in_progress" | "earned";
+export type CollectionFilter = "all" | "ready" | "in_progress" | "earned";
 
 type CollectionPresentation = {
   label: string;
@@ -47,6 +63,9 @@ export const COLLECTION_FILTERS: Array<{ id: CollectionFilter; label: string }> 
   { id: "in_progress", label: "In progress" },
   { id: "earned", label: "Earned" },
 ];
+
+export const countActiveCollectionFacets = (...facets: string[]) =>
+  facets.filter((facet) => facet !== "All").length;
 
 export function getCollectionSummary(collections: CollectionListEntry[]) {
   const summary = collections.reduce(
@@ -224,7 +243,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 function PageHeader({ collections }: { collections: CollectionListEntry[] }) {
   const summary = getCollectionSummary(collections);
   return (
-    <header className="flex items-end justify-between gap-4 border-b border-border/70 pb-4">
+    <header className="flex items-end justify-between gap-4 border-b border-border/70 pb-3 sm:pb-4">
       <div>
         <p className="terminal-strip mb-2 inline-block text-[10px]">Collections</p>
         <h1 className="terminal-heading text-2xl">Build your shelf</h1>
@@ -330,7 +349,7 @@ export function FeaturedCollection({ collection }: { collection: CollectionListE
           </p>
         </div>
       </div>
-      <div className="relative mt-5 space-y-2">
+      <div className="relative mt-4 space-y-2 sm:mt-5">
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
           <span>
             {collection.kind === "player_slots"
@@ -345,7 +364,7 @@ export function FeaturedCollection({ collection }: { collection: CollectionListE
           aria-label={`${pctLabel} progress`}
         />
       </div>
-      <div className="relative mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+      <div className="relative mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-3 sm:mt-4">
         <span className="text-[10px] text-muted-foreground">
           {formatCanonicalQuantity(collection.allocatedQuantity)} /{" "}
           {formatCanonicalQuantity(collection.requiredQuantity)} allocated
@@ -369,11 +388,11 @@ export function CollectionCard({ collection }: { collection: CollectionListEntry
     <Link
       href={`/collections/${collection.slug}`}
       className={cn(
-        "group flex min-h-[190px] w-[78vw] max-w-[20rem] shrink-0 snap-start flex-col rounded-panel border border-border/80 bg-panel/60 p-3 transition-colors hover:border-brand/50 hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-[19rem] sm:p-4",
+        "group flex min-h-[170px] w-[78vw] max-w-[20rem] shrink-0 snap-start flex-col rounded-panel border border-border/80 bg-panel/60 p-3 transition-colors hover:border-brand/50 hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-[190px] sm:w-[19rem] sm:p-4",
         hasAward &&
           "border-status-live/25 bg-status-live/[0.035] ring-1 ring-inset ring-status-live/10",
         isMaster &&
-          "min-h-[220px] w-[82vw] border-brand/35 bg-brand-subtle/[0.08] shadow-medium sm:w-[22rem]",
+          "min-h-[190px] w-[82vw] border-brand/35 bg-brand-subtle/[0.08] shadow-medium sm:min-h-[220px] sm:w-[22rem]",
         collection.assemblyState === "ready" && !hasAward && "border-status-live/30",
       )}
       data-testid={`collection-card-${collection.slug}`}
@@ -487,7 +506,11 @@ function FilterBar({
   onFilterChange: (filter: CollectionFilter) => void;
 }) {
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Filter collections">
+    <div
+      className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto"
+      role="group"
+      aria-label="Filter collections"
+    >
       {COLLECTION_FILTERS.map((filter) => {
         const isActive = filter.id === activeFilter;
         return (
@@ -495,7 +518,7 @@ function FilterBar({
             key={filter.id}
             type="button"
             className={cn(
-              "min-h-8 shrink-0 rounded-control px-2.5 font-mono text-[10px] font-bold uppercase tracking-wide transition-colors",
+              "min-h-11 shrink-0 rounded-control px-2.5 font-mono text-[10px] font-bold uppercase tracking-wide transition-colors",
               isActive
                 ? "bg-content text-canvas"
                 : "border border-border/70 text-muted-foreground hover:border-brand/40 hover:text-content",
@@ -525,11 +548,11 @@ function FacetFilter({
 }) {
   return (
     <div
-      className="flex items-center gap-2 overflow-x-auto"
+      className="flex items-center gap-1.5 overflow-x-auto"
       role="group"
       aria-label={`${label} filter`}
     >
-      <span className="w-12 shrink-0 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+      <span className="w-10 shrink-0 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
       {["All", ...values].map((value) => (
@@ -539,7 +562,7 @@ function FacetFilter({
           onClick={() => onChange(value)}
           aria-pressed={active === value}
           className={cn(
-            "min-h-11 shrink-0 rounded-pill border px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+            "min-h-11 shrink-0 rounded-pill border px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
             active === value
               ? "border-selected-border bg-selected text-selected-foreground"
               : "border-border-subtle bg-surface text-muted-foreground",
@@ -548,6 +571,82 @@ function FacetFilter({
           {value}
         </button>
       ))}
+    </div>
+  );
+}
+
+export function CollectionFilters({
+  collections,
+  activeFilter,
+  onFilterChange,
+  sportFilter,
+  onSportChange,
+  seasonFilter,
+  onSeasonChange,
+  familyFilter,
+  onFamilyChange,
+}: {
+  collections: CollectionListEntry[];
+  activeFilter: CollectionFilter;
+  onFilterChange: (filter: CollectionFilter) => void;
+  sportFilter: string;
+  onSportChange: (value: string) => void;
+  seasonFilter: string;
+  onSeasonChange: (value: string) => void;
+  familyFilter: string;
+  onFamilyChange: (value: string) => void;
+}) {
+  const activeFacetCount = countActiveCollectionFacets(sportFilter, seasonFilter, familyFilter);
+
+  return (
+    <div className="flex items-center gap-2" data-testid="collection-filters">
+      <FilterBar activeFilter={activeFilter} onFilterChange={onFilterChange} />
+      <Sheet>
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-control border border-border/70 px-3 text-xs font-bold text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            data-testid="collection-advanced-filter-trigger"
+          >
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+            Filters
+            {activeFacetCount > 0 && (
+              <span className="rounded-pill bg-brand px-1.5 font-mono text-[10px] text-brand-foreground">
+                {activeFacetCount}
+              </span>
+            )}
+          </button>
+        </SheetTrigger>
+        <SheetContent
+          side="bottom"
+          className="max-h-[85dvh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        >
+          <SheetHeader className="pr-10 text-left">
+            <SheetTitle>Filter collections</SheetTitle>
+            <SheetDescription>Refine the shelf by sport, season, or family.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-1">
+            <FacetFilter
+              label="Sport"
+              values={Array.from(new Set(collections.map((item) => item.sport)))}
+              active={sportFilter}
+              onChange={onSportChange}
+            />
+            <FacetFilter
+              label="Season"
+              values={Array.from(new Set(collections.map((item) => item.season)))}
+              active={seasonFilter}
+              onChange={onSeasonChange}
+            />
+            <FacetFilter
+              label="Family"
+              values={Array.from(new Set(collections.map((item) => item.family)))}
+              active={familyFilter}
+              onChange={onFamilyChange}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -596,7 +695,7 @@ export default function CollectionsPage() {
 
   return (
     <div className="terminal-page p-3 sm:p-5">
-      <div className="mx-auto max-w-4xl space-y-5">
+      <div className="mx-auto max-w-4xl space-y-3 sm:space-y-5">
         {collections && collections.length > 0 && <PageHeader collections={collections} />}
         {isLoading && (
           <div role="status" aria-live="polite" className="sr-only">
@@ -618,32 +717,22 @@ export default function CollectionsPage() {
         ) : (
           <>
             <SummaryRail collections={collections} />
-            <div className="space-y-2" data-testid="collection-filters">
-              <FilterBar activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-              <FacetFilter
-                label="Sport"
-                values={[...new Set(collections.map((item) => item.sport))]}
-                active={sportFilter}
-                onChange={setSportFilter}
-              />
-              <FacetFilter
-                label="Season"
-                values={[...new Set(collections.map((item) => item.season))]}
-                active={seasonFilter}
-                onChange={setSeasonFilter}
-              />
-              <FacetFilter
-                label="Family"
-                values={[...new Set(collections.map((item) => item.family))]}
-                active={familyFilter}
-                onChange={setFamilyFilter}
-              />
-            </div>
+            <CollectionFilters
+              collections={collections}
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              sportFilter={sportFilter}
+              onSportChange={setSportFilter}
+              seasonFilter={seasonFilter}
+              onSeasonChange={setSeasonFilter}
+              familyFilter={familyFilter}
+              onFamilyChange={setFamilyFilter}
+            />
             {activeFilter === "all" && featuredCollection && (
               <FeaturedCollection collection={featuredCollection} />
             )}
             {visibleCollections.length > 0 ? (
-              <div className="space-y-8" data-testid="collections-list">
+              <div className="space-y-6 sm:space-y-8" data-testid="collections-list">
                 <Shelf
                   title="Ready to complete"
                   icon={<Sparkles className="h-3.5 w-3.5" />}

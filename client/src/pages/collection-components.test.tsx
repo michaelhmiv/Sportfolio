@@ -202,9 +202,11 @@ describe("production collection page rendering", () => {
     const html = renderList(entries);
     expect(html).toContain('data-testid="collection-summary-rail"');
     expect(html).toContain("Closest");
-    expect(html).toContain("Sport");
-    expect(html).toContain("Season");
-    expect(html).toContain("Family");
+    expect(html).toContain('data-testid="collection-advanced-filter-trigger"');
+    expect(html).toContain("space-y-3 sm:space-y-5");
+    expect(html).toContain("space-y-6 sm:space-y-8");
+    expect(html).toContain("min-h-[170px]");
+    expect(html).toContain("sm:min-h-[190px]");
     expect(html).toContain('data-testid="family-shelf-threshold-clubs"');
     expect(html).toContain("snap-x");
     expect(html).toContain('data-testid="master-prestige"');

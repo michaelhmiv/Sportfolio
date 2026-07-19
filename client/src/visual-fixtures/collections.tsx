@@ -1,8 +1,15 @@
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Layers, Sparkles, Trophy } from "lucide-react";
 import type { CollectionListEntry } from "@shared/collection-api";
 import { CollectionArt } from "@/components/collection-art";
-import { FeaturedCollection, Shelf, SummaryRail } from "@/pages/collections";
+import {
+  CollectionFilters,
+  FeaturedCollection,
+  Shelf,
+  SummaryRail,
+  type CollectionFilter,
+} from "@/pages/collections";
 import "@/index.css";
 
 const award = {
@@ -120,6 +127,10 @@ const collections: CollectionListEntry[] = [
 
 function CollectionsFixture() {
   const requestedTheme = new URLSearchParams(window.location.search).get("theme");
+  const [activeFilter, setActiveFilter] = useState<CollectionFilter>("all");
+  const [sportFilter, setSportFilter] = useState("All");
+  const [seasonFilter, setSeasonFilter] = useState("All");
+  const [familyFilter, setFamilyFilter] = useState("All");
   document.documentElement.classList.toggle("dark", requestedTheme !== "light");
 
   return (
@@ -127,8 +138,8 @@ function CollectionsFixture() {
       className="min-h-screen overflow-x-hidden bg-canvas px-3 py-5 text-content sm:px-6 sm:py-8"
       data-testid="collections-fixture"
     >
-      <div className="mx-auto max-w-5xl space-y-7">
-        <header className="border-b border-border-subtle pb-4">
+      <div className="mx-auto max-w-5xl space-y-3 sm:space-y-5">
+        <header className="border-b border-border-subtle pb-3 sm:pb-4">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand">
             Collections
           </p>
@@ -139,31 +150,44 @@ function CollectionsFixture() {
         </header>
 
         <SummaryRail collections={collections} />
+        <CollectionFilters
+          collections={collections}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+          sportFilter={sportFilter}
+          onSportChange={setSportFilter}
+          seasonFilter={seasonFilter}
+          onSeasonChange={setSeasonFilter}
+          familyFilter={familyFilter}
+          onFamilyChange={setFamilyFilter}
+        />
         <FeaturedCollection collection={collections[0]} />
-        <Shelf
-          title="Threshold Clubs"
-          icon={<Layers className="h-4 w-4" aria-hidden="true" />}
-          collections={collections.slice(1, 3)}
-          testId="fixture-threshold-shelf"
-        />
-        <Shelf
-          title="Team & Postseason"
-          icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
-          collections={collections.slice(3, 5)}
-          testId="fixture-team-shelf"
-        />
-        <Shelf
-          title="Master Collections"
-          icon={<Trophy className="h-4 w-4" aria-hidden="true" />}
-          collections={[collections[5]]}
-          testId="fixture-master-shelf"
-        />
-        <Shelf
-          title="Trophy Case"
-          icon={<Trophy className="h-4 w-4" aria-hidden="true" />}
-          collections={collections.slice(6)}
-          testId="fixture-trophy-shelf"
-        />
+        <div className="space-y-6 sm:space-y-8">
+          <Shelf
+            title="Threshold Clubs"
+            icon={<Layers className="h-4 w-4" aria-hidden="true" />}
+            collections={collections.slice(1, 3)}
+            testId="fixture-threshold-shelf"
+          />
+          <Shelf
+            title="Team & Postseason"
+            icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
+            collections={collections.slice(3, 5)}
+            testId="fixture-team-shelf"
+          />
+          <Shelf
+            title="Master Collections"
+            icon={<Trophy className="h-4 w-4" aria-hidden="true" />}
+            collections={[collections[5]]}
+            testId="fixture-master-shelf"
+          />
+          <Shelf
+            title="Trophy Case"
+            icon={<Trophy className="h-4 w-4" aria-hidden="true" />}
+            collections={collections.slice(6)}
+            testId="fixture-trophy-shelf"
+          />
+        </div>
 
         <section aria-labelledby="detail-preview" className="space-y-4 pb-8">
           <div>
