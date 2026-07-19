@@ -236,6 +236,11 @@ function ErrorState({
 }
 
 export default function CollectionDetailPage() {
+  const [slotLayout, setSlotLayout] = useState<"list" | "grid">(() =>
+    typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches
+      ? "grid"
+      : "list",
+  );
   const [, params] = useRoute("/collections/:slug");
   const slug = params?.slug ?? "";
   const { user, isAuthenticated } = useAuth();
@@ -710,7 +715,7 @@ export default function CollectionDetailPage() {
         {/* Player slots are scan-friendly cards; quantity management lives in one focus-trapped sheet. */}
         {detail.kind === "player_slots" && detail.slots.length > 0 && (
           <section aria-labelledby="collection-slots-heading" className="space-y-3">
-            <div className="flex items-end justify-between gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-brand">
                   Roster
@@ -719,11 +724,44 @@ export default function CollectionDetailPage() {
                   Collection slots
                 </h2>
               </div>
-              <span className="font-mono text-xs text-muted-foreground">
-                {detail.qualifiedSlotCount}/{detail.requiredSlotCount} qualified
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-xs text-muted-foreground">
+                  {detail.qualifiedSlotCount}/{detail.requiredSlotCount} qualified
+                </span>
+                <div className="flex gap-1" role="group" aria-label="Slot layout">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={slotLayout === "list" ? "default" : "outline"}
+                    className="min-h-11"
+                    aria-pressed={slotLayout === "list"}
+                    data-testid="button-slot-layout-list"
+                    onClick={() => setSlotLayout("list")}
+                  >
+                    List
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={slotLayout === "grid" ? "default" : "outline"}
+                    className="min-h-11"
+                    aria-pressed={slotLayout === "grid"}
+                    data-testid="button-slot-layout-grid"
+                    onClick={() => setSlotLayout("grid")}
+                  >
+                    Grid
+                  </Button>
+                </div>
+              </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2" data-testid="collection-slots">
+            <div
+              className={cn(
+                "grid",
+                slotLayout === "grid" ? "grid-cols-2 gap-2 sm:gap-3" : "grid-cols-1 gap-2",
+              )}
+              data-layout={slotLayout}
+              data-testid="collection-slots"
+            >
               {detail.slots.map((slot) => {
                 const allocationActive = slot.allocation?.status === "active";
                 const allocated = slot.allocation?.allocatedQuantity ?? "0.0000";
@@ -767,7 +805,7 @@ export default function CollectionDetailPage() {
                   <article
                     key={slot.slotId}
                     className={cn(
-                      "relative overflow-hidden rounded-panel border border-border-subtle bg-surface p-4 shadow-low",
+                      "relative overflow-hidden rounded-panel border border-border-subtle bg-surface p-3 shadow-low",
                       fullyAllocated && "border-status-live/35",
                       !slot.isRequired && "border-dashed",
                     )}

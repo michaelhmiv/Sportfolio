@@ -116,6 +116,14 @@ describe("production collection page rendering", () => {
     expect(html).not.toContain("button-reactivate-collection");
   });
 
+  it("renders list and grid slot layout controls", () => {
+    const html = renderDetail(baseDetail);
+    expect(html).toContain('data-testid="button-slot-layout-list"');
+    expect(html).toContain('data-testid="button-slot-layout-grid"');
+    expect(html).toContain('data-layout="list"');
+    expect(html).toContain('aria-pressed="true"');
+  });
+
   it("renders Reactivate for an awarded ready collection", () => {
     const html = renderDetail({ ...baseDetail, award });
     expect(html).toContain("button-reactivate-collection");

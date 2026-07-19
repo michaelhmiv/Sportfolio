@@ -50,3 +50,15 @@ test("allocation disclosure is visible before confirmation", async ({ page }, te
   expect(bounds.right).toBeLessThanOrEqual(bounds.viewport);
   await expect(page).toHaveScreenshot("collection-allocation-disclosure.png");
 });
+
+test("slot layout toggle switches the production list to a compact grid", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-dark", "Single deterministic mobile proof");
+  await page.goto(fixtureUrl(testInfo.project.name));
+  await expect(page.getByTestId("collection-slots")).toHaveAttribute("data-layout", "list");
+  await page.getByTestId("button-slot-layout-grid").click();
+  await expect(page.getByTestId("collection-slots")).toHaveAttribute("data-layout", "grid");
+  await expect(page.getByTestId("button-slot-layout-grid")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("collection-slot-card-slot-skenes")).toBeVisible();
+});
