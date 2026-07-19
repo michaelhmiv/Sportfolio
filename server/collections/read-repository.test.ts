@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeMaxAllocatableQuantities, computeSlotAvailabilityDetails } from "./read-repository";
+import {
+  computeMaxAllocatableQuantities,
+  computeSlotAvailabilityDetails,
+  isCollectionPrerequisiteAvailable,
+} from "./read-repository";
 
 const units = (value: string) => {
   const [integer, fraction = ""] = value.split(".");
@@ -72,5 +76,14 @@ describe("computeSlotAvailabilityDetails", () => {
       lockedElsewhereQuantity: "0.0000",
       maxAllocatableQuantity: "0.0000",
     });
+  });
+});
+
+describe("isCollectionPrerequisiteAvailable", () => {
+  it("requires both the definition lifecycle and version state to be published", () => {
+    expect(isCollectionPrerequisiteAvailable("tracking", "tracking")).toBe(true);
+    expect(isCollectionPrerequisiteAvailable("final", "final")).toBe(true);
+    expect(isCollectionPrerequisiteAvailable("tracking", "draft")).toBe(false);
+    expect(isCollectionPrerequisiteAvailable("disabled", "final")).toBe(false);
   });
 });

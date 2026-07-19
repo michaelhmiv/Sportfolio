@@ -75,6 +75,15 @@ function defaultState(): CollectionProgressState {
 
 const QUANTITY_SCALE = BigInt(10_000);
 
+export function isCollectionPrerequisiteAvailable(
+  lifecycleStatus: string,
+  versionState: string,
+): boolean {
+  return (
+    ["tracking", "final"].includes(lifecycleStatus) && ["tracking", "final"].includes(versionState)
+  );
+}
+
 function parseQuantityUnits(value: string): bigint {
   const match = /^(\d+)(?:\.(\d{1,4}))?$/.exec(value);
   if (!match) return BigInt(0);
@@ -267,6 +276,7 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
             WHERE cp.master_version_id = ${collectionDefinitionVersions.id}
               AND cp.is_required = TRUE
               AND pd.lifecycle_status NOT IN ('tracking', 'final')
+              AND pv.state NOT IN ('tracking', 'final')
           )`,
         ),
       )
@@ -729,6 +739,7 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
         title: prerequisiteVersion.title,
         artKey: prerequisiteVersion.artKey,
         lifecycleStatus: prerequisiteDefinition.lifecycleStatus,
+        versionState: prerequisiteVersion.state,
         assemblyState: prerequisiteState.assemblyState,
         progressBps: prerequisiteState.progressBps,
       })
@@ -758,7 +769,9 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
       artKey: row.artKey,
       isRequired: row.isRequired,
       displayOrder: row.displayOrder,
-      isAvailable: ["tracking", "final"].includes(row.lifecycleStatus),
+      isAvailable:
+        ["tracking", "final"].includes(row.lifecycleStatus) &&
+        ["tracking", "final"].includes(row.versionState),
       state: {
         assemblyState: mapAssemblyState(row.assemblyState),
         progressBps: row.progressBps ?? 0,

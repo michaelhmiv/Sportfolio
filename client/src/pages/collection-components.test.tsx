@@ -215,11 +215,20 @@ describe("production collection page rendering", () => {
       prerequisites: [
         {
           prerequisiteId: "prereq-1",
+          slug: "optional-set",
+          title: "Optional Set",
+          artKey: "optional",
+          isRequired: false,
+          displayOrder: 1,
+          state: { assemblyState: "in_progress", progressBps: 5000 },
+        },
+        {
+          prerequisiteId: "prereq-2",
           slug: "child-set",
           title: "Child Set",
           artKey: "child",
           isRequired: true,
-          displayOrder: 1,
+          displayOrder: 2,
           state: { assemblyState: "in_progress", progressBps: 5000 },
         },
       ],
