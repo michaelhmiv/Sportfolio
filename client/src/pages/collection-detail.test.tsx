@@ -11,8 +11,10 @@ import {
   allocationInputWithinMaximum,
   canManageSlotAllocation,
   getCollectionCompletionPlan,
+  getCollectionSlotAvailabilityPercentage,
   getFirstActionableSlot,
   mutationErrorRequiresProjectionRefresh,
+  sortCollectionSlots,
 } from "./collection-detail";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -163,7 +165,47 @@ describe("allocation quantity validation", () => {
   });
 });
 
-// ── Completion lifecycle helpers ────────────────────────────────────────────
+describe("collection slot sorting", () => {
+  it("sorts by raw available percentage without using floating-point ordering", () => {
+    const half = makeSlot({
+      slotId: "half",
+      requiredQuantity: "1.0000",
+      maxAllocatableQuantity: "0.5000",
+    });
+    const quarter = makeSlot({
+      slotId: "quarter",
+      requiredQuantity: "4.0000",
+      maxAllocatableQuantity: "1.0000",
+    });
+
+    expect(getCollectionSlotAvailabilityPercentage(half)).toBe(50);
+    expect(getCollectionSlotAvailabilityPercentage(quarter)).toBe(25);
+    expect(
+      sortCollectionSlots([quarter, half], "availablePercentage", "desc").map(
+        (slot) => slot.slotId,
+      ),
+    ).toEqual(["half", "quarter"]);
+  });
+
+  it("sorts progress and preserves display order for ties", () => {
+    const partial = makeSlot({
+      slotId: "partial",
+      displayOrder: 2,
+      requiredQuantity: "2.0000",
+      allocation: { allocationId: "a1", allocatedQuantity: "1.0000", status: "active" },
+    });
+    const complete = makeSlot({
+      slotId: "complete",
+      displayOrder: 1,
+      requiredQuantity: "2.0000",
+      allocation: { allocationId: "a2", allocatedQuantity: "1.0000", status: "active" },
+    });
+
+    expect(
+      sortCollectionSlots([partial, complete], "progress", "asc").map((slot) => slot.slotId),
+    ).toEqual(["complete", "partial"]);
+  });
+});
 
 function resolveCompletionButton(
   assemblyState: string,
