@@ -7,6 +7,7 @@ import {
 } from "@/lib/collection-format";
 import {
   COLLECTION_FILTERS,
+  countActiveCollectionFacets,
   getCollectionPresentation,
   getCollectionSummary,
   getFeaturedCollection,
@@ -168,6 +169,11 @@ describe("Collection experience helpers", () => {
         makeEntry("inactive", { assemblyState: "inactive", award: awarded }),
       ).filter,
     ).toBe("earned");
+  });
+
+  it("counts only active advanced facets", () => {
+    expect(countActiveCollectionFacets("All", "All", "All")).toBe(0);
+    expect(countActiveCollectionFacets("MLB", "All", "Threshold Clubs")).toBe(2);
   });
 
   it("groups ordinary collections into normalized family shelves and excludes masters", () => {
