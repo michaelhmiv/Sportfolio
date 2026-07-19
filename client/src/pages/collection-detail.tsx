@@ -533,7 +533,7 @@ export default function CollectionDetailPage() {
   const firstManageableSlot = getFirstActionableSlot(detail.slots, isActive);
   const completionPlan = getCollectionCompletionPlan(detail.slots);
   const firstIncompletePrerequisite = detail.prerequisites.find(
-    (prerequisite) => prerequisite.state.assemblyState !== "active",
+    (prerequisite) => prerequisite.isRequired && prerequisite.state.assemblyState !== "active",
   );
 
   return (
