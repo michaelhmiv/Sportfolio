@@ -10,6 +10,7 @@ import {
 import {
   allocationInputWithinMaximum,
   canManageSlotAllocation,
+  getCollectionCompletionPlan,
   getFirstActionableSlot,
   mutationErrorRequiresProjectionRefresh,
 } from "./collection-detail";
@@ -144,7 +145,21 @@ describe("allocation quantity validation", () => {
     const next = makeSlot({ slotId: "next", maxAllocatableQuantity: "2.0000" });
 
     expect(getFirstActionableSlot([completed, unavailable, next], false)?.slotId).toBe("next");
-    expect(getFirstActionableSlot([next], true)).toBeUndefined();
+    expect(getFirstActionableSlot([completed], true)?.slotId).toBe("completed");
+  });
+
+  it("summarizes the exact remaining collection work", () => {
+    const plan = getCollectionCompletionPlan([
+      makeSlot({
+        slotId: "partial",
+        requiredQuantity: "2.0000",
+        allocation: { allocationId: "a1", allocatedQuantity: "0.5000", status: "active" },
+      }),
+      makeSlot({ slotId: "missing", requiredQuantity: "3.0000", allocation: null }),
+      makeSlot({ slotId: "optional", isRequired: false, requiredQuantity: "99.0000" }),
+    ]);
+
+    expect(plan).toEqual({ missingQuantity: "4.5000", missingSlotCount: 2 });
   });
 });
 

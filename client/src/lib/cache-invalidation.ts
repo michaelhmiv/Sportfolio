@@ -66,6 +66,7 @@ export function debouncedInvalidatePortfolio(): void {
     queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] });
     queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
     queryClient.invalidateQueries({ queryKey: ["/api/activity"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/me/collections"] });
   });
 }
 
@@ -78,6 +79,7 @@ export function debouncedInvalidateScouts(): void {
     queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
     queryClient.invalidateQueries({ queryKey: ["/api/scouts"] });
     queryClient.invalidateQueries({ queryKey: ["/api/activity"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/me/collections"] });
   });
 }
 
@@ -125,6 +127,7 @@ export async function invalidatePortfolioQueries(): Promise<void> {
     queryClient.invalidateQueries({ queryKey: ["/api/players"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/player"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/trades/history"] }),
+    queryClient.invalidateQueries({ queryKey: ["/api/me/collections"] }),
   ]);
 }
 

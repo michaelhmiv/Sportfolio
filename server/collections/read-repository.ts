@@ -125,6 +125,38 @@ export function computeMaxAllocatableQuantities(
   locksByAsset: Map<string, Map<string, bigint>>,
 ): Map<number, string> {
   const result = new Map<number, string>();
+  for (const [index, detail] of computeSlotAvailabilityDetails(
+    slots,
+    playerIdToAllIds,
+    holdingsByAsset,
+    locksByAsset,
+  )) {
+    result.set(index, detail.maxAllocatableQuantity);
+  }
+  return result;
+}
+
+export function computeSlotAvailabilityDetails(
+  slots: SlotAvailabilityInput[],
+  playerIdToAllIds: Map<string, Set<string>>,
+  holdingsByAsset: Map<string, bigint>,
+  locksByAsset: Map<string, Map<string, bigint>>,
+): Map<
+  number,
+  {
+    ownedQuantity: string;
+    lockedElsewhereQuantity: string;
+    maxAllocatableQuantity: string;
+  }
+> {
+  const result = new Map<
+    number,
+    {
+      ownedQuantity: string;
+      lockedElsewhereQuantity: string;
+      maxAllocatableQuantity: string;
+    }
+  >();
 
   slots.forEach((slot, index) => {
     if (!slot.playerId) return;
@@ -144,7 +176,11 @@ export function computeMaxAllocatableQuantities(
 
     const available = held > locked ? held - locked : BigInt(0);
     const required = parseQuantityUnits(slot.requiredQuantity);
-    result.set(index, formatQuantityUnits(available < required ? available : required));
+    result.set(index, {
+      ownedQuantity: formatQuantityUnits(held),
+      lockedElsewhereQuantity: formatQuantityUnits(locked),
+      maxAllocatableQuantity: formatQuantityUnits(available < required ? available : required),
+    });
   });
 
   return result;
@@ -223,6 +259,15 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
             eq(collectionDefinitionVersions.state, "tracking"),
             eq(collectionDefinitionVersions.state, "final"),
           ),
+          sql<boolean>`NOT EXISTS (
+            SELECT 1
+            FROM collection_prerequisites cp
+            JOIN collection_definition_versions pv ON pv.id = cp.prerequisite_version_id
+            JOIN collection_definitions pd ON pd.id = pv.definition_id
+            WHERE cp.master_version_id = ${collectionDefinitionVersions.id}
+              AND cp.is_required = TRUE
+              AND pd.lifecycle_status NOT IN ('tracking', 'final')
+          )`,
         ),
       )
       .orderBy(
@@ -422,6 +467,9 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
     // Fetch prerequisites (for master collections).
     const prerequisites =
       base.kind === "master" ? await this.fetchPrerequisites(userId, base.versionId) : [];
+    if (prerequisites.some((entry) => entry.isRequired && entry.isAvailable === false)) {
+      return null;
+    }
 
     const requiredEntries =
       base.kind === "master"
@@ -522,7 +570,7 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
 
     // Compute maxAllocatableQuantity for slots with players.
     const playerIds = [...new Set(rows.map((r) => r.playerId).filter(Boolean))] as string[];
-    const availabilityMap = await this.computeMaxAllocatableMap(
+    const availabilityMap = await this.computeSlotAvailabilityMap(
       userId,
       playerIds,
       rows.map((r) => ({
@@ -554,7 +602,11 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
           }
         : null,
       maxAllocatableQuantity: row.playerId
-        ? (availabilityMap.get(idx) ?? row.requiredQuantity)
+        ? (availabilityMap.get(idx)?.maxAllocatableQuantity ?? row.requiredQuantity)
+        : null,
+      ownedQuantity: row.playerId ? (availabilityMap.get(idx)?.ownedQuantity ?? "0.0000") : null,
+      lockedElsewhereQuantity: row.playerId
+        ? (availabilityMap.get(idx)?.lockedElsewhereQuantity ?? "0.0000")
         : null,
       player: row.playerId
         ? {
@@ -572,7 +624,7 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
    * Compute max allocatable quantity for each slot by looking up user holdings
    * and locks (excluding the slot's own lock).  Returns a Map<slotIndex, quantity string>.
    */
-  private async computeMaxAllocatableMap(
+  private async computeSlotAvailabilityMap(
     userId: string,
     playerIds: string[],
     slotMeta: Array<{
@@ -580,7 +632,16 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
       lockReferenceId: string | null;
       requiredQuantity: string;
     }>,
-  ): Promise<Map<number, string>> {
+  ): Promise<
+    Map<
+      number,
+      {
+        ownedQuantity: string;
+        lockedElsewhereQuantity: string;
+        maxAllocatableQuantity: string;
+      }
+    >
+  > {
     if (playerIds.length === 0) return new Map();
 
     // Resolve canonical identities for all distinct player IDs
@@ -643,7 +704,7 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
       locksByAsset.get(r.asset_id)!.set(r.lock_reference_id, parseQuantityUnits(r.locked));
     }
 
-    return computeMaxAllocatableQuantities(
+    return computeSlotAvailabilityDetails(
       slotMeta,
       playerIdToAllIds,
       holdingsByAsset,
@@ -667,6 +728,7 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
         slug: prerequisiteDefinition.slug,
         title: prerequisiteVersion.title,
         artKey: prerequisiteVersion.artKey,
+        lifecycleStatus: prerequisiteDefinition.lifecycleStatus,
         assemblyState: prerequisiteState.assemblyState,
         progressBps: prerequisiteState.progressBps,
       })
@@ -696,6 +758,7 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
       artKey: row.artKey,
       isRequired: row.isRequired,
       displayOrder: row.displayOrder,
+      isAvailable: ["tracking", "final"].includes(row.lifecycleStatus),
       state: {
         assemblyState: mapAssemblyState(row.assemblyState),
         progressBps: row.progressBps ?? 0,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rememberCollectionEvent } from "./websocket";
+import { collectionMembershipNotice, rememberCollectionEvent } from "./websocket";
 
 describe("rememberCollectionEvent", () => {
   it("accepts the first delivery and rejects duplicates", () => {
@@ -18,5 +18,20 @@ describe("rememberCollectionEvent", () => {
 
     expect([...seen]).toEqual(["event-2", "event-3"]);
     expect(rememberCollectionEvent(seen, "event-1", 2)).toBe(true);
+  });
+});
+
+describe("collectionMembershipNotice", () => {
+  it("notifies for leaderboard refreshes and ignores ordinary collection events", () => {
+    expect(
+      collectionMembershipNotice({
+        type: "collections",
+        eventType: "membership_changed",
+        reason: "tracking_refresh",
+      }),
+    ).toContain("automatically released");
+    expect(
+      collectionMembershipNotice({ type: "collections", eventType: "allocation_changed" }),
+    ).toBeNull();
   });
 });

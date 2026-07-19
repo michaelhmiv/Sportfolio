@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeMaxAllocatableQuantities } from "./read-repository";
+import { computeMaxAllocatableQuantities, computeSlotAvailabilityDetails } from "./read-repository";
 
 const units = (value: string) => {
   const [integer, fraction = ""] = value.split(".");
@@ -44,5 +44,33 @@ describe("computeMaxAllocatableQuantities", () => {
     );
 
     expect(result.get(0)).toBe("0.0000");
+  });
+});
+
+describe("computeSlotAvailabilityDetails", () => {
+  it("distinguishes no holdings from holdings locked by another collection", () => {
+    const result = computeSlotAvailabilityDetails(
+      [
+        { playerId: "owned", lockReferenceId: null, requiredQuantity: "2.0000" },
+        { playerId: "unowned", lockReferenceId: null, requiredQuantity: "2.0000" },
+      ],
+      new Map([
+        ["owned", new Set(["owned"])],
+        ["unowned", new Set(["unowned"])],
+      ]),
+      new Map([["owned", units("1.5000")]]),
+      new Map([["owned", new Map([["another-collection", units("1.5000")]])]]),
+    );
+
+    expect(result.get(0)).toEqual({
+      ownedQuantity: "1.5000",
+      lockedElsewhereQuantity: "1.5000",
+      maxAllocatableQuantity: "0.0000",
+    });
+    expect(result.get(1)).toEqual({
+      ownedQuantity: "0.0000",
+      lockedElsewhereQuantity: "0.0000",
+      maxAllocatableQuantity: "0.0000",
+    });
   });
 });
