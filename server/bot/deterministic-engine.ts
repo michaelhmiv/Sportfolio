@@ -405,20 +405,23 @@ async function buildFeasibleActionParams(
       }
 
       const price = target.currentPrice || target.lastTradePrice || 10.0;
-      const sharesToDeposit = Math.min(Math.floor(availableShares), 5);
+      const sharesToDeposit = Math.min(
+        Math.floor(availableShares),
+        5,
+        Math.floor(state.profile.maxOrderSb / price),
+        Math.floor(state.balance / price),
+      );
       if (sharesToDeposit < 1) {
         return null;
       }
 
-      const requiredBalance = sharesToDeposit * price;
-      if (requiredBalance > state.profile.maxOrderSb) {
-        return null;
-      }
-      if (state.balance < requiredBalance) {
-        return null;
-      }
-
-      return { params: { fairValue: price } };
+      return {
+        params: {
+          fairValue: price,
+          shares: sharesToDeposit,
+          sbAmount: sharesToDeposit * price,
+        },
+      };
     }
     case "pool_add_liquidity": {
       if (availableShares < 1) {
@@ -622,24 +625,24 @@ function getCoverageFallbackPriority(stage: BotStage): ActionType[] {
     case "scouting":
       return ["scout_assign"];
     case "accumulating":
-      return ["stack_shares", "buy", "scout_assign", "scout_rebalance"];
+      return ["pool_create", "buy", "sell", "stack_shares", "scout_assign", "scout_rebalance"];
     case "pool_building":
       return [
-        "stack_shares",
         "pool_create",
         "buy",
-        "pool_add_liquidity",
         "sell",
+        "pool_add_liquidity",
+        "stack_shares",
         "scout_assign",
         "scout_rebalance",
       ];
     case "steady_state":
       return [
-        "stack_shares",
         "pool_create",
         "buy",
-        "pool_add_liquidity",
         "sell",
+        "pool_add_liquidity",
+        "stack_shares",
         "boost_assign",
         "scout_assign",
         "scout_rebalance",
@@ -666,6 +669,14 @@ function buildActionAttemptOrder(
     if (!allowed(fallbackAction)) continue;
     if (sequence.includes(fallbackAction)) continue;
     sequence.push(fallbackAction);
+  }
+
+  // Keep stacking as a fallback so it cannot consume the tick ahead of a
+  // feasible market action.
+  const stackIndex = sequence.indexOf("stack_shares");
+  if (stackIndex >= 0) {
+    sequence.splice(stackIndex, 1);
+    sequence.push("stack_shares");
   }
 
   return sequence;
@@ -1162,6 +1173,7 @@ export async function getDeterministicEngineStatus() {
 }
 
 export const __deterministicEngineTestHooks = {
+  buildActionAttemptOrder,
   buildFeasibleActionParams,
   filterActionAttemptOrder,
   findFeasibleBuyAmount,

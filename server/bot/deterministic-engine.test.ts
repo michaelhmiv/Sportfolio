@@ -39,6 +39,7 @@ import {
   computeClampedSportTargets,
   isBotEngineEnabled,
 } from "./deterministic-engine";
+import { getStageAllowedActions } from "./bot-profiles-v2";
 import type { ActionType } from "./bot-profiles-v2";
 
 function collectSqlStrings(value: unknown, seen = new Set<object>()): string[] {
@@ -149,6 +150,30 @@ describe("deterministic-engine policy utilities", () => {
     expect(isBotEngineEnabled("false")).toBe(false);
     expect(isBotEngineEnabled("0")).toBe(false);
     expect(isBotEngineEnabled("off")).toBe(false);
+  });
+
+  it("allows accumulating bots to create pools and sell held shares", () => {
+    expect(getStageAllowedActions("accumulating")).toEqual([
+      "scout_assign",
+      "scout_rebalance",
+      "pool_create",
+      "buy",
+      "sell",
+      "stack_shares",
+    ]);
+  });
+
+  it("tries market actions before stacking when stacking is the primary action", () => {
+    const order = __deterministicEngineTestHooks.buildActionAttemptOrder(
+      "pool_building",
+      {
+        allowedActions: ["pool_create", "pool_add_liquidity", "buy", "sell", "stack_shares"],
+      } as any,
+      "stack_shares",
+    );
+
+    expect(order.indexOf("stack_shares")).toBeGreaterThan(order.indexOf("buy"));
+    expect(order.indexOf("stack_shares")).toBeGreaterThan(order.indexOf("sell"));
   });
 
   it("computes clamped, normalized sport targets", () => {
@@ -377,5 +402,32 @@ describe("deterministic-engine policy utilities", () => {
     );
 
     expect(quote).toBeNull();
+  });
+
+  it("sizes first-pool creation to one affordable share when needed", async () => {
+    const result = await __deterministicEngineTestHooks.buildFeasibleActionParams(
+      "pool_create",
+      {
+        playerId: "player-1",
+        playerName: "Player One",
+        sport: "NBA",
+        team: "TST",
+        position: "G",
+        hasPool: false,
+        totalTrades: 0,
+        lastTradePrice: 100,
+        currentPrice: 100,
+        fairValue: null,
+        hasUpcomingGame: false,
+        score: 0,
+      },
+      {
+        profile: { maxOrderSb: 150 } as any,
+        balance: 150,
+      } as any,
+      new Map([["player-1", 5]]),
+    );
+
+    expect(result?.params).toEqual({ fairValue: 100, shares: 1, sbAmount: 100 });
   });
 });
