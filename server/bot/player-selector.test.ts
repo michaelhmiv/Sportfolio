@@ -45,6 +45,39 @@ describe("player-selector policy guards", () => {
     expect(result).toBe(false);
   });
 
+  it("does not apply market caps to stacking or boost actions", () => {
+    const marketActionTypes = new Set<ActionType>([
+      "pool_create",
+      "pool_add_liquidity",
+      "buy",
+      "sell",
+    ]);
+
+    expect(
+      shouldBlockMarketActionForPlayer({
+        actionType: "stack_shares",
+        marketActionTypes,
+        playerId: "player_4",
+        botCountsByPlayer: new Map([["player_4", 4]]),
+        globalCountsByPlayer: new Map([["player_4", 4]]),
+        maxBotActionsPerPlayer24h: 1,
+        maxGlobalActionsPerPlayer24h: 4,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldBlockMarketActionForPlayer({
+        actionType: "boost_assign",
+        marketActionTypes,
+        playerId: "player_4",
+        botCountsByPlayer: new Map([["player_4", 4]]),
+        globalCountsByPlayer: new Map([["player_4", 4]]),
+        maxBotActionsPerPlayer24h: 1,
+        maxGlobalActionsPerPlayer24h: 4,
+      }),
+    ).toBe(false);
+  });
+
   it("flags sports that exceed their target share plus tolerance", () => {
     const result = isSportOverTarget({
       sport: "NBA",

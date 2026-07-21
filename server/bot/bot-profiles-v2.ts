@@ -40,14 +40,7 @@ export interface BotEnginePolicy {
 }
 
 export const BOT_ENGINE_POLICY: BotEnginePolicy = {
-  marketActionTypes: [
-    "pool_create",
-    "pool_add_liquidity",
-    "buy",
-    "sell",
-    "boost_assign",
-    "stack_shares",
-  ],
+  marketActionTypes: ["pool_create", "pool_add_liquidity", "buy", "sell"],
   lookbackHours: {
     playerCooldown: 24,
     sportMix: 24,
@@ -306,7 +299,7 @@ export function getStageAllowedActions(stage: BotStage): ActionType[] {
     case "scouting":
       return ["scout_assign"];
     case "accumulating":
-      return ["scout_assign", "scout_rebalance", "buy", "stack_shares"];
+      return ["scout_assign", "scout_rebalance", "pool_create", "buy", "sell", "stack_shares"];
     case "pool_building":
       return [
         "scout_assign",

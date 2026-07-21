@@ -197,9 +197,22 @@ async function executePoolCreate(
     };
   }
 
-  // Deposit up to 5 shares (or available), with proportional SB
-  const sharesToDeposit = Math.min(Math.floor(availableShares), 5);
-  const sbToDeposit = sharesToDeposit * pricePerShare;
+  // Deposit only what feasibility approved; fall back for manual callers.
+  const sharesToDeposit = params.shares
+    ? Math.min(Math.floor(params.shares), Math.floor(availableShares), 5)
+    : Math.min(Math.floor(availableShares), 5);
+  const sbToDeposit = params.sbAmount || sharesToDeposit * pricePerShare;
+
+  if (sharesToDeposit < 1 || sbToDeposit <= 0) {
+    return {
+      actionType: "pool_create",
+      playerId: player.playerId,
+      playerName: player.playerName,
+      success: false,
+      details: { availableShares, sharesToDeposit, sbToDeposit },
+      errorMessage: "Insufficient pool-create amount",
+    };
+  }
 
   // Check balance
   const [user] = await db
