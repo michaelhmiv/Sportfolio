@@ -196,7 +196,7 @@ function CompactIdentity({ identity }: { identity: PublicUserIdentity }) {
 
 function RankedIdentity({ identity, rank }: { identity: PublicUserIdentity; rank?: number }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       <span
         data-testid="rank-number"
         className="w-5 text-center text-sm font-bold text-muted-foreground tabular-nums shrink-0"
@@ -354,6 +354,7 @@ export function UserIdentity({ variant, identity, rank, className }: UserIdentit
       className={cn(
         "inline-block cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm",
         "motion-safe:transition-opacity",
+        variant === "ranked" && "min-w-0 max-w-full",
         className,
       )}
     >

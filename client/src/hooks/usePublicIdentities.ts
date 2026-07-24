@@ -1,11 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type {
-  PublicUserIdentity,
-  PublicIdentityBatchResponse,
-} from "@shared/public-user-identity";
+import type { PublicUserIdentity, PublicIdentityBatchResponse } from "@shared/public-user-identity";
 
 const STALE_TIME = 30_000;
+const MAX_BATCH_SIZE = 100;
 
 function isBlankOrPool(id: string): boolean {
   return !id.trim() || id.trim().toLowerCase().startsWith("pool");
@@ -20,9 +18,7 @@ function buildQueryKey(userIds: string[]) {
   return ["/api/public-identities", ...cleaned];
 }
 
-export function usePublicIdentities(
-  userIds: string[],
-): Record<string, PublicUserIdentity | null> {
+export function usePublicIdentities(userIds: string[]): Record<string, PublicUserIdentity | null> {
   const validIds = userIds.filter((id) => !isBlankOrPool(id));
   const deduped = dedupe(validIds);
 
@@ -32,10 +28,17 @@ export function usePublicIdentities(
       if (deduped.length === 0) {
         return { identities: [] };
       }
-      const res = await apiRequest("POST", "/api/public-identities/resolve", {
-        userIds: deduped,
-      });
-      return res.json() as Promise<PublicIdentityBatchResponse>;
+      const batches: string[][] = [];
+      for (let index = 0; index < deduped.length; index += MAX_BATCH_SIZE) {
+        batches.push(deduped.slice(index, index + MAX_BATCH_SIZE));
+      }
+      const responses = await Promise.all(
+        batches.map(async (userIds) => {
+          const res = await apiRequest("POST", "/api/public-identities/resolve", { userIds });
+          return res.json() as Promise<PublicIdentityBatchResponse>;
+        }),
+      );
+      return { identities: responses.flatMap((response) => response.identities) };
     },
     staleTime: STALE_TIME,
     enabled: deduped.length > 0,
