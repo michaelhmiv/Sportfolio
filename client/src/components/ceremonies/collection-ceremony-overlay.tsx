@@ -1,7 +1,7 @@
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { Link } from "wouter";
 import {
-  X,
   Sparkles,
   TrendingUp,
   Target,
@@ -14,6 +14,8 @@ import {
   Trophy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { CollectionArt } from "@/components/collection-art";
 import { normalizeCollectionFamily } from "@/components/collections/collection-visual-theme";
@@ -31,6 +33,7 @@ export interface CollectionCeremonyData {
 export interface CollectionCeremonyOverlayProps {
   isOpen: boolean;
   data: CollectionCeremonyData | null;
+  showcaseHref?: string;
   onClose: () => void;
 }
 
@@ -232,6 +235,7 @@ function FamilyIcon({
 export function CollectionCeremonyOverlay({
   isOpen,
   data,
+  showcaseHref,
   onClose,
 }: CollectionCeremonyOverlayProps) {
   const [phase, setPhase] = useState<"intro" | "reveal" | "celebrate" | "outro">("intro");
@@ -240,173 +244,176 @@ export function CollectionCeremonyOverlay({
   useEffect(() => {
     if (isOpen && data) {
       setPhase("intro");
-      const timers = [
+      const timers: ReturnType<typeof setTimeout>[] = [
         setTimeout(() => setPhase("reveal"), prefersReducedMotion ? 0 : 300),
         setTimeout(() => setPhase("celebrate"), prefersReducedMotion ? 0 : 1000),
-        setTimeout(() => setPhase("outro"), prefersReducedMotion ? 0 : 3500),
-        setTimeout(() => onClose(), prefersReducedMotion ? 4000 : 4500),
       ];
+      if (!showcaseHref) {
+        timers.push(
+          setTimeout(() => setPhase("outro"), prefersReducedMotion ? 0 : 3500),
+          setTimeout(() => onClose(), prefersReducedMotion ? 4000 : 4500),
+        );
+      }
       return () => timers.forEach(clearTimeout);
     }
-  }, [isOpen, data, prefersReducedMotion, onClose]);
+  }, [isOpen, data, prefersReducedMotion, showcaseHref, onClose]);
 
   if (!isOpen || !data) return null;
 
   const visuals = getFamilyVisuals(data.family, data.kind);
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm"
-        onClick={onClose}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ceremony-title"
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-w-md overflow-visible border-0 bg-transparent p-0 shadow-none"
       >
-        <motion.button
+        <DialogTitle className="sr-only">{visuals.label} Complete</DialogTitle>
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: prefersReducedMotion ? 0 : 0.5 }}
-          className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-control border border-border/60 text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Close ceremony"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+          className="w-full"
+          onClick={showcaseHref ? undefined : onClose}
         >
-          <X className="w-5 h-5" />
-        </motion.button>
-
-        <div className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-            className="text-center mb-8"
-          >
-            <div
-              className={cn(
-                "inline-flex items-center gap-2 rounded-compact px-4 py-2 border",
-                visuals.bgColor,
-                visuals.borderColor,
-              )}
-            >
-              <FamilyIcon family={data.family} kind={data.kind} className={visuals.textColor} />
-              <span id="ceremony-title" className={cn("text-sm font-medium", visuals.textColor)}>
-                {visuals.label} Complete
-              </span>
-            </div>
-          </motion.div>
-
-          {/* Main content */}
-          <div className="relative">
-            {/* Collection art */}
+          <div className="w-full">
+            {/* Header */}
             <motion.div
-              initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{
-                duration: prefersReducedMotion ? 0 : 0.3,
-                delay: prefersReducedMotion ? 0 : 0.1,
-              }}
-              className="relative mb-4 overflow-hidden rounded-compact border p-4"
-              style={{ backgroundColor: visuals.bgColor.replace("bg-", "").replace("/10", "/10") }}
-            >
-              <CollectionArt
-                artKey={data.artKey}
-                sport={data.sport}
-                family={data.family}
-                kind={data.kind}
-                title={data.title}
-                assemblyState="active"
-                award={{ completionSequence: data.completionSequence ?? null }}
-                className="w-24 h-24 mx-auto"
-              />
-
-              {/* Energy ring during celebrate phase */}
-              {phase === "celebrate" && !prefersReducedMotion && (
-                <motion.div
-                  className="absolute inset-0 pointer-events-none"
-                  animate={{
-                    boxShadow: [
-                      `0 0 0 0 ${visuals.color}00`,
-                      `0 0 40px 20px ${visuals.color}30`,
-                      `0 0 0 0 ${visuals.color}00`,
-                    ],
-                  }}
-                  transition={{ duration: 1.5, repeat: 1 }}
-                />
-              )}
-
-              {/* Sparkle particles */}
-              {phase === "celebrate" && !prefersReducedMotion && (
-                <div className="absolute inset-0 pointer-events-none">
-                  {[...Array(12)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute w-2 h-2 rounded-full"
-                      style={{ backgroundColor: visuals.color }}
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{
-                        opacity: [0, 1, 0],
-                        scale: [0, 1, 0.5],
-                        x: [0, Math.cos((i * 30 * Math.PI) / 180) * 120],
-                        y: [0, Math.sin((i * 30 * Math.PI) / 180) * 120],
-                      }}
-                      transition={{ duration: 1.5, delay: 0.1 * i }}
-                    />
-                  ))}
-                </div>
-              )}
-            </motion.div>
-
-            {/* Title & Points */}
-            <motion.div
-              initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
+              initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: prefersReducedMotion ? 0 : 0.3,
-                delay: prefersReducedMotion ? 0 : 0.2,
-              }}
-              className="text-center"
+              transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
+              className="text-center mb-8"
             >
-              <h2 className="font-mono text-xl font-bold uppercase tracking-tight text-content">
-                {data.title}
-              </h2>
-              <div className="mt-2 flex items-center justify-center gap-2">
-                {" "}
-                {data.rarityTier && (
-                  <Badge variant="outline" className={cn("gap-1", visuals.borderColor)}>
-                    <Sparkles className="w-3 h-3" />
-                    <span className="font-mono font-semibold text-xs">{data.rarityTier}</span>
-                  </Badge>
+              <div
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-compact px-4 py-2 border",
+                  visuals.bgColor,
+                  visuals.borderColor,
                 )}
-                {data.completionSequence && (
-                  <Badge variant="outline" className="gap-1 border-muted-foreground/30">
-                    <span className="font-mono font-semibold text-xs">
-                      #{data.completionSequence}
-                    </span>
-                  </Badge>
-                )}
+              >
+                <FamilyIcon family={data.family} kind={data.kind} className={visuals.textColor} />
+                <span className={cn("text-sm font-medium", visuals.textColor)}>
+                  {visuals.label} Complete
+                </span>
               </div>
             </motion.div>
 
-            {/* Close hint */}
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: phase === "celebrate" ? 1 : 0 }}
-              transition={{ delay: prefersReducedMotion ? 0 : 0.5 }}
-              className="text-center text-xs text-muted-foreground mt-6"
-            >
-              Click anywhere to close
-            </motion.p>
+            {/* Main content */}
+            <div className="relative">
+              {/* Collection art */}
+              <motion.div
+                initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0 : 0.3,
+                  delay: prefersReducedMotion ? 0 : 0.1,
+                }}
+                className="relative mb-4 overflow-hidden rounded-compact border p-4"
+                style={{
+                  backgroundColor: visuals.bgColor.replace("bg-", "").replace("/10", "/10"),
+                }}
+              >
+                <CollectionArt
+                  artKey={data.artKey}
+                  sport={data.sport}
+                  family={data.family}
+                  kind={data.kind}
+                  title={data.title}
+                  assemblyState="active"
+                  award={{ completionSequence: data.completionSequence ?? null }}
+                  className="w-24 h-24 mx-auto"
+                />
+
+                {/* Energy ring during celebrate phase */}
+                {phase === "celebrate" && !prefersReducedMotion && (
+                  <motion.div
+                    className="absolute inset-0 pointer-events-none"
+                    animate={{
+                      boxShadow: [
+                        `0 0 0 0 ${visuals.color}00`,
+                        `0 0 40px 20px ${visuals.color}30`,
+                        `0 0 0 0 ${visuals.color}00`,
+                      ],
+                    }}
+                    transition={{ duration: 1.5, repeat: 1 }}
+                  />
+                )}
+
+                {/* Sparkle particles */}
+                {phase === "celebrate" && !prefersReducedMotion && (
+                  <div className="absolute inset-0 pointer-events-none">
+                    {[...Array(12)].map((_, i) => (
+                      <motion.div
+                        key={i}
+                        className="absolute w-2 h-2 rounded-full"
+                        style={{ backgroundColor: visuals.color }}
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{
+                          opacity: [0, 1, 0],
+                          scale: [0, 1, 0.5],
+                          x: [0, Math.cos((i * 30 * Math.PI) / 180) * 120],
+                          y: [0, Math.sin((i * 30 * Math.PI) / 180) * 120],
+                        }}
+                        transition={{ duration: 1.5, delay: 0.1 * i }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+
+              {/* Title & Points */}
+              <motion.div
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0 : 0.3,
+                  delay: prefersReducedMotion ? 0 : 0.2,
+                }}
+                className="text-center"
+              >
+                <h2 className="font-mono text-xl font-bold uppercase tracking-tight text-content">
+                  {data.title}
+                </h2>
+                <div className="mt-2 flex items-center justify-center gap-2">
+                  {" "}
+                  {data.rarityTier && (
+                    <Badge variant="outline" className={cn("gap-1", visuals.borderColor)}>
+                      <Sparkles className="w-3 h-3" />
+                      <span className="font-mono font-semibold text-xs">{data.rarityTier}</span>
+                    </Badge>
+                  )}
+                  {data.completionSequence && (
+                    <Badge variant="outline" className="gap-1 border-muted-foreground/30">
+                      <span className="font-mono font-semibold text-xs">
+                        #{data.completionSequence}
+                      </span>
+                    </Badge>
+                  )}
+                </div>
+              </motion.div>
+
+              {showcaseHref && phase === "celebrate" && (
+                <div className="mt-5 flex justify-center">
+                  <Button asChild variant="terminal">
+                    <Link href={showcaseHref}>Manage Trophy Case</Link>
+                  </Button>
+                </div>
+              )}
+
+              {/* Close hint */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: phase === "celebrate" ? 1 : 0 }}
+                transition={{ delay: prefersReducedMotion ? 0 : 0.5 }}
+                className="text-center text-xs text-muted-foreground mt-6"
+              >
+                {showcaseHref ? "Tap outside to close" : "Click anywhere to close"}
+              </motion.p>
+            </div>
           </div>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+        </motion.div>
+      </DialogContent>
+    </Dialog>
   );
 }

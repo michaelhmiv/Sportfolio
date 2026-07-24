@@ -50,6 +50,31 @@ export interface LeaderboardEntry {
   rankChange: number | null;
 }
 
+export type LeaderboardCandidate = Omit<LeaderboardEntry, "rank"> & { eligible: boolean };
+
+export function isLeaderboardEligibleUser(user: {
+  id: string;
+  isBot: boolean;
+  deletedAt: Date | null;
+}): boolean {
+  return !user.isBot && !user.deletedAt && user.id !== "dev-user-12345678";
+}
+
+export function hasLeaderboardValue(value: number): boolean {
+  return value !== 0;
+}
+
+export function rankLeaderboardEntries(entries: LeaderboardCandidate[]): LeaderboardEntry[] {
+  return entries
+    .filter((entry) => entry.eligible && hasLeaderboardValue(entry.value))
+    .sort((a, b) => b.value - a.value || a.userId.localeCompare(b.userId))
+    .map(({ eligible: _eligible, ...entry }, index) => ({
+      ...entry,
+      rank: index + 1,
+      value: Math.round(entry.value * 100) / 100,
+    }));
+}
+
 export function normalizeLeaderboardCategory(input?: string | null): LeaderboardCategory | null {
   if (!input) {
     return "netWorth";

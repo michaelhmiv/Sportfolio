@@ -168,7 +168,9 @@ import {
   buildLeaderboardWindow,
   getLeaderboardMeta,
   getLeaderboardRankChange,
+  isLeaderboardEligibleUser,
   normalizeLeaderboardCategory,
+  rankLeaderboardEntries,
   type LeaderboardCategory,
   type LeaderboardEntry,
 } from "./leaderboards";
@@ -6490,40 +6492,34 @@ ${items}
         async () => {
           const meta = getLeaderboardMeta(category);
           const allUsers = await storage.getUsers();
-          const rankEntries = (
-            entries: Array<Omit<LeaderboardEntry, "rank">>,
-          ): LeaderboardEntry[] =>
-            entries
-              .sort((a, b) => b.value - a.value || a.username.localeCompare(b.username))
-              .map((entry, index) => ({
-                ...entry,
-                rank: index + 1,
-                value: roundToTwo(entry.value),
-              }));
-
+          const eligibleUserIds = new Set(
+            allUsers.filter(isLeaderboardEligibleUser).map((user) => user.id),
+          );
           let leaderboard: LeaderboardEntry[] = [];
 
           if (category === "marketOrders") {
-            leaderboard = rankEntries(
+            leaderboard = rankLeaderboardEntries(
               allUsers.map((user) => ({
                 userId: user.id,
                 username: user.username || "Unknown",
                 profileImageUrl: user.profileImageUrl || null,
                 value: user.totalMarketOrders,
                 rankChange: null,
+                eligible: eligibleUserIds.has(user.id),
               })),
             );
           } else if (category === "tradingVolume24h") {
             const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
             const volumeByUser = await storage.getUserTradingVolumeSince(since);
 
-            leaderboard = rankEntries(
+            leaderboard = rankLeaderboardEntries(
               allUsers.map((user) => ({
                 userId: user.id,
                 username: user.username || "Unknown",
                 profileImageUrl: user.profileImageUrl || null,
                 value: volumeByUser.get(user.id) || 0,
                 rankChange: null,
+                eligible: eligibleUserIds.has(user.id),
               })),
             );
           } else {
@@ -6533,7 +6529,7 @@ ${items}
             ]);
             const userMap = new Map(allUsers.map((user) => [user.id, user]));
 
-            leaderboard = rankEntries(
+            leaderboard = rankLeaderboardEntries(
               usersForRanking.map((userData) => {
                 const user = userMap.get(userData.userId);
                 const snapshotRank = latestSnapshotRanks.get(userData.userId);
@@ -6558,6 +6554,7 @@ ${items}
                   profileImageUrl: user?.profileImageUrl || null,
                   value,
                   rankChange: previousRank ?? null,
+                  eligible: eligibleUserIds.has(userData.userId),
                 };
               }),
             ).map((entry) => ({

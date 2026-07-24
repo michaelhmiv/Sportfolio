@@ -16,6 +16,7 @@ import { eq, sql, desc } from "drizzle-orm";
 import { users, holdings, players, portfolioSnapshots } from "@shared/schema";
 import { db } from "../db";
 import { takeMarketSnapshot } from "./market-snapshot";
+import { hasLeaderboardValue, isLeaderboardEligibleUser } from "../leaderboards";
 
 interface UserPortfolioData {
   userId: string;
@@ -61,14 +62,22 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     });
 
     // Use the optimized storage method that performs a single JOIN query
-    const allUsersData = await storage.getAllUsersForRanking();
+    const [allUsersData, allUsers] = await Promise.all([
+      storage.getAllUsersForRanking(),
+      storage.getUsers(),
+    ]);
+    const eligibleUserIds = new Set(
+      allUsers.filter(isLeaderboardEligibleUser).map((user) => user.id),
+    );
 
-    const userPortfolioData: UserPortfolioData[] = allUsersData.map((user) => ({
-      userId: user.userId,
-      cashBalance: user.balance,
-      portfolioValue: user.portfolioValue,
-      totalNetWorth: parseFloat(user.balance) + user.portfolioValue,
-    }));
+    const userPortfolioData: UserPortfolioData[] = allUsersData
+      .filter((user) => eligibleUserIds.has(user.userId))
+      .map((user) => ({
+        userId: user.userId,
+        cashBalance: user.balance,
+        portfolioValue: user.portfolioValue,
+        totalNetWorth: parseFloat(user.balance) + user.portfolioValue,
+      }));
 
     console.log(
       `[daily_snapshot] Calculated portfolio values for ${userPortfolioData.length} users`,
@@ -90,25 +99,30 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     });
 
     // Sort by cash balance (descending) and assign ranks
-    const cashRanked = [...userPortfolioData].sort(
-      (a, b) => parseFloat(b.cashBalance) - parseFloat(a.cashBalance),
-    );
+    const cashRanked = userPortfolioData
+      .filter((user) => hasLeaderboardValue(parseFloat(user.cashBalance)))
+      .sort(
+        (a, b) =>
+          parseFloat(b.cashBalance) - parseFloat(a.cashBalance) || a.userId.localeCompare(b.userId),
+      );
     const cashRankMap = new Map<string, number>();
     cashRanked.forEach((user, index) => {
       cashRankMap.set(user.userId, index + 1);
     });
 
     // Sort by portfolio value (descending) and assign ranks
-    const portfolioRanked = [...userPortfolioData].sort(
-      (a, b) => b.portfolioValue - a.portfolioValue,
-    );
+    const portfolioRanked = userPortfolioData
+      .filter((user) => hasLeaderboardValue(user.portfolioValue))
+      .sort((a, b) => b.portfolioValue - a.portfolioValue || a.userId.localeCompare(b.userId));
     const portfolioRankMap = new Map<string, number>();
     portfolioRanked.forEach((user, index) => {
       portfolioRankMap.set(user.userId, index + 1);
     });
 
     // Sort by total net worth (descending) and assign ranks
-    const netWorthRanked = [...userPortfolioData].sort((a, b) => b.totalNetWorth - a.totalNetWorth);
+    const netWorthRanked = userPortfolioData
+      .filter((user) => hasLeaderboardValue(user.totalNetWorth))
+      .sort((a, b) => b.totalNetWorth - a.totalNetWorth || a.userId.localeCompare(b.userId));
     const netWorthRankMap = new Map<string, number>();
     netWorthRanked.forEach((user, index) => {
       netWorthRankMap.set(user.userId, index + 1);

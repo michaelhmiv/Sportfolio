@@ -22,11 +22,13 @@ vi.mock("@/lib/queryClient", async () => {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function makeWrapper(queryClient?: QueryClient) {
-  const qc = queryClient ?? new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
+  const qc =
+    queryClient ??
+    new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    });
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
@@ -117,10 +119,9 @@ describe("usePublicIdentities", () => {
   it("deduplicates IDs before fetching", async () => {
     mockResolveResponse([makeIdentity("dup-1")]);
 
-    const { result } = renderHook(
-      () => usePublicIdentities(["dup-1", "dup-1", "dup-1"]),
-      { wrapper: makeWrapper() },
-    );
+    const { result } = renderHook(() => usePublicIdentities(["dup-1", "dup-1", "dup-1"]), {
+      wrapper: makeWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current).not.toEqual({});
@@ -132,6 +133,28 @@ describe("usePublicIdentities", () => {
     expect(result.current["dup-1"]?.userId).toBe("dup-1");
   });
 
+  it("chunks identity requests at the endpoint limit", async () => {
+    const ids = Array.from({ length: 101 }, (_, index) => `user-${index}`);
+    mockResolveResponse(ids.slice(0, 100).map(makeIdentity));
+    mockResolveResponse([makeIdentity(ids[100])]);
+
+    const { result } = renderHook(() => usePublicIdentities(ids), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current[ids[100]]?.userId).toBe(ids[100]);
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledTimes(2);
+    expect(mockApiRequest).toHaveBeenNthCalledWith(1, "POST", "/api/public-identities/resolve", {
+      userIds: ids.slice(0, 100),
+    });
+    expect(mockApiRequest).toHaveBeenNthCalledWith(2, "POST", "/api/public-identities/resolve", {
+      userIds: [ids[100]],
+    });
+  });
+
   it("maps identities back to original IDs in correct positions", async () => {
     mockResolveResponse([
       makeIdentity("a"),
@@ -139,10 +162,9 @@ describe("usePublicIdentities", () => {
       makeIdentity("c"),
     ]);
 
-    const { result } = renderHook(
-      () => usePublicIdentities(["a", "b", "c"]),
-      { wrapper: makeWrapper() },
-    );
+    const { result } = renderHook(() => usePublicIdentities(["a", "b", "c"]), {
+      wrapper: makeWrapper(),
+    });
 
     await waitFor(() => {
       expect(Object.keys(result.current).length).toBeGreaterThan(1);
@@ -156,10 +178,7 @@ describe("usePublicIdentities", () => {
   it("returns empty object on fetch error", async () => {
     mockApiRequest.mockRejectedValueOnce(new Error("Network error"));
 
-    const { result } = renderHook(
-      () => usePublicIdentities(["x"]),
-      { wrapper: makeWrapper() },
-    );
+    const { result } = renderHook(() => usePublicIdentities(["x"]), { wrapper: makeWrapper() });
 
     await waitFor(() => {
       // After error, it should still have loaded (with empty result)
@@ -174,13 +193,10 @@ describe("usePublicIdentities", () => {
     mockResolveResponse([makeIdentity("key-1")]);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-    const { result, rerender } = renderHook(
-      ({ ids }) => usePublicIdentities(ids),
-      {
-        wrapper: makeWrapper(qc),
-        initialProps: { ids: ["key-1"] },
-      },
-    );
+    const { result, rerender } = renderHook(({ ids }) => usePublicIdentities(ids), {
+      wrapper: makeWrapper(qc),
+      initialProps: { ids: ["key-1"] },
+    });
 
     await waitFor(() => {
       expect(result.current["key-1"]).toBeTruthy();

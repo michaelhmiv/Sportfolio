@@ -1308,6 +1308,7 @@ export default function CollectionDetailPage() {
       <CollectionCeremonyOverlay
         isOpen={!!ceremonyData}
         data={ceremonyData}
+        showcaseHref={user ? `/user/${user.id}` : undefined}
         onClose={() => setCeremonyData(null)}
       />
     </div>
