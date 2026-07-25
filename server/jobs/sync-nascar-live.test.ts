@@ -5,6 +5,7 @@ const storageMocks = vi.hoisted(() => ({
   upsertPlayerGameStats: vi.fn(),
   upsertPlayer: vi.fn(),
   getDailyGameByGameId: vi.fn(),
+  getDailyGamesBySport: vi.fn(),
   getPlayersByIds: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ vi.mock("../storage", () => ({
     upsertPlayerGameStats: storageMocks.upsertPlayerGameStats,
     upsertPlayer: storageMocks.upsertPlayer,
     getDailyGameByGameId: storageMocks.getDailyGameByGameId,
+    getDailyGamesBySport: storageMocks.getDailyGamesBySport,
     getPlayersByIds: storageMocks.getPlayersByIds,
   },
 }));
@@ -204,6 +206,21 @@ describe("syncNascarLive", () => {
     nascarApiMocks.isNascarRaceFinished.mockReturnValue(false);
     storageMocks.getPlayersByIds.mockResolvedValue([{ id: "nascar_1234" }]);
     storageMocks.upsertPlayer.mockResolvedValue(undefined);
+    storageMocks.getDailyGamesBySport.mockResolvedValue([
+      { gameId: "nascar_NXS_5637", status: "scheduled", startTime: new Date() },
+    ]);
+  });
+
+  it("skips the proxy request when no NASCAR race is in the live window", async () => {
+    storageMocks.getDailyGamesBySport.mockResolvedValue([]);
+
+    const { syncNascarLive } = await import("./sync-nascar-live");
+    const result = await syncNascarLive();
+
+    expect(nascarApiMocks.fetchLiveFeed).not.toHaveBeenCalled();
+    expect(result.requestCount).toBe(0);
+    expect(result.recordsProcessed).toBe(0);
+    expect(result.errorCount).toBe(0);
   });
 
   it("fetches the proxied live feed once and reuses it across series checks", async () => {
