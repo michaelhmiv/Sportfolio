@@ -25,6 +25,8 @@ import type { ProgressCallback } from "../lib/admin-stream";
 
 const NASCAR_SPORT = "NASCAR";
 const NASCAR_MISSING_DRIVER_SAMPLE_LIMIT = 8;
+const NASCAR_LIVE_PRE_RACE_WINDOW_MS = 60 * 60 * 1000;
+const NASCAR_LIVE_POST_RACE_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 interface NascarLiveJobResult extends JobResult {
   skippedMissingPlayers: number;
@@ -451,18 +453,51 @@ export async function syncNascarLive(
 ): Promise<NascarLiveJobResult> {
   console.log("[nascar_live_sync] Starting NASCAR live stats sync...");
 
-  const seriesList: NascarSeriesId[] = [
-    NASCAR_SERIES.CUP,
-    NASCAR_SERIES.XFINITY,
-    NASCAR_SERIES.TRUCKS,
-  ];
-
   let totalRequestCount = 0;
   let totalRecordsProcessed = 0;
   let totalErrorCount = 0;
   let totalSkippedMissingPlayers = 0;
   let liveRacesFound = 0;
   const liveRaceInfo: { series: string; info: any }[] = [];
+  const now = new Date();
+
+  try {
+    const liveWindowStart = new Date(now.getTime() - NASCAR_LIVE_POST_RACE_WINDOW_MS);
+    const liveWindowEnd = new Date(now.getTime() + NASCAR_LIVE_PRE_RACE_WINDOW_MS);
+    const scheduledGames = await storage.getDailyGamesBySport(
+      NASCAR_SPORT,
+      liveWindowStart,
+      liveWindowEnd,
+    );
+    const hasEligibleRace = scheduledGames.some(
+      (game) => String(game.status || "").toLowerCase() !== "completed",
+    );
+
+    if (!hasEligibleRace) {
+      console.log("[nascar_live_sync] No NASCAR race in live window; skipping proxy request");
+      return {
+        requestCount: 0,
+        recordsProcessed: 0,
+        errorCount: 0,
+        skippedMissingPlayers: 0,
+      };
+    }
+  } catch (error: any) {
+    console.error("[nascar_live_sync] Failed to check NASCAR live window:", error.message);
+    return {
+      requestCount: 0,
+      recordsProcessed: 0,
+      errorCount: 1,
+      skippedMissingPlayers: 0,
+    };
+  }
+
+  const seriesList: NascarSeriesId[] = [
+    NASCAR_SERIES.CUP,
+    NASCAR_SERIES.XFINITY,
+    NASCAR_SERIES.TRUCKS,
+  ];
+
   let sharedLiveFeed: NascarLiveFeed | null = null;
 
   try {
