@@ -1,0 +1,44 @@
+name: Plugin OAuth Compatibility
+
+on:
+  push:
+    branches:
+      - plugin/02-oauth-compatibility
+  pull_request:
+    paths:
+      - "scripts/plugin-oauth-*.ts"
+      - "docs/plugin/supabase-oauth-setup.md"
+      - ".github/workflows/plugin-oauth-compatibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-oauth-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  oauth-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PLUGIN_OAUTH_ISSUER: https://xolfyrbtkmwgllrazcfh.supabase.co/auth/v1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run OAuth discovery and JWKS probe
+        run: npx tsx scripts/plugin-oauth-discovery-check.ts
+
+      - name: Run OAuth compatibility unit tests
+        run: npx vitest run scripts/plugin-oauth-discovery-check.test.ts scripts/plugin-oauth-token-inspect.test.ts
