@@ -7,7 +7,13 @@ import {
 } from "../auth/plugin-oauth";
 import { getPluginOAuthConfig } from "../auth/plugin-oauth-config";
 import { createPluginMcpServer } from "../mcp/plugin/server";
+import {
+  getPluginRuntimeState,
+  pluginConcurrencyLimit,
+  pluginRateLimit,
+} from "../mcp/plugin/runtime-guard";
 import type { PublicMcpDependencies } from "../mcp/public-tool-registry";
+import { observePluginMcpRequest } from "../observability/metrics";
 
 function writeJsonRpcError(
   res: Response,
@@ -30,11 +36,32 @@ function pluginEnabled(res: Response): boolean {
 }
 
 export function registerPluginMcpRoutes(app: Express, deps?: PublicMcpDependencies): void {
+  app.get("/health/plugin", (_req, res) => {
+    const config = getPluginOAuthConfig();
+    const state = getPluginRuntimeState();
+    const ready = config.enabled && config.issuer.startsWith("https://") && config.resource.startsWith("https://");
+    res.status(ready ? 200 : 503).json({
+      status: ready ? "ready" : "disabled",
+      endpoint: "/mcp/plugin",
+      oauthIssuerConfigured: config.issuer.startsWith("https://"),
+      resourceConfigured: config.resource.startsWith("https://"),
+      ...state,
+    });
+  });
+
   app.post(
     "/mcp/plugin",
     optionalPluginOAuth,
+    pluginRateLimit,
+    pluginConcurrencyLimit,
     async (req: PluginAuthenticatedRequest, res: Response) => {
       if (!pluginEnabled(res)) return;
+      res.once("finish", () => {
+        observePluginMcpRequest({
+          status: String(res.statusCode),
+          authenticated: Boolean(req.pluginAuth),
+        });
+      });
 
       if (req.header("mcp-session-id")) {
         writeJsonRpcError(res, 400, -32000, "The marketplace endpoint is stateless and does not accept session IDs.");
@@ -68,7 +95,7 @@ export function registerPluginMcpRoutes(app: Express, deps?: PublicMcpDependenci
       } catch (error) {
         console.error("[PLUGIN_MCP] Request failed", {
           requestId,
-          error: error instanceof Error ? error.message : "unknown_error",
+          errorCode: error instanceof Error ? error.name : "unknown_error",
         });
         if (!res.headersSent) {
           writeJsonRpcError(res, 500, -32603, "Internal server error");
