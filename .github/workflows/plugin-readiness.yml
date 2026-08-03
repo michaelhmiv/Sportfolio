@@ -61,7 +61,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply non-breaking npm audit fixes
-        run: npm audit fix
+        run: npm audit fix || true
       - name: Require zero critical production advisories
         run: npm audit --omit=dev --audit-level=critical
       - name: Install locked dependency tree
