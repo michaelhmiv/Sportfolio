@@ -85,42 +85,8 @@ jobs:
           )
           replace_once(
               "client/src/pages/collection-detail.tsx",
-              '''                const canSubmit =
-                  !isSubmitting && parsed !== null && parsed !== "0.0000" && withinAvailableMaximum;
-
-                return (''',
-              '''                const canSubmit =
-                  !isSubmitting && parsed !== null && parsed !== "0.0000" && withinAvailableMaximum;
-                const player = slot.player;
-
-                return (''',
-          )
-          replace_once(
-              "client/src/pages/collection-detail.tsx",
-              '''                        {slot.player && (
-                          <span className="flex items-center gap-1.5">
-                            <span
-                              className="text-primary underline cursor-pointer hover:text-brand transition-colors"
-                              onClick={() => openPlayerModal(slot.player.playerId)}
-                            >
-                              {`${slot.player.firstName} ${slot.player.lastName}`.trim() || "--"}
-                            </span>
-                            <span className="text-muted-foreground">&middot;</span>
-                            <span className="text-muted-foreground">{slot.player.team}</span>
-                            <span className="text-muted-foreground">&middot;</span>
-                            <span className="text-muted-foreground">{slot.player.position}</span>''',
-              '''                        {player && (
-                          <span className="flex items-center gap-1.5">
-                            <span
-                              className="text-primary underline cursor-pointer hover:text-brand transition-colors"
-                              onClick={() => openPlayerModal(player.playerId)}
-                            >
-                              {`${player.firstName} ${player.lastName}`.trim() || "--"}
-                            </span>
-                            <span className="text-muted-foreground">&middot;</span>
-                            <span className="text-muted-foreground">{player.team}</span>
-                            <span className="text-muted-foreground">&middot;</span>
-                            <span className="text-muted-foreground">{player.position}</span>''',
+              '''onClick={() => openPlayerModal(slot.player.playerId)}''',
+              '''onClick={() => openPlayerModal(slot.player?.playerId ?? "")}''',
           )
           replace_once(
               "server/collections/read-repository.ts",
