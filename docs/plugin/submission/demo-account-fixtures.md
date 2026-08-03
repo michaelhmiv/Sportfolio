@@ -7,9 +7,9 @@ Create one dedicated, synthetic Sportfolio reviewer account before submission. C
 - Synthetic display name: `OpenAI Reviewer`
 - Non-personal reviewer email owned by Sportfolio
 - Strong unique password stored in the organization's approved password manager
-- Email confirmed before submission
-- MFA disabled for this account only
-- No phone number or SMS link
+- Email confirmed before submission so there is no email-confirmation requirement during review
+- MFA disabled for this account only, with no MFA requirement during review
+- No phone number, SMS link, or SMS requirement during review
 - No admin, moderation, bot, or staff privileges
 - No payment method or premium purchase history required
 
