@@ -19,6 +19,17 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
     rollupOptions: {
+      input: {
+        app: path.resolve(import.meta.dirname, "client", "index.html"),
+        oauthConsent: path.resolve(import.meta.dirname, "client", "oauth", "consent", "index.html"),
+        connectedApps: path.resolve(
+          import.meta.dirname,
+          "client",
+          "oauth",
+          "connected-apps",
+          "index.html",
+        ),
+      },
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
