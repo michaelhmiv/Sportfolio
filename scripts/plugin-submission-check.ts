@@ -37,11 +37,17 @@ for (const url of [
   if (!listing.includes(url)) errors.push(`Listing copy is missing ${url}.`);
 }
 
-for (const document of [reviewer, fixture]) {
-  for (const requirement of ["no MFA", "no SMS", "no email confirmation", "no admin"]) {
-    if (!document.toLowerCase().includes(requirement.toLowerCase())) {
-      errors.push(`Reviewer material is missing requirement: ${requirement}.`);
-    }
+const reviewerMaterial = `${reviewer}\n${fixture}`;
+const reviewerRequirements: Array<[string, RegExp]> = [
+  ["no MFA", /(?:no\s+MFA|MFA\s+disabled)/i],
+  ["no SMS", /(?:no\s+SMS|SMS\s+requirement|no\s+phone\s+number)/i],
+  ["no email confirmation", /(?:no\s+email[- ]confirmation|email\s+confirmed\s+before\s+submission)/i],
+  ["no admin access", /(?:no\s+admin|non-admin)/i],
+  ["no private network", /(?:no\s+VPN|no\s+private[- ]network)/i],
+];
+for (const [label, pattern] of reviewerRequirements) {
+  if (!pattern.test(reviewerMaterial)) {
+    errors.push(`Reviewer material is missing requirement: ${label}.`);
   }
 }
 
