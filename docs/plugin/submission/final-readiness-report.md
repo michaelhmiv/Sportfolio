@@ -38,11 +38,16 @@ Status date: August 3, 2026
 3. Receive and configure the OpenAI domain-verification challenge token.
 4. Identify the final registered OAuth client ID, add it to `public.plugin_oauth_clients`, set `PLUGIN_OAUTH_ALLOWED_CLIENT_IDS`, and enable `public.sportfolio_plugin_access_token_hook` under Supabase Authentication → Hooks → Custom Access Token.
 5. Create and seed the synthetic reviewer account; keep credentials out of Git and provide them only through the submission portal.
-6. Enable Supabase leaked-password protection in Authentication settings.
-7. Complete final legal review of policy text and initial United States availability.
-8. Add final marketplace artwork and screenshots that reflect the deployed version 1 product.
-9. Run all eight submission cases in fresh ChatGPT conversations and freeze the final MCP and skill snapshots.
-10. Confirm publisher identity and Apps Management write permission in the submitting OpenAI organization.
+6. Complete final legal review of policy text and initial United States availability.
+7. Add final marketplace artwork and screenshots that reflect the deployed version 1 product.
+8. Run all eight submission cases in fresh ChatGPT conversations and freeze the final MCP and skill snapshots.
+9. Confirm publisher identity and Apps Management write permission in the submitting OpenAI organization.
+
+## Supabase Free-plan security note
+
+Supabase leaked-password protection is available only on Pro and higher plans. It is useful defense in depth, but it is not an OpenAI plugin-submission requirement and is not a release blocker for Sportfolio while the project remains on the Free plan.
+
+Free-plan compensating controls should include a strong minimum password length and character policy, confirmed-email requirements where appropriate, OAuth PKCE, short-lived access tokens, client and audience validation, rate limiting, account-recovery protections, and continued monitoring of authentication abuse. Upgrade-based leaked-password screening can be reconsidered if Sportfolio moves to Supabase Pro.
 
 ## Repository quality fixes completed during certification
 
