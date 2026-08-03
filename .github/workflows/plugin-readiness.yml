@@ -66,6 +66,8 @@ jobs:
         run: npx tsx scripts/plugin-package-check.ts
       - name: Privacy scan
         run: npx tsx scripts/plugin-privacy-check.ts
+      - name: Submission kit
+        run: npx tsx scripts/plugin-submission-check.ts
 
   protocol-regression:
     runs-on: ubuntu-latest
