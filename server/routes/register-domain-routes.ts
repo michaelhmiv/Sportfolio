@@ -12,6 +12,7 @@ import { registerInternalAgentToolRoutes } from "./internal-agent-tools";
 import { registerLpRoutes } from "./lp";
 import { registerMcpRoutes } from "./mcp";
 import { registerNotificationRoutes } from "./notifications";
+import { registerPluginOAuthMetadataRoutes } from "./plugin-oauth-metadata";
 import { registerRedditBotRoutes } from "./reddit-bot";
 import { registerSmsRoutes } from "./sms";
 import { registerProfileRoutes } from "../profile/profile-routes";
@@ -24,6 +25,10 @@ import { publicIdentityService } from "../public-identities/runtime";
  * primary app/API endpoints.
  */
 export function registerDomainRoutes(app: Express): void {
+  // OAuth discovery and domain-verification routes must remain public and are
+  // intentionally registered independently from the feature-gated MCP endpoint.
+  registerPluginOAuthMetadataRoutes(app);
+
   // Collection routes are split by authorization level: users mutate allocations;
   // only admins may preview, publish, or disable catalog content.
   registerCollectionRoutes(app, collectionService, collectionReadService);
