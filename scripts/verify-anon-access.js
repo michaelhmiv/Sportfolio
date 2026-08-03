@@ -14,21 +14,19 @@ const ANON_KEY =
   process.env.VITE_SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const PROTECTED_TABLES = [
+const REPRESENTATIVE_TABLES = [
   "user",
   "session",
   "account",
   "verification",
-  "account_deletion_requests",
   "transactions",
   "watchlist",
-  "user_notification_preferences",
-  "user_notification_settings",
-  "user_push_devices",
   "user_push_tokens",
-  "price_alerts",
-  "transaction_alerts",
-  "push_notification_events",
+  "players",
+  "games",
+  "player_games",
+  "mlb_stats",
+  "collection",
 ];
 
 async function check() {
@@ -36,17 +34,38 @@ async function check() {
   let failed = false;
 
   if (DB_URL) {
+    const pool = new Pool({ connectionString: DB_URL });
     try {
-      const pool = new Pool({ connectionString: DB_URL });
-      const res = await pool.query("SELECT count(*) FROM players");
-      console.log(`✅ [BACKEND/PG] Access successful. Players count: ${res.rows[0].count}`);
-      await pool.end();
+      const backend = await pool.query("SELECT count(*) FROM players");
+      console.log(`✅ [BACKEND/PG] Access successful. Players count: ${backend.rows[0].count}`);
+
+      const posture = await pool.query(`
+        select
+          count(*) filter (where not c.relrowsecurity) as tables_without_rls,
+          count(*) filter (where g.grantee in ('anon', 'authenticated')) as data_api_grant_rows
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+        left join information_schema.role_table_grants g
+          on g.table_schema = 'public' and g.table_name = c.relname
+        where c.relkind in ('r', 'p')
+      `);
+      const row = posture.rows[0];
+      if (Number(row.tables_without_rls) !== 0 || Number(row.data_api_grant_rows) !== 0) {
+        failed = true;
+        console.error(
+          `❌ [DATABASE] Public schema is not server-only: ${row.tables_without_rls} table(s) without RLS, ${row.data_api_grant_rows} anon/authenticated grant row(s).`,
+        );
+      } else {
+        console.log("✅ [DATABASE] Every public table has RLS and zero anon/authenticated grants.");
+      }
     } catch (error) {
       failed = true;
       console.error(`❌ [BACKEND/PG] Error: ${error.message}`);
+    } finally {
+      await pool.end();
     }
   } else {
-    console.warn("⚠️ [BACKEND/PG] DATABASE_URL missing; backend access was not tested.");
+    console.warn("⚠️ [BACKEND/PG] DATABASE_URL missing; schema-wide posture was not tested.");
   }
 
   if (!SUPABASE_URL || !ANON_KEY) {
@@ -59,17 +78,13 @@ async function check() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  for (const table of PROTECTED_TABLES) {
+  for (const table of REPRESENTATIVE_TABLES) {
     const { data, error } = await supabase.from(table).select("*").limit(1);
-    if (!error && Array.isArray(data) && data.length > 0) {
-      failed = true;
-      console.error(`❌ [PUBLIC/JS] ${table} returned a row to the anonymous role.`);
-      continue;
-    }
-
     if (!error) {
       failed = true;
-      console.error(`❌ [PUBLIC/JS] ${table} was queryable by the anonymous role, even though it returned no rows.`);
+      console.error(
+        `❌ [PUBLIC/JS] ${table} was queryable by the anonymous role${Array.isArray(data) && data.length > 0 ? " and returned data" : ""}.`,
+      );
       continue;
     }
 
