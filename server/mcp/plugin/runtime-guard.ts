@@ -1,5 +1,6 @@
 import type { NextFunction, Response } from "express";
 import type { PluginAuthenticatedRequest } from "../../auth/plugin-oauth";
+import { observePluginMcpLimit } from "../../observability/metrics";
 
 const WINDOW_MS = 60_000;
 const MAX_BUCKETS = 20_000;
@@ -53,6 +54,7 @@ export function pluginRateLimit(
   res.setHeader("RateLimit-Remaining", String(remaining));
   res.setHeader("RateLimit-Reset", String(Math.ceil(bucket.resetAt / 1000)));
   if (bucket.count > limit) {
+    observePluginMcpLimit("rate");
     res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
     res.status(429).json({ error: "rate_limited", message: "Too many plugin requests. Try again later." });
     return;
@@ -67,6 +69,7 @@ export function pluginConcurrencyLimit(
 ): void {
   const maxConcurrent = positiveInt(process.env.PLUGIN_MCP_MAX_CONCURRENT_REQUESTS, 25);
   if (activeRequests >= maxConcurrent) {
+    observePluginMcpLimit("concurrency");
     res.setHeader("Retry-After", "1");
     res.status(503).json({ error: "temporarily_unavailable", message: "Plugin capacity is temporarily full." });
     return;
