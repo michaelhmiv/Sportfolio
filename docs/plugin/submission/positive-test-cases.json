@@ -1,0 +1,60 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "portfolio-overview",
+      "userPrompt": "Show my Sportfolio portfolio and summarize my largest virtual positions.",
+      "expectedBehavior": "Use get_my_portfolio after OAuth connection. Explain that values are virtual and identify the largest holdings without executing a trade.",
+      "expectedResultShape": {
+        "summary": "string",
+        "data": "sanitized portfolio summary and positions",
+        "warnings": "array"
+      },
+      "fixture": "Reviewer account has at least eight MLB holdings with varied virtual values."
+    },
+    {
+      "id": "public-player-research",
+      "userPrompt": "Show Aaron Judge's recent Sportfolio-relevant performance.",
+      "expectedBehavior": "Resolve the player if necessary, then use get_player_overview or get_player_recent_games. No OAuth connection is required.",
+      "expectedResultShape": {
+        "summary": "string",
+        "data": "public player overview or recent game log",
+        "warnings": "array"
+      },
+      "fixture": "No connected-account fixture is required."
+    },
+    {
+      "id": "setup-review",
+      "userPrompt": "Review my Sportfolio setup and identify the most important areas to watch.",
+      "expectedBehavior": "Use review_my_sportfolio_setup after OAuth connection and return read-only gameplay observations. Do not frame results as financial advice.",
+      "expectedResultShape": {
+        "summary": "string",
+        "data": "sanitized setup review",
+        "warnings": "array"
+      },
+      "fixture": "Reviewer account has holdings, a watchlist, collection progress, and boost history."
+    },
+    {
+      "id": "collection-progress",
+      "userPrompt": "How close am I to completing my Yankees collection?",
+      "expectedBehavior": "Use get_my_collections to resolve the collection and get_my_collection when details are needed. Return progress without changing allocations.",
+      "expectedResultShape": {
+        "summary": "string",
+        "data": "collection progress and owned-player details",
+        "warnings": "array"
+      },
+      "fixture": "Reviewer account has a partially completed Yankees collection."
+    },
+    {
+      "id": "boost-candidates",
+      "userPrompt": "Which players should I consider for my daily Sportfolio boosts?",
+      "expectedBehavior": "Use find_my_boost_candidates after OAuth connection. Return candidate ideas and uncertainty, but do not assign a boost.",
+      "expectedResultShape": {
+        "summary": "string",
+        "data": "ranked read-only candidate information",
+        "warnings": "array"
+      },
+      "fixture": "Reviewer account has eligible owned players and prior boost history."
+    }
+  ]
+}
