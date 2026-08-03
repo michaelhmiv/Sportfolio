@@ -36,6 +36,11 @@ const checks = [
     detail: "Resolve or formally disposition the Supabase security-advisor errors before submission.",
   },
   {
+    id: "dependency_security",
+    passed: process.env.PLUGIN_DEPENDENCY_SECURITY_REVIEW_COMPLETE === "true",
+    detail: "Confirm the production dependency audit is clear or formally disposition every remaining high/critical advisory.",
+  },
+  {
     id: "legal_review",
     passed: process.env.PLUGIN_LEGAL_REVIEW_COMPLETE === "true",
     detail: "Complete final legal review of privacy, terms, and country availability.",
