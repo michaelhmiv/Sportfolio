@@ -10,7 +10,7 @@ export function registerPluginOAuthMetadataRoutes(app: Express): void {
       authorization_servers: [config.issuer],
       scopes_supported: config.requiredScopes,
       bearer_methods_supported: ["header"],
-      resource_documentation: "https://www.sportfolio.market/plugin-support",
+      resource_documentation: "https://www.sportfolio.market/plugin-support/",
     });
   });
 
