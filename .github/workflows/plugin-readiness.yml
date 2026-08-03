@@ -76,6 +76,8 @@ jobs:
         run: npx tsx scripts/plugin-privacy-check.ts
       - name: Submission kit
         run: npx tsx scripts/plugin-submission-check.ts
+      - name: External release gate report
+        run: npx tsx scripts/plugin-release-gate.ts
 
   protocol-regression:
     runs-on: ubuntu-latest
