@@ -1,0 +1,42 @@
+{
+  "name": "sportfolio",
+  "version": "1.0.0",
+  "description": "Explore Sportfolio players, games, and a connected user's read-only virtual sports portfolio.",
+  "author": {
+    "name": "Sportfolio",
+    "email": "sportfolioholdings@gmail.com",
+    "url": "https://www.sportfolio.market"
+  },
+  "homepage": "https://www.sportfolio.market/plugin/",
+  "repository": "https://github.com/michaelhmiv/Sportfolio",
+  "license": "MIT",
+  "keywords": [
+    "sports",
+    "fantasy-sports",
+    "portfolio-game",
+    "baseball",
+    "hockey"
+  ],
+  "skills": "./skills/",
+  "apps": "./.app.json",
+  "interface": {
+    "displayName": "Sportfolio",
+    "shortDescription": "Review your virtual sports portfolio",
+    "longDescription": "Research Sportfolio players and games, then connect your account to review your read-only virtual portfolio, boosts, watchlists, collections, milestones, and personalized game insights.",
+    "developerName": "Sportfolio",
+    "category": "Sports",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://www.sportfolio.market",
+    "privacyPolicyURL": "https://www.sportfolio.market/privacy",
+    "termsOfServiceURL": "https://www.sportfolio.market/terms",
+    "defaultPrompt": [
+      "Review my Sportfolio setup.",
+      "Which players I own are playing today?",
+      "Show my largest virtual Sportfolio positions.",
+      "How close am I to completing my collections?"
+    ],
+    "brandColor": "#2563EB"
+  }
+}
