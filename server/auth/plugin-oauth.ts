@@ -7,13 +7,15 @@ import {
   type PluginAccessTokenClaims,
 } from "./plugin-token-verifier";
 
+export type PluginAuthContext = {
+  userId: string;
+  clientId: string;
+  scopes: string[];
+  claims: PluginAccessTokenClaims;
+};
+
 export type PluginAuthenticatedRequest = Request & {
-  pluginAuth?: {
-    userId: string;
-    clientId: string;
-    scopes: string[];
-    claims: PluginAccessTokenClaims;
-  };
+  pluginAuth?: PluginAuthContext;
 };
 
 function extractBearerToken(req: Request): string | null {
@@ -43,6 +45,51 @@ function authFailureResponse(error: unknown): { status: number; code: string; de
   return { status: 401, code: "invalid_token", description: error.message };
 }
 
+async function authenticateToken(token: string): Promise<PluginAuthContext> {
+  const claims = await verifyPluginAccessToken(token, getPluginOAuthConfig());
+  return {
+    userId: claims.sub,
+    clientId: claims.client_id,
+    scopes:
+      typeof claims.scope === "string"
+        ? claims.scope.split(/\s+/).map((scope) => scope.trim()).filter(Boolean)
+        : [],
+    claims,
+  };
+}
+
+function writeAuthFailure(res: Response, error: unknown): void {
+  const config = getPluginOAuthConfig();
+  const failure = authFailureResponse(error);
+  res.setHeader(
+    "WWW-Authenticate",
+    buildPluginWwwAuthenticate(config, {
+      error: failure.code,
+      description: failure.description,
+    }),
+  );
+  res.status(failure.status).json({ error: failure.code, message: failure.description });
+}
+
+export async function optionalPluginOAuth(
+  req: PluginAuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const token = extractBearerToken(req);
+  if (!token) {
+    next();
+    return;
+  }
+
+  try {
+    req.pluginAuth = await authenticateToken(token);
+    next();
+  } catch (error) {
+    writeAuthFailure(res, error);
+  }
+}
+
 export async function requirePluginOAuth(
   req: PluginAuthenticatedRequest,
   res: Response,
@@ -61,26 +108,9 @@ export async function requirePluginOAuth(
   }
 
   try {
-    const claims = await verifyPluginAccessToken(token, config);
-    req.pluginAuth = {
-      userId: claims.sub,
-      clientId: claims.client_id,
-      scopes:
-        typeof claims.scope === "string"
-          ? claims.scope.split(/\s+/).map((scope) => scope.trim()).filter(Boolean)
-          : [],
-      claims,
-    };
+    req.pluginAuth = await authenticateToken(token);
     next();
   } catch (error) {
-    const failure = authFailureResponse(error);
-    res.setHeader(
-      "WWW-Authenticate",
-      buildPluginWwwAuthenticate(config, {
-        error: failure.code,
-        description: failure.description,
-      }),
-    );
-    res.status(failure.status).json({ error: failure.code, message: failure.description });
+    writeAuthFailure(res, error);
   }
 }

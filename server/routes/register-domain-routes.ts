@@ -12,6 +12,7 @@ import { registerInternalAgentToolRoutes } from "./internal-agent-tools";
 import { registerLpRoutes } from "./lp";
 import { registerMcpRoutes } from "./mcp";
 import { registerNotificationRoutes } from "./notifications";
+import { registerPluginMcpRoutes } from "./plugin-mcp";
 import { registerPluginOAuthMetadataRoutes } from "./plugin-oauth-metadata";
 import { registerRedditBotRoutes } from "./reddit-bot";
 import { registerSmsRoutes } from "./sms";
@@ -28,6 +29,7 @@ export function registerDomainRoutes(app: Express): void {
   // OAuth discovery and domain-verification routes must remain public and are
   // intentionally registered independently from the feature-gated MCP endpoint.
   registerPluginOAuthMetadataRoutes(app);
+  registerPluginMcpRoutes(app);
 
   // Collection routes are split by authorization level: users mutate allocations;
   // only admins may preview, publish, or disable catalog content.
