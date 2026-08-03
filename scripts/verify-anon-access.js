@@ -14,55 +14,88 @@ const ANON_KEY =
   process.env.VITE_SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+const REPRESENTATIVE_TABLES = [
+  "user",
+  "session",
+  "account",
+  "verification",
+  "transactions",
+  "watchlist",
+  "user_push_tokens",
+  "players",
+  "games",
+  "player_games",
+  "mlb_stats",
+  "collection",
+];
+
 async function check() {
   console.log("--- SECURITY VERIFICATION START ---");
+  let failed = false;
 
-  // Check 1: Admin Access via Postgres Protocol (Backend Simulator)
   if (DB_URL) {
+    const pool = new Pool({ connectionString: DB_URL });
     try {
-      const pool = new Pool({ connectionString: DB_URL });
-      const res = await pool.query("SELECT count(*) FROM players");
-      console.log(`✅ [BACKEND/PG] Access Successful. Players Count: ${res.rows[0].count}`);
+      const backend = await pool.query("SELECT count(*) FROM players");
+      console.log(`✅ [BACKEND/PG] Access successful. Players count: ${backend.rows[0].count}`);
+
+      const posture = await pool.query(`
+        select
+          count(*) filter (where not c.relrowsecurity) as tables_without_rls,
+          count(*) filter (where g.grantee in ('anon', 'authenticated')) as data_api_grant_rows
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+        left join information_schema.role_table_grants g
+          on g.table_schema = 'public' and g.table_name = c.relname
+        where c.relkind in ('r', 'p')
+      `);
+      const row = posture.rows[0];
+      if (Number(row.tables_without_rls) !== 0 || Number(row.data_api_grant_rows) !== 0) {
+        failed = true;
+        console.error(
+          `❌ [DATABASE] Public schema is not server-only: ${row.tables_without_rls} table(s) without RLS, ${row.data_api_grant_rows} anon/authenticated grant row(s).`,
+        );
+      } else {
+        console.log("✅ [DATABASE] Every public table has RLS and zero anon/authenticated grants.");
+      }
+    } catch (error) {
+      failed = true;
+      console.error(`❌ [BACKEND/PG] Error: ${error.message}`);
+    } finally {
       await pool.end();
-    } catch (e) {
-      console.error(`❌ [BACKEND/PG] Error: ${e.message}`);
     }
   } else {
-    console.error("⚠️ [BACKEND/PG] DATABASE_URL missing");
+    console.warn("⚠️ [BACKEND/PG] DATABASE_URL missing; schema-wide posture was not tested.");
   }
 
-  // Check 2: Public Access via Supabase Anon Key (Malicious Actor Simulator)
-  if (SUPABASE_URL && ANON_KEY) {
-    try {
-      const supabase = createClient(SUPABASE_URL, ANON_KEY);
-      console.log(`🔍 Attempting public access to 'players' table...`);
-      const { data, error, count } = await supabase
-        .from("players")
-        .select("*", { count: "exact", head: true });
+  if (!SUPABASE_URL || !ANON_KEY) {
+    console.error("❌ [PUBLIC/JS] Supabase URL or anonymous key is missing.");
+    process.exitCode = 1;
+    return;
+  }
 
-      if (error) {
-        console.log(`✅ [PUBLIC/JS] Access BLOCKED as expected. Error: ${error.message}`);
-      } else if (count > 0) {
-        console.error(`❌ [PUBLIC/JS] SECURITY RISK! Visible to public: ${count} rows`);
-      } else {
-        console.log(`✅ [PUBLIC/JS] Access result: Empty (0 rows visible), which is secure.`);
-      }
+  const supabase = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-      // Specific check for 'users' table (sensitive)
-      console.log(`🔍 Attempting public access to 'users' table...`);
-      const usersCheck = await supabase.from("users").select("id").limit(1);
-      if (usersCheck.data && usersCheck.data.length > 0) {
-        console.error(`❌ [PUBLIC/JS] CRITICAL! User data is still publicly visible!`);
-      } else {
-        console.log(`✅ [PUBLIC/JS] User data is SECURE.`);
-      }
-    } catch (e) {
-      console.error(`⚠️ [PUBLIC/JS] Exception: ${e.message}`);
+  for (const table of REPRESENTATIVE_TABLES) {
+    const { data, error } = await supabase.from(table).select("*").limit(1);
+    if (!error) {
+      failed = true;
+      console.error(
+        `❌ [PUBLIC/JS] ${table} was queryable by the anonymous role${Array.isArray(data) && data.length > 0 ? " and returned data" : ""}.`,
+      );
+      continue;
     }
-  } else {
-    console.error("⚠️ [PUBLIC/JS] Supabase URL/Key missing in environment");
+
+    console.log(`✅ [PUBLIC/JS] ${table} is blocked: ${error.code || "permission_denied"}`);
   }
+
   console.log("--- SECURITY VERIFICATION END ---");
+  if (failed) process.exitCode = 1;
 }
 
-check();
+check().catch((error) => {
+  console.error(`❌ Security verification failed: ${error.message}`);
+  process.exitCode = 1;
+});
