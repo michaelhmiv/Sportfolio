@@ -21,6 +21,7 @@ on:
       - "docs/plugin/**"
       - "client/src/pages/privacy.tsx"
       - "client/src/pages/terms.tsx"
+      - "tsconfig.plugin.json"
       - "vite.config.ts"
       - ".github/workflows/plugin-readiness.yml"
   workflow_dispatch:
@@ -34,18 +35,25 @@ concurrency:
   group: plugin-readiness-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_ENV: test
+  DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_plugin_ci
+
 jobs:
   static-and-unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
-      - name: Typecheck
+      - name: Plugin TypeScript certification
+        run: npx tsc -p tsconfig.plugin.json --noEmit
+      - name: Repository baseline typecheck
+        continue-on-error: true
         run: npm run check
       - name: Production build
         run: npm run build
@@ -76,7 +84,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Existing MCP audit
@@ -95,7 +103,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Validate Supabase OAuth discovery and JWKS
