@@ -54,6 +54,50 @@ const apiHealthLastRunTimestamp = new client.Gauge({
   registers: enabled ? [register] : [],
 });
 
+const pluginMcpRequests = new client.Counter({
+  name: "plugin_mcp_requests_total",
+  help: "Marketplace MCP HTTP request outcomes",
+  labelNames: ["status", "authenticated"],
+  registers: enabled ? [register] : [],
+});
+
+const pluginMcpToolCalls = new client.Counter({
+  name: "plugin_mcp_tool_calls_total",
+  help: "Marketplace MCP tool call outcomes",
+  labelNames: ["tool", "status", "access"],
+  registers: enabled ? [register] : [],
+});
+
+const pluginMcpToolLatency = new client.Histogram({
+  name: "plugin_mcp_tool_latency_seconds",
+  help: "Marketplace MCP tool execution latency in seconds",
+  labelNames: ["tool", "status"],
+  buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15],
+  registers: enabled ? [register] : [],
+});
+
+const pluginMcpAuthFailures = new client.Counter({
+  name: "plugin_mcp_auth_failures_total",
+  help: "Marketplace OAuth authentication failures",
+  labelNames: ["code"],
+  registers: enabled ? [register] : [],
+});
+
+const pluginMcpRateLimits = new client.Counter({
+  name: "plugin_mcp_rate_limit_total",
+  help: "Marketplace MCP rate or concurrency limit rejections",
+  labelNames: ["kind"],
+  registers: enabled ? [register] : [],
+});
+
+const pluginMcpOutputBytes = new client.Histogram({
+  name: "plugin_mcp_output_bytes",
+  help: "Approximate serialized marketplace tool output bytes",
+  labelNames: ["tool"],
+  buckets: [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536],
+  registers: enabled ? [register] : [],
+});
+
 export function observeExternalHttpRequest(args: {
   host: string;
   status: string;
@@ -66,6 +110,36 @@ export function observeExternalHttpRequest(args: {
 export function observeAuthTelemetryEvent(args: { event: string; code?: string }) {
   if (!enabled) return;
   authTelemetryEvents.labels(args.event, args.code || "none").inc();
+}
+
+export function observePluginMcpRequest(args: { status: string; authenticated: boolean }) {
+  if (!enabled) return;
+  pluginMcpRequests.labels(args.status, args.authenticated ? "true" : "false").inc();
+}
+
+export function observePluginMcpTool(args: {
+  tool: string;
+  status: string;
+  access: string;
+  durationMs: number;
+  outputBytes?: number;
+}) {
+  if (!enabled) return;
+  pluginMcpToolCalls.labels(args.tool, args.status, args.access).inc();
+  pluginMcpToolLatency.labels(args.tool, args.status).observe(Math.max(0, args.durationMs) / 1000);
+  if (args.outputBytes !== undefined && Number.isFinite(args.outputBytes)) {
+    pluginMcpOutputBytes.labels(args.tool).observe(Math.max(0, args.outputBytes));
+  }
+}
+
+export function observePluginMcpAuthFailure(code: string) {
+  if (!enabled) return;
+  pluginMcpAuthFailures.labels(code || "unknown").inc();
+}
+
+export function observePluginMcpLimit(kind: "rate" | "concurrency") {
+  if (!enabled) return;
+  pluginMcpRateLimits.labels(kind).inc();
 }
 
 export function observeApiHealthCheckRun(args: {
