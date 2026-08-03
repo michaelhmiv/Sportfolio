@@ -1,0 +1,27 @@
+{
+  "version": "v1",
+  "tools": [
+    { "name": "search_sportfolio_docs", "sourceTool": "search_docs", "access": "public", "dataClassification": "public" },
+    { "name": "get_sportfolio_doc", "sourceTool": "get_doc_article", "access": "public", "dataClassification": "public" },
+    { "name": "search_players", "sourceTool": "search_players", "access": "public", "dataClassification": "public" },
+    { "name": "get_player_overview", "sourceTool": "get_player_detail", "access": "public", "dataClassification": "public" },
+    { "name": "get_player_recent_games", "sourceTool": "get_player_recent_games", "access": "public", "dataClassification": "public" },
+    { "name": "get_games", "sourceTool": "get_games_today", "access": "public", "dataClassification": "public" },
+    { "name": "get_my_dashboard", "sourceTool": "get_dashboard_overview", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "get_my_portfolio", "sourceTool": "get_portfolio_summary", "access": "oauth", "dataClassification": "user_portfolio" },
+    { "name": "get_my_portfolio_history", "sourceTool": "get_portfolio_history", "access": "oauth", "dataClassification": "user_portfolio" },
+    { "name": "get_my_balance", "sourceTool": "get_balance_state", "access": "oauth", "dataClassification": "user_portfolio" },
+    { "name": "get_my_watchlists", "sourceTool": "list_watchlists", "access": "oauth", "dataClassification": "user_preferences" },
+    { "name": "get_my_watchlist", "sourceTool": "get_watchlist_items", "access": "oauth", "dataClassification": "user_preferences" },
+    { "name": "get_my_daily_boosts", "sourceTool": "list_daily_boosts", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "get_my_boost_history", "sourceTool": "list_daily_boost_history", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "get_my_collections", "sourceTool": "list_collections", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "get_my_collection", "sourceTool": "get_collection_detail", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "get_my_milestones", "sourceTool": "list_milestones", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "get_my_news_digest", "sourceTool": "get_news_digest", "access": "oauth", "dataClassification": "user_preferences" },
+    { "name": "get_my_game_insights", "sourceTool": "get_game_insights", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "review_my_sportfolio_setup", "sourceTool": "review_setup", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "find_my_boost_candidates", "sourceTool": "list_boost_candidates", "access": "oauth", "dataClassification": "user_gameplay" },
+    { "name": "find_my_scout_opportunities", "sourceTool": "list_scout_opportunities", "access": "oauth", "dataClassification": "user_gameplay" }
+  ]
+}
