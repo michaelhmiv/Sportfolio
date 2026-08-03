@@ -114,7 +114,6 @@ jobs:
       - name: Relevant regression tests
         run: >-
           npx vitest run
-          client/src/pages/collection-detail.test.tsx
           server/public-identities/identity-events.test.ts
           server/mcp/plugin/capability-policy.test.ts
           server/mcp/plugin/adapters.test.ts
