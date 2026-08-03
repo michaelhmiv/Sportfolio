@@ -10,6 +10,8 @@
 
 The Auth database already contains Supabase OAuth tables for clients, authorizations, consents, PKCE, and the OAuth `resource` parameter. No OAuth clients are currently registered.
 
+The Sportfolio Supabase project was created on December 15, 2025. Supabase creates new projects with asymmetric JWT signing keys by default, so this project is expected to already have an RS256 or ES256 current key. Confirm the current key rather than creating or rotating a new key unnecessarily.
+
 ## Dashboard configuration required
 
 The Supabase management connector does not currently expose OAuth Server configuration or JWT signing-key mutation. Complete these steps in the Supabase dashboard:
@@ -19,10 +21,20 @@ The Supabase management connector does not currently expose OAuth Server configu
 3. Set the authorization path to `/oauth/consent`.
 4. Enable dynamic client registration for staging compatibility testing.
 5. Require explicit user consent.
-6. Open **Authentication → Signing Keys**.
-7. Add and activate an asymmetric RS256 or ES256 signing key.
-8. Confirm the project Site URL is the canonical Sportfolio web URL.
-9. Do not manually register a production ChatGPT client until the submission portal provides the exact callback and client requirements.
+6. Open **Project Settings → JWT Keys**.
+7. Select the **JWT Signing Keys** tab.
+8. Inspect the **Current key**. If it shows `ES256`, `RS256`, `ECC (P-256)`, or `RSA 2048`, the asymmetric-key prerequisite is already satisfied; do not rotate it merely for this plugin.
+9. Only if the page shows the legacy JWT secret as the sole signing mechanism, use **Migrate JWT secret**, allow Supabase to create the standby asymmetric key, validate application compatibility, and then rotate according to Supabase's zero-downtime migration procedure.
+10. Confirm the project Site URL is the canonical Sportfolio web URL.
+11. Do not manually register a production ChatGPT client until the submission portal provides the exact callback and client requirements.
+
+Direct dashboard route for this project:
+
+```text
+https://supabase.com/dashboard/project/xolfyrbtkmwgllrazcfh/settings/jwt
+```
+
+Do not revoke the legacy key or disable legacy API keys as part of this plugin setup. Those are separate migrations that require an application-wide compatibility audit.
 
 ## Compatibility probe
 
