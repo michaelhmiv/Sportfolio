@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync, sign } from "crypto";
 import {
-  PluginTokenError,
   resetPluginJwksCacheForTests,
   verifyPluginAccessToken,
 } from "./plugin-token-verifier";
@@ -73,32 +72,32 @@ describe("verifyPluginAccessToken", () => {
   });
 
   it("rejects a token issued by another issuer", async () => {
-    await expect(verifyPluginAccessToken(createToken({ iss: "https://evil.test" }), config)).rejects.toMatchObject<Partial<PluginTokenError>>({
-      code: "invalid_issuer",
-    });
+    await expect(
+      verifyPluginAccessToken(createToken({ iss: "https://evil.test" }), config),
+    ).rejects.toMatchObject({ code: "invalid_issuer" });
   });
 
   it("rejects a token issued for another audience", async () => {
-    await expect(verifyPluginAccessToken(createToken({ aud: "https://other.test" }), config)).rejects.toMatchObject<Partial<PluginTokenError>>({
-      code: "invalid_audience",
-    });
+    await expect(
+      verifyPluginAccessToken(createToken({ aud: "https://other.test" }), config),
+    ).rejects.toMatchObject({ code: "invalid_audience" });
   });
 
   it("rejects an expired token", async () => {
     await expect(
       verifyPluginAccessToken(createToken({ exp: Math.floor(Date.now() / 1000) - 1 }), config),
-    ).rejects.toMatchObject<Partial<PluginTokenError>>({ code: "expired_token" });
+    ).rejects.toMatchObject({ code: "expired_token" });
   });
 
   it("rejects a token without the required scope", async () => {
-    await expect(verifyPluginAccessToken(createToken({ scope: "profile" }), config)).rejects.toMatchObject<Partial<PluginTokenError>>({
-      code: "insufficient_scope",
-    });
+    await expect(
+      verifyPluginAccessToken(createToken({ scope: "profile" }), config),
+    ).rejects.toMatchObject({ code: "insufficient_scope" });
   });
 
   it("supports an explicit OAuth client allowlist", async () => {
     await expect(
       verifyPluginAccessToken(createToken(), { ...config, allowedClientIds: ["different-client"] }),
-    ).rejects.toMatchObject<Partial<PluginTokenError>>({ code: "unapproved_client" });
+    ).rejects.toMatchObject({ code: "unapproved_client" });
   });
 });

@@ -21,7 +21,10 @@ on:
       - "docs/plugin/**"
       - "client/src/pages/privacy.tsx"
       - "client/src/pages/terms.tsx"
+      - "tsconfig.plugin.json"
       - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/plugin-readiness.yml"
   workflow_dispatch:
   schedule:
@@ -34,18 +37,24 @@ concurrency:
   group: plugin-readiness-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_ENV: test
+  DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_plugin_ci
+
 jobs:
   static-and-unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
-      - name: Typecheck
+      - name: Plugin TypeScript certification
+        run: npx tsc -p tsconfig.plugin.json --noEmit
+      - name: Repository typecheck
         run: npm run check
       - name: Production build
         run: npm run build
@@ -68,6 +77,8 @@ jobs:
         run: npx tsx scripts/plugin-privacy-check.ts
       - name: Submission kit
         run: npx tsx scripts/plugin-submission-check.ts
+      - name: External release gate report
+        run: npx tsx scripts/plugin-release-gate.ts
 
   protocol-regression:
     runs-on: ubuntu-latest
@@ -76,7 +87,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Existing MCP audit
@@ -85,6 +96,18 @@ jobs:
         run: npm run mcp:smoke
       - name: Marketplace MCP smoke
         run: npx tsx scripts/plugin-smoke.ts
+
+  production-dependency-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Audit production dependencies for critical advisories
+        run: npm audit --omit=dev --audit-level=critical
 
   live-oauth-compatibility:
     runs-on: ubuntu-latest
@@ -95,7 +118,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Validate Supabase OAuth discovery and JWKS

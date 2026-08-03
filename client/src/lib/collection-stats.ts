@@ -15,7 +15,6 @@ const STAT_LABELS: Record<string, string> = {
   runs: "R",
   runsBattedIn: "RBI",
   walks: "BB",
-  strikeouts: "K",
   inningsPitched: "IP",
   pitchingStrikeouts: "K",
   wins: "W",

@@ -542,7 +542,7 @@ export class PostgresCollectionReadRepository implements CollectionReadRepositor
       rank: row.rank,
       statKey: row.statKey,
       qualificationValue: row.qualificationValue ?? null,
-      qualificationMetadata: row.qualificationMetadata ?? null,
+      qualificationMetadata: (row.qualificationMetadata as Record<string, unknown> | null) ?? null,
       statLabel: formatStatLabel(row.statKey),
       allocation: row.allocationId
         ? {
