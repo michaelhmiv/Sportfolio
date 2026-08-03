@@ -1,0 +1,99 @@
+name: Plugin Readiness
+
+on:
+  push:
+    branches:
+      - "plugin/**"
+  pull_request:
+    paths:
+      - "server/mcp/plugin/**"
+      - "server/auth/plugin-**"
+      - "server/routes/plugin-**"
+      - "client/src/pages/oauth-consent.tsx"
+      - "client/src/pages/connected-apps.tsx"
+      - "client/src/pages/plugin-**"
+      - "client/oauth/**"
+      - "client/plugin/**"
+      - "client/plugin-support/**"
+      - "plugins/sportfolio/**"
+      - ".agents/plugins/marketplace.json"
+      - "scripts/plugin-**"
+      - "docs/plugin/**"
+      - "client/src/pages/privacy.tsx"
+      - "client/src/pages/terms.tsx"
+      - "vite.config.ts"
+      - ".github/workflows/plugin-readiness.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "23 9 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-and-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run check
+      - name: Production build
+        run: npm run build
+      - name: Plugin unit tests
+        run: >-
+          npx vitest run
+          server/mcp/plugin/capability-policy.test.ts
+          server/mcp/plugin/adapters.test.ts
+          server/auth/plugin-token-verifier.test.ts
+          scripts/plugin-oauth-discovery-check.test.ts
+          scripts/plugin-oauth-token-inspect.test.ts
+      - name: Marketplace audit
+        run: npx tsx scripts/plugin-audit.ts
+      - name: Catalog freeze
+        run: npx tsx scripts/plugin-catalog-check.ts
+      - name: Package structure
+        run: npx tsx scripts/plugin-package-check.ts
+      - name: Privacy scan
+        run: npx tsx scripts/plugin-privacy-check.ts
+
+  protocol-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Existing MCP audit
+        run: npm run mcp:audit
+      - name: Existing MCP smoke
+        run: npm run mcp:smoke
+      - name: Marketplace MCP smoke
+        run: npx tsx scripts/plugin-smoke.ts
+
+  live-oauth-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PLUGIN_OAUTH_ISSUER: https://xolfyrbtkmwgllrazcfh.supabase.co/auth/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Validate Supabase OAuth discovery and JWKS
+        run: npx tsx scripts/plugin-oauth-discovery-check.ts
