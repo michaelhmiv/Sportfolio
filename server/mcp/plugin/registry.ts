@@ -1,5 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createDefaultPublicMcpDependencies } from "../public-tool-registry";
+import {
+  createDefaultPublicMcpDependencies,
+  type PublicMcpDependencies,
+} from "../public-tool-registry";
 import type { PluginMcpContext } from "./context";
 import {
   executePluginToolAdapter,
@@ -18,9 +21,8 @@ function securitySchemesFor(access: "public" | "oauth") {
 export async function registerPluginMarketplaceSurface(
   server: McpServer,
   context: PluginMcpContext,
+  deps: PublicMcpDependencies = createDefaultPublicMcpDependencies(),
 ): Promise<void> {
-  const deps = createDefaultPublicMcpDependencies();
-
   for (const adapter of PLUGIN_TOOL_ADAPTERS) {
     const policy = getPluginV1ToolPolicy(adapter.name);
     if (!policy) {

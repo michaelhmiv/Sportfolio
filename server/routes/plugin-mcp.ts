@@ -7,6 +7,7 @@ import {
 } from "../auth/plugin-oauth";
 import { getPluginOAuthConfig } from "../auth/plugin-oauth-config";
 import { createPluginMcpServer } from "../mcp/plugin/server";
+import type { PublicMcpDependencies } from "../mcp/public-tool-registry";
 
 function writeJsonRpcError(
   res: Response,
@@ -28,7 +29,7 @@ function pluginEnabled(res: Response): boolean {
   return false;
 }
 
-export function registerPluginMcpRoutes(app: Express): void {
+export function registerPluginMcpRoutes(app: Express, deps?: PublicMcpDependencies): void {
   app.post(
     "/mcp/plugin",
     optionalPluginOAuth,
@@ -49,10 +50,13 @@ export function registerPluginMcpRoutes(app: Express): void {
       res.setHeader("x-request-id", requestId);
       res.setHeader("Cache-Control", "no-store");
 
-      const server = await createPluginMcpServer({
-        auth: req.pluginAuth ?? null,
-        requestId,
-      });
+      const server = await createPluginMcpServer(
+        {
+          auth: req.pluginAuth ?? null,
+          requestId,
+        },
+        deps,
+      );
       const transport = new StreamableHTTPServerTransport({
         enableJsonResponse: true,
         sessionIdGenerator: undefined,
