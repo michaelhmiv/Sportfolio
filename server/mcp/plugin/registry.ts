@@ -9,6 +9,12 @@ import {
 } from "./adapters";
 import { getPluginV1ToolPolicy } from "./capability-policy";
 
+function securitySchemesFor(access: "public" | "oauth") {
+  return access === "public"
+    ? [{ type: "noauth" as const }]
+    : [{ type: "oauth2" as const, scopes: ["openid"] }];
+}
+
 export async function registerPluginMarketplaceSurface(
   server: McpServer,
   context: PluginMcpContext,
@@ -21,6 +27,7 @@ export async function registerPluginMarketplaceSurface(
       throw new Error(`Plugin adapter is not present in the marketplace policy: ${adapter.name}`);
     }
 
+    const securitySchemes = securitySchemesFor(policy.access);
     server.registerTool(
       adapter.name,
       {
@@ -28,6 +35,7 @@ export async function registerPluginMarketplaceSurface(
         description: adapter.description,
         inputSchema: getPluginToolInputSchema(adapter),
         outputSchema: getPluginToolOutputSchema(),
+        securitySchemes,
         annotations: {
           title: adapter.title,
           readOnlyHint: policy.readOnly,
@@ -35,6 +43,7 @@ export async function registerPluginMarketplaceSurface(
           destructiveHint: policy.destructive,
         },
         _meta: {
+          securitySchemes,
           marketplaceVersion: "v1",
           access: policy.access,
           dataClassification: policy.dataClassification,
