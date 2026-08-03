@@ -23,6 +23,8 @@ on:
       - "client/src/pages/terms.tsx"
       - "tsconfig.plugin.json"
       - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/plugin-readiness.yml"
   workflow_dispatch:
   schedule:
@@ -95,6 +97,18 @@ jobs:
         run: npm run mcp:smoke
       - name: Marketplace MCP smoke
         run: npx tsx scripts/plugin-smoke.ts
+
+  production-dependency-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Audit production dependencies for critical advisories
+        run: npm audit --omit=dev --audit-level=critical
 
   live-oauth-compatibility:
     runs-on: ubuntu-latest
