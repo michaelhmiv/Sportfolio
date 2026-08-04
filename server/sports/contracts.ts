@@ -9,6 +9,9 @@ export const providerMetadataSchema = z.object({
   sourceUpdatedAt: z.string().datetime().nullable().optional(),
   staleAfterSeconds: z.number().int().nonnegative(),
   isStale: z.boolean(),
+  fallbackUsed: z.boolean().optional(),
+  fallbackReason: z.string().nullable().optional(),
+  conflictCount: z.number().int().nonnegative().optional(),
 });
 export type ProviderMetadata = z.infer<typeof providerMetadataSchema>;
 
@@ -45,6 +48,7 @@ export const gameStatusSchema = z.enum([
   "in_progress",
   "final",
   "postponed",
+  "suspended",
   "cancelled",
   "unknown",
 ]);
@@ -58,6 +62,12 @@ export const gameSchema = z.object({
   homeTeamId: z.string().nullable(),
   awayTeamId: z.string().nullable(),
   seriesId: z.string().nullable().optional(),
+  seasonId: z.string().nullable().optional(),
+  sourceStatus: z.string().nullable().optional(),
+  statusSource: z.enum(["provider", "inferred", "fallback"]).optional(),
+  statusConfidence: z.enum(["authoritative", "inferred", "unknown"]).optional(),
+  statusReason: z.string().nullable().optional(),
+  eventOrderKey: z.string().optional(),
   provider: providerMetadataSchema,
 });
 export type Game = z.infer<typeof gameSchema>;
@@ -77,6 +87,27 @@ export const liveStateSchema = z.object({
   clock: z.string().nullable(),
   period: z.string().nullable(),
   summary: z.string().nullable(),
+  sourceStatus: z.string().nullable().optional(),
+  statusSource: z.enum(["provider", "inferred", "fallback"]).optional(),
+  statusConfidence: z.enum(["authoritative", "inferred", "unknown"]).optional(),
+  statusReason: z.string().nullable().optional(),
+  phase: z
+    .object({
+      kind: z.enum(["inning", "period", "stage", "lap", "session"]),
+      number: z.number().nullable(),
+      label: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
+  progress: z
+    .object({
+      current: z.number().nullable(),
+      total: z.number().nullable(),
+      remaining: z.number().nullable(),
+      unit: z.enum(["inning", "period", "lap", "stage", "second"]),
+    })
+    .nullable()
+    .optional(),
   provider: providerMetadataSchema,
 });
 export type LiveState = z.infer<typeof liveStateSchema>;
@@ -96,3 +127,14 @@ export const sportsDataErrorSchema = z.object({
   retryable: z.boolean(),
 });
 export type SportsDataError = z.infer<typeof sportsDataErrorSchema>;
+
+export const nascarParticipantResultStatusSchema = z.enum([
+  "running",
+  "finished",
+  "dnf",
+  "dns",
+  "dnq",
+  "disqualified",
+  "unknown",
+]);
+export type NascarParticipantResultStatus = z.infer<typeof nascarParticipantResultStatusSchema>;
