@@ -1,0 +1,86 @@
+name: Unified Sports Release A Implementation
+
+on:
+  push:
+    branches:
+      - feat/unified-sports-release-a
+    paths:
+      - scripts/apply-unified-sports-release-a.py
+      - .github/workflows/release-a-implementation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: unified-sports-release-a
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: github.repository == 'michaelhmiv/Sportfolio' && github.actor == 'michaelhmiv'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out Release A branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/unified-sports-release-a
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply deterministic Release A patch
+        run: python3 scripts/apply-unified-sports-release-a.py
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format changed implementation files
+        run: >-
+          npx prettier --write
+          server/mcp/public-tool-policy.ts
+          server/mcp/public-tool-policy.test.ts
+          server/mcp/public-tool-registry.ts
+          scripts/audit-public-tool-policy.ts
+          package.json
+          docs/implementation/unified-sports-release-a.md
+
+      - name: Audit public tool policy
+        run: npm run public-tools:audit
+
+      - name: Run policy tests
+        run: npx vitest run server/mcp/public-tool-policy.test.ts server/mcp/public-surface-coverage.test.ts
+
+      - name: Type check
+        run: npm run check
+
+      - name: Lint changed TypeScript files
+        run: >-
+          npx eslint
+          server/mcp/public-tool-policy.ts
+          server/mcp/public-tool-policy.test.ts
+          server/mcp/public-tool-registry.ts
+          scripts/audit-public-tool-policy.ts
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Remove one-shot branch implementation files
+        run: rm -f scripts/apply-unified-sports-release-a.py .github/workflows/release-a-implementation.yml
+
+      - name: Commit validated implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes were produced."
+            exit 1
+          fi
+          git commit -m "refactor: enforce curated public MCP policy"
+          git push origin HEAD:feat/unified-sports-release-a
