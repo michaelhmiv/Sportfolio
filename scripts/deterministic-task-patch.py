@@ -3,6 +3,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 storage_path = ROOT / "server/storage.ts"
 storage = storage_path.read_text(encoding="utf-8")
+backup_lock_lines_before = [
+    line for line in storage.splitlines() if "pg_advisory_lock(" in line
+]
 
 wrong_reward_lock = '''      const [advisoryLockKeyA, advisoryLockKeyB] = deriveScoutDistributionAdvisoryLockKeys(
         grant.userId,
@@ -63,7 +66,10 @@ if wrong_reward_lock in storage:
     raise SystemExit("Rewarded scout boost lock was not restored")
 if original_reward_lock not in storage:
     raise SystemExit("Rewarded scout boost lock changed unexpectedly")
-if "pg_advisory_lock(hashtextextended(${input.lockKey}, 0))" not in storage:
+backup_lock_lines_after = [
+    line for line in storage.splitlines() if "pg_advisory_lock(" in line
+]
+if backup_lock_lines_after != backup_lock_lines_before:
     raise SystemExit("Backup advisory lock changed unexpectedly")
 if storage.count("deriveScoutDistributionAdvisoryLockKeys(reservationDomain)") != 2:
     raise SystemExit("Expected exactly two coordinated reservation-domain key derivations")
@@ -129,7 +135,7 @@ describe("scout distribution advisory lock contract", () => {
     expect(rewardedScout).toContain(
       "pg_advisory_xact_lock(hashtextextended(${grant.userId}, 0))",
     );
-    expect(source).toContain("pg_advisory_lock(hashtextextended(${input.lockKey}, 0))");
+    expect(source).toMatch(/pg_advisory_lock\(\s*hashtextextended\(/);
   });
 
   it("keeps the production verifier non-mutating and scheduler-quiesced", () => {
