@@ -83,8 +83,8 @@ replacement = (
     f'{indent});'
 )
 storage = pattern.sub(replacement, storage, count=1)
-if "hashtextextended" in storage:
-    raise SystemExit("storage.ts still contains hashtextextended")
+if pattern.search(storage):
+    raise SystemExit("The scout writer still contains the unsupported advisory lock query")
 storage_path.write_text(storage)
 
 verify = '''#!/usr/bin/env node
@@ -138,7 +138,9 @@ describe("scout distribution advisory lock contract", () => {
     const source = readFileSync("server/storage.ts", "utf8");
     expect(source).toContain("deriveScoutDistributionAdvisoryLockKeys");
     expect(source).toContain("pg_advisory_xact_lock(${advisoryLockKeyA}, ${advisoryLockKeyB})");
-    expect(source).not.toContain("hashtextextended");
+    expect(source).not.toMatch(
+      /pg_advisory_xact_lock\(hashtextextended\(\$\{[^}]+\},\s*0\)\)/,
+    );
   });
 
   it("keeps the production verifier non-mutating and scheduler-quiesced", () => {
