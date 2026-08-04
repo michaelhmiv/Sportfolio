@@ -1,9 +1,10 @@
 name: Unified Sports Release A Implementation
 
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
     branches:
-      - feat/unified-sports-release-a
+      - main
     paths:
       - scripts/apply-unified-sports-release-a.py
       - .github/workflows/release-a-implementation.yml
@@ -17,7 +18,10 @@ concurrency:
 
 jobs:
   implement:
-    if: github.repository == 'michaelhmiv/Sportfolio'
+    if: >-
+      github.repository == 'michaelhmiv/Sportfolio' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'feat/unified-sports-release-a'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
