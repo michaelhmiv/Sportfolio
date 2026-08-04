@@ -49,8 +49,8 @@ function SpecialSurfacesFixture() {
               Special surfaces
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-content-muted">
-              Hermes, premium, Scout, collections, alerts, and ceremonies retain distinct semantic
-              roles in both themes.
+              Premium, Scout, collections, alerts, and ceremonies retain distinct semantic roles in
+              both themes.
             </p>
           </div>
           <span className="w-fit rounded-pill border border-status-live/30 bg-status-live/10 px-3 py-1 text-xs font-medium text-status-live">
