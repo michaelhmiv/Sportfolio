@@ -1,4 +1,4 @@
-name: Dependency Remediation
+name: Dependency and Runtime Security Remediation
 
 on:
   push:
@@ -6,12 +6,14 @@ on:
       - security/public-repo-hardening
     paths:
       - ".github/workflows/dependency-remediation.yml"
-      - "package.json"
-      - "package-lock.json"
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: dependency-remediation-security-public-repo-hardening
+  cancel-in-progress: true
 
 jobs:
   remediate:
@@ -29,6 +31,121 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+
+      - name: Apply fail-closed runtime hardening
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          auth_path = Path("server/supabaseAuth.ts")
+          auth = auth_path.read_text()
+          old_bypass = 'const bypassAuth = process.env.DEV_BYPASS_AUTH !== "false";'
+          if auth.count(old_bypass) != 2:
+              raise SystemExit("Expected exactly two default-enabled DEV_BYPASS_AUTH checks")
+          auth = auth.replace(
+              old_bypass,
+              'const bypassAuth = process.env.DEV_BYPASS_AUTH === "true";',
+          )
+          auth, count = re.subn(
+              r'\n    // Log migration detection for debugging\n.*?\n    // Only generate a new username',
+              '\n    // Only generate a new username',
+              auth,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit("Could not remove verbose authentication identity logging")
+          auth, count = re.subn(
+              r'\n    console\.log\(\n      `\[SUPABASE_AUTH\] Upserted user:.*?\n    \);',
+              '',
+              auth,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit("Could not remove authenticated-user PII log")
+          auth_path.write_text(auth)
+
+          index_path = Path("server/index.ts")
+          index = index_path.read_text()
+          old_metrics = '''  const token = process.env.METRICS_TOKEN;
+          if (app.get("env") === "production" && token) {
+            const provided = _req.header("authorization")?.replace(/^Bearer\\s+/i, "") ?? "";
+            if (provided !== token) return res.status(401).json({ message: "Unauthorized" });
+          }
+          '''
+          new_metrics = '''  const token = process.env.METRICS_TOKEN;
+          if (app.get("env") === "production") {
+            if (!token) {
+              return res.status(503).json({ message: "Metrics authentication is not configured" });
+            }
+            const provided = _req.header("authorization")?.replace(/^Bearer\\s+/i, "") ?? "";
+            if (provided !== token) return res.status(401).json({ message: "Unauthorized" });
+          }
+          '''
+          if old_metrics not in index:
+              raise SystemExit("Metrics authentication block did not match expected source")
+          index = index.replace(old_metrics, new_metrics, 1)
+
+          response_capture = '''  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+          const originalResJson = res.json;
+          res.json = function (bodyJson, ...args) {
+            capturedJsonResponse = bodyJson;
+            return originalResJson.apply(res, [bodyJson, ...args]);
+          };
+
+          '''
+          if response_capture not in index:
+              raise SystemExit("API response capture block did not match expected source")
+          index = index.replace(response_capture, "", 1)
+          response_log = '''      if (capturedJsonResponse) {
+                logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+              }
+
+          '''
+          if response_log not in index:
+              raise SystemExit("API response-body logging block did not match expected source")
+          index = index.replace(response_log, "", 1)
+          index_path.write_text(index)
+
+          env_path = Path(".env.example")
+          env = env_path.read_text()
+          if "DEV_BYPASS_AUTH=" not in env:
+              marker = "NODE_ENV=development\n"
+              if marker not in env:
+                  raise SystemExit("NODE_ENV marker missing from .env.example")
+              env = env.replace(
+                  marker,
+                  marker
+                  + "# Explicit local-only opt-in. Never enable on shared or deployed environments.\n"
+                  + "DEV_BYPASS_AUTH=false\n",
+                  1,
+              )
+          env = env.replace(
+              "# Prometheus metrics endpoint\nMETRICS_ENABLED=false\nMETRICS_TOKEN=\n",
+              "# Prometheus metrics endpoint. METRICS_TOKEN is mandatory when enabled in production.\n"
+              "METRICS_ENABLED=false\nMETRICS_TOKEN=\n",
+              1,
+          )
+          env_path.write_text(env)
+
+          audit_path = Path(".github/workflows/security-audit.yml")
+          audit = audit_path.read_text()
+          audit = audit.replace('node-version: "20"', 'node-version: "22"', 1)
+          old_dependency_if = "    if: github.event_name == 'pull_request'\n"
+          new_dependency_if = (
+              "    # Enable the repository dependency graph, then set the repository variable "
+              "DEPENDENCY_REVIEW_ENABLED=true.\n"
+              "    if: ${{ github.event_name == 'pull_request' && vars.DEPENDENCY_REVIEW_ENABLED == 'true' }}\n"
+          )
+          if old_dependency_if not in audit:
+              raise SystemExit("Dependency-review condition did not match expected workflow")
+          audit = audit.replace(old_dependency_if, new_dependency_if, 1)
+          audit_path.write_text(audit)
+          PY
 
       - name: Upgrade vulnerable direct dependencies
         run: >-
@@ -54,14 +171,15 @@ jobs:
       - name: Run unit tests
         run: npm run test:run
 
-      - name: Commit validated dependency updates
+      - name: Commit validated security changes and remove one-time workflow
         run: |
-          if git diff --quiet -- package.json package-lock.json; then
-            echo "No dependency changes were required."
+          git rm .github/workflows/dependency-remediation.yml
+          if git diff --quiet; then
+            echo "No security changes were required."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
-          git commit -m "security: remediate vulnerable production dependencies [skip ci]"
+          git add package.json package-lock.json server/supabaseAuth.ts server/index.ts .env.example .github/workflows/security-audit.yml
+          git commit -m "security: remediate dependencies and fail closed [skip ci]"
           git push origin HEAD:security/public-repo-hardening
