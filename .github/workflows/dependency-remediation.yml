@@ -33,13 +33,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "22.12.0"
           cache: npm
 
-      - name: Apply fail-closed runtime and workflow hardening
+      - name: Apply fail-closed runtime hardening
         run: python scripts/security-remediation.py
 
-      - name: Upgrade vulnerable direct dependencies
+      - name: Upgrade vulnerable production dependencies
         run: >-
           npm install --save
           @modelcontextprotocol/sdk@^1.30.0
@@ -51,22 +51,28 @@ jobs:
           drizzle-orm@^0.45.2
           firebase-admin@^14.2.0
 
-      - name: Pin compatible test and build tooling
+      - name: Install secure compatible test and build tooling
         run: >-
           npm install --save-dev --save-exact
-          vitest@4.0.16
-          @vitest/coverage-v8@4.0.16
-          vite@5.4.20
+          vitest@3.2.7
+          @vitest/coverage-v8@3.2.7
+          vite@7.3.2
           @types/node@20.19.0
 
       - name: Apply compatible transitive security updates
         run: npm audit fix || true
 
-      - name: Verify production vulnerability threshold
+      - name: Block high or critical production vulnerabilities
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Block high or critical vulnerabilities in the full dependency graph
+        run: npm audit --audit-level=high
 
       - name: Type check
         run: npm run check
+
+      - name: Production build
+        run: npm run build
 
       - name: Run security-critical regression tests
         run: >-
@@ -83,11 +89,14 @@ jobs:
         run: npm run test:run
         continue-on-error: true
 
-      - name: Commit validated security changes and remove one-time tooling
+      - name: Commit validated dependency and runtime changes
         run: |
-          git rm .github/workflows/dependency-remediation.yml scripts/security-remediation.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json server/supabaseAuth.ts server/index.ts .env.example .github/workflows/security-audit.yml .github/workflows/droid.yml .github/workflows/droid-review.yml
-          git commit -m "security: remediate dependencies and fail closed [skip ci]"
+          git add package.json package-lock.json server/supabaseAuth.ts server/index.ts .env.example
+          if git diff --cached --quiet; then
+            echo "No validated dependency or runtime changes to commit."
+            exit 0
+          fi
+          git commit -m "security: remediate dependencies and fail closed"
           git push origin HEAD:security/public-repo-hardening
