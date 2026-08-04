@@ -200,17 +200,17 @@ function PrivateProfile() {
 function getFamilyIcon(family: string, kind: string) {
   switch (family) {
     case "season_leaders":
-      return <Target className="h-4 w-4 shrink-0 text-emerald-500" />;
+      return <Target className="h-4 w-4 shrink-0 text-status-success" />;
     case "threshold_clubs":
-      return <Award className="h-4 w-4 shrink-0 text-amber-500" />;
+      return <Award className="h-4 w-4 shrink-0 text-status-warning" />;
     case "official_awards":
-      return <Trophy className="h-4 w-4 shrink-0 text-yellow-500" />;
+      return <Trophy className="h-4 w-4 shrink-0 text-premium" />;
     case "official_teams":
-      return <Flag className="h-4 w-4 shrink-0 text-blue-500" />;
+      return <Flag className="h-4 w-4 shrink-0 text-status-info" />;
     case "postseason":
-      return <Flag className="h-4 w-4 shrink-0 text-purple-500" />;
+      return <Flag className="h-4 w-4 shrink-0 text-premium" />;
     case "masters":
-      return <Layers className="h-4 w-4 shrink-0 text-pink-500" />;
+      return <Layers className="h-4 w-4 shrink-0 text-premium" />;
     default:
       return <Trophy className="h-4 w-4 shrink-0 text-premium" />;
   }

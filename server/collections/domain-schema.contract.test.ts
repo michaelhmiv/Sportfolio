@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const repositoryRoot = process.cwd();
 const migrationPath = resolve(repositoryRoot, "migrations/0049_collections_domain_v2.sql");
+const pointsRemovalPath = resolve(repositoryRoot, "migrations/0052_drop_collection_xp_points.sql");
 
 const expectedTables = {
   collectionDefinitions: "collection_definitions",
@@ -94,10 +95,20 @@ describe("collections v2 domain schema contract", () => {
       .flatMap((config) => config.checks.map((constraint) => constraint.name))
       .sort();
     const migration = readFileSync(migrationPath, "utf8");
+    const droppedChecks = new Set(
+      Array.from(
+        readFileSync(pointsRemovalPath, "utf8").matchAll(
+          /\bDROP CONSTRAINT IF EXISTS\s+([a-z0-9_]+_check)\b/g,
+        ),
+        (match) => match[1],
+      ),
+    );
     const migrationChecks = Array.from(
       migration.matchAll(/\bCONSTRAINT\s+([a-z0-9_]+_check)\b/g),
       (match) => match[1],
-    ).sort();
+    )
+      .filter((name) => !droppedChecks.has(name))
+      .sort();
 
     expect(drizzleChecks).toEqual(migrationChecks);
 

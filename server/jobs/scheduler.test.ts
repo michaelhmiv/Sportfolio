@@ -5,7 +5,6 @@ const schedulerMocks = vi.hoisted(() => ({
   syncNascarStats: vi.fn(),
   syncNascarActiveRoster: vi.fn(),
   fetchNews: vi.fn(),
-  compileAllDigests: vi.fn(),
   syncMLBSchedule: vi.fn(),
   syncMLBStats: vi.fn(),
   syncMLBRoster: vi.fn(),
@@ -34,10 +33,6 @@ const expectedScheduledJobs = {
   bot_engine:
     process.env.BOT_ENGINE_SCHEDULE ||
     (process.env.NODE_ENV === "production" ? "*/15 * * * *" : "* * * * *"),
-  compile_digest: "0 6 * * *",
-  agent_advisory_schedules: "*/15 * * * *",
-  agent_live_strategies: "*/15 * * * *",
-  agent_strategy_events: "*/10 * * * *",
   lock_boost_shares: "0-59/5 * * * *",
   snapshot_share_payouts: "1-59/5 * * * *",
   settle_boosts: "5-59/10 * * * *",
@@ -71,10 +66,6 @@ const expectedAdvertisedManualJobs = [
   "news_fetch",
   "discord_hourly_market_digest",
   "discord_news_post",
-  "compile_digest",
-  "agent_advisory_schedules",
-  "agent_live_strategies",
-  "agent_strategy_events",
   "lock_boost_shares",
   "snapshot_share_payouts",
   "settle_boosts",
@@ -198,9 +189,6 @@ vi.mock("./discord-posting", () => ({
   postDiscordHourlyMarketDigest: vi.fn().mockResolvedValue(defaultJobResult),
   postDiscordNewsUpdates: vi.fn().mockResolvedValue(defaultJobResult),
 }));
-vi.mock("./compile-digest", () => ({
-  compileAllDigests: schedulerMocks.compileAllDigests,
-}));
 vi.mock("./lock-boost-shares", () => ({
   lockBoostShares: vi.fn().mockResolvedValue(defaultJobResult),
 }));
@@ -240,13 +228,6 @@ vi.mock("../health/api-health-check", () => ({
   runApiHealthCheck: schedulerMocks.runApiHealthCheck,
   toApiHealthJobResult: schedulerMocks.toApiHealthJobResult,
 }));
-vi.mock("../agent/schedules", () => ({
-  runDueUserAgentSchedules: vi.fn().mockResolvedValue(defaultJobResult),
-}));
-vi.mock("../agent/strategy-runner", () => ({
-  runDueUserAgentStrategies: vi.fn().mockResolvedValue(defaultJobResult),
-  runTriggeredUserAgentStrategies: vi.fn().mockResolvedValue(defaultJobResult),
-}));
 
 describe("JobScheduler registration and manual dispatch", () => {
   beforeEach(() => {
@@ -271,7 +252,6 @@ describe("JobScheduler registration and manual dispatch", () => {
       stories: [{ id: "story-1" }],
       error: "partial source failure",
     });
-    schedulerMocks.compileAllDigests.mockResolvedValue({ usersProcessed: 7, errors: 2 });
     schedulerMocks.syncMLBSchedule.mockResolvedValue({
       gamesProcessed: 12,
       errors: ["schedule-error"],
@@ -355,11 +335,9 @@ describe("JobScheduler registration and manual dispatch", () => {
     const progress = vi.fn();
 
     const newsResult = await scheduler.triggerJob("news_fetch", progress);
-    const digestResult = await scheduler.triggerJob("compile_digest", progress);
     await scheduler.triggerJob("nascar_stats_sync", progress);
 
     expect(schedulerMocks.fetchNews).toHaveBeenCalledWith(progress);
-    expect(schedulerMocks.compileAllDigests).toHaveBeenCalledWith(progress);
     expect(schedulerMocks.syncNascarStats).toHaveBeenCalledWith();
     expect(newsResult).toMatchObject({
       requestCount: 1,
@@ -368,7 +346,6 @@ describe("JobScheduler registration and manual dispatch", () => {
       stories: [{ id: "story-1" }],
       error: "partial source failure",
     });
-    expect(digestResult).toEqual({ requestCount: 0, recordsProcessed: 7, errorCount: 2 });
   });
 
   it("preserves custom manual result adapters and fixed handler arguments", async () => {
@@ -436,8 +413,8 @@ describe("JobScheduler registration and manual dispatch", () => {
         enabled: true,
       })),
     );
-    expect(scheduler.getConfiguredJobs()).toHaveLength(33);
-    expect(schedulerMocks.schedule).toHaveBeenCalledTimes(33);
+    expect(scheduler.getConfiguredJobs()).toHaveLength(29);
+    expect(schedulerMocks.schedule).toHaveBeenCalledTimes(29);
     for (const [, , options] of schedulerMocks.schedule.mock.calls) {
       expect(options).toEqual({ timezone: "America/New_York" });
     }
@@ -450,7 +427,7 @@ describe("JobScheduler registration and manual dispatch", () => {
     expect(scheduler.getAvailableManualJobNames()).toEqual(expectedAdvertisedManualJobs);
   });
 
-  it("keeps all 34 existing manual dispatch handlers executable", async () => {
+  it("keeps all 30 retained manual dispatch handlers executable", async () => {
     const { JobScheduler } = await import("./scheduler");
     const scheduler = new JobScheduler();
     const executableJobNames = [
@@ -458,13 +435,30 @@ describe("JobScheduler registration and manual dispatch", () => {
       "nascar_active_roster_sync",
     ];
 
-    expect(executableJobNames).toHaveLength(34);
+    expect(executableJobNames).toHaveLength(30);
     for (const jobName of executableJobNames) {
       await expect(scheduler.triggerJob(jobName)).resolves.toMatchObject({
         requestCount: expect.any(Number),
         recordsProcessed: expect.any(Number),
         errorCount: expect.any(Number),
       });
+    }
+  });
+
+  it("does not advertise, configure, or dispatch retired agent and digest jobs", async () => {
+    const { JobScheduler } = await import("./scheduler");
+    const scheduler = new JobScheduler();
+    const retired = [
+      "compile_digest",
+      "agent_advisory_schedules",
+      "agent_live_strategies",
+      "agent_strategy_events",
+    ];
+
+    expect(scheduler.getAvailableManualJobNames()).not.toEqual(expect.arrayContaining(retired));
+    expect(scheduler.getConfiguredJobNames()).not.toEqual(expect.arrayContaining(retired));
+    for (const jobName of retired) {
+      await expect(scheduler.triggerJob(jobName)).rejects.toThrow(`Unknown job: ${jobName}`);
     }
   });
 
@@ -494,11 +488,11 @@ describe("JobScheduler registration and manual dispatch", () => {
     const { jobDefinitions } = await import("./job-registry");
     const names = jobDefinitions.map((job) => job.name);
 
-    expect(names).toHaveLength(35);
+    expect(names).toHaveLength(31);
     expect(new Set(names).size).toBe(names.length);
-    expect(jobDefinitions.filter((job) => job.schedule)).toHaveLength(33);
-    expect(jobDefinitions.filter((job) => job.manualHandler)).toHaveLength(34);
-    expect(jobDefinitions.filter((job) => job.advertiseManual)).toHaveLength(34);
+    expect(jobDefinitions.filter((job) => job.schedule)).toHaveLength(29);
+    expect(jobDefinitions.filter((job) => job.manualHandler)).toHaveLength(30);
+    expect(jobDefinitions.filter((job) => job.advertiseManual)).toHaveLength(30);
 
     for (const group of ["core", "api"] as const) {
       const orders = jobDefinitions
