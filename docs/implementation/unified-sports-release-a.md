@@ -30,7 +30,7 @@ The ChatGPT marketplace catalog contains 20 compact tools after removing the leg
 - `get_my_news_digest`;
 - `review_my_sportfolio_setup`.
 
-Skill guidance, marketplace documentation, adapters, and the frozen catalog snapshot were updated together.
+Skill guidance, marketplace documentation, adapters, the frozen catalog snapshot, and `chatgpt-app-submission.json` were regenerated from the approved catalog together.
 
 ## Retained public capabilities
 
@@ -71,7 +71,8 @@ The implementation runner validates:
 - public-policy and surface-coverage tests;
 - repository type checking;
 - changed-file linting;
-- the production build.
+- the production build;
+- regeneration of the OpenAI submission import from the approved catalog.
 
 Plugin Readiness validates:
 
