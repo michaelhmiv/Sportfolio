@@ -667,6 +667,11 @@ export function serveStatic(app: Express) {
     throw new Error(`Could not find index.html in build directory: ${indexPath}`);
   }
 
+  const oauthConsentPath = path.resolve(distPath, "oauth", "consent", "index.html");
+  if (!fs.existsSync(oauthConsentPath)) {
+    throw new Error(`Could not find OAuth consent entry point: ${oauthConsentPath}`);
+  }
+
   const indexTemplate = fs.readFileSync(indexPath, "utf-8");
 
   app.use(
@@ -677,6 +682,22 @@ export function serveStatic(app: Express) {
       maxAge: "1y",
       setHeaders: (res) => {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    }),
+  );
+
+  // OAuth providers redirect to the configured authorization path without
+  // the entry file name. Serve the dedicated Vite entry before the general
+  // static middleware can redirect the directory to a trailing slash or let
+  // the main SPA catch-all render its 404 page.
+  app.use(
+    "/oauth/consent",
+    express.static(path.dirname(oauthConsentPath), {
+      index: "index.html",
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
+        }
       },
     }),
   );
