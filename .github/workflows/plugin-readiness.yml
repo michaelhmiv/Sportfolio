@@ -21,6 +21,7 @@ on:
       - "docs/plugin/**"
       - "client/src/pages/privacy.tsx"
       - "client/src/pages/terms.tsx"
+      - "chatgpt-app-submission.json"
       - "tsconfig.plugin.json"
       - "vite.config.ts"
       - "package.json"
@@ -77,6 +78,8 @@ jobs:
         run: npx tsx scripts/plugin-privacy-check.ts
       - name: Submission kit
         run: npx tsx scripts/plugin-submission-check.ts
+      - name: Verify OpenAI submission import
+        run: npx tsx scripts/generate-chatgpt-app-submission.ts --check
       - name: External release gate report
         run: npx tsx scripts/plugin-release-gate.ts
 
