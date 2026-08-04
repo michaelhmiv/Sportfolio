@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - "plugin/**"
+      - "feat/chatgpt-plugin-ui"
   pull_request:
     paths:
       - "server/mcp/plugin/**"
       - "server/auth/plugin-**"
       - "server/routes/plugin-**"
+      - "client/src/plugin-ui/**"
       - "client/src/pages/oauth-consent.tsx"
       - "client/src/pages/connected-apps.tsx"
       - "client/src/pages/plugin-**"
@@ -18,6 +20,7 @@ on:
       - "plugins/sportfolio/**"
       - ".agents/plugins/marketplace.json"
       - "scripts/plugin-**"
+      - "scripts/build-plugin-ui.mjs"
       - "docs/plugin/**"
       - "client/src/pages/privacy.tsx"
       - "client/src/pages/terms.tsx"
@@ -53,6 +56,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build ChatGPT widget assets
+        run: npm run plugin:ui:build
       - name: Plugin TypeScript certification
         run: npx tsc -p tsconfig.plugin.json --noEmit
       - name: Repository typecheck
@@ -65,11 +70,14 @@ jobs:
           server/mcp/plugin/capability-policy.test.ts
           server/mcp/plugin/adapters.test.ts
           server/mcp/plugin/runtime-guard.test.ts
+          server/mcp/plugin/ui/surface.test.ts
           server/auth/plugin-token-verifier.test.ts
           scripts/plugin-oauth-discovery-check.test.ts
           scripts/plugin-oauth-token-inspect.test.ts
       - name: Marketplace audit
         run: npx tsx scripts/plugin-audit.ts
+      - name: Plugin UI audit
+        run: npm run plugin:ui:audit
       - name: Catalog freeze
         run: npx tsx scripts/plugin-catalog-check.ts
       - name: Package structure
