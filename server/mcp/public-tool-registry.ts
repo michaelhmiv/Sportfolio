@@ -4608,7 +4608,9 @@ export function evaluateGameplayCapabilityParity() {
     [...routeBackedToolNames, ...PUBLIC_TOOL_ONLY_CAPABILITY_IDS].filter(isApprovedPublicToolName),
   );
   const registryPromptNames = new Set(buildPublicPromptRegistry().map((prompt) => prompt.name));
-  const expectedPromptNames = new Set<string>(PUBLIC_PROMPT_NAMES);
+  const expectedPromptNames = new Set<string>(
+    PUBLIC_PROMPT_NAMES.filter(isApprovedPublicPromptName),
+  );
   const registryResourceUris = new Set(PUBLIC_STATIC_RESOURCES.map((resource) => resource.uri));
   const expectedResourceUris = new Set<string>(PUBLIC_STATIC_RESOURCE_URIS);
   const missingFromRegistry = [...expectedToolNames].filter((name) => !registryToolNames.has(name));
