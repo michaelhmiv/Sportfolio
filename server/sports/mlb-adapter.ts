@@ -1,5 +1,6 @@
 import type { SportsAdapter } from "./adapter-registry";
-import type { Athlete, Game, GameStatus, LiveState, ProviderMetadata, Team } from "./contracts";
+import type { Athlete, Game, LiveState, ProviderMetadata, Team } from "./contracts";
+import { createProviderMetadata, reconcileAndSortGames, resolveMlbGameStatus } from "./semantics";
 import {
   createPlayerId,
   fetchAllPlayers,
@@ -7,7 +8,6 @@ import {
   fetchPlayer,
   fetchSchedule,
   fetchTeams,
-  normalizeGameStatus,
   parsePlayerId,
   type MlbGame,
   type MlbLinescore,
@@ -33,20 +33,12 @@ const defaults: MlbDependencies = {
   now: () => new Date(),
 };
 
-function metadata(now: Date): ProviderMetadata {
-  return {
+function metadata(now: Date, ttl = 300): ProviderMetadata {
+  return createProviderMetadata({
     provider: "mlb-statsapi",
-    fetchedAt: now.toISOString(),
-    staleAfterSeconds: 300,
-    isStale: false,
-  };
-}
-function status(game: MlbGame): GameStatus {
-  const value = normalizeGameStatus(game);
-  if (value === "completed") return "final";
-  if (value === "inprogress") return "in_progress";
-  if (value === "postponed") return "postponed";
-  return "scheduled";
+    fetchedAt: now,
+    staleAfterSeconds: ttl,
+  });
 }
 function athlete(player: MlbPlayer, now: Date): Athlete {
   return {
@@ -69,27 +61,52 @@ function team(value: MlbTeam, now: Date): Team {
   };
 }
 function game(value: MlbGame, now: Date): Game {
+  const status = resolveMlbGameStatus(value.status);
+  const startsAt = new Date(value.gameDate).toISOString();
   return {
     id: `mlb_game_${value.gamePk}`,
     sport: "mlb",
-    startsAt: new Date(value.gameDate).toISOString(),
-    status: status(value),
+    startsAt,
+    status: status.status,
     homeTeamId: `mlb_team_${value.teams.home.team.id}`,
     awayTeamId: `mlb_team_${value.teams.away.team.id}`,
+    sourceStatus: status.sourceStatus,
+    statusSource: status.statusSource,
+    statusConfidence: status.statusConfidence,
+    statusReason: status.statusReason,
+    eventOrderKey: `${startsAt}|${value.gamePk}`,
     provider: metadata(now),
   };
 }
 function live(gameId: string, value: MlbLinescore, now: Date): LiveState {
+  const hasInning = Number.isFinite(value.currentInning) && Number(value.currentInning) > 0;
   return {
     gameId,
-    status: value.currentInning ? "in_progress" : "scheduled",
+    status: hasInning ? "in_progress" : "unknown",
     clock: null,
     period: value.currentInningOrdinal ?? null,
     summary:
       value.currentInningOrdinal && value.inningHalf
         ? `${value.inningHalf} ${value.currentInningOrdinal}`
         : null,
-    provider: { ...metadata(now), staleAfterSeconds: 15 },
+    sourceStatus: hasInning ? "linescore_inning_present" : "linescore_phase_missing",
+    statusSource: hasInning ? "provider" : "fallback",
+    statusConfidence: hasInning ? "authoritative" : "unknown",
+    statusReason: hasInning
+      ? null
+      : "MLB linescore did not expose a game phase; scheduled was not inferred.",
+    phase: {
+      kind: "inning",
+      number: hasInning ? Number(value.currentInning) : null,
+      label: value.currentInningOrdinal ?? null,
+    },
+    progress: {
+      current: hasInning ? Number(value.currentInning) : null,
+      total: Number.isFinite(value.scheduledInnings) ? Number(value.scheduledInnings) : null,
+      remaining: null,
+      unit: "inning",
+    },
+    provider: metadata(now, 15),
   };
 }
 
@@ -121,7 +138,7 @@ export function createMlbAdapter(deps: Partial<MlbDependencies> = {}): SportsAda
         startDate: from.toISOString().slice(0, 10),
         endDate: to.toISOString().slice(0, 10),
       });
-      return values.map((value) => game(value, now));
+      return reconcileAndSortGames(values.map((value) => game(value, now)));
     },
     async getLiveState(id) {
       const providerId = Number(id.replace(/^mlb_game_/, ""));

@@ -69,6 +69,8 @@ describe("unified sports adapters", () => {
     expect(await adapter.getLiveState!("mlb_game_99")).toMatchObject({
       status: "in_progress",
       period: "3rd",
+      phase: { kind: "inning", number: 3, label: "3rd" },
+      statusSource: "provider",
     });
   });
 
@@ -99,6 +101,8 @@ describe("unified sports adapters", () => {
     expect(await adapter.getLiveState!("nhl_game_7")).toMatchObject({
       clock: "10:00",
       period: "2",
+      phase: { kind: "period", number: 2, label: "REG" },
+      statusSource: "provider",
     });
   });
 
@@ -159,6 +163,8 @@ describe("unified sports adapters", () => {
     expect(await adapter.getLiveState!("nascar_race_5")).toMatchObject({
       status: "in_progress",
       period: "Stage 2",
+      phase: { kind: "stage", number: 2, label: "Stage 2" },
+      progress: { current: 100, total: 200, remaining: 100, unit: "lap" },
     });
   });
 
