@@ -1,6 +1,6 @@
 # Unified Sports Data — Release A
 
-Status: merge-gated by Plugin Readiness and Security Audit.
+Status: validated by Plugin Readiness and Security Audit.
 
 ## Objective
 
@@ -68,7 +68,7 @@ Those physical cleanup steps are deferred to follow-on PRs after dependency and 
 
 ## Validation
 
-Release A is gated by:
+The final head passed:
 
 - public-tool policy audit;
 - public-policy and surface-coverage tests;
