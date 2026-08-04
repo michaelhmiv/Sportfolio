@@ -690,11 +690,17 @@ export function serveStatic(app: Express) {
   // the entry file name. Serve the dedicated Vite entry before the general
   // static middleware can redirect the directory to a trailing slash or let
   // the main SPA catch-all render its 404 page.
-  app.get(["/oauth/consent", "/oauth/consent/"], (_req, res, next) => {
-    res.sendFile(oauthConsentPath, (error) => {
-      if (error && !res.headersSent) next(error);
-    });
-  });
+  app.use(
+    "/oauth/consent",
+    express.static(path.dirname(oauthConsentPath), {
+      index: "index.html",
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
+        }
+      },
+    }),
+  );
 
   app.use(
     express.static(distPath, {
