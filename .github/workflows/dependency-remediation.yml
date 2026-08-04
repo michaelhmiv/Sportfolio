@@ -1,9 +1,11 @@
 name: Dependency and Runtime Security Remediation
 
 on:
-  push:
+  pull_request:
+    types: [opened, reopened, synchronize]
     branches:
-      - security/public-repo-hardening
+      - main
+      - master
     paths:
       - ".github/workflows/dependency-remediation.yml"
   workflow_dispatch:
@@ -17,7 +19,10 @@ concurrency:
 
 jobs:
   remediate:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'security/public-repo-hardening'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout remediation branch
