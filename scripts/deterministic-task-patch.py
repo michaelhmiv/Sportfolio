@@ -35,9 +35,15 @@ def replace_regex(value: str, pattern: str, replacement: str, label: str) -> str
     return updated
 
 
-# Stop importing and registering the retired jobs. Historical implementation and
-# database structures remain intact for rollback, but startup can no longer load
-# or dispatch these capabilities.
+def delete(path: str) -> None:
+    target = ROOT / path
+    if not target.exists():
+        raise RuntimeError(f"expected obsolete file to exist before deletion: {path}")
+    target.unlink()
+
+
+# Remove retired scheduler imports, adapters, and definitions while preserving
+# their historical storage and migrations for rollback.
 job_path = "server/jobs/job-registry.ts"
 job = read(job_path)
 job = remove_regex(
@@ -48,7 +54,7 @@ job = remove_regex(
 job = remove_regex(
     job,
     r'import \{\n  runDueUserAgentStrategies,\n  runTriggeredUserAgentStrategies,\n\} from "\.\./agent/strategy-runner";\n',
-    "remove agent strategy imports",
+    "remove strategy imports",
 )
 job = remove_regex(
     job,
@@ -127,8 +133,12 @@ manual_orders = {
 
 
 def replace_job_order(value: str, name: str, key: str, order: int) -> str:
-    pattern = rf'(name: "{re.escape(name)}",(?:(?!\n  \}},).)*?{key}: )\d+'
-    return replace_regex(value, pattern, rf'\g<1>{order}', f"renumber {name} {key}")
+    return replace_regex(
+        value,
+        rf'(name: "{re.escape(name)}",(?:(?!\n  \}},).)*?{key}: )\d+',
+        rf'\g<1>{order}',
+        f"renumber {name} {key}",
+    )
 
 
 for name, order in schedule_orders.items():
@@ -137,45 +147,24 @@ for name, order in manual_orders.items():
     job = replace_job_order(job, name, "manualOrder", order)
 write(job_path, job)
 
-# Remove the only lazy client entry point that produces the SMS bundle. The
-# route now falls through to the normal not-found surface.
+# Remove the SMS client entry point and route so Vite cannot emit the retired
+# lazy bundle and requests fall through to the standard not-found surface.
 app_path = "client/src/App.tsx"
 app = read(app_path)
-app = replace_once(
-    app,
-    'const loadSmsLinkPage = () => import("@/pages/sms-link");\n',
-    "",
-    "remove SMS page loader",
-)
-app = replace_once(app, "const SmsLink = lazy(loadSmsLinkPage);\n", "", "remove SMS lazy component")
-app = replace_once(
-    app,
-    '              <Route path="/sms/link" component={SmsLink} />\n',
-    "",
-    "remove SMS route",
-)
+app = replace_once(app, 'const loadSmsLinkPage = () => import("@/pages/sms-link");\n', "", "SMS loader")
+app = replace_once(app, "const SmsLink = lazy(loadSmsLinkPage);\n", "", "SMS lazy component")
+app = replace_once(app, '              <Route path="/sms/link" component={SmsLink} />\n', "", "SMS route")
 write(app_path, app)
 
-# Keep the visual-system contract aligned with the active public route set.
 public_contract_path = "client/src/components/public-surfaces.contract.test.ts"
 public_contract = read(public_contract_path)
-public_contract = replace_once(
-    public_contract,
-    '  "pages/sms-link.tsx",\n',
-    "",
-    "remove retired SMS surface from visual contract",
-)
+public_contract = replace_once(public_contract, '  "pages/sms-link.tsx",\n', "", "SMS visual contract")
 write(public_contract_path, public_contract)
 
-# Update scheduler fixtures and add explicit negative regression coverage.
+# Align scheduler fixtures with the retained 31-definition/30-handler registry.
 scheduler_test_path = "server/jobs/scheduler.test.ts"
 scheduler_test = read(scheduler_test_path)
-scheduler_test = replace_once(
-    scheduler_test,
-    "  compileAllDigests: vi.fn(),\n",
-    "",
-    "remove digest mock handle",
-)
+scheduler_test = replace_once(scheduler_test, "  compileAllDigests: vi.fn(),\n", "", "digest mock handle")
 for line in (
     '  compile_digest: "0 6 * * *",\n',
     '  agent_advisory_schedules: "*/15 * * * *",\n',
@@ -186,27 +175,27 @@ for line in (
     '  "agent_live_strategies",\n',
     '  "agent_strategy_events",\n',
 ):
-    scheduler_test = replace_once(scheduler_test, line, "", f"remove scheduler fixture {line.strip()}")
+    scheduler_test = replace_once(scheduler_test, line, "", f"scheduler fixture {line.strip()}")
 scheduler_test = remove_regex(
     scheduler_test,
     r'vi\.mock\("\./compile-digest", \(\) => \(\{\n  compileAllDigests: schedulerMocks\.compileAllDigests,\n\}\)\);\n',
-    "remove digest module mock",
+    "digest module mock",
 )
 scheduler_test = remove_regex(
     scheduler_test,
     r'vi\.mock\("\.\./agent/schedules", \(\) => \(\{\n  runDueUserAgentSchedules: vi\.fn\(\)\.mockResolvedValue\(defaultJobResult\),\n\}\)\);\n',
-    "remove advisory module mock",
+    "advisory module mock",
 )
 scheduler_test = remove_regex(
     scheduler_test,
     r'vi\.mock\("\.\./agent/strategy-runner", \(\) => \(\{\n  runDueUserAgentStrategies: vi\.fn\(\)\.mockResolvedValue\(defaultJobResult\),\n  runTriggeredUserAgentStrategies: vi\.fn\(\)\.mockResolvedValue\(defaultJobResult\),\n\}\)\);\n',
-    "remove strategy module mock",
+    "strategy module mock",
 )
 scheduler_test = replace_once(
     scheduler_test,
     "    schedulerMocks.compileAllDigests.mockResolvedValue({ usersProcessed: 7, errors: 2 });\n",
     "",
-    "remove digest mock setup",
+    "digest setup",
 )
 scheduler_test = replace_regex(
     scheduler_test,
@@ -231,31 +220,26 @@ scheduler_test = replace_regex(
   });
 
 ''',
-    "replace progress-forwarding test",
+    "progress forwarding test",
 )
 scheduler_test = replace_once(
     scheduler_test,
     "    expect(scheduler.getConfiguredJobs()).toHaveLength(33);\n    expect(schedulerMocks.schedule).toHaveBeenCalledTimes(33);\n",
     "    expect(scheduler.getConfiguredJobs()).toHaveLength(29);\n    expect(schedulerMocks.schedule).toHaveBeenCalledTimes(29);\n",
-    "update configured schedule counts",
+    "configured schedule counts",
 )
 scheduler_test = replace_once(
     scheduler_test,
     '  it("keeps all 34 existing manual dispatch handlers executable", async () => {\n',
     '  it("keeps all 30 retained manual dispatch handlers executable", async () => {\n',
-    "update executable handler test title",
+    "manual handler title",
 )
-scheduler_test = replace_once(
-    scheduler_test,
-    "    expect(executableJobNames).toHaveLength(34);\n",
-    "    expect(executableJobNames).toHaveLength(30);\n",
-    "update executable handler count",
-)
+scheduler_test = replace_once(scheduler_test, "    expect(executableJobNames).toHaveLength(34);\n", "    expect(executableJobNames).toHaveLength(30);\n", "manual handler count")
 scheduler_test = replace_once(
     scheduler_test,
     "    expect(names).toHaveLength(35);\n    expect(new Set(names).size).toBe(names.length);\n    expect(jobDefinitions.filter((job) => job.schedule)).toHaveLength(33);\n    expect(jobDefinitions.filter((job) => job.manualHandler)).toHaveLength(34);\n    expect(jobDefinitions.filter((job) => job.advertiseManual)).toHaveLength(34);\n",
     "    expect(names).toHaveLength(31);\n    expect(new Set(names).size).toBe(names.length);\n    expect(jobDefinitions.filter((job) => job.schedule)).toHaveLength(29);\n    expect(jobDefinitions.filter((job) => job.manualHandler)).toHaveLength(30);\n    expect(jobDefinitions.filter((job) => job.advertiseManual)).toHaveLength(30);\n",
-    "update registry counts",
+    "registry counts",
 )
 retired_test = '''
   it("does not advertise, configure, or dispatch retired agent and digest jobs", async () => {
@@ -280,23 +264,234 @@ scheduler_test = replace_once(
     scheduler_test,
     '  it("preserves the advertised backfill job as an unknown manual trigger", async () => {\n',
     retired_test + '  it("preserves the advertised backfill job as an unknown manual trigger", async () => {\n',
-    "insert retired-job regression test",
+    "retired job regression",
 )
 write(scheduler_test_path, scheduler_test)
 
-# Delete client-only implementation files so they cannot be reintroduced through
-# an accidental route import. Historical server/database compatibility remains.
+# Validate the final migration state, including the later intentional removal of
+# collection XP points and its check constraint.
+collection_contract_path = "server/collections/domain-schema.contract.test.ts"
+collection_contract = read(collection_contract_path)
+collection_contract = replace_once(
+    collection_contract,
+    'const migrationPath = resolve(repositoryRoot, "migrations/0049_collections_domain_v2.sql");\n',
+    'const migrationPath = resolve(repositoryRoot, "migrations/0049_collections_domain_v2.sql");\nconst pointsRemovalPath = resolve(repositoryRoot, "migrations/0052_drop_collection_xp_points.sql");\n',
+    "collection follow-up migration path",
+)
+collection_contract = replace_once(
+    collection_contract,
+    '''    const migrationChecks = Array.from(
+      migration.matchAll(/\\bCONSTRAINT\\s+([a-z0-9_]+_check)\\b/g),
+      (match) => match[1],
+    ).sort();
+''',
+    '''    const droppedChecks = new Set(
+      Array.from(
+        readFileSync(pointsRemovalPath, "utf8").matchAll(
+          /\\bDROP CONSTRAINT IF EXISTS\\s+([a-z0-9_]+_check)\\b/g,
+        ),
+        (match) => match[1],
+      ),
+    );
+    const migrationChecks = Array.from(
+      migration.matchAll(/\\bCONSTRAINT\\s+([a-z0-9_]+_check)\\b/g),
+      (match) => match[1],
+    )
+      .filter((name) => !droppedChecks.has(name))
+      .sort();
+''',
+    "collection final constraint set",
+)
+write(collection_contract_path, collection_contract)
+
+# Replace stale pre-Release-A MCP expectations with explicit internal-only raw
+# provider denial contracts while continuing to exercise retained prompts and resources.
+mcp_test_path = "server/mcp/mcp-server.test.ts"
+mcp_test = read(mcp_test_path)
+mcp_test = replace_once(mcp_test, "  executeResolvedPublicTool,\n", "", "unused resolved executor import")
+mcp_test = replace_once(mcp_test, "  resolvePublicCapabilityCatalog,\n", "", "unused catalog resolver import")
+mcp_test = replace_once(
+    mcp_test,
+    'import { createMockPublicMcpDependencies, startMockMcpHttpServer } from "./testing";\n',
+    'import { startMockMcpHttpServer } from "./testing";\n',
+    "testing import",
+)
+mcp_test = replace_once(mcp_test, '        name: "review_idle_cash",\n', '        name: "find_boost_candidates",\n', "retained prompt selection")
+mcp_test = replace_once(
+    mcp_test,
+    '''        expect.arrayContaining([
+          "review_setup",
+          "review_idle_cash",
+          "find_boost_candidates",
+          "stage_trade",
+        ]),
+''',
+    '''        expect.arrayContaining(["find_boost_candidates", "stage_trade"]),
+''',
+    "retained prompt expectations",
+)
+mcp_test = replace_once(
+    mcp_test,
+    '      expect(resources.resources.map((entry) => entry.uri)).toEqual(\n',
+    '      expect(prompts.prompts.map((entry) => entry.name)).not.toEqual(\n        expect.arrayContaining(["review_setup", "review_idle_cash"]),\n      );\n      expect(resources.resources.map((entry) => entry.uri)).toEqual(\n',
+    "retired prompt exclusion",
+)
+replacement_raw_test = '''
+  it("keeps raw MLB MCP tools internal-only across public protocol surfaces", async () => {
+    const server = await startMockMcpHttpServer({
+      mlbTools: {
+        toolCatalog: [
+          {
+            toolName: "mlb_mcp__get_schedule",
+            category: "read",
+            description: "Get the MLB schedule.",
+            whenToUse: ["Use when the caller wants the slate."],
+            whenNotToUse: [],
+            examplePrompts: ["who plays today?"],
+            requiresConfirmation: false,
+            riskLevel: "low",
+            resultShapeHint: "dates[].games[]",
+            presentationProfile: "schedule",
+            primaryEntityType: "game",
+            preferredColumns: ["matchup", "status"],
+            inputSchema: {
+              type: "object",
+              properties: { date: { type: "string" } },
+              required: ["date"],
+            },
+          },
+        ],
+        toolResults: {},
+      },
+    });
+    let openClient: OpenClient | null = null;
+
+    try {
+      openClient = await connectClient(server.url, server.authToken);
+      const rawToolName = "mlb_mcp__get_schedule";
+      const tools = await openClient.client.listTools();
+      const capabilities = await openClient.client.readResource({
+        uri: "sportfolio://capabilities",
+      });
+      const actionSurface = await openClient.client.readResource({
+        uri: "sportfolio://action-surface",
+      });
+      const toolCatalog = await openClient.client.readResource({
+        uri: "sportfolio://tool-catalog",
+      });
+      const result = await openClient.client.callTool({
+        name: rawToolName,
+        arguments: { date: "2026-03-28" },
+      });
+
+      expect(tools.tools.map((entry) => entry.name)).not.toContain(rawToolName);
+      expect(result.isError).toBe(true);
+
+      const capabilityPayload = JSON.parse(String(capabilities.contents[0]?.text)) as {
+        included: Array<Record<string, unknown>>;
+        dynamicSources: Array<Record<string, unknown>>;
+      };
+      expect(capabilityPayload.included.some((entry) => entry.capabilityId === rawToolName)).toBe(
+        false,
+      );
+      expect(capabilityPayload.dynamicSources[0]).toMatchObject({
+        provider: "internal_mlb_mcp",
+        available: true,
+        toolCount: 0,
+      });
+
+      const actionPayload = JSON.parse(String(actionSurface.contents[0]?.text)) as {
+        tools: Array<Record<string, unknown>>;
+      };
+      const catalogPayload = JSON.parse(String(toolCatalog.contents[0]?.text)) as {
+        tools: Array<Record<string, unknown>>;
+      };
+      expect(actionPayload.tools.some((entry) => entry.name === rawToolName)).toBe(false);
+      expect(catalogPayload.tools.some((entry) => entry.name === rawToolName)).toBe(false);
+    } finally {
+      await closeClient(openClient);
+      await server.close();
+    }
+  });
+
+  it("keeps internal MLB discovery at zero public tools even when provider tools exist", async () => {
+    const server = await startMockMcpHttpServer({
+      mlbTools: {
+        toolCatalog: [
+          {
+            toolName: "mlb_mcp__get_schedule",
+            category: "read",
+            description: "Get the MLB schedule.",
+            whenToUse: [],
+            whenNotToUse: [],
+            examplePrompts: [],
+            requiresConfirmation: false,
+            riskLevel: "low",
+            resultShapeHint: "dates[].games[]",
+            presentationProfile: "schedule",
+            primaryEntityType: "game",
+            preferredColumns: [],
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+        toolResults: {},
+      },
+    });
+    let openClient: OpenClient | null = null;
+
+    try {
+      openClient = await connectClient(server.url, server.authToken);
+      const initialNames = (await openClient.client.listTools()).tools.map((entry) => entry.name);
+      expect(initialNames.some((name) => name.startsWith("mlb_mcp__"))).toBe(false);
+
+      const capabilities = await openClient.client.readResource({
+        uri: "sportfolio://capabilities",
+      });
+      const payload = JSON.parse(String(capabilities.contents[0]?.text)) as {
+        dynamicSources: Array<Record<string, unknown>>;
+      };
+      expect(payload.dynamicSources).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ provider: "internal_mlb_mcp", toolCount: 0 }),
+        ]),
+      );
+    } finally {
+      await closeClient(openClient);
+      await server.close();
+    }
+  });
+
+'''
+mcp_test = replace_regex(
+    mcp_test,
+    r'\n  it\("lists and executes authenticated MLB MCP tools through the public MCP surface",.*?\n  it\("stages and confirms a scout assignment through the public MCP surface",',
+    replacement_raw_test + '  it("stages and confirms a scout assignment through the public MCP surface",',
+    "raw MLB public tests",
+)
+write(mcp_test_path, mcp_test)
+
+# Convert intentional collection-family icon accents to the design system's
+# semantic tokens so the public profile contract remains strict.
+profile_path = "client/src/pages/user-profile.tsx"
+profile = read(profile_path)
+for old, new in (
+    ("text-emerald-500", "text-status-success"),
+    ("text-amber-500", "text-status-warning"),
+    ("text-yellow-500", "text-premium"),
+    ("text-blue-500", "text-status-info"),
+    ("text-purple-500", "text-premium"),
+    ("text-pink-500", "text-premium"),
+):
+    profile = replace_once(profile, old, new, f"semantic profile color {old}")
+write(profile_path, profile)
+
 for obsolete in (
     "client/src/pages/sms-link.tsx",
     "client/src/components/sms-access-card.tsx",
     ".github/workflows/release-a-implementation.yml",
 ):
-    path = ROOT / obsolete
-    if not path.exists():
-        raise RuntimeError(f"expected obsolete file to exist before deletion: {obsolete}")
-    path.unlink()
+    delete(obsolete)
 
-# Static regression test ensures startup and build entry points stay retired.
 contract_path = ROOT / "server/jobs/retired-capabilities.contract.test.ts"
 contract_path.write_text(
     '''import { existsSync, readFileSync } from "node:fs";
@@ -362,4 +557,4 @@ A revert of the cleanup merge restores the active registrations without requirin
     encoding="utf-8",
 )
 
-print("Applied deterministic Release A cleanup patch.")
+print("Applied deterministic Release A cleanup and current-contract alignment patch.")
