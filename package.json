@@ -90,7 +90,10 @@
     "redditbot:settings:list": "npm --prefix packages/sportfoliobot run settings:list",
     "public-tools:audit": "tsx scripts/audit-public-tool-policy.ts",
     "db:migrate:scout-claims": "node scripts/apply-scout-claims-migration.mjs",
-    "audit:sports-semantics": "tsx scripts/audit-unified-sports-semantics.ts"
+    "audit:sports-semantics": "tsx scripts/audit-unified-sports-semantics.ts",
+    "governance:capabilities": "tsx scripts/public-capability-governance.ts check",
+    "governance:capabilities:snapshot": "tsx scripts/public-capability-governance.ts snapshot",
+    "governance:capabilities:update": "tsx scripts/public-capability-governance.ts update"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
