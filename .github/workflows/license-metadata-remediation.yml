@@ -1,0 +1,39 @@
+name: License Metadata Remediation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - ".github/workflows/license-metadata-remediation.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  update-package-license:
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'license/source-available-commercial'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout licensing branch
+        uses: actions/checkout@v5
+        with:
+          ref: license/source-available-commercial
+
+      - name: Set package license metadata
+        run: npm pkg set 'license=SEE LICENSE IN LICENSE'
+
+      - name: Commit package metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          if git diff --cached --quiet; then
+            echo "Package license metadata is already aligned."
+            exit 0
+          fi
+          git commit -m "license: align package metadata"
+          git push origin HEAD:license/source-available-commercial
