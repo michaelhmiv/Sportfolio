@@ -1,3 +1,4 @@
+// Generates the OpenAI ChatGPT app submission import from the reviewed MCP catalog.
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildPluginCatalog, type PluginCatalogEntry } from "../server/mcp/plugin/catalog";
