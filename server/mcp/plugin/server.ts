@@ -2,10 +2,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { PublicMcpDependencies } from "../public-tool-registry";
 import type { PluginMcpContext } from "./context";
 import { registerPluginMarketplaceSurface } from "./registry";
+import { registerPluginUiSurface } from "./ui/surface";
 
 const PLUGIN_SERVER_INFO = {
   name: "sportfolio-marketplace-plugin",
-  version: "1.0.0",
+  version: "1.1.0",
 } as const;
 
 export async function createPluginMcpServer(
@@ -19,5 +20,6 @@ export async function createPluginMcpServer(
   });
 
   await registerPluginMarketplaceSurface(server, context, deps);
+  await registerPluginUiSurface(server, context);
   return server;
 }
