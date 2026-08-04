@@ -153,7 +153,10 @@ app.get("/api/metrics", async (_req, res) => {
   if (!metricsEnabled) return res.status(404).json({ message: "Metrics disabled" });
 
   const token = process.env.METRICS_TOKEN;
-  if (app.get("env") === "production" && token) {
+  if (app.get("env") === "production") {
+    if (!token) {
+      return res.status(503).json({ message: "Metrics authentication is not configured" });
+    }
     const provided = _req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (provided !== token) return res.status(401).json({ message: "Unauthorized" });
   }
@@ -196,22 +199,10 @@ app.use((req, res, next) => {
 
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }

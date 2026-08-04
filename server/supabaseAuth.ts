@@ -93,16 +93,6 @@ async function upsertSupabaseUser(supabaseUser: SupabaseUser): Promise<string> {
       : null;
     const existingUser = existingUserById || existingUserByEmail;
 
-    // Log migration detection for debugging
-    console.log(`[SUPABASE_AUTH] Auth check for ${supabaseUser.email}:`);
-    console.log(`  - Supabase ID: ${supabaseUser.id}`);
-    console.log(
-      `  - Existing by ID: ${existingUserById?.id || "none"} (admin: ${existingUserById?.isAdmin})`,
-    );
-    console.log(
-      `  - Existing by email: ${existingUserByEmail?.id || "none"} (admin: ${existingUserByEmail?.isAdmin})`,
-    );
-
     // Only generate a new username for truly new users - preserve existing usernames
     const username =
       existingUser?.username ||
@@ -117,9 +107,6 @@ async function upsertSupabaseUser(supabaseUser: SupabaseUser): Promise<string> {
       profileImageUrl: supabaseUser.user_metadata?.avatar_url || null,
       username,
     });
-    console.log(
-      `[SUPABASE_AUTH] Upserted user: ${supabaseUser.email} (id: ${upsertedUser.id}, admin: ${upsertedUser.isAdmin}, preserved: ${!!existingUser?.username})`,
-    );
     return upsertedUser.id;
   } catch (error: any) {
     console.error("[SUPABASE_AUTH] Error upserting user:", error.message);
@@ -169,7 +156,7 @@ export async function isAuthenticated(
   next: NextFunction,
 ): Promise<void> {
   const isDev = process.env.NODE_ENV === "development";
-  const bypassAuth = process.env.DEV_BYPASS_AUTH !== "false";
+  const bypassAuth = process.env.DEV_BYPASS_AUTH === "true";
 
   if (isDev && bypassAuth) {
     if (!(req as any).user) {
@@ -239,7 +226,7 @@ export async function isAuthenticated(
 
 export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const isDev = process.env.NODE_ENV === "development";
-  const bypassAuth = process.env.DEV_BYPASS_AUTH !== "false";
+  const bypassAuth = process.env.DEV_BYPASS_AUTH === "true";
 
   if (isDev && bypassAuth && !(req as any).user) {
     const mockUserId = "dev-user-12345678";
