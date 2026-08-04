@@ -116,4 +116,8 @@ See [`mobile/README.md`](mobile/README.md) for the full iOS/Android runbook, env
 
 ## License
 
-MIT
+Sportfolio is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Noncommercial use is permitted only under those terms. Commercial use requires a separate written commercial license from the copyright holder; see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md).
+
+Because commercial use is restricted, Sportfolio is not distributed under an OSI-approved open-source license. Earlier versions that were validly received under earlier published terms are addressed in the historical-version notice in `COMMERCIAL_LICENSE.md`.
+
+The source-code license does not grant rights in league or team marks, player images or likenesses, sports data, APIs, advertisements, or other third-party material. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [TRADEMARKS.md](TRADEMARKS.md).
