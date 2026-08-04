@@ -1,4 +1,4 @@
-name: Factory Task PR Implementation
+name: Codex Task PR Implementation
 
 on:
   pull_request:
@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: factory-task-${{ github.event.pull_request.number }}
+  group: codex-task-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
@@ -25,10 +25,10 @@ jobs:
     timeout-minutes: 150
     env:
       NODE_ENV: test
-      DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_factory_ci
+      DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_codex_ci
     steps:
       - name: Check out task branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
@@ -52,26 +52,30 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install Factory Droid CLI
+      - name: Install repository dependencies before sandboxing
         shell: bash
-        run: |
-          set -euo pipefail
-          curl --proto '=https' --tlsv1.2 -fsSL https://app.factory.ai/cli | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        run: npm ci
 
-      - name: Implement task with Droid Exec
+      - name: Implement task with OpenAI Codex
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ steps.task.outputs.path }}
+          sandbox: workspace-write
+          effort: high
+          safety-strategy: drop-sudo
+          allow-users: ${{ github.repository_owner }}
+
+      - name: Enforce boundaries and commit implementation
         env:
-          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+          TASK_PATH: ${{ steps.task.outputs.path }}
+          HEAD_BRANCH: ${{ github.head_ref }}
         shell: bash
         run: |
           set -euo pipefail
-          droid exec --auto high -f "${{ steps.task.outputs.path }}"
 
-      - name: Enforce implementation boundaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f "${{ steps.task.outputs.path }}" .factory-implementation-report.md
+          rm -f "$TASK_PATH" .factory-implementation-report.md
           rmdir .factory/tasks 2>/dev/null || true
           rmdir .factory 2>/dev/null || true
 
@@ -80,59 +84,12 @@ jobs:
             exit 1
           fi
           if [ -z "$(git status --porcelain)" ]; then
-            echo "Factory implementation produced no repository changes." >&2
+            echo "Codex implementation produced no repository changes." >&2
             exit 1
           fi
 
-      - name: Install dependencies
-        shell: bash
-        run: npm ci
-
-      - name: Run implementation validation
-        id: validate
-        shell: bash
-        run: |
-          set +e
-          OVERALL=0
-          run_check() {
-            local label="$1"
-            shift
-            echo "::group::$label"
-            "$@"
-            local status=$?
-            echo "::endgroup::"
-            if [ "$status" -ne 0 ]; then
-              echo "Validation failed: $label (exit $status)" >&2
-              OVERALL=1
-            fi
-          }
-
-          run_check "TypeScript check" npm run check
-          run_check "Changed implementation lint" npm run lint
-          run_check "Formatting" npm run format:check
-          run_check "Full test suite" timeout 35m npm run test:run
-          run_check "Public tool policy" npm run public-tools:audit
-          run_check "Production build" npm run build
-
-          echo "overall=$OVERALL" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Commit implementation to task branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "factory-droid[bot]"
-          git config user.email "138933559+factory-droid[bot]@users.noreply.github.com"
+          git config user.name "openai-codex[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "feat: implement Factory task"
-          git push origin HEAD:${{ github.head_ref }}
-
-      - name: Report validation outcome
-        shell: bash
-        run: |
-          if [ "${{ steps.validate.outputs.overall }}" = "0" ]; then
-            echo "Factory implementation and the runner validation matrix passed."
-          else
-            echo "Factory implementation was committed for review, but one or more runner validations failed. Keep the PR in draft and inspect this run." >&2
-            exit 1
-          fi
+          git commit -m "feat: implement Codex task"
+          git push origin "HEAD:$HEAD_BRANCH"
