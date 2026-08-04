@@ -66,7 +66,7 @@ Those physical cleanup steps are deferred to follow-on PRs after dependency and 
 
 ## Validation
 
-The final Release A head passed:
+The final Release A head must pass:
 
 - public-tool policy audit;
 - public-policy and surface-coverage tests;
@@ -84,16 +84,6 @@ The final Release A head passed:
 - CodeQL JavaScript/TypeScript analysis.
 
 The MCP smoke test explicitly verifies that retired prompts and raw provider tools are not listed or present in capability resources, and that direct raw-tool calls return an MCP error result.
-
-## Production baseline observed August 4, 2026
-
-- The main Railway application and standalone `mlb-mcp` service are deployed successfully.
-- The main service still runs the `agent_advisory_schedules` scheduled job.
-- The production client build still emits an `sms-link` bundle.
-- MLB schedule and live-stat synchronization already run directly in the main Sportfolio service through StatsAPI.
-- NHL schedule, roster, stats, and live-stat jobs exist in the main repository.
-- NASCAR roster, schedule, stats, and live-race jobs exist in the main repository.
-- A transient NASCAR upstream HTTP 504 was observed and recovered on the next scheduled cycle.
 
 ## Follow-on releases
 
