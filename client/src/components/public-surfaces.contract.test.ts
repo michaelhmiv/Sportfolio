@@ -20,7 +20,6 @@ const publicSurfaces = [
   "pages/terms.tsx",
   "pages/privacy.tsx",
   "pages/account-deletion.tsx",
-  "pages/sms-link.tsx",
   "pages/discord-link.tsx",
   "pages/not-found.tsx",
   "pages/admin.tsx",

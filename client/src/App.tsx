@@ -76,7 +76,6 @@ const loadContactPage = () => import("@/pages/contact");
 const loadHowItWorksPage = () => import("@/pages/how-it-works");
 const loadWikiPage = () => import("@/pages/wiki");
 const loadWikiArticlePage = () => import("@/pages/wiki-article");
-const loadSmsLinkPage = () => import("@/pages/sms-link");
 const loadDiscordLinkPage = () => import("@/pages/discord-link");
 const loadAnalyticsPage = () => import("@/pages/analytics");
 const loadNewsPage = () => import("@/pages/news");
@@ -132,7 +131,6 @@ const Contact = lazy(loadContactPage);
 const HowItWorks = lazy(loadHowItWorksPage);
 const Wiki = lazy(loadWikiPage);
 const WikiArticle = lazy(loadWikiArticlePage);
-const SmsLink = lazy(loadSmsLinkPage);
 const DiscordLink = lazy(loadDiscordLinkPage);
 const Analytics = lazy(loadAnalyticsPage);
 const News = lazy(loadNewsPage);
@@ -857,7 +855,6 @@ function Router() {
               <Route path="/wiki" component={Wiki} />
               <Route path="/wiki/:section" component={Wiki} />
               <Route path="/wiki/:section/:slug" component={WikiArticle} />
-              <Route path="/sms/link" component={SmsLink} />
               <Route path="/discord/link" component={DiscordLink} />
               <Route path="/analytics" component={Analytics} />
               <Route path="/news" component={News} />
