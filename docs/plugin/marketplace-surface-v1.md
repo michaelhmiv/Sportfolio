@@ -30,11 +30,11 @@ These tools require OAuth authorization for the connected Sportfolio account:
 | `get_my_collections` | List collection progress. |
 | `get_my_collection` | Read one collection and matching owned players. |
 | `get_my_milestones` | Read milestone history. |
-| `get_my_news_digest` | Read the user's compiled Sportfolio news digest. |
 | `get_my_game_insights` | Join the game slate with relevant owned players and boosts. |
-| `review_my_sportfolio_setup` | Produce a read-only setup review grounded in connected account data. |
 | `find_my_boost_candidates` | Produce read-only daily boost candidate analysis. |
 | `find_my_scout_opportunities` | Produce read-only scout allocation opportunities. |
+
+ChatGPT is responsible for general sports research, news synthesis, user-created scheduled summaries, and narrative setup reviews. Sportfolio no longer exposes hosted digests or legacy agent advisory tools.
 
 ## Excluded capabilities
 
@@ -53,9 +53,9 @@ The following capability groups are excluded from marketplace v1:
 - schedules and recurring jobs;
 - premium redemption, checkout, funding, billing, and purchases;
 - admin and internal routes;
-- hosted open-web research;
-- raw agent threads, messages, action bundles, and provider data;
-- dynamically imported MLB MCP tools.
+- hosted open-web research and generated news digests;
+- legacy agent advisories, raw agent threads, messages, and action bundles;
+- raw provider data and dynamically imported MLB MCP tools.
 
 ## Output policy
 
