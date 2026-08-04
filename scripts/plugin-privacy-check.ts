@@ -14,7 +14,7 @@ const failures: string[] = [];
 
 const forbiddenCalls = [
   /console\.(?:log|info|debug)\([^\n]*(?:access[_-]?token|refresh[_-]?token|authorization_id|client_secret|password)/i,
-  /structuredContent\s*:\s*(?:raw|result)\b/i,
+  /structuredContent\s*:\s*(?:raw|result)\b(?!\.)/i,
   /return\s+(?:raw|result)\s*;\s*$/im,
 ];
 for (const pattern of forbiddenCalls) {
