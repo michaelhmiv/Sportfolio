@@ -2,7 +2,7 @@
   "name": "rest-express",
   "version": "1.0.0",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "dev": "node scripts/dev-orchestrator.mjs",
     "dev:app": "cross-env NODE_ENV=development tsx watch server/index.ts",
