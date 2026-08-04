@@ -10,14 +10,18 @@ const appBinding = readJson("plugins/sportfolio/.app.json");
 const marketplace = readJson(".agents/plugins/marketplace.json");
 
 if (manifest.name !== "sportfolio") throw new Error("Plugin name must remain sportfolio.");
-if (!/^\d+\.\d+\.\d+$/.test(manifest.version || "")) throw new Error("Plugin version must be semantic.");
+if (!/^\d+\.\d+\.\d+$/.test(manifest.version || "")) {
+  throw new Error("Plugin version must be semantic.");
+}
 if (manifest.skills !== "./skills/") throw new Error("Manifest skills path must be ./skills/.");
 if (manifest.apps !== "./.app.json") throw new Error("Manifest apps path must be ./.app.json.");
-if (!Array.isArray(manifest.interface?.capabilities) || !manifest.interface.capabilities.includes("Read")) {
-  throw new Error("Plugin must advertise Read capability.");
+if (!Array.isArray(manifest.interface?.capabilities)) {
+  throw new Error("Plugin must advertise capabilities.");
 }
-if (manifest.interface.capabilities.some((value: string) => value.toLowerCase() === "write")) {
-  throw new Error("Marketplace v1 must not advertise Write capability.");
+for (const capability of ["Read", "Write"]) {
+  if (!manifest.interface.capabilities.includes(capability)) {
+    throw new Error(`Full Sportfolio MCP parity must advertise ${capability} capability.`);
+  }
 }
 for (const field of ["websiteURL", "privacyPolicyURL", "termsOfServiceURL"]) {
   const value = manifest.interface?.[field];
