@@ -6,19 +6,21 @@ Sportfolio
 
 ## Short description
 
-Review your virtual sports portfolio, players, boosts, and collections.
+Manage your virtual sports portfolio.
 
 ## Long description
 
-Sportfolio Companion helps users research supported players and games, understand Sportfolio rules, and review a connected account's read-only virtual portfolio. After OAuth connection, users can inspect virtual holdings and balance, watchlists, daily boosts, collections, milestones, news, personalized game insights, and read-only setup recommendations.
+Sportfolio helps users research supported players and games, understand Sportfolio rules, review a connected virtual portfolio, and carry out supported gameplay actions. After OAuth connection, users can inspect virtual holdings and balance, trades, scouts, watchlists, boosts, collections, milestones, news, schedules, liquidity, and personalized insights.
 
-Sportfolio is a fantasy-sports portfolio game. Shares, balances, position values, gains, losses, and payouts are virtual game units with no cash value. The plugin does not provide real-money investing, betting, wagering, cash prizes, or cash-out functionality.
+Supported market, scouting, share-stacking, boost, community-boost, and liquidity operations use Sportfolio's existing staged workflow. The app presents the current virtual cost and account impact, creates a pending action, and finalizes only after the user explicitly confirms that exact bundle. Supported lower-risk account changes, such as watchlist and schedule management, can also be completed when specifically requested.
 
-Marketplace version 1 is read-only. Users must use the Sportfolio website or mobile app to execute virtual trades, assign boosts, scout players, edit watchlists, change account settings, or purchase premium access.
+Sportfolio is a fantasy-sports portfolio game. Shares, balances, position values, trades, gains, losses, and payouts are virtual game units with no cash value. The app does not provide real-money investing, betting, wagering, cash prizes, or cash-out functionality.
+
+Admin, internal, debug, raw database, mobile-store billing, and other capabilities excluded from Sportfolio's shared public MCP surface are not available through the app.
 
 ## Category
 
-Sports
+Entertainment
 
 ## Publisher
 
@@ -35,11 +37,11 @@ Sportfolio
 ## Starter prompts
 
 1. Review my Sportfolio setup.
-2. Which players I own are playing today?
-3. Show my largest virtual Sportfolio positions.
-4. How close am I to completing my collections?
-5. Which owned players should I consider for today's boosts?
+2. Buy 25 virtual Sportfolio bucks of Aaron Judge after showing me the preview.
+3. Find my best eligible daily boost and assign it after I confirm.
+4. Create a watchlist called Review Targets and add Aaron Judge.
+5. Show my largest virtual Sportfolio positions.
 
 ## Asset requirements
 
-Use the production Sportfolio logo on a simple background with adequate clear space. Listing screenshots must show the deployed product or actual plugin workflows and must not contain placeholder data, credentials, private account information, or capabilities unavailable in version 1.
+Use the production Sportfolio logo on a simple background with adequate clear space. Listing screenshots must show the deployed product or actual app workflows and must not contain placeholder data, credentials, private account information, or capabilities unavailable in the submitted version.

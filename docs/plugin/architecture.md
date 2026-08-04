@@ -2,66 +2,77 @@
 
 ## Purpose
 
-Sportfolio will expose a dedicated, versioned MCP surface for ChatGPT and Codex plugin distribution without changing the existing CLI-oriented MCP contract.
+Sportfolio exposes a dedicated OAuth-backed MCP endpoint for ChatGPT and Codex while reusing the same shared public capability registry and business logic as the existing site MCP. This prevents the app from drifting into a weaker or inconsistent product surface.
 
 ## Endpoint boundaries
 
-- `POST /mcp` remains the broad authenticated MCP used by the repo-local CLI and manually configured MCP clients.
-- `POST /mcp/plugin` is the marketplace-facing MCP endpoint.
-- The two endpoints may reuse read services and domain adapters, but they must not share a registry, authentication middleware, response contracts, or release cadence.
+- `POST /mcp` remains the session-oriented MCP used by the repo-local CLI and manually configured clients with Sportfolio API-token authentication.
+- `POST /mcp/plugin` is the stateless ChatGPT/Codex endpoint using OAuth 2.1.
+- Both endpoints derive their static tools from `server/mcp/public-tool-registry.ts` and therefore expose the same supported user-facing capabilities.
+- Transport, authentication, response sanitization, rate limits, observability, and release gates remain endpoint-specific.
 
-## Marketplace v1 product contract
+## Full product contract
 
-The first marketplace submission is a read-only Sportfolio companion. It may read public sports data and, after OAuth authorization, the connected user's Sportfolio portfolio, boosts, collections, watchlists, milestones, news, and composed setup insights.
+The app supports the authenticated user's shared public Sportfolio MCP surface, including:
 
-Marketplace v1 must not:
+- public documentation, player, schedule, and performance research;
+- connected portfolio, holdings, balance, trade, boost, scouting, watchlist, collection, milestone, news, liquidity, schedule, profile, activity, and agent reads;
+- staged virtual market buys and sells;
+- staged scouting, share stacking, daily boosts, community boosts, and liquidity operations;
+- exact-bundle confirmation and cancellation;
+- supported immediate watchlist, schedule, profile, onboarding, milestone, news, account, SMS, premium, agent-profile, and agent-thread controls;
+- dynamically discovered internal MLB MCP tools when the source is healthy.
 
-- execute or stage trades, liquidity actions, boosts, scout changes, or other gameplay mutations;
-- collect or return passwords, API keys, OAuth tokens, one-time codes, SMS-link tokens, cookies, or other credentials;
-- create, list, or revoke Sportfolio API tokens;
-- change usernames, profile images, onboarding state, SMS settings, schedules, agent settings, or BYOK configuration;
-- initiate billing, checkout, funding, premium redemption, rewarded advertising, or purchases;
-- expose admin, internal, debug, provider, database, request, session, or raw agent-thread details;
-- dynamically add internal MLB sidecar tools to the published tool list.
+The shared registry continues to exclude admin, internal, debug, raw database, mobile-store billing, unsupported provider-management, and web-only capabilities that are not part of the public MCP contract.
+
+Sportfolio values and actions remain virtual gameplay only. The app does not provide real-money investing, securities transactions, wagering, betting, cash prizes, or cash-out functionality.
 
 ## Authentication
 
-The marketplace endpoint uses OAuth 2.1 through the existing Supabase Auth user base. The implementation must support PKCE, OAuth discovery, protected-resource metadata, supported client registration, audience validation, revocation, and MCP authentication challenges.
+The marketplace endpoint uses OAuth 2.1 through the existing Supabase Auth user base. The implementation supports PKCE, OAuth discovery, protected-resource metadata, client registration, audience validation, revocation, and MCP authentication challenges.
 
-Manual `spt_...` API tokens remain available only to the existing `/mcp` and CLI surfaces.
+A small set of documentation and public player/game research tools may be used without authentication. Every private-data or write tool declares OAuth 2 security. Manual `spt_...` API tokens remain limited to the existing `/mcp` and CLI surfaces.
+
+## Action model
+
+Staged actions reuse Sportfolio's existing preview and pending-bundle workflow:
+
+1. A `stage_*` tool validates the current account state and produces the current virtual cost, holdings or balance impact, warnings, thread identifier, and pending-bundle identifier.
+2. ChatGPT presents the preview and obtains explicit confirmation.
+3. `confirm_pending_action` executes only the exact reviewed bundle.
+4. `cancel_pending_action` abandons the bundle without applying the gameplay action.
+
+Staging tools are write actions but are not destructive. The confirmation finalizer is marked destructive because it may complete an irreversible virtual transaction. Immediate write tools are annotated according to their actual effects.
 
 ## Registry governance
 
-The marketplace registry is an explicit allowlist. Every tool definition must declare:
+The marketplace static catalog is generated directly from the shared public site MCP registry. Every registered tool declares:
 
-- stable name and title;
-- when-to-use and when-not-to-use description;
-- strict input schema;
-- strict output schema;
+- stable name, title, and description;
+- input schema and a marketplace output envelope schema;
 - authentication requirement and security scheme;
-- `readOnlyHint`, `openWorldHint`, and `destructiveHint`;
-- data classification;
-- deterministic fixtures;
-- positive and negative selection prompts.
+- explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint` values;
+- execution, confirmation, and risk metadata;
+- deterministic fixture inputs where available.
 
-The published catalog must be snapshot-tested. New internal tools are denied by default.
+CI verifies exact static parity, prevents unauthenticated writes, requires output schemas, validates action annotations, and exercises the stateless endpoint. Dynamic MLB tools remain OAuth-only and are added only when their bounded source reports healthy discovery.
 
 ## Data minimization
 
-Marketplace adapters may call existing storage, service, or Hermes read paths, but must convert results into dedicated plugin DTOs. Raw ORM rows and broad internal objects are prohibited.
+Marketplace responses pass through a dedicated sanitizer before returning to ChatGPT. Passwords, secrets, provider keys, access and refresh tokens, authorization headers, cookies, service-role data, direct contact fields, stack traces, SQL details, session IDs, and request IDs are removed.
 
-Responses must omit data that is not necessary to answer the tool's stated purpose, including email, phone, internal user IDs, authentication records, API-token metadata, full agent turns, pending bundles, provider configuration, stack traces, SQL details, and request identifiers.
+Pending thread and bundle identifiers required to continue an approved staged action may be returned. The app must not echo sensitive input values or expose raw internal state unrelated to the user-visible workflow.
 
 ## Transport and state
 
-The marketplace MCP should use stateless Streamable HTTP unless a later reviewed feature requires protocol sessions. User identity comes from OAuth; durable state comes from the database; request continuity must not depend on a process-local session map.
+The marketplace MCP uses stateless Streamable HTTP. User identity comes from OAuth; durable account and pending-action state comes from the database. Request continuity does not depend on a process-local MCP session map.
 
 ## Versioning
 
-- Marketplace v1 is read-only.
-- A later version may add carefully selected confirmation-gated virtual gameplay actions only after the read-only release is approved and stable.
-- Any tool name, schema, authentication, annotation, or result-contract change requires an intentional catalog version change and review.
+- Version 2 introduces full shared-site-MCP parity and authenticated write actions.
+- Static site MCP changes automatically appear in the marketplace catalog and must pass parity, annotation, privacy, package, submission, and protocol checks before merge.
+- Material tool name, schema, authentication, annotation, confirmation, or result-contract changes require refreshed ChatGPT tool scanning and updated reviewer tests.
 
 ## Rollout
 
-The endpoint is controlled by `PLUGIN_MCP_ENABLED` and remains disabled in production until OAuth, privacy, metadata, CI, staging, and submission gates pass.
+The endpoint remains controlled by `PLUGIN_MCP_ENABLED`. Production write support must not be considered released until OAuth client allowlisting, the custom access-token audience hook, ChatGPT action scanning, live positive and negative tests, reviewer credentials, and final submission gates are complete.

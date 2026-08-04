@@ -1,7 +1,7 @@
 {
   "name": "sportfolio",
-  "version": "1.0.0",
-  "description": "Explore Sportfolio players, games, and a connected user's read-only virtual sports portfolio.",
+  "version": "2.0.0",
+  "description": "Research Sportfolio and manage a connected user's supported virtual sports portfolio and gameplay actions.",
   "author": {
     "name": "Sportfolio",
     "email": "sportfolioholdings@gmail.com",
@@ -21,19 +21,21 @@
   "apps": "./.app.json",
   "interface": {
     "displayName": "Sportfolio",
-    "shortDescription": "Review your virtual sports portfolio",
-    "longDescription": "Research Sportfolio players and games, then connect your account to review your read-only virtual portfolio, boosts, watchlists, collections, milestones, and personalized game insights.",
+    "shortDescription": "Manage virtual sports",
+    "longDescription": "Research Sportfolio players and games, review a connected virtual portfolio, and carry out supported market trades, scouting, boosts, liquidity, watchlist, schedule, profile, and gameplay actions through the same public MCP surface used by Sportfolio.",
     "developerName": "Sportfolio",
     "category": "Sports",
     "capabilities": [
-      "Read"
+      "Read",
+      "Write"
     ],
     "websiteURL": "https://www.sportfolio.market",
     "privacyPolicyURL": "https://www.sportfolio.market/privacy",
     "termsOfServiceURL": "https://www.sportfolio.market/terms",
     "defaultPrompt": [
       "Review my Sportfolio setup.",
-      "Which players I own are playing today?",
+      "Buy virtual shares of a player after showing me the preview.",
+      "Assign my best eligible daily boost after I confirm it.",
       "Show my largest virtual Sportfolio positions.",
       "How close am I to completing my collections?"
     ],

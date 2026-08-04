@@ -18,16 +18,27 @@ Create one dedicated, synthetic Sportfolio reviewer account before submission. C
 The account must contain:
 
 - At least eight MLB player holdings across at least three teams
+- An Aaron Judge holding or an account state where Aaron Judge is available for the market-buy test
 - Holdings with varied share counts and virtual position values
-- A non-zero virtual balance
-- At least one watchlist containing four or more players
+- Enough virtual balance to complete the 25-Sportfolio-buck market-buy case after its preview
+- No conflicting pending action before a reviewer test begins
+- At least one existing watchlist containing four or more players
+- No watchlist named `Review Targets` before the watchlist-management case
 - A partially completed Yankees collection
 - At least one additional partially completed collection
 - Multiple achieved and incomplete milestones
 - Prior daily-boost history with both positive and negative virtual outcomes
+- At least one open daily-boost slot
 - At least three currently eligible owned players for boost-candidate analysis
+- At least one eligible player whose assignment can be safely reset after review
 
 Do not require a live game to reproduce the five mandatory positive cases. Personalized game-schedule prompts may be supplemental and can reflect current live data.
+
+## Action verification
+
+For staged actions, record the starting virtual balance, holdings, and boost assignments before the test. Confirm that the staging call alone does not apply the gameplay action. After explicit confirmation, verify exactly one corresponding account change and no duplicate execution.
+
+For the immediate watchlist case, verify that `Review Targets` is created once and Aaron Judge appears once. Delete that synthetic watchlist during reset.
 
 ## Reset requirements
 
@@ -35,9 +46,12 @@ Before submission and after any reviewer-support intervention:
 
 1. Confirm the account can sign in without additional verification.
 2. Revoke existing OAuth grants so the initial connection flow is reproducible.
-3. Restore the required holdings, watchlist, collection progress, milestone state, and boost history.
-4. Confirm no personal user data has been copied into the fixture.
-5. Run all positive and negative test cases in fresh conversations.
+3. Cancel or clear any pending action bundles created during testing.
+4. Restore the required holdings, virtual balance, collection progress, milestone state, and boost history.
+5. Restore an open daily-boost slot and eligible candidate state.
+6. Remove the `Review Targets` watchlist and restore the baseline existing watchlist.
+7. Confirm no personal user data has been copied into the fixture.
+8. Run all positive and negative test cases in fresh conversations.
 
 ## Prohibited handling
 

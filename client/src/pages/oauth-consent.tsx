@@ -41,7 +41,7 @@ function safeOrigin(value?: string): string {
 
 function scopeLabel(scope: string): string {
   const labels: Record<string, string> = {
-    openid: "Verify your Sportfolio identity",
+    openid: "Connect to your Sportfolio account",
     email: "Read your account email",
     profile: "Read basic profile information",
     phone: "Read your account phone number",
@@ -151,7 +151,7 @@ export default function OAuthConsentPage() {
             </div>
             <div>
               <CardTitle>Connect {clientName}</CardTitle>
-              <CardDescription>Review the access request before connecting your Sportfolio account.</CardDescription>
+              <CardDescription>Review the account access and action permissions before connecting Sportfolio.</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -180,10 +180,13 @@ export default function OAuthConsentPage() {
               <section className="rounded-md border border-border p-4 text-sm">
                 <p className="terminal-label">What this connection can do</p>
                 <p className="mt-2 text-muted-foreground">
-                  Read the Sportfolio information exposed by the marketplace plugin, such as your virtual portfolio, player performance, boosts, collections, and game insights.
+                  Read your Sportfolio account information, including virtual holdings, balance, trades, scouts, boosts, watchlists, collections, milestones, schedules, liquidity, news, profile, and supported agent state.
                 </p>
                 <p className="mt-2 text-muted-foreground">
-                  It cannot reveal passwords or API keys, manage SMS verification, purchase premium access, or execute virtual trades in plugin version 1.
+                  Perform supported account and gameplay actions you request, including staged virtual trades, scouting, share stacking, boosts, community boosts, liquidity changes, and supported watchlist, schedule, profile, milestone, news, premium, SMS, and agent controls.
+                </p>
+                <p className="mt-2 text-muted-foreground">
+                  Staged gameplay actions show a preview and require confirmation before final execution. The connection cannot access admin or raw database controls and must not reveal passwords, API keys, provider keys, OAuth tokens, MFA codes, OTPs, or SMS verification codes.
                 </p>
               </section>
 

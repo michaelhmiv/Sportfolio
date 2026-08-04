@@ -26,6 +26,26 @@ const checks = [
     detail: "Set the approved ChatGPT/Codex OAuth client ID allowlist after registration.",
   },
   {
+    id: "oauth_action_consent_review",
+    passed: process.env.PLUGIN_OAUTH_ACTION_CONSENT_REVIEW_COMPLETE === "true",
+    detail: "Verify the production OAuth consent screen accurately discloses connected reads and write actions.",
+  },
+  {
+    id: "full_action_workspace_test",
+    passed: process.env.PLUGIN_FULL_ACTION_WORKSPACE_TEST_COMPLETE === "true",
+    detail: "Test the full MCP write surface in a ChatGPT workspace that supports custom MCP modify actions.",
+  },
+  {
+    id: "sensitive_tool_review",
+    passed: process.env.PLUGIN_SENSITIVE_TOOL_REVIEW_COMPLETE === "true",
+    detail: "Complete manual review of credential, API-token, SMS-link, BYOK, premium, and destructive account tools.",
+  },
+  {
+    id: "staged_action_replay_test",
+    passed: process.env.PLUGIN_STAGED_ACTION_REPLAY_TEST_COMPLETE === "true",
+    detail: "Verify staging does not execute, confirmation executes once, duplicate confirmation is rejected, and cancellation applies no gameplay change.",
+  },
+  {
     id: "reviewer_account",
     passed: process.env.PLUGIN_REVIEWER_ACCOUNT_READY === "true",
     detail: "Create and seed the synthetic reviewer account and store credentials only in the submission portal.",
@@ -43,7 +63,7 @@ const checks = [
   {
     id: "legal_review",
     passed: process.env.PLUGIN_LEGAL_REVIEW_COMPLETE === "true",
-    detail: "Complete final legal review of privacy, terms, and country availability.",
+    detail: "Complete final legal review of privacy, terms, action disclosures, and country availability.",
   },
 ];
 

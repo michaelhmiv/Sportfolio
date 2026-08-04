@@ -1,10 +1,21 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "cases": [
+    {
+      "id": "public-player-research",
+      "userPrompt": "Show Aaron Judge's recent Sportfolio-relevant performance.",
+      "expectedBehavior": "Resolve the player if necessary, then use get_player_detail or get_player_recent_games. No OAuth connection is required and no account state changes.",
+      "expectedResultShape": {
+        "summary": "string",
+        "data": "public player detail or recent game log",
+        "warnings": "array"
+      },
+      "fixture": "No connected-account fixture is required."
+    },
     {
       "id": "portfolio-overview",
       "userPrompt": "Show my Sportfolio portfolio and summarize my largest virtual positions.",
-      "expectedBehavior": "Use get_my_portfolio after OAuth connection. Explain that values are virtual and identify the largest holdings without executing a trade.",
+      "expectedBehavior": "Use get_portfolio_summary after OAuth connection. Explain that values are virtual and identify the largest holdings without changing account state.",
       "expectedResultShape": {
         "summary": "string",
         "data": "sanitized portfolio summary and positions",
@@ -13,48 +24,37 @@
       "fixture": "Reviewer account has at least eight MLB holdings with varied virtual values."
     },
     {
-      "id": "public-player-research",
-      "userPrompt": "Show Aaron Judge's recent Sportfolio-relevant performance.",
-      "expectedBehavior": "Resolve the player if necessary, then use get_player_overview or get_player_recent_games. No OAuth connection is required.",
+      "id": "confirmed-market-buy",
+      "userPrompt": "Buy 25 virtual Sportfolio bucks of Aaron Judge after showing me the exact preview.",
+      "expectedBehavior": "Resolve Aaron Judge, call stage_market_buy, present the virtual cost and expected position/balance impact, obtain explicit confirmation, and only then call confirm_pending_action with the exact pending bundle. Never claim success from the staging result alone.",
       "expectedResultShape": {
         "summary": "string",
-        "data": "public player overview or recent game log",
+        "data": "staged preview followed by a confirmed virtual market transaction",
         "warnings": "array"
       },
-      "fixture": "No connected-account fixture is required."
+      "fixture": "Reviewer account has enough virtual balance to buy 25 Sportfolio bucks of Aaron Judge and no conflicting pending action."
     },
     {
-      "id": "setup-review",
-      "userPrompt": "Review my Sportfolio setup and identify the most important areas to watch.",
-      "expectedBehavior": "Use review_my_sportfolio_setup after OAuth connection and return read-only gameplay observations. Do not frame results as financial advice.",
+      "id": "confirmed-daily-boost",
+      "userPrompt": "Find my best eligible daily boost candidate and assign it after I confirm the preview.",
+      "expectedBehavior": "Use the read tools needed to identify an eligible candidate, call stage_daily_boost_assign, show the player, slot, sport, and preview, obtain explicit confirmation, then call confirm_pending_action for the reviewed bundle.",
       "expectedResultShape": {
         "summary": "string",
-        "data": "sanitized setup review",
+        "data": "candidate analysis, staged boost preview, and confirmed assignment",
         "warnings": "array"
       },
-      "fixture": "Reviewer account has holdings, a watchlist, collection progress, and boost history."
+      "fixture": "Reviewer account has an open daily boost slot and at least one eligible owned player."
     },
     {
-      "id": "collection-progress",
-      "userPrompt": "How close am I to completing my Yankees collection?",
-      "expectedBehavior": "Use get_my_collections to resolve the collection and get_my_collection when details are needed. Return progress without changing allocations.",
+      "id": "watchlist-management",
+      "userPrompt": "Create a watchlist called Review Targets and add Aaron Judge to it.",
+      "expectedBehavior": "Resolve the player, call create_watchlist, then add_watchlist_player using the created watchlist identifier. Report each completed change and do not alter holdings or execute a trade.",
       "expectedResultShape": {
         "summary": "string",
-        "data": "collection progress and owned-player details",
+        "data": "created watchlist and added player result",
         "warnings": "array"
       },
-      "fixture": "Reviewer account has a partially completed Yankees collection."
-    },
-    {
-      "id": "boost-candidates",
-      "userPrompt": "Which players should I consider for my daily Sportfolio boosts?",
-      "expectedBehavior": "Use find_my_boost_candidates after OAuth connection. Return candidate ideas and uncertainty, but do not assign a boost.",
-      "expectedResultShape": {
-        "summary": "string",
-        "data": "ranked read-only candidate information",
-        "warnings": "array"
-      },
-      "fixture": "Reviewer account has eligible owned players and prior boost history."
+      "fixture": "Reviewer account does not already have a watchlist named Review Targets."
     }
   ]
 }
