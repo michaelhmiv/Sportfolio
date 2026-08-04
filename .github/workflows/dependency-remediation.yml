@@ -32,7 +32,7 @@ jobs:
           node-version: "22"
           cache: npm
 
-      - name: Apply fail-closed runtime hardening
+      - name: Apply fail-closed runtime and workflow hardening
         shell: bash
         run: |
           python <<'PY'
@@ -145,6 +145,44 @@ jobs:
               raise SystemExit("Dependency-review condition did not match expected workflow")
           audit = audit.replace(old_dependency_if, new_dependency_if, 1)
           audit_path.write_text(audit)
+
+          droid_path = Path(".github/workflows/droid.yml")
+          droid = droid_path.read_text()
+          old_droid_if = "    if: |\n      (github.event_name == 'issue_comment'"
+          new_droid_if = (
+              "    if: |\n"
+              "      github.actor == github.repository_owner &&\n"
+              "      (github.event_name == 'issue_comment'"
+          )
+          if old_droid_if not in droid:
+              raise SystemExit("Droid trigger condition did not match expected workflow")
+          droid = droid.replace(old_droid_if, new_droid_if, 1)
+          droid = droid.replace(
+              "uses: Factory-AI/droid-action@main",
+              "uses: Factory-AI/droid-action@4028e0ae3063a9eb5b673271e381bd645102e36f",
+              1,
+          )
+          droid_path.write_text(droid)
+
+          review_path = Path(".github/workflows/droid-review.yml")
+          review = review_path.read_text()
+          old_review_if = "    if: github.event.pull_request.draft == false\n"
+          new_review_if = (
+              "    if: >-\n"
+              "      github.event.pull_request.draft == false &&\n"
+              "      github.event.pull_request.head.repo.full_name == github.repository\n"
+          )
+          if old_review_if not in review:
+              raise SystemExit("Droid review condition did not match expected workflow")
+          review = review.replace(old_review_if, new_review_if, 1)
+          review = review.replace("      contents: write\n", "      contents: read\n", 1)
+          review = review.replace("      id-token: write\n", "", 1)
+          review = review.replace(
+              "uses: Factory-AI/droid-action@main",
+              "uses: Factory-AI/droid-action@4028e0ae3063a9eb5b673271e381bd645102e36f",
+              1,
+          )
+          review_path.write_text(review)
           PY
 
       - name: Upgrade vulnerable direct dependencies
@@ -180,6 +218,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json server/supabaseAuth.ts server/index.ts .env.example .github/workflows/security-audit.yml
+          git add package.json package-lock.json server/supabaseAuth.ts server/index.ts .env.example .github/workflows/security-audit.yml .github/workflows/droid.yml .github/workflows/droid-review.yml
           git commit -m "security: remediate dependencies and fail closed [skip ci]"
           git push origin HEAD:security/public-repo-hardening
