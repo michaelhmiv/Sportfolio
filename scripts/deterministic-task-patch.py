@@ -54,4 +54,26 @@ new_replace = '    value.get("mlb").getTeams = async () => { throw new Error("pr
 if source.count(old_replace) != 1:
     raise RuntimeError("Unable to locate partial failure fixture in pinned context patch")
 source = source.replace(old_replace, new_replace, 1)
+old_identity = '''  const references = input.providerReferences || [];
+  const resolution = await withDeadline(
+    resolveProviderIdentities(references, dependencies.identityLookup),
+    deadlineAt,
+  );
+  const resolved = references
+'''
+new_identity = '''  const references = input.providerReferences || [];
+  const uniqueReferences = [
+    ...new Map(
+      references.map((reference) => [providerIdentityKey(reference), reference]),
+    ).values(),
+  ];
+  const resolution = await withDeadline(
+    resolveProviderIdentities(uniqueReferences, dependencies.identityLookup),
+    deadlineAt,
+  );
+  const resolved = uniqueReferences
+'''
+if source.count(old_identity) != 1:
+    raise RuntimeError("Unable to locate identity resolution block in pinned context patch")
+source = source.replace(old_identity, new_identity, 1)
 exec(compile(source, SOURCE_URL, "exec"), {"__file__": str(Path(__file__).resolve()), "__name__": "__main__"})
