@@ -2,12 +2,6 @@ from pathlib import Path
 import re
 
 
-def replace_once(text: str, old: str, new: str, label: str) -> str:
-    if old not in text:
-        raise SystemExit(f"Could not locate {label}")
-    return text.replace(old, new, 1)
-
-
 auth_path = Path("server/supabaseAuth.ts")
 auth = auth_path.read_text()
 old_bypass = 'const bypassAuth = process.env.DEV_BYPASS_AUTH !== "false";'
@@ -86,50 +80,3 @@ env = env.replace(
     1,
 )
 env_path.write_text(env)
-
-audit_path = Path(".github/workflows/security-audit.yml")
-audit = audit_path.read_text().replace('node-version: "20"', 'node-version: "22"', 1)
-audit = replace_once(
-    audit,
-    "    if: github.event_name == 'pull_request'\n",
-    "    # Enable after the repository dependency graph is turned on (see issue #309).\n"
-    "    if: false\n",
-    "dependency-review condition",
-)
-audit_path.write_text(audit)
-
-droid_path = Path(".github/workflows/droid.yml")
-droid = droid_path.read_text()
-droid = replace_once(
-    droid,
-    "    if: |\n      (github.event_name == 'issue_comment'",
-    "    if: |\n      github.actor == github.repository_owner &&\n      (github.event_name == 'issue_comment'",
-    "Droid trigger condition",
-)
-droid = replace_once(
-    droid,
-    "uses: Factory-AI/droid-action@main",
-    "uses: Factory-AI/droid-action@4028e0ae3063a9eb5b673271e381bd645102e36f",
-    "Droid action reference",
-)
-droid_path.write_text(droid)
-
-review_path = Path(".github/workflows/droid-review.yml")
-review = review_path.read_text()
-review = replace_once(
-    review,
-    "    if: github.event.pull_request.draft == false\n",
-    "    if: >-\n"
-    "      github.event.pull_request.draft == false &&\n"
-    "      github.event.pull_request.head.repo.full_name == github.repository\n",
-    "Droid review condition",
-)
-review = replace_once(review, "      contents: write\n", "      contents: read\n", "Droid contents permission")
-review = replace_once(review, "      id-token: write\n", "", "Droid OIDC permission")
-review = replace_once(
-    review,
-    "uses: Factory-AI/droid-action@main",
-    "uses: Factory-AI/droid-action@4028e0ae3063a9eb5b673271e381bd645102e36f",
-    "Droid review action reference",
-)
-review_path.write_text(review)
