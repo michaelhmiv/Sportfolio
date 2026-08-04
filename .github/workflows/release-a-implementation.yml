@@ -1,6 +1,5 @@
 name: Unified Sports Release A Implementation
 
-# Synchronization trigger after the trusted pull-request runner was merged to main.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
