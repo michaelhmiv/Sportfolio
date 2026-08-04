@@ -1,16 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 type JsonRecord = Record<string, unknown>;
-type MarketSide = "buy" | "sell";
-
-type PresentationPayload = {
-  view: "player_market" | "trade_preview" | "portfolio" | "market_movers" | "liquidity";
-  asOf: string;
-  data: JsonRecord;
-  warnings: string[];
-};
-
+type ViewName = "player_market" | "trade_preview" | "portfolio" | "market_movers" | "liquidity";
+type PresentationPayload = { view: ViewName; asOf: string; data: JsonRecord; warnings: string[] };
 type PendingRpc = {
   resolve: (value: unknown) => void;
   reject: (reason?: unknown) => void;
@@ -21,186 +14,77 @@ declare global {
   interface Window {
     openai?: {
       toolOutput?: unknown;
-      toolResponseMetadata?: unknown;
       widgetState?: unknown;
-      theme?: "light" | "dark";
       locale?: string;
       displayMode?: string;
-      callTool?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+      callTool?: (name: string, args: JsonRecord) => Promise<unknown>;
       requestDisplayMode?: (mode: "inline" | "fullscreen" | "pip") => Promise<unknown>;
-      sendFollowUpMessage?: (input: { prompt: string }) => Promise<unknown>;
-      setWidgetState?: (state: unknown) => Promise<unknown> | unknown;
+      setWidgetState?: (state: unknown) => Promise<unknown>;
     };
   }
 }
 
 const CSS = `
-:root {
-  color-scheme: light dark;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --sf-bg: light-dark(#f7f8fb, #111318);
-  --sf-panel: light-dark(#ffffff, #191c23);
-  --sf-panel-2: light-dark(#f1f3f7, #222630);
-  --sf-text: light-dark(#151821, #f5f7fb);
-  --sf-muted: light-dark(#626a79, #a7aebb);
-  --sf-border: light-dark(#dfe3ea, #303642);
-  --sf-accent: light-dark(#3157d5, #8da8ff);
-  --sf-positive: light-dark(#087a4b, #4bd59a);
-  --sf-negative: light-dark(#b42318, #ff8d86);
-  --sf-warning: light-dark(#8a4b08, #ffc675);
-}
-* { box-sizing: border-box; }
-html, body, #root { margin: 0; min-height: 100%; background: transparent; color: var(--sf-text); }
-body { padding: 0; }
-button, input, select { font: inherit; }
-.sf-shell { width: 100%; padding: 12px; }
-.sf-panel { background: var(--sf-panel); border: 1px solid var(--sf-border); border-radius: 18px; overflow: hidden; }
-.sf-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--sf-border); }
-.sf-title { margin: 0; font-size: 18px; line-height: 1.2; }
-.sf-subtitle { color: var(--sf-muted); font-size: 12px; margin-top: 4px; }
-.sf-content { padding: 16px; }
-.sf-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.sf-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.sf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; }
-.sf-stat { background: var(--sf-panel-2); border: 1px solid var(--sf-border); border-radius: 14px; padding: 12px; min-width: 0; }
-.sf-label { color: var(--sf-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
-.sf-value { margin-top: 4px; font-weight: 720; font-size: 17px; overflow-wrap: anywhere; }
-.sf-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: var(--sf-panel-2); border: 1px solid var(--sf-border); }
-.sf-avatar-fallback { display: grid; place-items: center; font-weight: 800; color: var(--sf-accent); }
-.sf-button { appearance: none; border: 1px solid var(--sf-border); background: var(--sf-panel-2); color: var(--sf-text); border-radius: 12px; min-height: 40px; padding: 8px 12px; cursor: pointer; font-weight: 650; }
-.sf-button:hover { border-color: var(--sf-accent); }
-.sf-button:focus-visible, .sf-input:focus-visible, .sf-select:focus-visible { outline: 3px solid color-mix(in srgb, var(--sf-accent) 35%, transparent); outline-offset: 2px; }
-.sf-button[disabled] { cursor: not-allowed; opacity: .55; }
-.sf-primary { background: var(--sf-accent); color: light-dark(#fff, #10131a); border-color: transparent; }
-.sf-danger { color: var(--sf-negative); }
-.sf-segment { display: inline-flex; padding: 3px; border-radius: 12px; background: var(--sf-panel-2); border: 1px solid var(--sf-border); }
-.sf-segment button { border: 0; background: transparent; color: var(--sf-muted); border-radius: 9px; padding: 7px 10px; cursor: pointer; }
-.sf-segment button[aria-pressed="true"] { background: var(--sf-panel); color: var(--sf-text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-.sf-input, .sf-select { width: 100%; min-height: 42px; border: 1px solid var(--sf-border); border-radius: 12px; background: var(--sf-panel); color: var(--sf-text); padding: 8px 10px; }
-.sf-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
-.sf-field label { display: block; margin-bottom: 5px; color: var(--sf-muted); font-size: 12px; }
-.sf-positive { color: var(--sf-positive); }
-.sf-negative { color: var(--sf-negative); }
-.sf-muted { color: var(--sf-muted); }
-.sf-warning { color: var(--sf-warning); }
-.sf-section { margin-top: 16px; }
-.sf-section-title { margin: 0 0 8px; font-size: 14px; }
-.sf-chart { width: 100%; height: 180px; background: var(--sf-panel-2); border: 1px solid var(--sf-border); border-radius: 14px; overflow: hidden; }
-.sf-chart svg { width: 100%; height: 100%; display: block; }
-.sf-table { width: 100%; border-collapse: collapse; }
-.sf-table th, .sf-table td { padding: 10px 8px; border-bottom: 1px solid var(--sf-border); text-align: left; font-size: 13px; vertical-align: middle; }
-.sf-table th { color: var(--sf-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
-.sf-scroll { overflow-x: auto; }
-.sf-carousel { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(210px, 78%); gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
-.sf-card { scroll-snap-align: start; background: var(--sf-panel-2); border: 1px solid var(--sf-border); border-radius: 15px; padding: 14px; }
-.sf-notice { border: 1px solid var(--sf-border); border-radius: 12px; padding: 10px 12px; background: var(--sf-panel-2); font-size: 13px; }
-.sf-notice + .sf-notice { margin-top: 8px; }
-.sf-error { border-color: color-mix(in srgb, var(--sf-negative) 45%, var(--sf-border)); color: var(--sf-negative); }
-.sf-success { border-color: color-mix(in srgb, var(--sf-positive) 45%, var(--sf-border)); color: var(--sf-positive); }
-.sf-loading { min-height: 160px; display: grid; place-items: center; color: var(--sf-muted); }
-.sf-footer { padding: 10px 16px; border-top: 1px solid var(--sf-border); color: var(--sf-muted); font-size: 11px; }
-@media (max-width: 540px) {
-  .sf-shell { padding: 6px; }
-  .sf-header, .sf-content { padding: 12px; }
-  .sf-grid { grid-template-columns: 1fr 1fr; }
-  .sf-table th:nth-child(3), .sf-table td:nth-child(3) { display: none; }
-}
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
-`;
+:root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--p:light-dark(#fff,#191c23);--p2:light-dark(#f1f3f7,#222630);--t:light-dark(#151821,#f5f7fb);--m:light-dark(#626a79,#a7aebb);--b:light-dark(#dfe3ea,#303642);--a:light-dark(#3157d5,#8da8ff);--g:light-dark(#087a4b,#4bd59a);--r:light-dark(#b42318,#ff8d86)}
+*{box-sizing:border-box}html,body,#root{margin:0;min-height:100%;color:var(--t);background:transparent}button,input{font:inherit}.shell{padding:8px}.panel{background:var(--p);border:1px solid var(--b);border-radius:18px;overflow:hidden}.head,.between{display:flex;justify-content:space-between;gap:12px;align-items:center}.head{padding:15px;border-bottom:1px solid var(--b);align-items:flex-start}.content{padding:15px}.title{font-size:18px;font-weight:750}.sub,.muted{color:var(--m);font-size:12px}.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}.stat,.notice,.card{background:var(--p2);border:1px solid var(--b);border-radius:13px;padding:11px}.label{color:var(--m);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.value{font-size:16px;font-weight:720;margin-top:3px}.btn{border:1px solid var(--b);background:var(--p2);color:var(--t);border-radius:11px;min-height:39px;padding:8px 12px;cursor:pointer;font-weight:650}.btn.primary{background:var(--a);border-color:transparent;color:light-dark(#fff,#10131a)}.btn:disabled{opacity:.5;cursor:not-allowed}.btn:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var(--a) 35%,transparent);outline-offset:2px}.avatar{width:46px;height:46px;border-radius:50%;object-fit:cover;background:var(--p2);border:1px solid var(--b)}.fallback{display:grid;place-items:center;color:var(--a);font-weight:800}.section{margin-top:15px}.positive{color:var(--g)}.negative{color:var(--r)}.chart{height:175px;background:var(--p2);border:1px solid var(--b);border-radius:13px;overflow:hidden}.chart svg{width:100%;height:100%}.segments{display:inline-flex;background:var(--p2);border:1px solid var(--b);border-radius:11px;padding:3px}.segments button{border:0;background:transparent;color:var(--m);border-radius:8px;padding:6px 8px;cursor:pointer}.segments button[aria-pressed=true]{background:var(--p);color:var(--t)}.field{display:grid;gap:5px}.field input{min-height:41px;border:1px solid var(--b);border-radius:11px;background:var(--p);color:var(--t);padding:8px 10px}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:9px 7px;border-bottom:1px solid var(--b);font-size:13px}.table th{color:var(--m);font-size:10px;text-transform:uppercase}.carousel{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(210px,78%);gap:10px;overflow-x:auto;scroll-snap-type:x mandatory}.card{scroll-snap-align:start}.footer{padding:9px 15px;border-top:1px solid var(--b);color:var(--m);font-size:10px}.loading{min-height:150px;display:grid;place-items:center;color:var(--m)}@media(max-width:520px){.shell{padding:5px}.head,.content{padding:11px}.grid{grid-template-columns:1fr 1fr}.table th:nth-child(3),.table td:nth-child(3){display:none}}`;
 
 const pendingRpc = new Map<number, PendingRpc>();
-let rpcSequence = 1;
+let rpcId = 1;
 
-function record(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as JsonRecord)
-    : {};
+function obj(value: unknown): JsonRecord {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
-
-function array(value: unknown): unknown[] {
+function arr(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
-
-function stringValue(value: unknown, fallback = ""): string {
+function text(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
-
-function numberValue(value: unknown, fallback = 0): number {
-  const resolved = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(resolved) ? resolved : fallback;
+function num(value: unknown, fallback = 0): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
-
-function booleanValue(value: unknown): boolean {
-  return value === true;
-}
-
-function formatMoney(value: unknown): string {
-  return new Intl.NumberFormat(window.openai?.locale || undefined, {
+function money(value: unknown): string {
+  return new Intl.NumberFormat(window.openai?.locale, {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 2,
-  }).format(numberValue(value));
+  }).format(num(value));
 }
-
-function formatNumber(value: unknown, maximumFractionDigits = 2): string {
-  return new Intl.NumberFormat(window.openai?.locale || undefined, {
-    maximumFractionDigits,
-  }).format(numberValue(value));
+function quantity(value: unknown, digits = 2): string {
+  return new Intl.NumberFormat(window.openai?.locale, { maximumFractionDigits: digits }).format(num(value));
 }
-
-function formatPercent(value: unknown): string {
-  const resolved = numberValue(value);
-  return `${resolved >= 0 ? "+" : ""}${resolved.toFixed(2)}%`;
+function percent(value: unknown): string {
+  const n = num(value);
+  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
-
-function formatTime(value: unknown): string {
-  const text = stringValue(value);
-  if (!text) return "Unknown";
-  const date = new Date(text);
-  return Number.isNaN(date.getTime()) ? text : date.toLocaleString(window.openai?.locale || undefined);
+function timestamp(value: unknown): string {
+  const date = new Date(text(value));
+  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString(window.openai?.locale);
 }
-
 function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 }
-
-function normalizePresentation(value: unknown): PresentationPayload | null {
-  const root = record(value);
-  const structured = record(root.structuredContent);
-  const candidate = stringValue(structured.view)
-    ? structured
-    : stringValue(root.view)
-      ? root
-      : record(root.data);
-  const view = stringValue(candidate.view);
-  if (!["player_market", "trade_preview", "portfolio", "market_movers", "liquidity"].includes(view)) {
-    return null;
-  }
+function normalize(value: unknown): PresentationPayload | null {
+  const root = obj(value);
+  const structured = obj(root.structuredContent);
+  const candidate = text(structured.view) ? structured : text(root.view) ? root : obj(root.data);
+  const view = text(candidate.view) as ViewName;
+  if (!["player_market", "trade_preview", "portfolio", "market_movers", "liquidity"].includes(view)) return null;
   return {
-    view: view as PresentationPayload["view"],
-    asOf: stringValue(candidate.asOf, new Date().toISOString()),
-    data: record(candidate.data),
-    warnings: array(candidate.warnings).filter((entry): entry is string => typeof entry === "string"),
+    view,
+    asOf: text(candidate.asOf, new Date().toISOString()),
+    data: obj(candidate.data),
+    warnings: arr(candidate.warnings).filter((item): item is string => typeof item === "string"),
   };
 }
-
-function unwrapBusinessResult(value: unknown): JsonRecord {
-  const root = record(value);
-  const structured = Object.keys(record(root.structuredContent)).length
-    ? record(root.structuredContent)
-    : root;
-  return Object.prototype.hasOwnProperty.call(structured, "data")
-    ? record(structured.data)
-    : structured;
+function unwrap(value: unknown): JsonRecord {
+  const root = obj(value);
+  const structured = Object.keys(obj(root.structuredContent)).length ? obj(root.structuredContent) : root;
+  return Object.prototype.hasOwnProperty.call(structured, "data") ? obj(structured.data) : structured;
 }
-
-function callParent(method: string, params: JsonRecord): Promise<unknown> {
-  const id = rpcSequence++;
+function parentCall(method: string, params: JsonRecord): Promise<unknown> {
+  const id = rpcId++;
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {
       pendingRpc.delete(id);
@@ -210,540 +94,268 @@ function callParent(method: string, params: JsonRecord): Promise<unknown> {
     window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
   });
 }
-
 async function callTool(name: string, args: JsonRecord): Promise<unknown> {
-  if (window.openai?.callTool) {
-    return window.openai.callTool(name, args);
-  }
-  return callParent("tools/call", { name, arguments: args });
+  return window.openai?.callTool ? window.openai.callTool(name, args) : parentCall("tools/call", { name, arguments: args });
 }
 
-function usePresentation(): [PresentationPayload | null, (payload: PresentationPayload) => void] {
-  const [payload, setPayload] = useState<PresentationPayload | null>(() =>
-    normalizePresentation(window.openai?.toolOutput),
-  );
-
+function usePresentation(): [PresentationPayload | null, (next: PresentationPayload) => void] {
+  const [payload, setPayload] = useState<PresentationPayload | null>(() => normalize(window.openai?.toolOutput));
   useEffect(() => {
-    const globalsHandler = (event: Event) => {
-      const detail = record((event as CustomEvent<unknown>).detail);
-      const globals = Object.keys(record(detail.globals)).length ? record(detail.globals) : detail;
-      const next = normalizePresentation(globals.toolOutput);
+    const globals = (event: Event) => {
+      const detail = obj((event as CustomEvent<unknown>).detail);
+      const next = normalize(obj(detail.globals).toolOutput ?? detail.toolOutput);
       if (next) setPayload(next);
     };
-
-    const messageHandler = (event: MessageEvent) => {
+    const messages = (event: MessageEvent) => {
       if (event.source !== window.parent) return;
-      const message = record(event.data);
-      const id = numberValue(message.id, -1);
+      const message = obj(event.data);
+      const id = num(message.id, -1);
       if (id >= 0 && pendingRpc.has(id) && ("result" in message || "error" in message)) {
         const pending = pendingRpc.get(id);
         if (!pending) return;
         window.clearTimeout(pending.timer);
         pendingRpc.delete(id);
-        if (message.error) pending.reject(new Error(stringValue(record(message.error).message, "Host error")));
-        else pending.resolve(message.result);
+        message.error
+          ? pending.reject(new Error(text(obj(message.error).message, "Host error")))
+          : pending.resolve(message.result);
         return;
       }
       if (message.method === "ui/notifications/tool-result") {
-        const params = record(message.params);
-        const next = normalizePresentation(params.result ?? params);
+        const params = obj(message.params);
+        const next = normalize(params.result ?? params);
         if (next) setPayload(next);
       }
     };
-
-    window.addEventListener("openai:set_globals", globalsHandler);
-    window.addEventListener("message", messageHandler);
-    void callParent("ui/initialize", {
+    window.addEventListener("openai:set_globals", globals);
+    window.addEventListener("message", messages);
+    void parentCall("ui/initialize", {
       protocolVersion: "2025-06-18",
       appInfo: { name: "sportfolio-plugin-ui", version: "1.0.0" },
       capabilities: {},
     }).catch(() => undefined);
-
     return () => {
-      window.removeEventListener("openai:set_globals", globalsHandler);
-      window.removeEventListener("message", messageHandler);
+      window.removeEventListener("openai:set_globals", globals);
+      window.removeEventListener("message", messages);
     };
   }, []);
-
   const update = useCallback((next: PresentationPayload) => {
     setPayload(next);
-    void window.openai?.setWidgetState?.({ view: next.view, asOf: next.asOf }).catch?.(() => undefined);
+    const stateUpdate = window.openai?.setWidgetState?.({ view: next.view, asOf: next.asOf });
+    if (stateUpdate) void stateUpdate.catch(() => undefined);
   }, []);
-
   return [payload, update];
 }
 
-function PlayerIdentity({ player }: { player: JsonRecord }) {
-  const displayName = stringValue(player.displayName, "Unknown player");
-  const imageUrl = stringValue(player.imageUrl);
+function Notice({ children }: { children: ReactNode }) {
+  return <div className="notice">{children}</div>;
+}
+function Identity({ player }: { player: JsonRecord }) {
+  const name = text(player.displayName, "Unknown player");
+  const image = text(player.imageUrl);
   return (
-    <div className="sf-row">
-      {imageUrl ? (
-        <img className="sf-avatar" src={imageUrl} alt="" />
-      ) : (
-        <div className="sf-avatar sf-avatar-fallback" aria-hidden="true">
-          {initials(displayName)}
-        </div>
-      )}
-      <div>
-        <h2 className="sf-title">{displayName}</h2>
-        <div className="sf-subtitle">
-          {[stringValue(player.team), stringValue(player.position), stringValue(player.sport)]
-            .filter(Boolean)
-            .join(" · ")}
-        </div>
-      </div>
+    <div className="row">
+      {image ? <img className="avatar" src={image} alt="" /> : <div className="avatar fallback">{initials(name)}</div>}
+      <div><div className="title">{name}</div><div className="sub">{[text(player.team), text(player.position), text(player.sport)].filter(Boolean).join(" · ")}</div></div>
     </div>
   );
 }
-
-function PriceChart({ points }: { points: unknown[] }) {
-  const values = points
-    .map((entry) => record(entry))
-    .map((entry) => ({ price: numberValue(entry.price, Number.NaN), timestamp: stringValue(entry.timestamp) }))
-    .filter((entry) => Number.isFinite(entry.price));
-
-  const polyline = useMemo(() => {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
+  return <div className="stat"><div className="label">{label}</div><div className="value">{value}</div></div>;
+}
+function Chart({ points }: { points: unknown[] }) {
+  const values = points.map(obj).map((point) => num(point.price, Number.NaN)).filter(Number.isFinite);
+  const line = useMemo(() => {
     if (values.length < 2) return "";
-    const prices = values.map((entry) => entry.price);
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
     const span = Math.max(max - min, Number.EPSILON);
-    return values
-      .map((entry, index) => {
-        const x = (index / Math.max(values.length - 1, 1)) * 620 + 10;
-        const y = 165 - ((entry.price - min) / span) * 145;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
+    return values.map((value, index) => `${10 + (index / (values.length - 1)) * 620},${165 - ((value - min) / span) * 145}`).join(" ");
   }, [values]);
-
-  if (!polyline) {
-    return <div className="sf-chart sf-loading">Price history is not available yet.</div>;
-  }
-
-  return (
-    <div className="sf-chart" role="img" aria-label={`Price history with ${values.length} points`}>
-      <svg viewBox="0 0 640 180" preserveAspectRatio="none">
-        <polyline fill="none" stroke="var(--sf-accent)" strokeWidth="3" points={polyline} />
-      </svg>
+  return line ? (
+    <div className="chart" role="img" aria-label={`Price history with ${values.length} points`}>
+      <svg viewBox="0 0 640 180" preserveAspectRatio="none"><polyline fill="none" stroke="var(--a)" strokeWidth="3" points={line} /></svg>
     </div>
-  );
+  ) : <div className="chart loading">Price history is not available yet.</div>;
 }
 
-function Notice({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "error" | "success" }) {
-  return <div className={`sf-notice ${tone === "error" ? "sf-error" : tone === "success" ? "sf-success" : ""}`}>{children}</div>;
-}
-
-function PendingPanel({
-  pending,
-  onComplete,
-}: {
-  pending: JsonRecord;
-  onComplete?: () => Promise<void> | void;
-}) {
-  const [status, setStatus] = useState<string>("");
+function PendingAction({ pending, onDone }: { pending: JsonRecord; onDone?: () => Promise<void> | void }) {
+  const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const threadId = stringValue(pending.threadId);
-  const pendingBundleId = stringValue(pending.pendingBundleId);
-  const bundle = record(pending.pendingBundle);
-  const warnings = array(pending.warnings).filter((entry): entry is string => typeof entry === "string");
-
   const finalize = async (tool: "confirm_pending_action" | "cancel_pending_action") => {
-    if (!threadId || !pendingBundleId) return;
     setBusy(true);
-    setStatus("");
     try {
-      const result = await callTool(tool, { threadId, pendingBundleId });
-      const body = unwrapBusinessResult(result);
-      setStatus(stringValue(body.summary, tool === "confirm_pending_action" ? "Action confirmed." : "Action canceled."));
-      await onComplete?.();
+      const result = unwrap(await callTool(tool, {
+        threadId: text(pending.threadId),
+        pendingBundleId: text(pending.pendingBundleId),
+      }));
+      setMessage(text(result.summary, tool === "confirm_pending_action" ? "Action confirmed." : "Action canceled."));
+      await onDone?.();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "The pending action could not be finalized.");
+      setMessage(error instanceof Error ? error.message : "The action could not be finalized.");
     } finally {
       setBusy(false);
     }
   };
-
   return (
-    <section className="sf-section" aria-label="Pending action review">
-      <h3 className="sf-section-title">Review pending action</h3>
-      <Notice>
-        <strong>{stringValue(pending.summary, stringValue(bundle.summary, "Sportfolio action ready for confirmation"))}</strong>
-        {stringValue(bundle.estimatedImpact) ? <div className="sf-muted">{stringValue(bundle.estimatedImpact)}</div> : null}
-      </Notice>
-      {warnings.map((warning) => (
-        <Notice key={warning}>{warning}</Notice>
-      ))}
-      <div className="sf-row" style={{ marginTop: 10 }}>
-        <button className="sf-button sf-primary" disabled={busy || !threadId || !pendingBundleId} onClick={() => void finalize("confirm_pending_action")}>
-          Confirm
-        </button>
-        <button className="sf-button" disabled={busy || !threadId || !pendingBundleId} onClick={() => void finalize("cancel_pending_action")}>
-          Cancel
-        </button>
+    <section className="section">
+      <h3>Review pending action</h3>
+      <Notice><strong>{text(pending.summary, text(obj(pending.pendingBundle).summary, "Sportfolio action ready for confirmation"))}</strong></Notice>
+      {arr(pending.warnings).filter((item): item is string => typeof item === "string").map((warning) => <Notice key={warning}>{warning}</Notice>)}
+      <div className="row section">
+        <button className="btn primary" disabled={busy} onClick={() => void finalize("confirm_pending_action")}>Confirm</button>
+        <button className="btn" disabled={busy} onClick={() => void finalize("cancel_pending_action")}>Cancel</button>
       </div>
-      {status ? <Notice tone={status.toLowerCase().includes("could not") ? "error" : "success"}>{status}</Notice> : null}
+      {message ? <Notice>{message}</Notice> : null}
     </section>
   );
 }
 
-function PlayerMarket({ payload, setPayload }: { payload: PresentationPayload; setPayload: (payload: PresentationPayload) => void }) {
+function PlayerMarket({ payload, update }: { payload: PresentationPayload; update: (next: PresentationPayload) => void }) {
   const data = payload.data;
-  const player = record(data.player);
-  const market = record(data.market);
-  const history = record(data.history);
-  const holding = record(data.userHolding);
-  const [side, setSide] = useState<MarketSide>("buy");
+  const player = obj(data.player);
+  const market = obj(data.market);
+  const history = obj(data.history);
+  const holding = obj(data.userHolding);
+  const capabilities = obj(data.capabilities);
+  const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("");
   const [quote, setQuote] = useState<JsonRecord>({});
   const [pending, setPending] = useState<JsonRecord>({});
-  const [status, setStatus] = useState("");
+  const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const quoteRequest = useRef(0);
-  const range = stringValue(history.range, "1D");
-  const isFullscreen = window.openai?.displayMode === "fullscreen";
-  const change = numberValue(history.percentageChange);
+  const quoteSequence = useRef(0);
+  const playerId = text(player.playerId);
+  const range = text(history.range, "1D");
+  const fullscreen = window.openai?.displayMode === "fullscreen";
+  const change = num(history.percentageChange);
 
-  const refresh = useCallback(async () => {
-    const result = await callTool("render_player_market", {
-      playerId: stringValue(player.playerId),
-      range,
-    });
-    const next = normalizePresentation(result);
-    if (next) setPayload(next);
-  }, [player.playerId, range, setPayload]);
+  const load = useCallback(async (nextRange = range) => {
+    const next = normalize(await callTool("render_player_market", { playerId, range: nextRange }));
+    if (next) update(next);
+  }, [playerId, range, update]);
 
   useEffect(() => {
-    const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setQuote({});
-      return;
-    }
-    const requestId = ++quoteRequest.current;
+    const value = Number(amount);
+    if (!(value > 0)) { setQuote({}); return; }
+    const sequence = ++quoteSequence.current;
     const timer = window.setTimeout(async () => {
       try {
-        const result = await callTool("get_amm_trade_quote", {
-          playerId: stringValue(player.playerId),
-          type: side,
-          amount: numericAmount,
-        });
-        if (requestId !== quoteRequest.current) return;
-        const body = unwrapBusinessResult(result);
-        setQuote(Object.keys(record(body.quote)).length ? record(body.quote) : body);
-        setStatus("");
+        const body = unwrap(await callTool("get_amm_trade_quote", { playerId, type: side, amount: value }));
+        if (sequence === quoteSequence.current) setQuote(Object.keys(obj(body.quote)).length ? obj(body.quote) : body);
       } catch (error) {
-        if (requestId !== quoteRequest.current) return;
-        setQuote({});
-        setStatus(error instanceof Error ? error.message : "Quote unavailable.");
+        if (sequence === quoteSequence.current) setMessage(error instanceof Error ? error.message : "Quote unavailable.");
       }
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [amount, side, player.playerId]);
+  }, [amount, playerId, side]);
 
   const stage = async () => {
-    const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) return;
+    const value = Number(amount);
+    if (!(value > 0)) return;
     setBusy(true);
-    setStatus("");
     try {
-      const result = await callTool(side === "buy" ? "stage_market_buy" : "stage_market_sell", {
-        playerId: stringValue(player.playerId),
-        ...(side === "buy" ? { amount: numericAmount } : { shares: numericAmount }),
-      });
-      const body = unwrapBusinessResult(result);
-      setPending(body);
-      setStatus(stringValue(body.summary, "Trade staged for confirmation."));
+      const result = unwrap(await callTool(side === "buy" ? "stage_market_buy" : "stage_market_sell", {
+        playerId,
+        ...(side === "buy" ? { amount: value } : { shares: value }),
+      }));
+      setPending(result);
+      setMessage(text(result.summary, "Trade staged for confirmation."));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Trade could not be staged.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const changeRange = async (nextRange: string) => {
-    setBusy(true);
-    try {
-      const result = await callTool("render_player_market", {
-        playerId: stringValue(player.playerId),
-        range: nextRange,
-      });
-      const next = normalizePresentation(result);
-      if (next) setPayload(next);
+      setMessage(error instanceof Error ? error.message : "Trade could not be staged.");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="sf-panel">
-      <header className="sf-header">
-        <PlayerIdentity player={player} />
-        <div style={{ textAlign: "right" }}>
-          <div className="sf-label">Market price</div>
-          <div className="sf-value">{formatMoney(market.currentPrice)}</div>
-          <div className={change > 0 ? "sf-positive" : change < 0 ? "sf-negative" : "sf-muted"}>{formatPercent(change)}</div>
-        </div>
+    <div className="panel">
+      <header className="head">
+        <Identity player={player} />
+        <div style={{ textAlign: "right" }}><div className="label">Market price</div><div className="value">{money(market.currentPrice)}</div><div className={change > 0 ? "positive" : change < 0 ? "negative" : "muted"}>{percent(change)}</div></div>
       </header>
-      <div className="sf-content">
-        {stringValue(market.status) !== "active" ? (
-          <Notice>{stringValue(market.statusMessage, "This player market is not active yet.")}</Notice>
-        ) : null}
-        <div className="sf-between" style={{ marginBottom: 10 }}>
-          <div className="sf-segment" aria-label="Price history range">
-            {["1D", "7D", "1M", "1Y", "ALL"].map((item) => (
-              <button key={item} aria-pressed={range === item} disabled={busy} onClick={() => void changeRange(item)}>
-                {item}
-              </button>
-            ))}
-          </div>
-          <div className="sf-row">
-            {!isFullscreen ? (
-              <button className="sf-button sf-primary" onClick={() => void window.openai?.requestDisplayMode?.("fullscreen")}>
-                Open market
-              </button>
-            ) : null}
-            <button className="sf-button" disabled={busy} onClick={() => void refresh()}>
-              Refresh
-            </button>
+      <div className="content">
+        {text(market.status) !== "active" ? <Notice>{text(market.statusMessage, "This market is not active yet.")}</Notice> : null}
+        <div className="between" style={{ marginBottom: 10 }}>
+          <div className="segments">{["1D", "7D", "1M", "1Y", "ALL"].map((item) => <button key={item} aria-pressed={range === item} disabled={busy} onClick={() => void load(item)}>{item}</button>)}</div>
+          <div className="row">
+            {!fullscreen ? <button className="btn primary" onClick={() => void window.openai?.requestDisplayMode?.("fullscreen")}>Open market</button> : null}
+            <button className="btn" onClick={() => void load()}>Refresh</button>
           </div>
         </div>
-        <PriceChart points={array(history.points)} />
-        <div className="sf-grid sf-section">
-          <div className="sf-stat"><div className="sf-label">Pool liquidity</div><div className="sf-value">{formatMoney(market.liquidity)}</div></div>
-          <div className="sf-stat"><div className="sf-label">24h volume</div><div className="sf-value">{formatMoney(market.volume)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Trades</div><div className="sf-value">{formatNumber(market.totalTrades, 0)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Owned shares</div><div className="sf-value">{formatNumber(holding.quantity)}</div></div>
+        <Chart points={arr(history.points)} />
+        <div className="grid section">
+          <Stat label="Pool liquidity" value={money(market.liquidity)} />
+          <Stat label="Volume" value={money(market.volume)} />
+          <Stat label="Trades" value={quantity(market.totalTrades, 0)} />
+          <Stat label="Owned shares" value={quantity(holding.quantity)} />
         </div>
-
-        {isFullscreen && booleanValue(record(data.capabilities).canTrade) ? (
-          <section className="sf-section">
-            <div className="sf-between">
-              <h3 className="sf-section-title">Trade this market</h3>
-              <div className="sf-segment" aria-label="Trade side">
-                <button aria-pressed={side === "buy"} onClick={() => setSide("buy")}>Buy</button>
-                <button aria-pressed={side === "sell"} onClick={() => setSide("sell")}>Sell</button>
-              </div>
+        {fullscreen && capabilities.canTrade === true ? (
+          <section className="section">
+            <div className="between"><h3>Trade this market</h3><div className="segments"><button aria-pressed={side === "buy"} onClick={() => setSide("buy")}>Buy</button><button aria-pressed={side === "sell"} onClick={() => setSide("sell")}>Sell</button></div></div>
+            <div className="grid">
+              <label className="field"><span className="muted">{side === "buy" ? "Play money to spend" : "Shares to sell"}</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+              <Stat label="Available" value={side === "buy" ? money(data.availableBalance) : quantity(holding.availableShares ?? holding.quantity)} />
             </div>
-            <div className="sf-form-grid">
-              <div className="sf-field">
-                <label htmlFor="trade-amount">{side === "buy" ? "Play money to spend" : "Shares to sell"}</label>
-                <input id="trade-amount" className="sf-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" />
-              </div>
-              <div className="sf-stat">
-                <div className="sf-label">Available</div>
-                <div className="sf-value">{side === "buy" ? formatMoney(data.availableBalance) : formatNumber(holding.availableShares ?? holding.quantity)}</div>
-              </div>
-            </div>
-            {Object.keys(quote).length ? (
-              <div className="sf-grid sf-section">
-                <div className="sf-stat"><div className="sf-label">Estimated output</div><div className="sf-value">{side === "buy" ? `${formatNumber(quote.sharesOut)} shares` : formatMoney(quote.sbOut)}</div></div>
-                <div className="sf-stat"><div className="sf-label">Effective price</div><div className="sf-value">{formatMoney(quote.effectivePrice)}</div></div>
-                <div className="sf-stat"><div className="sf-label">Price impact</div><div className="sf-value">{formatPercent(quote.slippagePercent)}</div></div>
-                <div className="sf-stat"><div className="sf-label">Projected price</div><div className="sf-value">{formatMoney(quote.newPoolPrice)}</div></div>
-              </div>
-            ) : null}
-            <div className="sf-row" style={{ marginTop: 10 }}>
-              <button className="sf-button sf-primary" disabled={busy || !Object.keys(quote).length} onClick={() => void stage()}>
-                Review trade
-              </button>
-            </div>
-            {status ? <Notice tone={status.toLowerCase().includes("could not") || status.toLowerCase().includes("unavailable") ? "error" : "default"}>{status}</Notice> : null}
-            {Object.keys(pending).length ? <PendingPanel pending={pending} onComplete={refresh} /> : null}
+            {Object.keys(quote).length ? <div className="grid section"><Stat label="Estimated output" value={side === "buy" ? `${quantity(quote.sharesOut)} shares` : money(quote.sbOut)} /><Stat label="Effective price" value={money(quote.effectivePrice)} /><Stat label="Price impact" value={percent(quote.slippagePercent)} /><Stat label="Projected price" value={money(quote.newPoolPrice)} /></div> : null}
+            <button className="btn primary section" disabled={busy || !Object.keys(quote).length} onClick={() => void stage()}>Review trade</button>
+            {message ? <Notice>{message}</Notice> : null}
+            {Object.keys(pending).length ? <PendingAction pending={pending} onDone={() => load()} /> : null}
           </section>
         ) : null}
       </div>
-      <footer className="sf-footer">Prices are virtual Sportfolio gameplay values. Updated {formatTime(payload.asOf)}.</footer>
+      <footer className="footer">Virtual Sportfolio gameplay prices. Updated {timestamp(payload.asOf)}.</footer>
     </div>
   );
 }
 
-function Portfolio({ payload, setPayload }: { payload: PresentationPayload; setPayload: (payload: PresentationPayload) => void }) {
-  const summary = record(payload.data.summary);
-  const holdings = array(payload.data.holdings).map(record);
-  const openPlayer = async (playerId: string) => {
-    const result = await callTool("render_player_market", { playerId, range: "1D" });
-    const next = normalizePresentation(result);
-    if (next) setPayload(next);
+function Portfolio({ payload, update }: { payload: PresentationPayload; update: (next: PresentationPayload) => void }) {
+  const summary = obj(payload.data.summary);
+  const holdings = arr(payload.data.holdings).map(obj);
+  const open = async (playerId: string) => {
+    const next = normalize(await callTool("render_player_market", { playerId, range: "1D" }));
+    if (next) update(next);
   };
-  return (
-    <div className="sf-panel">
-      <header className="sf-header">
-        <div><h2 className="sf-title">Your Sportfolio portfolio</h2><div className="sf-subtitle">Live virtual holdings and market exposure</div></div>
-        <button className="sf-button" onClick={() => void window.openai?.requestDisplayMode?.("fullscreen")}>Fullscreen</button>
-      </header>
-      <div className="sf-content">
-        <div className="sf-grid">
-          <div className="sf-stat"><div className="sf-label">Portfolio value</div><div className="sf-value">{formatMoney(summary.totalValue)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Available balance</div><div className="sf-value">{formatMoney(summary.availableBalance)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Cost basis</div><div className="sf-value">{formatMoney(summary.costBasis)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Holdings</div><div className="sf-value">{formatNumber(summary.holdingCount, 0)}</div></div>
-        </div>
-        <div className="sf-scroll sf-section">
-          <table className="sf-table">
-            <thead><tr><th>Player</th><th>Shares</th><th>Price</th><th>Value</th><th /></tr></thead>
-            <tbody>
-              {holdings.map((holding) => {
-                const player = record(holding.player);
-                return (
-                  <tr key={stringValue(player.playerId)}>
-                    <td><strong>{stringValue(player.displayName, "Unknown player")}</strong><div className="sf-muted">{[stringValue(player.team), stringValue(player.sport)].filter(Boolean).join(" · ")}</div></td>
-                    <td>{formatNumber(holding.quantity)}</td>
-                    <td>{formatMoney(holding.currentPrice)}</td>
-                    <td>{formatMoney(holding.positionValue)}</td>
-                    <td><button className="sf-button" onClick={() => void openPlayer(stringValue(player.playerId))}>View market</button></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {!holdings.length ? <Notice>No player holdings are currently available.</Notice> : null}
-      </div>
-      <footer className="sf-footer">Updated {formatTime(payload.asOf)}.</footer>
-    </div>
-  );
+  return <div className="panel"><header className="head"><div><div className="title">Your Sportfolio portfolio</div><div className="sub">Live virtual holdings and market exposure</div></div><button className="btn" onClick={() => void window.openai?.requestDisplayMode?.("fullscreen")}>Fullscreen</button></header><div className="content"><div className="grid"><Stat label="Portfolio value" value={money(summary.totalValue)} /><Stat label="Available balance" value={money(summary.availableBalance)} /><Stat label="Cost basis" value={money(summary.costBasis)} /><Stat label="Holdings" value={quantity(summary.holdingCount, 0)} /></div><div className="table-wrap section"><table className="table"><thead><tr><th>Player</th><th>Shares</th><th>Price</th><th>Value</th><th /></tr></thead><tbody>{holdings.map((holding) => { const player = obj(holding.player); return <tr key={text(player.playerId)}><td><strong>{text(player.displayName)}</strong><div className="muted">{[text(player.team), text(player.sport)].filter(Boolean).join(" · ")}</div></td><td>{quantity(holding.quantity)}</td><td>{money(holding.currentPrice)}</td><td>{money(holding.positionValue)}</td><td><button className="btn" onClick={() => void open(text(player.playerId))}>View market</button></td></tr>; })}</tbody></table></div>{holdings.length ? null : <Notice>No player holdings are currently available.</Notice>}</div><footer className="footer">Updated {timestamp(payload.asOf)}.</footer></div>;
 }
 
-function MarketMovers({ payload, setPayload }: { payload: PresentationPayload; setPayload: (payload: PresentationPayload) => void }) {
-  const items = array(payload.data.items).map(record);
-  const category = stringValue(payload.data.category, "market movers");
-  const openPlayer = async (playerId: string) => {
-    const result = await callTool("render_player_market", { playerId, range: "1D" });
-    const next = normalizePresentation(result);
-    if (next) setPayload(next);
+function Movers({ payload, update }: { payload: PresentationPayload; update: (next: PresentationPayload) => void }) {
+  const items = arr(payload.data.items).map(obj);
+  const open = async (playerId: string) => {
+    const next = normalize(await callTool("render_player_market", { playerId, range: "1D" }));
+    if (next) update(next);
   };
-  return (
-    <div className="sf-panel">
-      <header className="sf-header"><div><h2 className="sf-title">Sportfolio market movers</h2><div className="sf-subtitle">{category.replaceAll("_", " ")}</div></div></header>
-      <div className="sf-content">
-        <div className="sf-carousel">
-          {items.map((item) => {
-            const player = record(item.player);
-            const change = numberValue(item.changePercent);
-            return (
-              <article className="sf-card" key={stringValue(player.playerId)}>
-                <PlayerIdentity player={player} />
-                <div className="sf-between sf-section">
-                  <div><div className="sf-label">Price</div><div className="sf-value">{formatMoney(item.currentPrice)}</div></div>
-                  <div className={change > 0 ? "sf-positive" : change < 0 ? "sf-negative" : "sf-muted"}>{formatPercent(change)}</div>
-                </div>
-                <div className="sf-muted">Volume {formatMoney(item.volume)}</div>
-                <button className="sf-button sf-primary" style={{ width: "100%", marginTop: 12 }} onClick={() => void openPlayer(stringValue(player.playerId))}>View market</button>
-              </article>
-            );
-          })}
-        </div>
-        {!items.length ? <Notice>No qualifying markets were found.</Notice> : null}
-      </div>
-      <footer className="sf-footer">Updated {formatTime(payload.asOf)}.</footer>
-    </div>
-  );
+  return <div className="panel"><header className="head"><div><div className="title">Sportfolio market movers</div><div className="sub">{text(payload.data.category, "gainers").replaceAll("_", " ")}</div></div></header><div className="content"><div className="carousel">{items.map((item) => { const player = obj(item.player); const change = num(item.changePercent); return <article className="card" key={text(player.playerId)}><Identity player={player} /><div className="between section"><Stat label="Price" value={money(item.currentPrice)} /><strong className={change > 0 ? "positive" : change < 0 ? "negative" : "muted"}>{percent(change)}</strong></div><div className="muted">Volume {money(item.volume)}</div><button className="btn primary section" style={{ width: "100%" }} onClick={() => void open(text(player.playerId))}>View market</button></article>; })}</div>{items.length ? null : <Notice>No qualifying markets were found.</Notice>}</div><footer className="footer">Updated {timestamp(payload.asOf)}.</footer></div>;
 }
 
-function Liquidity({ payload, setPayload }: { payload: PresentationPayload; setPayload: (payload: PresentationPayload) => void }) {
+function Liquidity({ payload, update }: { payload: PresentationPayload; update: (next: PresentationPayload) => void }) {
   const data = payload.data;
-  const player = record(data.player);
-  const pool = record(data.pool);
-  const position = record(data.position);
+  const player = obj(data.player);
+  const pool = obj(data.pool);
+  const position = obj(data.position);
   const [shares, setShares] = useState("");
   const [playMoney, setPlayMoney] = useState("");
   const [lpShares, setLpShares] = useState("");
   const [pending, setPending] = useState<JsonRecord>({});
-  const [status, setStatus] = useState("");
-  const [busy, setBusy] = useState(false);
-
+  const [message, setMessage] = useState("");
   const refresh = async () => {
-    const result = await callTool("render_liquidity_position", { playerId: stringValue(player.playerId) });
-    const next = normalizePresentation(result);
-    if (next) setPayload(next);
+    const next = normalize(await callTool("render_liquidity_position", { playerId: text(player.playerId) }));
+    if (next) update(next);
   };
-
   const stage = async (mode: "add" | "remove") => {
-    setBusy(true);
-    setStatus("");
     try {
-      const args = mode === "add"
-        ? { playerId: stringValue(player.playerId), shares: Number(shares), playMoney: Number(playMoney) }
-        : { playerId: stringValue(player.playerId), lpShares: Number(lpShares) };
-      const result = await callTool(mode === "add" ? "stage_lp_add" : "stage_lp_remove", args);
-      const body = unwrapBusinessResult(result);
-      setPending(body);
-      setStatus(stringValue(body.summary, "Liquidity action staged."));
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Liquidity action could not be staged.");
-    } finally {
-      setBusy(false);
-    }
+      const result = unwrap(await callTool(mode === "add" ? "stage_lp_add" : "stage_lp_remove", mode === "add" ? { playerId: text(player.playerId), shares: Number(shares), playMoney: Number(playMoney) } : { playerId: text(player.playerId), lpShares: Number(lpShares) }));
+      setPending(result);
+      setMessage(text(result.summary, "Liquidity action staged."));
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Liquidity action could not be staged."); }
   };
-
-  return (
-    <div className="sf-panel">
-      <header className="sf-header"><PlayerIdentity player={player} /><div><div className="sf-label">Liquidity position</div><div className="sf-value">{formatMoney(position.positionValue)}</div></div></header>
-      <div className="sf-content">
-        <div className="sf-grid">
-          <div className="sf-stat"><div className="sf-label">Pool price</div><div className="sf-value">{formatMoney(pool.currentPrice)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Pool liquidity</div><div className="sf-value">{formatMoney(pool.liquidity)}</div></div>
-          <div className="sf-stat"><div className="sf-label">LP shares</div><div className="sf-value">{formatNumber(position.lpShares)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Ownership</div><div className="sf-value">{formatPercent(numberValue(position.ownershipPercentage) * 100)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Equivalent shares</div><div className="sf-value">{formatNumber(position.equivalentShares)}</div></div>
-          <div className="sf-stat"><div className="sf-label">Fees earned</div><div className="sf-value">{formatMoney(position.feesEarnedToDate)}</div></div>
-        </div>
-        {booleanValue(record(data.capabilities).canManage) ? (
-          <>
-            <section className="sf-section">
-              <h3 className="sf-section-title">Add balanced liquidity</h3>
-              <div className="sf-form-grid">
-                <div className="sf-field"><label htmlFor="lp-shares-add">Player shares</label><input id="lp-shares-add" className="sf-input" inputMode="decimal" value={shares} onChange={(event) => setShares(event.target.value)} /></div>
-                <div className="sf-field"><label htmlFor="lp-money-add">Play money</label><input id="lp-money-add" className="sf-input" inputMode="decimal" value={playMoney} onChange={(event) => setPlayMoney(event.target.value)} /></div>
-              </div>
-              <button className="sf-button sf-primary" style={{ marginTop: 10 }} disabled={busy || Number(shares) <= 0 || Number(playMoney) <= 0} onClick={() => void stage("add")}>Review add</button>
-            </section>
-            <section className="sf-section">
-              <h3 className="sf-section-title">Remove liquidity</h3>
-              <div className="sf-field"><label htmlFor="lp-shares-remove">LP shares to remove</label><input id="lp-shares-remove" className="sf-input" inputMode="decimal" value={lpShares} onChange={(event) => setLpShares(event.target.value)} /></div>
-              <button className="sf-button" style={{ marginTop: 10 }} disabled={busy || Number(lpShares) <= 0} onClick={() => void stage("remove")}>Review removal</button>
-            </section>
-            {status ? <Notice>{status}</Notice> : null}
-            {Object.keys(pending).length ? <PendingPanel pending={pending} onComplete={refresh} /> : null}
-          </>
-        ) : null}
-      </div>
-      <footer className="sf-footer">Liquidity values are virtual gameplay values. Updated {formatTime(payload.asOf)}.</footer>
-    </div>
-  );
-}
-
-function TradePreview({ payload }: { payload: PresentationPayload }) {
-  return (
-    <div className="sf-panel">
-      <header className="sf-header"><div><h2 className="sf-title">Sportfolio action review</h2><div className="sf-subtitle">Confirm only the exact staged bundle shown below</div></div></header>
-      <div className="sf-content"><PendingPanel pending={payload.data} /></div>
-      <footer className="sf-footer">Loaded {formatTime(payload.asOf)}.</footer>
-    </div>
-  );
+  return <div className="panel"><header className="head"><Identity player={player} /><Stat label="Liquidity position" value={money(position.positionValue)} /></header><div className="content"><div className="grid"><Stat label="Pool price" value={money(pool.currentPrice)} /><Stat label="Pool liquidity" value={money(pool.liquidity)} /><Stat label="LP shares" value={quantity(position.lpShares)} /><Stat label="Ownership" value={percent(num(position.ownershipPercentage) * 100)} /><Stat label="Equivalent shares" value={quantity(position.equivalentShares)} /><Stat label="Fees earned" value={money(position.feesEarnedToDate)} /></div>{obj(data.capabilities).canManage === true ? <><section className="section"><h3>Add balanced liquidity</h3><div className="grid"><label className="field"><span className="muted">Player shares</span><input inputMode="decimal" value={shares} onChange={(event) => setShares(event.target.value)} /></label><label className="field"><span className="muted">Play money</span><input inputMode="decimal" value={playMoney} onChange={(event) => setPlayMoney(event.target.value)} /></label></div><button className="btn primary section" disabled={!(Number(shares) > 0 && Number(playMoney) > 0)} onClick={() => void stage("add")}>Review add</button></section><section className="section"><h3>Remove liquidity</h3><label className="field"><span className="muted">LP shares to remove</span><input inputMode="decimal" value={lpShares} onChange={(event) => setLpShares(event.target.value)} /></label><button className="btn section" disabled={!(Number(lpShares) > 0)} onClick={() => void stage("remove")}>Review removal</button></section>{message ? <Notice>{message}</Notice> : null}{Object.keys(pending).length ? <PendingAction pending={pending} onDone={refresh} /> : null}</> : null}</div><footer className="footer">Virtual gameplay liquidity. Updated {timestamp(payload.asOf)}.</footer></div>;
 }
 
 function App() {
-  const [payload, setPayload] = usePresentation();
-  if (!payload) {
-    return <><style>{CSS}</style><div className="sf-shell"><div className="sf-panel sf-loading">Loading Sportfolio…</div></div></>;
-  }
-  return (
-    <>
-      <style>{CSS}</style>
-      <main className="sf-shell">
-        {payload.warnings.map((warning) => <Notice key={warning}>{warning}</Notice>)}
-        {payload.view === "player_market" ? <PlayerMarket payload={payload} setPayload={setPayload} /> : null}
-        {payload.view === "portfolio" ? <Portfolio payload={payload} setPayload={setPayload} /> : null}
-        {payload.view === "market_movers" ? <MarketMovers payload={payload} setPayload={setPayload} /> : null}
-        {payload.view === "liquidity" ? <Liquidity payload={payload} setPayload={setPayload} /> : null}
-        {payload.view === "trade_preview" ? <TradePreview payload={payload} /> : null}
-      </main>
-    </>
-  );
+  const [payload, update] = usePresentation();
+  return <><style>{CSS}</style><main className="shell">{payload ? <>{payload.warnings.map((warning) => <Notice key={warning}>{warning}</Notice>)}{payload.view === "player_market" ? <PlayerMarket payload={payload} update={update} /> : null}{payload.view === "portfolio" ? <Portfolio payload={payload} update={update} /> : null}{payload.view === "market_movers" ? <Movers payload={payload} update={update} /> : null}{payload.view === "liquidity" ? <Liquidity payload={payload} update={update} /> : null}{payload.view === "trade_preview" ? <div className="panel"><header className="head"><div><div className="title">Sportfolio action review</div><div className="sub">Confirm only the exact staged bundle</div></div></header><div className="content"><PendingAction pending={payload.data} /></div></div> : null}</> : <div className="panel loading">Loading Sportfolio…</div>}</main></>;
 }
 
-const rootElement = document.getElementById("root");
-if (!rootElement) throw new Error("Sportfolio widget root was not found.");
-createRoot(rootElement).render(<App />);
+const root = document.getElementById("root");
+if (!root) throw new Error("Sportfolio widget root was not found.");
+createRoot(root).render(<App />);
