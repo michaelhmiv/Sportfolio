@@ -4,6 +4,8 @@ import { z } from "zod";
 import { SportsAdapterRegistry, type SportsAdapter } from "../sports/adapter-registry";
 import { createDefaultSportsAdapterRegistry } from "../sports/default-registry";
 import { sportSchema, type Sport } from "../sports/contracts";
+import { assembleSportsContext } from "../sports/context-service";
+import type { ProviderIdentityLookup } from "../sports/provider-identity";
 import {
   getDeniedPublicToolNames,
   isApprovedPublicPromptName,
@@ -283,6 +285,7 @@ export type PublicMcpDependencies = {
   getInternalMlbMcpToolCatalog: () => Promise<AgentToolDefinition[]>;
   runInternalMlbMcpToolBounded: typeof runInternalMlbMcpToolBounded;
   sportsRegistry?: SportsAdapterRegistry;
+  sportsIdentityLookup?: ProviderIdentityLookup;
 };
 
 const PUBLIC_DYNAMIC_MLB_SOURCE_ID = "internal_mlb_mcp";
@@ -1597,6 +1600,32 @@ async function getUnifiedEventLiveState(
   };
 }
 
+async function getBatchedSportsContext(
+  context: PublicMcpServerContext,
+  args: Record<string, unknown>,
+) {
+  const registry = getPublicSportsRegistry(context);
+  const identityLookup: ProviderIdentityLookup =
+    context.deps.sportsIdentityLookup ||
+    (async (references) =>
+      references
+        .filter((reference) => reference.provider === "sportfolio")
+        .map((reference) => ({ ...reference, sportfolioId: reference.providerId })));
+  const result = await assembleSportsContext(
+    args as any,
+    { mode: "authenticated", userId: context.userId },
+    {
+      registry,
+      identityLookup,
+      storage: context.deps.storage,
+    },
+  );
+  return {
+    summary: `Loaded ${result.requests.length} batched sports context request(s).`,
+    ...result,
+  };
+}
+
 async function getGameInsights(context: PublicMcpServerContext, args: Record<string, unknown>) {
   const sport = toOptionalString(args.sport)?.toUpperCase() || "NBA";
   const dateStr = resolveTargetDateString(args.date);
@@ -2475,6 +2504,63 @@ const eventLiveStateSchema: RawSchema = {
   sport: sportSchema,
   eventId: z.string().min(1).max(160),
 };
+const sportsContextToolSchema: RawSchema = {
+  requests: z
+    .array(
+      z
+        .object({
+          sport: sportSchema,
+          sections: z
+            .array(
+              z.enum([
+                "entities",
+                "teams",
+                "schedule",
+                "recent_performance",
+                "live_state",
+                "standings",
+                "leaders",
+                "user_exposure",
+              ]),
+            )
+            .min(1)
+            .max(8),
+          athleteIds: z.array(z.string().min(1).max(160)).max(20).optional(),
+          teamIds: z.array(z.string().min(1).max(160)).max(20).optional(),
+          eventIds: z.array(z.string().min(1).max(160)).max(10).optional(),
+          date: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional(),
+          startDate: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional(),
+          endDate: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional(),
+          season: z.string().min(4).max(16).optional(),
+        })
+        .strict(),
+    )
+    .min(1)
+    .max(6),
+  providerReferences: z
+    .array(
+      z
+        .object({
+          sport: sportSchema,
+          provider: z.string().min(1).max(80),
+          entityType: z.enum(["athlete", "team", "event"]),
+          providerId: z.string().min(1).max(160),
+        })
+        .strict(),
+    )
+    .max(30)
+    .optional(),
+  deadlineMs: z.number().int().min(250).max(8000).optional(),
+};
 const milestoneIdSchema: RawSchema = {
   milestoneId: z.string().min(1),
 };
@@ -2794,6 +2880,20 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
 ];
 
 const CUSTOM_TOOLS: PublicToolDefinition[] = [
+  defineTool({
+    name: "get_sports_context",
+    title: "Get batched sports context",
+    description:
+      "Use this to assemble only the requested MLB, NHL, or NASCAR entity, schedule, performance, live-state, or sanitized connected-user sections in one bounded call.",
+    domain: "sports_data",
+    readOnly: true,
+    inputSchema: sportsContextToolSchema,
+    fixtureArgs: {
+      requests: [{ sport: "mlb", sections: ["schedule"], date: "2026-08-04" }],
+      deadlineMs: 4000,
+    },
+    execute: getBatchedSportsContext,
+  }),
   defineTool({
     name: "get_supported_sports_capabilities",
     title: "Get supported sports capabilities",
@@ -4455,6 +4555,8 @@ const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
   "get_sports_entity",
   "get_event_slate",
   "get_event_live_state",
+
+  "get_sports_context",
 ] as const;
 
 const PUBLIC_PROMPT_NAMES = [
