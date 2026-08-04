@@ -1,0 +1,208 @@
+name: Factory Issue Implementation
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: factory-implementation-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.actor == github.repository_owner &&
+      startsWith(github.event.comment.body, '/factory-implement')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NODE_ENV: test
+      DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_factory_ci
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Create isolated implementation branch
+        id: branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="factory/issue-${{ github.event.issue.number }}-${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Factory Droid CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL https://app.factory.ai/cli | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build implementation prompt
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          issue = event["issue"]
+          prompt = f"""Implement GitHub issue #{issue['number']} in this repository.
+
+TITLE
+{issue['title']}
+
+ISSUE CONTRACT
+{issue.get('body') or ''}
+
+EXECUTION RULES
+- Inspect the repository before editing and preserve its established architecture and conventions.
+- Work only on the current feature branch. Never push, merge, rewrite Git history, alter repository settings, or change Railway directly.
+- Implement the complete issue scope, not merely a plan or report.
+- Keep changes focused and rollback-safe. Do not create destructive database migrations unless the issue explicitly requires them.
+- Never expose credentials, tokens, environment values, private user data, or raw provider payloads.
+- Update affected tests, snapshots, generated contracts, submission artifacts, and documentation.
+- Run relevant tests during implementation and fix failures caused by the changes.
+- Leave the working tree containing the final implementation. The workflow will handle commit, push, PR creation, and independent validation.
+- Write a concise implementation summary, deletion/migration inventory, tests run, known limitations, and rollback instructions to .factory-implementation-report.md.
+"""
+          Path(".factory-task.md").write_text(prompt, encoding="utf-8")
+          PY
+
+      - name: Implement issue with Droid Exec
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          droid exec --auto high -f .factory-task.md
+
+      - name: Run independent validation matrix
+        id: validate
+        shell: bash
+        run: |
+          set +e
+          REPORT="$RUNNER_TEMP/factory-validation.md"
+          : > "$REPORT"
+          OVERALL=0
+
+          run_check() {
+            local label="$1"
+            shift
+            echo "## $label" >> "$REPORT"
+            echo '```text' >> "$REPORT"
+            "$@" >> "$REPORT" 2>&1
+            local status=$?
+            echo '```' >> "$REPORT"
+            if [ "$status" -eq 0 ]; then
+              echo "Result: PASS" >> "$REPORT"
+            else
+              echo "Result: FAIL (exit $status)" >> "$REPORT"
+              OVERALL=1
+            fi
+            echo >> "$REPORT"
+          }
+
+          run_check "npm ci" npm ci
+          run_check "TypeScript check" npm run check
+          run_check "ESLint" npm run lint
+          run_check "Formatting" npm run format:check
+          run_check "Full test suite" timeout 30m npm run test:run
+          run_check "Public tool policy" npm run public-tools:audit
+          run_check "Production build" npm run build
+
+          cat "$REPORT"
+          echo "report=$REPORT" >> "$GITHUB_OUTPUT"
+          echo "overall=$OVERALL" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Prepare pull request content
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "${{ steps.validate.outputs.report }}" "$RUNNER_TEMP/validation.md"
+          if [ -f .factory-implementation-report.md ]; then
+            cp .factory-implementation-report.md "$RUNNER_TEMP/implementation.md"
+          else
+            printf '%s\n' 'Droid did not generate a separate implementation report.' > "$RUNNER_TEMP/implementation.md"
+          fi
+
+          rm -f .factory-task.md .factory-implementation-report.md
+
+          if [ -z "$(git status --porcelain)" ]; then
+            gh issue comment "${{ github.event.issue.number }}" --body "Factory implementation produced no repository changes. Inspect workflow run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+            exit 1
+          fi
+
+          {
+            echo "Implements #${{ github.event.issue.number }}"
+            echo
+            echo "## Factory implementation report"
+            cat "$RUNNER_TEMP/implementation.md"
+            echo
+            echo "## Independent validation"
+            cat "$RUNNER_TEMP/validation.md"
+            echo
+            echo "## Review gate"
+            echo "This PR was generated on an isolated branch. It must pass the repository's normal Plugin Readiness and Security Audit workflows and receive independent diff review before merge."
+          } > "$RUNNER_TEMP/pr-body.md"
+
+          if [ "${{ steps.validate.outputs.overall }}" = "0" ]; then
+            echo "draft=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "draft=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "factory-droid[bot]"
+          git config user.email "138933559+factory-droid[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: implement issue #${{ github.event.issue.number }}"
+          git push origin "${{ steps.branch.outputs.name }}"
+
+      - name: Open pull request
+        id: pr
+        shell: bash
+        run: |
+          set -euo pipefail
+          TITLE="${{ github.event.issue.title }}"
+          TITLE="${TITLE#@droid }"
+          DRAFT_ARGS=()
+          if [ "${{ steps.prepare.outputs.draft }}" = "true" ]; then
+            DRAFT_ARGS+=(--draft)
+          fi
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "$TITLE" \
+            --body-file "$RUNNER_TEMP/pr-body.md" \
+            "${DRAFT_ARGS[@]}")
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Link pull request to issue
+        shell: bash
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body "Implementation PR created: ${{ steps.pr.outputs.url }}\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
