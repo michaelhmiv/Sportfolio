@@ -88,7 +88,8 @@
     "redditbot:playtest": "npm --prefix packages/sportfoliobot run playtest",
     "redditbot:upload": "npm --prefix packages/sportfoliobot run upload",
     "redditbot:settings:list": "npm --prefix packages/sportfoliobot run settings:list",
-    "public-tools:audit": "tsx scripts/audit-public-tool-policy.ts"
+    "public-tools:audit": "tsx scripts/audit-public-tool-policy.ts",
+    "db:migrate:scout-claims": "node scripts/apply-scout-claims-migration.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
