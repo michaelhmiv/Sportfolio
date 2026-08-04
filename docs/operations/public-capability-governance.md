@@ -17,3 +17,5 @@ Public capability snapshot diff:
 ```
 
 Remediation: remove unintended registration or lazy route code; restore metadata; or explicitly update and review the baseline. Rollback is a single PR revert.
+
+The checker, reviewed snapshot, policy, and tests are merged independently of trusted workflow changes. Plugin Readiness integration must be added afterward in a minimal workflow-only pull request from the latest `main`, then proven through exact-head release and security checks.
