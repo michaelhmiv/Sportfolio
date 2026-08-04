@@ -8,12 +8,12 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   build-and-distribute:
     runs-on: ubuntu-latest
-    env:
-      # Always include the core internal tester so new builds do not require manual email entry.
-      DEFAULT_FIREBASE_DISTRIBUTION_TESTERS: michaelhmiv@gmail.com
 
     steps:
       - name: Checkout code
@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "22.13.0"
           cache: "npm"
 
       - name: Install dependencies
@@ -152,7 +152,6 @@ jobs:
           FIREBASE_DISTRIBUTION_GROUPS: ${{ secrets.FIREBASE_DISTRIBUTION_GROUPS }}
           FIREBASE_RELEASE_NAME: ${{ env.FIREBASE_RELEASE_NAME }}
           MOBILE_VERSION_CODE: ${{ env.MOBILE_VERSION_CODE }}
-          DEFAULT_FIREBASE_DISTRIBUTION_TESTERS: ${{ env.DEFAULT_FIREBASE_DISTRIBUTION_TESTERS }}
         run: |
           RELEASE_NOTES=$(cat <<EOF
           Build from commit ${GITHUB_SHA}
@@ -166,13 +165,8 @@ jobs:
           DISTRIBUTION_LOG="$RUNNER_TEMP/firebase-distribution.log"
           set -euo pipefail
 
-          RAW_TESTERS="$DEFAULT_FIREBASE_DISTRIBUTION_TESTERS"
-          if [ -n "${FIREBASE_DISTRIBUTION_TESTERS:-}" ]; then
-            RAW_TESTERS="${RAW_TESTERS},${FIREBASE_DISTRIBUTION_TESTERS}"
-          fi
-
           NORMALIZED_TESTERS="$(
-            printf '%s\n' "$RAW_TESTERS" \
+            printf '%s\n' "${FIREBASE_DISTRIBUTION_TESTERS:-}" \
               | tr ',;' '\n' \
               | tr -d '\r' \
               | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
@@ -198,26 +192,38 @@ jobs:
           )
 
           if [ -n "$NORMALIZED_TESTERS" ]; then
-            echo "Firebase testers: $NORMALIZED_TESTERS"
+            echo "Firebase tester recipients are configured."
             DISTRIBUTE_ARGS+=(--testers "$NORMALIZED_TESTERS")
           fi
 
           if [ -n "$NORMALIZED_GROUPS" ]; then
-            echo "Firebase groups: $NORMALIZED_GROUPS"
+            echo "Firebase distribution groups are configured."
             DISTRIBUTE_ARGS+=(--groups "$NORMALIZED_GROUPS")
           fi
 
-          firebase appdistribution:distribute "${DISTRIBUTE_ARGS[@]}" | tee "$DISTRIBUTION_LOG"
+          if ! firebase appdistribution:distribute "${DISTRIBUTE_ARGS[@]}" > "$DISTRIBUTION_LOG" 2>&1; then
+            echo "::error::Firebase distribution failed. Sanitized CLI output follows."
+            sed -E 's/[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}/[redacted-email]/g' "$DISTRIBUTION_LOG"
+            exit 1
+          fi
 
-      - name: Remove decoded keystore
+          echo "Firebase App Distribution upload completed."
+
+      - name: Remove temporary signing and Firebase files
         if: ${{ always() }}
         env:
           ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ] && [ -f "$ANDROID_KEYSTORE_PATH" ]; then
-            if command -v shred >/dev/null 2>&1; then
-              shred -uz -- "$ANDROID_KEYSTORE_PATH"
-            else
-              rm -- "$ANDROID_KEYSTORE_PATH"
+          for sensitive_file in \
+            "${ANDROID_KEYSTORE_PATH:-}" \
+            "${GOOGLE_APPLICATION_CREDENTIALS:-}" \
+            "${RUNNER_TEMP}/firebase-distribution.log"; do
+            if [ -n "$sensitive_file" ] && [ -f "$sensitive_file" ]; then
+              if command -v shred >/dev/null 2>&1; then
+                shred -uz -- "$sensitive_file"
+              else
+                rm -- "$sensitive_file"
+              fi
             fi
-          fi
+          done
