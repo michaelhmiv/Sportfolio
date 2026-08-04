@@ -1,0 +1,138 @@
+name: Factory Task PR Implementation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - .factory/tasks/**
+
+permissions:
+  contents: write
+
+concurrency:
+  group: factory-task-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      startsWith(github.head_ref, 'factory/task-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      NODE_ENV: test
+      DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_factory_ci
+    steps:
+      - name: Check out task branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Resolve exactly one task contract
+        id: task
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t TASKS < <(find .factory/tasks -maxdepth 1 -type f -name '*.md' -print | sort)
+          if [ "${#TASKS[@]}" -ne 1 ]; then
+            echo "Expected exactly one .factory/tasks/*.md contract; found ${#TASKS[@]}." >&2
+            exit 1
+          fi
+          echo "path=${TASKS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Factory Droid CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL https://app.factory.ai/cli | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Implement task with Droid Exec
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          droid exec --auto high -f "${{ steps.task.outputs.path }}"
+
+      - name: Enforce implementation boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "${{ steps.task.outputs.path }}" .factory-implementation-report.md
+          rmdir .factory/tasks 2>/dev/null || true
+          rmdir .factory 2>/dev/null || true
+
+          if git diff --name-only | grep -E '^\.github/workflows/'; then
+            echo "Task implementation attempted to modify trusted workflow files." >&2
+            exit 1
+          fi
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Factory implementation produced no repository changes." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        shell: bash
+        run: npm ci
+
+      - name: Run implementation validation
+        id: validate
+        shell: bash
+        run: |
+          set +e
+          OVERALL=0
+          run_check() {
+            local label="$1"
+            shift
+            echo "::group::$label"
+            "$@"
+            local status=$?
+            echo "::endgroup::"
+            if [ "$status" -ne 0 ]; then
+              echo "Validation failed: $label (exit $status)" >&2
+              OVERALL=1
+            fi
+          }
+
+          run_check "TypeScript check" npm run check
+          run_check "Changed implementation lint" npm run lint
+          run_check "Formatting" npm run format:check
+          run_check "Full test suite" timeout 35m npm run test:run
+          run_check "Public tool policy" npm run public-tools:audit
+          run_check "Production build" npm run build
+
+          echo "overall=$OVERALL" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit implementation to task branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "factory-droid[bot]"
+          git config user.email "138933559+factory-droid[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: implement Factory task"
+          git push origin HEAD:${{ github.head_ref }}
+
+      - name: Report validation outcome
+        shell: bash
+        run: |
+          if [ "${{ steps.validate.outputs.overall }}" = "0" ]; then
+            echo "Factory implementation and the runner validation matrix passed."
+          else
+            echo "Factory implementation was committed for review, but one or more runner validations failed. Keep the PR in draft and inspect this run." >&2
+            exit 1
+          fi
