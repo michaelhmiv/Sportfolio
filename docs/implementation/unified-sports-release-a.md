@@ -66,7 +66,7 @@ Those physical cleanup steps are deferred to follow-on PRs after dependency and 
 
 ## Validation
 
-The final Release A head must pass:
+Release A is gated by:
 
 - public-tool policy audit;
 - public-policy and surface-coverage tests;
