@@ -32,7 +32,7 @@ on:
     - cron: "23 9 * * *"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: plugin-readiness-${{ github.ref }}
@@ -48,9 +48,6 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -81,20 +78,8 @@ jobs:
         run: npx tsx scripts/plugin-privacy-check.ts
       - name: Submission kit
         run: npx tsx scripts/plugin-submission-check.ts
-      - name: Generate OpenAI submission import
-        run: npx tsx scripts/generate-chatgpt-app-submission.ts
-      - name: Commit OpenAI submission import
-        if: github.actor != 'github-actions[bot]'
-        run: |
-          if git diff --quiet -- chatgpt-app-submission.json && git ls-files --error-unmatch chatgpt-app-submission.json >/dev/null 2>&1; then
-            echo "Submission import is already current."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add chatgpt-app-submission.json
-          git commit -m "Plugin: generate OpenAI submission import"
-          git push origin HEAD:${{ github.head_ref || github.ref_name }}
+      - name: Verify OpenAI submission import
+        run: npx tsx scripts/generate-chatgpt-app-submission.ts --check
       - name: External release gate report
         run: npx tsx scripts/plugin-release-gate.ts
 
