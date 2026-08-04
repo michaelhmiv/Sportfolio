@@ -1,0 +1,67 @@
+name: Dependency Remediation
+
+on:
+  push:
+    branches:
+      - security/public-repo-hardening
+    paths:
+      - ".github/workflows/dependency-remediation.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v5
+        with:
+          ref: security/public-repo-hardening
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Upgrade vulnerable direct dependencies
+        run: >-
+          npm install --save
+          @modelcontextprotocol/sdk@^1.30.0
+          @opentelemetry/auto-instrumentations-node@^0.79.0
+          @opentelemetry/exporter-trace-otlp-http@^0.221.0
+          @opentelemetry/sdk-node@^0.221.0
+          @sentry/node@^10.62.0
+          @sentry/react@^10.67.0
+          drizzle-orm@^0.45.2
+          firebase-admin@^14.2.0
+
+      - name: Apply compatible transitive security updates
+        run: npm audit fix
+
+      - name: Verify production vulnerability threshold
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Type check
+        run: npm run check
+
+      - name: Run unit tests
+        run: npm run test:run
+
+      - name: Commit validated dependency updates
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No dependency changes were required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "security: remediate vulnerable production dependencies [skip ci]"
+          git push origin HEAD:security/public-repo-hardening
