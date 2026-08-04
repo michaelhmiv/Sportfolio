@@ -87,7 +87,8 @@
     "redditbot:typecheck": "npm --prefix packages/sportfoliobot run typecheck",
     "redditbot:playtest": "npm --prefix packages/sportfoliobot run playtest",
     "redditbot:upload": "npm --prefix packages/sportfoliobot run upload",
-    "redditbot:settings:list": "npm --prefix packages/sportfoliobot run settings:list"
+    "redditbot:settings:list": "npm --prefix packages/sportfoliobot run settings:list",
+    "public-tools:audit": "tsx scripts/audit-public-tool-policy.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
