@@ -1,6 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
+import { SportsAdapterRegistry, type SportsAdapter } from "../sports/adapter-registry";
+import { createDefaultSportsAdapterRegistry } from "../sports/default-registry";
+import { sportSchema, type Sport } from "../sports/contracts";
 import {
   getDeniedPublicToolNames,
   isApprovedPublicPromptName,
@@ -279,9 +282,11 @@ export type PublicMcpDependencies = {
   }>;
   getInternalMlbMcpToolCatalog: () => Promise<AgentToolDefinition[]>;
   runInternalMlbMcpToolBounded: typeof runInternalMlbMcpToolBounded;
+  sportsRegistry?: SportsAdapterRegistry;
 };
 
 const PUBLIC_DYNAMIC_MLB_SOURCE_ID = "internal_mlb_mcp";
+const DEFAULT_PUBLIC_SPORTS_REGISTRY = createDefaultSportsAdapterRegistry();
 const PUBLIC_DYNAMIC_MLB_SOURCE_NAME = "Internal MLB MCP";
 const HIGH_RISK_IMMEDIATE_TOOL_NAMES = new Set([
   "revoke_api_token",
@@ -1406,6 +1411,192 @@ async function getGamesToday(context: PublicMcpServerContext, args: Record<strin
   };
 }
 
+type PublicSportsCapability = Exclude<keyof SportsAdapter, "sport">;
+
+function getPublicSportsRegistry(context: PublicMcpServerContext): SportsAdapterRegistry {
+  return context.deps.sportsRegistry || DEFAULT_PUBLIC_SPORTS_REGISTRY;
+}
+
+function parsePublicSport(value: unknown): Sport {
+  const parsed = sportSchema.safeParse(toStringValue(value).toLowerCase());
+  if (!parsed.success) {
+    throw new PublicMcpToolError("sport must be one of mlb, nhl, or nascar.", "unsupported_sport");
+  }
+  return parsed.data;
+}
+
+function requireSportsCapability(
+  context: PublicMcpServerContext,
+  sport: Sport,
+  capability: PublicSportsCapability,
+) {
+  const registry = getPublicSportsRegistry(context);
+  if (!registry.supports(sport, capability)) {
+    throw new PublicMcpToolError(
+      `${capability} is not supported for ${sport}.`,
+      "unsupported_capability",
+      { sport, capability },
+    );
+  }
+  return registry.get(sport);
+}
+
+function getSportsCapabilityView(context: PublicMcpServerContext, sport: Sport) {
+  const registry = getPublicSportsRegistry(context);
+  const capabilities: PublicSportsCapability[] = [
+    "searchAthletes",
+    "getAthlete",
+    "getTeams",
+    "getSchedule",
+    "getStats",
+    "getLiveState",
+  ];
+  return Object.fromEntries(
+    capabilities.map((capability) => [capability, registry.supports(sport, capability)]),
+  );
+}
+
+function resolveSportsDateRange(args: Record<string, unknown>) {
+  const date = toOptionalString(args.date);
+  const startDate = toOptionalString(args.startDate) || date || getTodayET();
+  const endDate = toOptionalString(args.endDate) || date || startDate;
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T23:59:59.999Z`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) {
+    throw new PublicMcpToolError("Invalid event date range.", "invalid_arguments");
+  }
+  const days = Math.ceil((end.getTime() - start.getTime()) / 86_400_000);
+  if (days > 14) {
+    throw new PublicMcpToolError(
+      "Event slate ranges are limited to 14 days.",
+      "request_too_broad",
+      { maxDays: 14 },
+    );
+  }
+  return { startDate, endDate, start, end };
+}
+
+async function getSupportedSportsCapabilities(
+  context: PublicMcpServerContext,
+  args: Record<string, unknown>,
+) {
+  const sport = parsePublicSport(args.sport);
+  return {
+    summary: `Loaded supported unified sports capabilities for ${sport}.`,
+    sport,
+    capabilities: getSportsCapabilityView(context, sport),
+    supportedSports: getPublicSportsRegistry(context).list(),
+    source: "unified_adapter_registry",
+  };
+}
+
+async function searchSportsEntities(
+  context: PublicMcpServerContext,
+  args: Record<string, unknown>,
+) {
+  const sport = parsePublicSport(args.sport);
+  const entityType = toStringValue(args.entityType);
+  const query = toStringValue(args.query).toLowerCase();
+  const limit = toPositiveInteger(args.limit) || 20;
+  const offset = Math.max(0, Number(args.offset) || 0);
+  if (entityType === "athlete") {
+    const adapter = requireSportsCapability(context, sport, "searchAthletes");
+    const items = await adapter.searchAthletes!(query);
+    return {
+      summary: `Found ${items.length} ${sport} athlete match(es).`,
+      sport,
+      entityType,
+      items: items.slice(offset, offset + limit),
+      pagination: { offset, limit, total: items.length, hasMore: offset + limit < items.length },
+      capabilities: getSportsCapabilityView(context, sport),
+    };
+  }
+  const adapter = requireSportsCapability(context, sport, "getTeams");
+  const teams = (await adapter.getTeams!()).filter((team) =>
+    `${team.name} ${team.abbreviation || ""}`.toLowerCase().includes(query),
+  );
+  return {
+    summary: `Found ${teams.length} ${sport} team match(es).`,
+    sport,
+    entityType: "team",
+    items: teams.slice(offset, offset + limit),
+    pagination: { offset, limit, total: teams.length, hasMore: offset + limit < teams.length },
+    capabilities: getSportsCapabilityView(context, sport),
+  };
+}
+
+async function getSportsEntity(context: PublicMcpServerContext, args: Record<string, unknown>) {
+  const sport = parsePublicSport(args.sport);
+  const entityType = toStringValue(args.entityType);
+  const entityId = toStringValue(args.entityId);
+  if (entityType === "athlete") {
+    const adapter = requireSportsCapability(context, sport, "getAthlete");
+    const entity = await adapter.getAthlete!(entityId);
+    if (!entity) {
+      throw new PublicMcpToolError("Sports entity not found.", "not_found", {
+        sport,
+        entityType,
+        entityId,
+      });
+    }
+    return { summary: `Loaded ${entity.name}.`, sport, entityType, entity };
+  }
+  const adapter = requireSportsCapability(context, sport, "getTeams");
+  const entity = (await adapter.getTeams!()).find((team) => team.id === entityId) || null;
+  if (!entity) {
+    throw new PublicMcpToolError("Sports entity not found.", "not_found", {
+      sport,
+      entityType,
+      entityId,
+    });
+  }
+  return { summary: `Loaded ${entity.name}.`, sport, entityType: "team", entity };
+}
+
+async function getUnifiedEventSlate(
+  context: PublicMcpServerContext,
+  args: Record<string, unknown>,
+) {
+  const sport = parsePublicSport(args.sport);
+  const range = resolveSportsDateRange(args);
+  const limit = toPositiveInteger(args.limit) || 50;
+  const offset = Math.max(0, Number(args.offset) || 0);
+  const adapter = requireSportsCapability(context, sport, "getSchedule");
+  const events = (await adapter.getSchedule!(range.start, range.end)).sort(
+    (left, right) => left.startsAt.localeCompare(right.startsAt) || left.id.localeCompare(right.id),
+  );
+  return {
+    summary: `Loaded ${events.length} ${sport} event(s) from ${range.startDate} through ${range.endDate}.`,
+    sport,
+    range: { startDate: range.startDate, endDate: range.endDate },
+    events: events.slice(offset, offset + limit),
+    pagination: { offset, limit, total: events.length, hasMore: offset + limit < events.length },
+    capabilities: getSportsCapabilityView(context, sport),
+  };
+}
+
+async function getUnifiedEventLiveState(
+  context: PublicMcpServerContext,
+  args: Record<string, unknown>,
+) {
+  const sport = parsePublicSport(args.sport);
+  const eventId = toStringValue(args.eventId);
+  const adapter = requireSportsCapability(context, sport, "getLiveState");
+  const liveState = await adapter.getLiveState!(eventId);
+  if (!liveState) {
+    throw new PublicMcpToolError("Live event state is not available.", "not_found", {
+      sport,
+      eventId,
+    });
+  }
+  return {
+    summary: `Loaded live state for ${eventId}.`,
+    sport,
+    eventId,
+    liveState,
+  };
+}
+
 async function getGameInsights(context: PublicMcpServerContext, args: Record<string, unknown>) {
   const sport = toOptionalString(args.sport)?.toUpperCase() || "NBA";
   const dateStr = resolveTargetDateString(args.date);
@@ -2248,6 +2439,42 @@ const collectionDetailSchema: RawSchema = {
   type: z.string().min(1),
   targetId: z.string().min(1),
 };
+const publicSportSchema: RawSchema = {
+  sport: sportSchema,
+};
+const sportsEntitySearchSchema: RawSchema = {
+  sport: sportSchema,
+  entityType: z.enum(["athlete", "team"]),
+  query: z.string().min(1).max(120),
+  limit: z.number().int().positive().max(50).optional(),
+  offset: z.number().int().min(0).max(500).optional(),
+};
+const sportsEntityDetailSchema: RawSchema = {
+  sport: sportSchema,
+  entityType: z.enum(["athlete", "team"]),
+  entityId: z.string().min(1).max(160),
+};
+const eventSlateSchema: RawSchema = {
+  sport: sportSchema,
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  limit: z.number().int().positive().max(100).optional(),
+  offset: z.number().int().min(0).max(500).optional(),
+};
+const eventLiveStateSchema: RawSchema = {
+  sport: sportSchema,
+  eventId: z.string().min(1).max(160),
+};
 const milestoneIdSchema: RawSchema = {
   milestoneId: z.string().min(1),
 };
@@ -2567,6 +2794,61 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
 ];
 
 const CUSTOM_TOOLS: PublicToolDefinition[] = [
+  defineTool({
+    name: "get_supported_sports_capabilities",
+    title: "Get supported sports capabilities",
+    description:
+      "Use this to discover which unified read capabilities are available for MLB, NHL, or NASCAR before selecting another sports-data tool.",
+    domain: "sports_data",
+    readOnly: true,
+    inputSchema: publicSportSchema,
+    fixtureArgs: { sport: "mlb" },
+    execute: getSupportedSportsCapabilities,
+  }),
+  defineTool({
+    name: "search_sports_entities",
+    title: "Search sports entities",
+    description:
+      "Use this to search canonical athletes, drivers, or teams within one supported sport. Do not use provider-native identifiers as Sportfolio IDs.",
+    domain: "sports_data",
+    readOnly: true,
+    inputSchema: sportsEntitySearchSchema,
+    fixtureArgs: { sport: "mlb", entityType: "athlete", query: "Ohtani", limit: 10 },
+    execute: searchSportsEntities,
+  }),
+  defineTool({
+    name: "get_sports_entity",
+    title: "Get sports entity",
+    description:
+      "Use this to load one canonical athlete, driver, or team after resolving its stable unified ID.",
+    domain: "sports_data",
+    readOnly: true,
+    inputSchema: sportsEntityDetailSchema,
+    fixtureArgs: { sport: "mlb", entityType: "athlete", entityId: "mlb_660271" },
+    execute: getSportsEntity,
+  }),
+  defineTool({
+    name: "get_event_slate",
+    title: "Get event slate",
+    description:
+      "Use this to list a compact, chronologically ordered MLB, NHL, or NASCAR schedule for one date or a bounded date range.",
+    domain: "sports_data",
+    readOnly: true,
+    inputSchema: eventSlateSchema,
+    fixtureArgs: { sport: "mlb", date: "2026-08-04", limit: 25 },
+    execute: getUnifiedEventSlate,
+  }),
+  defineTool({
+    name: "get_event_live_state",
+    title: "Get event live state",
+    description:
+      "Use this to retrieve the current inning, period, lap, stage, clock, and normalized status for one canonical event ID.",
+    domain: "sports_data",
+    readOnly: true,
+    inputSchema: eventLiveStateSchema,
+    fixtureArgs: { sport: "mlb", eventId: "mlb_game_1" },
+    execute: getUnifiedEventLiveState,
+  }),
   defineTool({
     name: "review_setup",
     description: "Review the user's overall setup with a broad gameplay read.",
@@ -4167,6 +4449,12 @@ const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
   "get_pending_action",
   "upsert_schedule",
   "delete_schedule",
+
+  "get_supported_sports_capabilities",
+  "search_sports_entities",
+  "get_sports_entity",
+  "get_event_slate",
+  "get_event_live_state",
 ] as const;
 
 const PUBLIC_PROMPT_NAMES = [
