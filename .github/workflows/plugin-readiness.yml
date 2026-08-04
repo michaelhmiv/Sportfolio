@@ -7,8 +7,6 @@ on:
       - "feat/chatgpt-plugin-ui"
   pull_request:
     paths:
-      - "server/mcp/public-tool-registry.ts"
-      - "server/mcp/public-capability-governance.test.ts"
       - "server/mcp/plugin/**"
       - "server/auth/plugin-**"
       - "server/routes/plugin-**"
@@ -22,11 +20,8 @@ on:
       - "plugins/sportfolio/**"
       - ".agents/plugins/marketplace.json"
       - "scripts/plugin-**"
-      - "scripts/public-capability-governance.ts"
       - "scripts/build-plugin-ui.mjs"
-      - "config/public-capability-*.json"
       - "docs/plugin/**"
-      - "docs/operations/public-capability-governance.md"
       - "client/src/pages/privacy.tsx"
       - "client/src/pages/terms.tsx"
       - "chatgpt-app-submission.json"
@@ -69,8 +64,6 @@ jobs:
         run: npm run check
       - name: Production build
         run: npm run build
-      - name: Public capability governance
-        run: npm run governance:capabilities
       - name: Plugin unit tests
         run: >-
           npx vitest run
@@ -78,7 +71,6 @@ jobs:
           server/mcp/plugin/adapters.test.ts
           server/mcp/plugin/runtime-guard.test.ts
           server/mcp/plugin/ui/surface.test.ts
-          server/mcp/public-capability-governance.test.ts
           server/auth/plugin-token-verifier.test.ts
           scripts/plugin-oauth-discovery-check.test.ts
           scripts/plugin-oauth-token-inspect.test.ts
