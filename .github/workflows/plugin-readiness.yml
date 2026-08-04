@@ -8,8 +8,11 @@ on:
   pull_request:
     paths:
       - "server/mcp/plugin/**"
+      - "server/mcp/public-**"
       - "server/auth/plugin-**"
       - "server/routes/plugin-**"
+      - "server/routes/mcp.ts"
+      - "server/jobs/**"
       - "client/src/plugin-ui/**"
       - "client/src/pages/oauth-consent.tsx"
       - "client/src/pages/connected-apps.tsx"
@@ -19,9 +22,12 @@ on:
       - "client/plugin-support/**"
       - "plugins/sportfolio/**"
       - ".agents/plugins/marketplace.json"
+      - "config/public-capability-*.json"
+      - "scripts/public-capability-governance.ts"
       - "scripts/plugin-**"
       - "scripts/build-plugin-ui.mjs"
       - "docs/plugin/**"
+      - "docs/operations/public-capability-governance.md"
       - "client/src/pages/privacy.tsx"
       - "client/src/pages/terms.tsx"
       - "chatgpt-app-submission.json"
@@ -64,6 +70,8 @@ jobs:
         run: npm run check
       - name: Production build
         run: npm run build
+      - name: Public capability governance
+        run: npm run governance:capabilities
       - name: Plugin unit tests
         run: >-
           npx vitest run
