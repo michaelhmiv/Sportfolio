@@ -11,7 +11,10 @@ restore_path = root / "scripts" / "restore-package-after-submission.mjs"
 original = package_path.read_text(encoding="utf-8")
 package = json.loads(original)
 package["scripts"]["prepare"] = (
-    "husky && npx tsx scripts/generate-chatgpt-app-submission.ts "
+    "husky && "
+    "NODE_ENV=test "
+    "DEV_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_test "
+    "npx tsx scripts/generate-chatgpt-app-submission.ts "
     "&& node scripts/restore-package-after-submission.mjs"
 )
 package_path.write_text(json.dumps(package, indent=2) + "\n", encoding="utf-8")
@@ -24,4 +27,4 @@ restore_path.write_text(
     encoding="utf-8",
 )
 
-print("Prepared one-time submission import regeneration during npm ci.")
+print("Prepared one-time submission import regeneration in the isolated test environment.")
