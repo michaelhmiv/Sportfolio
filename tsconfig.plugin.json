@@ -5,6 +5,7 @@
     "client/src/connected-apps-entry.tsx",
     "client/src/plugin-docs-entry.tsx",
     "client/src/plugin-support-entry.tsx",
+    "client/src/plugin-ui/**/*.tsx",
     "client/src/pages/oauth-consent.tsx",
     "client/src/pages/connected-apps.tsx",
     "client/src/pages/plugin-docs.tsx",
