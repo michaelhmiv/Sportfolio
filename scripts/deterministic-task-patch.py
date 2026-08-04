@@ -9,7 +9,7 @@ source = urlopen(SOURCE_URL, timeout=30).read().decode("utf-8")
 
 old_mutation_assertion = 'expect(source).not.toMatch(/INSERT|UPDATE|DELETE/i);'
 new_mutation_assertion = (
-    'expect(source).not.toMatch(/\\b(?:INSERT\\s+INTO|UPDATE\\s+\\w+|DELETE\\s+FROM)\\b/i);'
+    r'expect(source).not.toMatch(/\\b(?:INSERT\\s+INTO|UPDATE\\s+\\w+|DELETE\\s+FROM)\\b/i);'
 )
 if old_mutation_assertion not in source:
     raise SystemExit("Expected broad SQL mutation assertion was not found")
