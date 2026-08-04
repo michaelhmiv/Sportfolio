@@ -25,12 +25,12 @@ The controlling rule is `server/mcp/public-tool-policy.ts`. Static tools and pro
 
 ## Marketplace catalog
 
-The ChatGPT marketplace catalog contains 20 compact tools after removing the legacy aliases:
+The ChatGPT marketplace catalog contains 20 compact aliases after removing:
 
 - `get_my_news_digest`;
 - `review_my_sportfolio_setup`.
 
-Skill guidance, marketplace documentation, adapters, the frozen catalog snapshot, and `chatgpt-app-submission.json` were regenerated from the approved catalog together.
+The approved shared MCP registry now exposes 72 static tools, including 24 writes, 11 staged actions, and five destructive actions. Skill guidance, marketplace documentation, adapters, the frozen catalog snapshot, and `chatgpt-app-submission.json` were regenerated from the approved catalog together.
 
 ## Retained public capabilities
 
@@ -58,32 +58,30 @@ Release A does not:
 - remove production environment variables;
 - remove the internal MLB compatibility client;
 - retire the standalone `mlb-mcp` Railway service;
+- delete legacy backend routes, jobs, or client pages;
 - implement the unified sports adapters;
 - change virtual-market economics.
 
-The release is reversible by reverting its merge commit and redeploying. Database and Railway-service deletion remain deferred so rollback does not require data restoration or service recreation.
+Those physical cleanup steps are deferred to follow-on PRs after dependency and production-use verification. The release is reversible by reverting its merge commit and redeploying.
 
 ## Validation
 
-The implementation runner validates:
+The final Release A head passed:
 
-- the public-tool policy audit;
+- public-tool policy audit;
 - public-policy and surface-coverage tests;
-- repository type checking;
+- plugin and repository TypeScript checks;
 - changed-file linting;
-- the production build;
-- regeneration of the OpenAI submission import from the approved catalog.
-
-Plugin Readiness validates:
-
-- plugin TypeScript certification;
-- marketplace adapter integrity;
-- MCP audit and smoke tests;
-- plugin UI contracts;
+- production build;
+- plugin unit tests;
+- marketplace and UI audits;
 - catalog freeze;
-- package, privacy, and submission checks;
-- OAuth discovery and JWKS compatibility;
-- production dependency security.
+- package, privacy, submission-kit, and OpenAI submission-import checks;
+- existing and marketplace MCP protocol smoke tests;
+- live OAuth discovery and JWKS compatibility;
+- production and full dependency audits;
+- full-history secret scanning;
+- CodeQL JavaScript/TypeScript analysis.
 
 The MCP smoke test explicitly verifies that retired prompts and raw provider tools are not listed or present in capability resources, and that direct raw-tool calls return an MCP error result.
 
@@ -99,4 +97,4 @@ The MCP smoke test explicitly verifies that retired prompts and raw provider too
 
 ## Follow-on releases
 
-Release B introduces sport-neutral internal types, an adapter registry, provider-ID resolution, and normalized NASCAR series identifiers. Later releases add curated MLB, NHL, and NASCAR adapters, compact sports-data tools, data-semantic corrections, observability, legacy code deletion, and eventual standalone MLB service retirement after zero-use verification.
+Release B introduces sport-neutral internal types, an adapter registry, provider-ID resolution, and normalized NASCAR series identifiers. Later releases add curated MLB, NHL, and NASCAR adapters, compact sports-data tools, data-semantic corrections, observability, physical legacy-code deletion, and eventual standalone MLB service retirement after zero-use verification.
