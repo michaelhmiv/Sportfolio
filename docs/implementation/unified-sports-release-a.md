@@ -1,5 +1,7 @@
 # Unified Sports Data — Release A
 
+Status: merge-gated by Plugin Readiness and Security Audit.
+
 ## Objective
 
 Reduce the public Sportfolio MCP and ChatGPT app surface before introducing the unified MLB, NHL, and NASCAR adapter layer.
