@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { buildPublicToolRegistry } from "../server/mcp/public-tool-registry";
 import { buildPluginStaticCatalog } from "../server/mcp/plugin/registry";
+import { getDeniedPublicToolNames } from "../server/mcp/public-tool-policy";
 
 const errors: string[] = [];
 const sourceTools = buildPublicToolRegistry();
@@ -9,16 +10,25 @@ const sourceNames = sourceTools.map((tool) => tool.name).sort();
 const catalogNames = catalog.map((tool) => tool.name).sort();
 
 if (new Set(sourceNames).size !== sourceNames.length) {
-  errors.push("The shared public MCP registry contains duplicate tool names.");
+  errors.push("The approved public MCP registry contains duplicate tool names.");
 }
 if (new Set(catalogNames).size !== catalogNames.length) {
   errors.push("The marketplace catalog contains duplicate tool names.");
 }
 if (JSON.stringify(sourceNames) !== JSON.stringify(catalogNames)) {
-  errors.push("The marketplace catalog does not exactly match the shared site MCP registry.");
+  errors.push("The marketplace catalog does not exactly match the approved public MCP registry.");
 }
-if (catalog.length <= 22) {
-  errors.push(`Expected the full site MCP surface, but only ${catalog.length} static tools were found.`);
+if (catalog.length === 0) {
+  errors.push("The approved marketplace catalog is empty.");
+}
+
+for (const deniedName of getDeniedPublicToolNames()) {
+  if (catalogNames.includes(deniedName)) {
+    errors.push(`Retired capability leaked into the marketplace catalog: ${deniedName}.`);
+  }
+}
+if (catalogNames.some((name) => name.startsWith("mlb_mcp__"))) {
+  errors.push("A raw MLB provider tool leaked into the marketplace catalog.");
 }
 
 for (const tool of catalog) {
@@ -61,7 +71,7 @@ const requiredActionTools = [
   "cancel_pending_action",
 ];
 for (const name of requiredActionTools) {
-  if (!catalogNames.includes(name)) errors.push(`Required site MCP action is missing: ${name}.`);
+  if (!catalogNames.includes(name)) errors.push(`Required approved MCP action is missing: ${name}.`);
 }
 
 const confirmTool = catalog.find((tool) => tool.name === "confirm_pending_action");
@@ -69,19 +79,18 @@ if (!confirmTool || confirmTool.readOnly || !confirmTool.destructive) {
   errors.push("confirm_pending_action must be an authenticated destructive finalizer.");
 }
 
-const sensitiveInputTools = [
-  "save_agent_byok",
-  "start_sms_link",
-  "complete_sms_link",
-  "list_api_tokens",
-  "revoke_api_token",
-];
-for (const name of sensitiveInputTools) {
+for (const name of ["list_api_tokens", "revoke_api_token"]) {
   const tool = catalog.find((entry) => entry.name === name);
   if (!tool) {
-    errors.push(`Shared site MCP parity is missing ${name}.`);
+    errors.push(`Approved account-security capability is missing: ${name}.`);
   } else if (tool.access !== "oauth") {
     errors.push(`${name} must never be exposed without OAuth.`);
+  }
+}
+
+for (const retiredSensitiveTool of ["save_agent_byok", "start_sms_link", "complete_sms_link"]) {
+  if (catalogNames.includes(retiredSensitiveTool)) {
+    errors.push(`Retired sensitive capability remains public: ${retiredSensitiveTool}.`);
   }
 }
 
@@ -117,5 +126,5 @@ const writeCount = catalog.filter((tool) => !tool.readOnly).length;
 const stagedCount = catalog.filter((tool) => tool.executionModel === "staged_write").length;
 const destructiveCount = catalog.filter((tool) => tool.destructive).length;
 console.log(
-  `Plugin readiness audit passed: ${catalog.length} static tools, ${writeCount} writes, ${stagedCount} staged actions, ${destructiveCount} destructive actions.`,
+  `Plugin readiness audit passed: ${catalog.length} approved static tools, ${writeCount} writes, ${stagedCount} staged actions, ${destructiveCount} destructive actions.`,
 );

@@ -30,7 +30,7 @@ const manifest = JSON.parse(
   readFileSync("plugins/sportfolio/.codex-plugin/plugin.json", "utf8"),
 ) as { interface?: { capabilities?: string[] } };
 if (!manifest.interface?.capabilities?.includes("Write")) {
-  failures.push("Full MCP parity must advertise authenticated write capability.");
+  failures.push("The approved MCP surface must advertise authenticated write capability.");
 }
 
 const catalog = buildPluginStaticCatalog();
@@ -40,18 +40,21 @@ for (const tool of catalog.filter((entry) => !entry.readOnly)) {
   }
 }
 
-const sensitiveTools = [
+for (const name of ["list_api_tokens", "revoke_api_token"]) {
+  const tool = catalog.find((entry) => entry.name === name);
+  if (!tool || tool.access !== "oauth" || tool.securitySchemes[0]?.type !== "oauth2") {
+    failures.push(`Approved sensitive account tool ${name} must remain OAuth-only.`);
+  }
+}
+
+for (const retiredName of [
   "save_agent_byok",
   "clear_agent_byok",
   "start_sms_link",
   "complete_sms_link",
-  "list_api_tokens",
-  "revoke_api_token",
-];
-for (const name of sensitiveTools) {
-  const tool = catalog.find((entry) => entry.name === name);
-  if (!tool || tool.access !== "oauth") {
-    failures.push(`Sensitive account tool ${name} must remain OAuth-only.`);
+]) {
+  if (catalog.some((entry) => entry.name === retiredName)) {
+    failures.push(`Retired sensitive account tool remains public: ${retiredName}.`);
   }
 }
 

@@ -44,18 +44,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "clear_agent_byok": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported agent_settings state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Can complete an irreversible or deletion-style agent_settings action after the user's request and any required confirmation."
-      }
-    },
     "complete_onboarding": {
       "annotations": {
         "readOnlyHint": false,
@@ -64,18 +52,6 @@
       },
       "justifications": {
         "read_only_justification": "Changes the connected user's supported account state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "complete_sms_link": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported sms state through Sportfolio's shared public MCP implementation.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
@@ -92,18 +68,6 @@
         "destructive_justification": "Can complete an irreversible or deletion-style threads action after the user's request and any required confirmation."
       }
     },
-    "create_agent_thread": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported threads state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "create_watchlist": {
       "annotations": {
         "readOnlyHint": false,
@@ -114,18 +78,6 @@
         "read_only_justification": "Changes the connected user's supported watchlists state through Sportfolio's shared public MCP implementation.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "delete_schedule": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported schedules state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Can complete an irreversible or deletion-style schedules action after the user's request and any required confirmation."
       }
     },
     "delete_watchlist": {
@@ -160,30 +112,6 @@
       },
       "justifications": {
         "read_only_justification": "Retrieves sanitized account information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "get_agent_capabilities": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized agent_settings information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "get_agent_profile": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized agent_settings information and does not modify Sportfolio account or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
@@ -344,30 +272,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "get_news_digest": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized news information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "get_news_unread_count": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized news information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "get_pending_action": {
       "annotations": {
         "readOnlyHint": true,
@@ -500,30 +404,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "get_sms_settings": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized sms information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "get_thread_state": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized threads information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "get_trade_history": {
       "annotations": {
         "readOnlyHint": true,
@@ -556,18 +436,6 @@
       },
       "justifications": {
         "read_only_justification": "Retrieves sanitized watchlists information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "list_agent_threads": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized threads information and does not modify Sportfolio account or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
@@ -728,30 +596,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "list_schedule_templates": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized schedules information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "list_schedules": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized schedules information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "list_scout_assignments": {
       "annotations": {
         "readOnlyHint": true,
@@ -772,30 +616,6 @@
       },
       "justifications": {
         "read_only_justification": "Retrieves sanitized scouting information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "list_thread_messages": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized threads information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "list_thread_research_sources": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized threads information and does not modify Sportfolio account or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
@@ -824,18 +644,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "mark_news_read": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported news state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "redeem_premium": {
       "annotations": {
         "readOnlyHint": false,
@@ -860,54 +668,6 @@
         "destructive_justification": "Can complete an irreversible or deletion-style watchlists action after the user's request and any required confirmation."
       }
     },
-    "review_idle_cash": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized advisory information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "review_news_impact": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized research information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "review_portfolio_cleanup": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized advisory information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "review_setup": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized advisory information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "revoke_api_token": {
       "annotations": {
         "readOnlyHint": false,
@@ -918,30 +678,6 @@
         "read_only_justification": "Changes the connected user's supported account state through Sportfolio's shared public MCP implementation.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Can complete an irreversible or deletion-style account action after the user's request and any required confirmation."
-      }
-    },
-    "run_hosted_research": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized research information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "save_agent_byok": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported agent_settings state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
     "search_docs": {
@@ -964,18 +700,6 @@
       },
       "justifications": {
         "read_only_justification": "Retrieves sanitized players information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "send_agent_message": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported threads state through Sportfolio's shared public MCP implementation.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
@@ -1112,30 +836,6 @@
         "destructive_justification": "Only creates a reviewable pending action; the underlying gameplay operation is not applied until a separate confirmed finalizer runs."
       }
     },
-    "start_sms_link": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported sms state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "update_agent_profile": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported agent_settings state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "update_profile_image": {
       "annotations": {
         "readOnlyHint": false,
@@ -1144,18 +844,6 @@
       },
       "justifications": {
         "read_only_justification": "Changes the connected user's supported account state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "update_sms_settings": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported sms state through Sportfolio's shared public MCP implementation.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
@@ -1180,18 +868,6 @@
       },
       "justifications": {
         "read_only_justification": "Changes the connected user's supported watchlists state through Sportfolio's shared public MCP implementation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "upsert_schedule": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the connected user's supported schedules state through Sportfolio's shared public MCP implementation.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }

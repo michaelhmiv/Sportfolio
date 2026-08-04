@@ -18,9 +18,7 @@
     { "name": "get_my_collections", "sourceTool": "list_collections", "access": "oauth", "dataClassification": "user_gameplay" },
     { "name": "get_my_collection", "sourceTool": "get_collection_detail", "access": "oauth", "dataClassification": "user_gameplay" },
     { "name": "get_my_milestones", "sourceTool": "list_milestones", "access": "oauth", "dataClassification": "user_gameplay" },
-    { "name": "get_my_news_digest", "sourceTool": "get_news_digest", "access": "oauth", "dataClassification": "user_preferences" },
     { "name": "get_my_game_insights", "sourceTool": "get_game_insights", "access": "oauth", "dataClassification": "user_gameplay" },
-    { "name": "review_my_sportfolio_setup", "sourceTool": "review_setup", "access": "oauth", "dataClassification": "user_gameplay" },
     { "name": "find_my_boost_candidates", "sourceTool": "list_boost_candidates", "access": "oauth", "dataClassification": "user_gameplay" },
     { "name": "find_my_scout_opportunities", "sourceTool": "list_scout_opportunities", "access": "oauth", "dataClassification": "user_gameplay" }
   ]

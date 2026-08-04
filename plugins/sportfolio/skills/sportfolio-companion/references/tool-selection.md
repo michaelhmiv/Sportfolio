@@ -27,8 +27,8 @@
 | One collection | `get_my_collections`, then `get_my_collection` |
 | Milestone progress | `get_my_milestones` |
 | Personalized game impact | `get_my_game_insights` |
-| Daily digest | `get_my_news_digest` |
-| Broad setup analysis | `review_my_sportfolio_setup` |
 | Scout ideas | `find_my_scout_opportunities` |
+
+Use ChatGPT's own web research and scheduled tasks for news digests. For broad setup analysis, compose the answer from the smallest relevant connected-account tools rather than calling a retired advisory wrapper.
 
 Do not use a broad dashboard call when a narrower tool fully answers the request. Do not call public and connected variants redundantly unless the user asks for both general and personalized context.

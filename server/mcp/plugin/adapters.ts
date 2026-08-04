@@ -124,22 +124,10 @@ export const PLUGIN_TOOL_ADAPTERS: readonly PluginToolAdapter[] = [
     description: "Use to review the connected user's Sportfolio milestone progress. This tool does not claim or celebrate milestones.",
   },
   {
-    name: "get_my_news_digest",
-    sourceTool: "get_news_digest",
-    title: "Get my Sportfolio news digest",
-    description: "Use for the connected user's compiled Sportfolio news digest. This tool does not mark stories as read.",
-  },
-  {
     name: "get_my_game_insights",
     sourceTool: "get_game_insights",
     title: "Get my game insights",
     description: "Use to connect scheduled games with the user's holdings and virtual boosts. This is personalized read-only gameplay analysis.",
-  },
-  {
-    name: "review_my_sportfolio_setup",
-    sourceTool: "review_setup",
-    title: "Review my Sportfolio setup",
-    description: "Use for a broad read-only review of the connected user's Sportfolio setup. Recommendations must remain within virtual gameplay context.",
   },
   {
     name: "find_my_boost_candidates",

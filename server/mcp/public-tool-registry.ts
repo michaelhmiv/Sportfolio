@@ -1,6 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
+import {
+  getDeniedPublicToolNames,
+  isApprovedPublicPromptName,
+  isApprovedPublicToolName,
+} from "./public-tool-policy";
 import { db } from "../db";
 import { getDocsArticle, listDocsArticles, searchDocsArticles } from "../docs-service";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
@@ -488,39 +493,19 @@ function toDynamicPublicToolCatalogEntry(tool: AgentToolDefinition): PublicToolC
 }
 
 export async function resolveDynamicMlbPublicTools(
-  deps: Pick<PublicMcpDependencies, "getInternalMlbMcpToolCatalog">,
+  _deps: Pick<PublicMcpDependencies, "getInternalMlbMcpToolCatalog">,
 ): Promise<ResolvedDynamicMlbPublicTools> {
-  const staticToolNames = new Set(buildPublicToolRegistry().map((tool) => tool.name));
-
-  try {
-    const tools = (await deps.getInternalMlbMcpToolCatalog()).filter(
-      (tool) => !tool.requiresConfirmation && !staticToolNames.has(tool.toolName),
-    );
-
-    return {
-      tools,
-      sourceStatus: {
-        id: PUBLIC_DYNAMIC_MLB_SOURCE_ID,
-        name: PUBLIC_DYNAMIC_MLB_SOURCE_NAME,
-        provider: "internal_mlb_mcp",
-        available: true,
-        toolCount: tools.length,
-        error: null,
-      },
-    };
-  } catch (error) {
-    return {
-      tools: [],
-      sourceStatus: {
-        id: PUBLIC_DYNAMIC_MLB_SOURCE_ID,
-        name: PUBLIC_DYNAMIC_MLB_SOURCE_NAME,
-        provider: "internal_mlb_mcp",
-        available: false,
-        toolCount: 0,
-        error: error instanceof Error ? error.message : String(error),
-      },
-    };
-  }
+  return {
+    tools: [],
+    sourceStatus: {
+      id: PUBLIC_DYNAMIC_MLB_SOURCE_ID,
+      name: `${PUBLIC_DYNAMIC_MLB_SOURCE_NAME} (internal only)`,
+      provider: "internal_mlb_mcp",
+      available: true,
+      toolCount: 0,
+      error: null,
+    },
+  };
 }
 
 async function getResolvedDynamicMlbPublicToolsForContext(
@@ -4417,11 +4402,13 @@ function buildDocsArticleResources(context: PublicMcpServerContext): PublicResou
 }
 
 export function buildPublicToolRegistry(): PublicToolDefinition[] {
-  return [...READ_ALIAS_TOOLS, ...CUSTOM_TOOLS];
+  return [...READ_ALIAS_TOOLS, ...CUSTOM_TOOLS].filter((tool) =>
+    isApprovedPublicToolName(tool.name),
+  );
 }
 
 export function buildPublicPromptRegistry(): PublicPromptDefinition[] {
-  return [...PUBLIC_PROMPTS];
+  return PUBLIC_PROMPTS.filter((prompt) => isApprovedPublicPromptName(prompt.name));
 }
 
 export async function buildResolvedPublicToolCatalog(context: PublicMcpServerContext): Promise<{
@@ -4537,7 +4524,21 @@ export function buildPublicCapabilityInventory(): {
           }) satisfies PublicIncludedCapability,
       ),
     ],
-    excluded: [...PUBLIC_EXCLUDED_CAPABILITIES],
+    excluded: [
+      ...PUBLIC_EXCLUDED_CAPABILITIES,
+      ...getDeniedPublicToolNames().map(
+        (capabilityId) =>
+          ({
+            capabilityId,
+            kind: "excluded",
+            status: "excluded",
+            domain: "legacy",
+            source: "public_tool_policy",
+            notes:
+              "Removed from the public MCP and ChatGPT app surface during unified sports-data Release A.",
+          }) satisfies PublicExcludedCapability,
+      ),
+    ],
   };
 }
 
@@ -4561,7 +4562,10 @@ export function evaluateAuthenticatedSiteRouteCoverage(
   const extraInAudit = [...auditedKeySet].filter((key) => !actualKeySet.has(key)).sort();
   const invalidCapabilityRefs = auditedRoutes
     .flatMap((entry) =>
-      (entry.capabilityIds || []).filter((capabilityId) => !knownCapabilityIds.has(capabilityId)),
+      (entry.capabilityIds || []).filter(
+        (capabilityId) =>
+          isApprovedPublicToolName(capabilityId) && !knownCapabilityIds.has(capabilityId),
+      ),
     )
     .sort();
   const invalidExcludedRefs = auditedRoutes
@@ -4600,12 +4604,13 @@ export function evaluateGameplayCapabilityParity() {
   const routeBackedToolNames = new Set(
     buildPublicSiteRouteCoverage().flatMap((entry) => entry.capabilityIds || []),
   );
-  const expectedToolNames = new Set<string>([
-    ...routeBackedToolNames,
-    ...PUBLIC_TOOL_ONLY_CAPABILITY_IDS,
-  ]);
+  const expectedToolNames = new Set<string>(
+    [...routeBackedToolNames, ...PUBLIC_TOOL_ONLY_CAPABILITY_IDS].filter(isApprovedPublicToolName),
+  );
   const registryPromptNames = new Set(buildPublicPromptRegistry().map((prompt) => prompt.name));
-  const expectedPromptNames = new Set<string>(PUBLIC_PROMPT_NAMES);
+  const expectedPromptNames = new Set<string>(
+    PUBLIC_PROMPT_NAMES.filter(isApprovedPublicPromptName),
+  );
   const registryResourceUris = new Set(PUBLIC_STATIC_RESOURCES.map((resource) => resource.uri));
   const expectedResourceUris = new Set<string>(PUBLIC_STATIC_RESOURCE_URIS);
   const missingFromRegistry = [...expectedToolNames].filter((name) => !registryToolNames.has(name));
