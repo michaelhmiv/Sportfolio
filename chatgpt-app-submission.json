@@ -188,6 +188,30 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
+    "get_event_live_state": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized sports_data information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_event_slate": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized sports_data information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
     "get_game_insights": {
       "annotations": {
         "readOnlyHint": true,
@@ -400,6 +424,30 @@
       },
       "justifications": {
         "read_only_justification": "Retrieves sanitized scouting information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_sports_entity": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized sports_data information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_supported_sports_capabilities": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized sports_data information and does not modify Sportfolio account or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
@@ -700,6 +748,18 @@
       },
       "justifications": {
         "read_only_justification": "Retrieves sanitized players information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "search_sports_entities": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized sports_data information and does not modify Sportfolio account or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }

@@ -5,6 +5,8 @@ import { createServer } from "node:http";
 import type { PublicMcpDependencies } from "./public-tool-registry";
 import { createSportfolioMcpServer } from "../routes/mcp";
 import type { AgentToolDefinition } from "../agent/types";
+import { SportsAdapterRegistry } from "../sports/adapter-registry";
+import type { ProviderMetadata } from "../sports/contracts";
 
 type MockPlayer = {
   id: string;
@@ -89,6 +91,115 @@ const MOCK_NOW = "2026-03-07T14:00:00.000Z";
 
 function createIsoNow() {
   return MOCK_NOW;
+}
+
+const MOCK_SPORTS_PROVIDER: ProviderMetadata = {
+  provider: "fixture",
+  fetchedAt: MOCK_NOW,
+  staleAfterSeconds: 60,
+  isStale: false,
+};
+
+function createMockSportsRegistry() {
+  const registry = new SportsAdapterRegistry();
+  registry.register({
+    sport: "mlb",
+    async searchAthletes(query) {
+      return query.toLowerCase().includes("ohtani")
+        ? [
+            {
+              id: "mlb_660271",
+              sport: "mlb",
+              name: "Shohei Ohtani",
+              teamId: "mlb_team_119",
+              position: "DH",
+              active: true,
+              provider: MOCK_SPORTS_PROVIDER,
+            },
+          ]
+        : [];
+    },
+    async getAthlete(id) {
+      return id === "mlb_660271"
+        ? {
+            id,
+            sport: "mlb",
+            name: "Shohei Ohtani",
+            teamId: "mlb_team_119",
+            position: "DH",
+            active: true,
+            provider: MOCK_SPORTS_PROVIDER,
+          }
+        : null;
+    },
+    async getTeams() {
+      return [
+        {
+          id: "mlb_team_119",
+          sport: "mlb",
+          name: "Los Angeles Dodgers",
+          abbreviation: "LAD",
+          provider: MOCK_SPORTS_PROVIDER,
+        },
+      ];
+    },
+    async getSchedule() {
+      return [
+        {
+          id: "mlb_game_1",
+          sport: "mlb",
+          startsAt: "2026-08-04T23:10:00.000Z",
+          status: "scheduled",
+          homeTeamId: "mlb_team_119",
+          awayTeamId: "mlb_team_144",
+          provider: MOCK_SPORTS_PROVIDER,
+        },
+      ];
+    },
+    async getLiveState(gameId) {
+      return {
+        gameId,
+        status: "in_progress",
+        clock: null,
+        period: "5th",
+        summary: "Top 5th",
+        provider: MOCK_SPORTS_PROVIDER,
+      };
+    },
+  });
+  registry.register({
+    sport: "nhl",
+    async getSchedule() {
+      return [];
+    },
+    async getLiveState(gameId) {
+      return {
+        gameId,
+        status: "scheduled",
+        clock: null,
+        period: null,
+        summary: "Scheduled",
+        provider: MOCK_SPORTS_PROVIDER,
+      };
+    },
+  });
+  registry.register({
+    sport: "nascar",
+    async getSchedule() {
+      return [];
+    },
+    async getLiveState(gameId) {
+      return {
+        gameId,
+        status: "scheduled",
+        clock: null,
+        period: null,
+        summary: "Scheduled",
+        provider: MOCK_SPORTS_PROVIDER,
+      };
+    },
+  });
+  return registry;
 }
 
 function buildThreadView(thread: MockThreadState) {
@@ -468,6 +579,7 @@ export function createMockPublicMcpDependencies(
 
   const deps = {
     storage,
+    sportsRegistry: createMockSportsRegistry(),
     runHermesReadTool: async ({
       toolName,
       threadId,
