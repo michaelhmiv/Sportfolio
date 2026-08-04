@@ -1,0 +1,50 @@
+name: Generate Plugin Submission Import
+
+on:
+  push:
+    branches:
+      - "plugin/full-mcp-parity"
+    paths:
+      - "scripts/generate-chatgpt-app-submission.ts"
+      - "server/mcp/plugin/**"
+      - "server/mcp/public-tool-registry.ts"
+      - "docs/plugin/submission/positive-test-cases.json"
+      - "docs/plugin/submission/negative-test-cases.json"
+      - ".github/workflows/plugin-generate-submission.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plugin-generate-submission-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: plugin/full-mcp-parity
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate submission import
+        run: npx tsx scripts/generate-chatgpt-app-submission.ts
+      - name: Commit generated import
+        run: |
+          if git diff --quiet -- chatgpt-app-submission.json && git ls-files --error-unmatch chatgpt-app-submission.json >/dev/null 2>&1; then
+            echo "Submission import is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chatgpt-app-submission.json
+          git commit -m "Plugin: generate OpenAI submission import"
+          git push origin HEAD:plugin/full-mcp-parity
