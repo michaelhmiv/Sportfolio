@@ -13,8 +13,12 @@ const releaseNotes = readFileSync("docs/plugin/submission/release-notes.md", "ut
 const attestations = readFileSync("docs/plugin/submission/policy-attestations.md", "utf8");
 
 const errors: string[] = [];
-if (!Array.isArray(positive.cases) || positive.cases.length < 5) errors.push("At least five positive test cases are required.");
-if (!Array.isArray(negative.cases) || negative.cases.length < 3) errors.push("At least three negative test cases are required.");
+if (!Array.isArray(positive.cases) || positive.cases.length !== 5) {
+  errors.push("Exactly five positive test cases are required.");
+}
+if (!Array.isArray(negative.cases) || negative.cases.length !== 3) {
+  errors.push("Exactly three negative test cases are required.");
+}
 
 for (const testCase of positive.cases || []) {
   for (const field of ["id", "userPrompt", "expectedBehavior", "expectedResultShape", "fixture"]) {
@@ -24,6 +28,31 @@ for (const testCase of positive.cases || []) {
 for (const testCase of negative.cases || []) {
   for (const field of ["id", "userPrompt", "expectedBehavior", "whyNot"]) {
     if (!testCase[field]) errors.push(`Negative case ${testCase.id || "unknown"} is missing ${field}.`);
+  }
+}
+
+const positiveIds = new Set((positive.cases || []).map((entry: any) => entry.id));
+for (const id of [
+  "public-player-research",
+  "portfolio-overview",
+  "confirmed-market-buy",
+  "confirmed-daily-boost",
+  "watchlist-management",
+]) {
+  if (!positiveIds.has(id)) errors.push(`Required positive action case is missing: ${id}.`);
+}
+
+const positiveText = JSON.stringify(positive);
+for (const toolName of [
+  "get_portfolio_summary",
+  "stage_market_buy",
+  "stage_daily_boost_assign",
+  "confirm_pending_action",
+  "create_watchlist",
+  "add_watchlist_player",
+]) {
+  if (!positiveText.includes(toolName)) {
+    errors.push(`Positive reviewer cases do not exercise ${toolName}.`);
   }
 }
 
@@ -51,6 +80,18 @@ for (const [label, pattern] of reviewerRequirements) {
   }
 }
 
+for (const phrase of [
+  "explicit confirmation",
+  "confirm_pending_action",
+  "cancel_pending_action",
+  "staged",
+  "exact bundle",
+]) {
+  if (!reviewerMaterial.toLowerCase().includes(phrase.toLowerCase())) {
+    errors.push(`Reviewer material is missing action-control guidance: ${phrase}.`);
+  }
+}
+
 const combined = [listing, reviewer, fixture, releaseNotes, attestations].join("\n");
 const credentialPatterns = [
   /password\s*[:=]\s*\S+/i,
@@ -62,8 +103,12 @@ for (const pattern of credentialPatterns) {
   if (pattern.test(combined)) errors.push(`Submission documents appear to contain a credential: ${pattern}.`);
 }
 
-if (!releaseNotes.toLowerCase().includes("initial")) errors.push("Release notes must state this is an initial submission.");
-if (!attestations.includes("[ ]")) errors.push("Policy attestation worksheet is missing review checkboxes.");
+if (!releaseNotes.toLowerCase().includes("initial")) {
+  errors.push("Release notes must state this is an initial submission.");
+}
+if (!attestations.includes("[ ]")) {
+  errors.push("Policy attestation worksheet is missing review checkboxes.");
+}
 
 if (errors.length) {
   console.error("Plugin submission check failed:\n- " + errors.join("\n- "));
