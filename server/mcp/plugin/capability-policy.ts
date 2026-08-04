@@ -43,9 +43,7 @@ export const PLUGIN_V1_TOOLS = [
   connectedTool("get_my_collections", "user_gameplay"),
   connectedTool("get_my_collection", "user_gameplay"),
   connectedTool("get_my_milestones", "user_gameplay"),
-  connectedTool("get_my_news_digest", "user_preferences"),
   connectedTool("get_my_game_insights", "user_gameplay"),
-  connectedTool("review_my_sportfolio_setup", "user_gameplay"),
   connectedTool("find_my_boost_candidates", "user_gameplay"),
   connectedTool("find_my_scout_opportunities", "user_gameplay"),
 ] as const satisfies readonly PluginToolPolicy[];
@@ -71,6 +69,8 @@ export const PLUGIN_V1_EXCLUDED_CAPABILITIES = [
   { name: "confirm_pending_action", reason: "gameplay_mutation" },
   { name: "cancel_pending_action", reason: "gameplay_mutation" },
   { name: "run_hosted_research", reason: "open_world_research" },
+  { name: "get_news_digest", reason: "chatgpt_owned_research_and_digest" },
+  { name: "review_setup", reason: "retired_agent_advisory_surface" },
   { name: "stage_*", reason: "gameplay_mutation" },
   { name: "billing_*", reason: "billing_or_purchase" },
   { name: "checkout_*", reason: "billing_or_purchase" },
