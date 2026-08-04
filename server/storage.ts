@@ -113,6 +113,7 @@ import {
   type UserActivityItem,
 } from "@shared/activity-feed";
 import { getUserActivitySourceFetchWindow } from "./activity-feed";
+import { deriveScoutDistributionAdvisoryLockKeys } from "./scout-distribution-lock";
 import { db } from "./db";
 import {
   eq,
@@ -6108,7 +6109,11 @@ export class DatabaseStorage implements IStorage {
     now: Date = new Date(),
   ): Promise<RewardedScoutBoostGrant | undefined> {
     return db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${grant.userId}, 0))`);
+      const [advisoryLockKeyA, advisoryLockKeyB] = deriveScoutDistributionAdvisoryLockKeys(
+        grant.userId,
+      );
+
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${advisoryLockKeyA}, ${advisoryLockKeyB})`);
 
       const [activeGrant] = await tx
         .select()
