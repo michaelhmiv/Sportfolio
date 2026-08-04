@@ -1,6 +1,6 @@
 name: Unified Sports Release A Implementation
 
-# Triggered after the trusted runner was merged to main.
+# Retriggered after the trusted runner condition was corrected on main.
 on:
   push:
     branches:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   implement:
-    if: github.repository == 'michaelhmiv/Sportfolio' && github.actor == 'michaelhmiv'
+    if: github.repository == 'michaelhmiv/Sportfolio'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
