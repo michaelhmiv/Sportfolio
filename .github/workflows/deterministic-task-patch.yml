@@ -1,0 +1,104 @@
+name: Deterministic Task Patch
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - scripts/deterministic-task-patch.py
+      - .deterministic-task/**
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deterministic-task-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  patch-and-validate:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == github.repository_owner &&
+      startsWith(github.head_ref, 'deterministic/task-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      NODE_ENV: test
+      DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_deterministic_ci
+    steps:
+      - name: Check out task branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply deterministic patch
+        shell: bash
+        run: python3 scripts/deterministic-task-patch.py
+
+      - name: Remove task-only files
+        shell: bash
+        run: |
+          rm -f scripts/deterministic-task-patch.py
+          rm -rf .deterministic-task
+
+      - name: Install dependencies
+        shell: bash
+        run: npm ci
+
+      - name: Format changed source files
+        shell: bash
+        run: |
+          mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|mjs|json|md|yml|yaml)$' || true)
+          if [ "${#FILES[@]}" -gt 0 ]; then
+            npx prettier --write "${FILES[@]}"
+          fi
+
+      - name: Type check
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Formatting check
+        run: npm run format:check
+
+      - name: Targeted and full tests
+        run: timeout 35m npm run test:run
+
+      - name: Public tool audit
+        run: npm run public-tools:audit
+
+      - name: Production build
+        run: npm run build
+
+      - name: Reject trusted workflow drift
+        shell: bash
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -E '^\.github/workflows/' | grep -v '^\.github/workflows/release-a-implementation.yml$'; then
+            echo 'Task patch changed an unapproved trusted workflow file.' >&2
+            exit 1
+          fi
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "deterministic-task[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Patch produced no implementation changes.' >&2
+            exit 1
+          fi
+          git commit -m "feat: apply deterministic task patch"
+          git push origin HEAD:${{ github.head_ref }}
