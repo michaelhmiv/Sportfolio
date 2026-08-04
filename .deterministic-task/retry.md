@@ -1,1 +1,1 @@
-Retry cleanup validation under the changed-file lint policy merged in PR #356.
+Retry cleanup validation after aligning stale migration, MCP, Hermes, navigation, and visual contracts with current main.
