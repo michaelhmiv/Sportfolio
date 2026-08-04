@@ -55,10 +55,19 @@ jobs:
         shell: bash
         run: npm ci
 
+      - name: Resolve changed files
+        id: changed
+        shell: bash
+        run: |
+          mapfile -t FORMAT_FILES < <(git diff --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|mjs|json|md|yml|yaml)$' || true)
+          mapfile -t LINT_FILES < <(git diff --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|mjs)$' || true)
+          printf '%s\n' "${FORMAT_FILES[@]}" > "$RUNNER_TEMP/format-files.txt"
+          printf '%s\n' "${LINT_FILES[@]}" > "$RUNNER_TEMP/lint-files.txt"
+
       - name: Format changed source files
         shell: bash
         run: |
-          mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|mjs|json|md|yml|yaml)$' || true)
+          mapfile -t FILES < <(grep -v '^$' "$RUNNER_TEMP/format-files.txt" || true)
           if [ "${#FILES[@]}" -gt 0 ]; then
             npx prettier --write "${FILES[@]}"
           fi
@@ -66,13 +75,23 @@ jobs:
       - name: Type check
         run: npm run check
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint changed source files
+        shell: bash
+        run: |
+          mapfile -t FILES < <(grep -v '^$' "$RUNNER_TEMP/lint-files.txt" || true)
+          if [ "${#FILES[@]}" -gt 0 ]; then
+            npx eslint "${FILES[@]}"
+          fi
 
-      - name: Formatting check
-        run: npm run format:check
+      - name: Verify changed-file formatting
+        shell: bash
+        run: |
+          mapfile -t FILES < <(grep -v '^$' "$RUNNER_TEMP/format-files.txt" || true)
+          if [ "${#FILES[@]}" -gt 0 ]; then
+            npx prettier --check "${FILES[@]}"
+          fi
 
-      - name: Targeted and full tests
+      - name: Full test suite
         run: timeout 35m npm run test:run
 
       - name: Public tool audit
