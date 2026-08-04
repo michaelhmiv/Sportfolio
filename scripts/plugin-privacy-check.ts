@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
+import { buildPluginStaticCatalog } from "../server/mcp/plugin/registry";
 
 const files = [
-  "server/mcp/plugin/adapters.ts",
   "server/mcp/plugin/registry.ts",
   "server/mcp/plugin/sanitizer.ts",
   "plugins/sportfolio/skills/sportfolio-companion/SKILL.md",
@@ -26,9 +26,33 @@ if (/client_secret|access_token|refresh_token|service_role|jwt_secret/i.test(app
   failures.push("Plugin package contains a secret-bearing field.");
 }
 
-const manifest = readFileSync("plugins/sportfolio/.codex-plugin/plugin.json", "utf8");
-if (/"capabilities"\s*:\s*\[[^\]]*"Write"/s.test(manifest)) {
-  failures.push("Plugin manifest advertises write capability.");
+const manifest = JSON.parse(
+  readFileSync("plugins/sportfolio/.codex-plugin/plugin.json", "utf8"),
+) as { interface?: { capabilities?: string[] } };
+if (!manifest.interface?.capabilities?.includes("Write")) {
+  failures.push("Full MCP parity must advertise authenticated write capability.");
+}
+
+const catalog = buildPluginStaticCatalog();
+for (const tool of catalog.filter((entry) => !entry.readOnly)) {
+  if (tool.access !== "oauth" || tool.securitySchemes[0]?.type !== "oauth2") {
+    failures.push(`Write tool ${tool.name} is not protected by OAuth.`);
+  }
+}
+
+const sensitiveTools = [
+  "save_agent_byok",
+  "clear_agent_byok",
+  "start_sms_link",
+  "complete_sms_link",
+  "list_api_tokens",
+  "revoke_api_token",
+];
+for (const name of sensitiveTools) {
+  const tool = catalog.find((entry) => entry.name === name);
+  if (!tool || tool.access !== "oauth") {
+    failures.push(`Sensitive account tool ${name} must remain OAuth-only.`);
+  }
 }
 
 const sanitizer = readFileSync("server/mcp/plugin/sanitizer.ts", "utf8");
