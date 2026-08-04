@@ -1,0 +1,49 @@
+name: License Lockfile Remediation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths:
+      - ".github/workflows/license-lockfile-remediation.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  update-lockfile-license:
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'license/source-available-commercial'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout licensing branch
+        uses: actions/checkout@v5
+        with:
+          ref: license/source-available-commercial
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.13.0"
+          cache: npm
+
+      - name: Refresh root lockfile metadata
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Verify root lockfile license
+        run: |
+          node -e "const lock=require('./package-lock.json'); if(lock.packages?.['']?.license !== 'SEE LICENSE IN LICENSE') process.exit(1)"
+
+      - name: Commit lockfile metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfile license metadata is already aligned."
+            exit 0
+          fi
+          git commit -m "license: align lockfile metadata"
+          git push origin HEAD:license/source-available-commercial
