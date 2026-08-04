@@ -8,6 +8,7 @@ const outputPath = resolve(root, "server/mcp/plugin/ui/generated-widget.ts");
 
 const result = await build({
   entryPoints: [entryPoint],
+  outfile: "sportfolio-widget.js",
   bundle: true,
   write: false,
   platform: "browser",
@@ -21,7 +22,9 @@ const result = await build({
   },
 });
 
-const javascript = result.outputFiles.find((file) => file.path.endsWith(".js"))?.text;
+const javascript =
+  result.outputFiles.find((file) => file.path.endsWith(".js"))?.text ||
+  result.outputFiles[0]?.text;
 const stylesheet = result.outputFiles.find((file) => file.path.endsWith(".css"))?.text || "";
 
 if (!javascript) {
