@@ -16,32 +16,6 @@
     },
     {
       "kind": "prompt",
-      "name": "review_idle_cash",
-      "auth": "public",
-      "readOnly": null,
-      "destructive": null,
-      "openWorld": null,
-      "outputSchema": null,
-      "resourceUri": null,
-      "domain": "prompts",
-      "sportClassification": "none",
-      "source": "public_registry:prompt"
-    },
-    {
-      "kind": "prompt",
-      "name": "review_setup",
-      "auth": "public",
-      "readOnly": null,
-      "destructive": null,
-      "openWorld": null,
-      "outputSchema": null,
-      "resourceUri": null,
-      "domain": "prompts",
-      "sportClassification": "none",
-      "source": "public_registry:prompt"
-    },
-    {
-      "kind": "prompt",
       "name": "stage_trade",
       "auth": "public",
       "readOnly": null,
