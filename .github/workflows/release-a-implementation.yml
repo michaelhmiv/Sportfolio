@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   implement:
-    if: github.repository == 'michaelhmiv/Sportfolio' && github.actor == 'michaelhmiv'
+    if: github.repository == 'michaelhmiv/Sportfolio'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
