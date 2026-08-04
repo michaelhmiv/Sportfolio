@@ -49,10 +49,7 @@ jobs:
           old_bypass = 'const bypassAuth = process.env.DEV_BYPASS_AUTH !== "false";'
           if auth.count(old_bypass) != 2:
               raise SystemExit("Expected exactly two default-enabled DEV_BYPASS_AUTH checks")
-          auth = auth.replace(
-              old_bypass,
-              'const bypassAuth = process.env.DEV_BYPASS_AUTH === "true";',
-          )
+          auth = auth.replace(old_bypass, 'const bypassAuth = process.env.DEV_BYPASS_AUTH === "true";')
           auth, count = re.subn(
               r'\n    // Log migration detection for debugging\n.*?\n    // Only generate a new username',
               '\n    // Only generate a new username',
@@ -75,45 +72,34 @@ jobs:
 
           index_path = Path("server/index.ts")
           index = index_path.read_text()
-          old_metrics = '''  const token = process.env.METRICS_TOKEN;
-          if (app.get("env") === "production" && token) {
-            const provided = _req.header("authorization")?.replace(/^Bearer\\s+/i, "") ?? "";
-            if (provided !== token) return res.status(401).json({ message: "Unauthorized" });
-          }
-          '''
-          new_metrics = '''  const token = process.env.METRICS_TOKEN;
+          metrics_start = index.find("  const token = process.env.METRICS_TOKEN;")
+          metrics_end = index.find("\n\n  try {", metrics_start)
+          if metrics_start < 0 or metrics_end < 0:
+              raise SystemExit("Could not locate metrics authentication block")
+          metrics_block = index[metrics_start:metrics_end]
+          if 'app.get("env") === "production" && token' not in metrics_block:
+              raise SystemExit("Metrics authentication block no longer has the vulnerable shape")
+          secure_metrics = '''  const token = process.env.METRICS_TOKEN;
           if (app.get("env") === "production") {
             if (!token) {
               return res.status(503).json({ message: "Metrics authentication is not configured" });
             }
             const provided = _req.header("authorization")?.replace(/^Bearer\\s+/i, "") ?? "";
             if (provided !== token) return res.status(401).json({ message: "Unauthorized" });
-          }
-          '''
-          if old_metrics not in index:
-              raise SystemExit("Metrics authentication block did not match expected source")
-          index = index.replace(old_metrics, new_metrics, 1)
+          }'''
+          index = index[:metrics_start] + secure_metrics + index[metrics_end:]
 
-          response_capture = '''  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+          capture_start = index.find("  let capturedJsonResponse:")
+          capture_end = index.find('  res.on("finish"', capture_start)
+          if capture_start < 0 or capture_end < 0:
+              raise SystemExit("Could not locate API response capture block")
+          index = index[:capture_start] + index[capture_end:]
 
-          const originalResJson = res.json;
-          res.json = function (bodyJson, ...args) {
-            capturedJsonResponse = bodyJson;
-            return originalResJson.apply(res, [bodyJson, ...args]);
-          };
-
-          '''
-          if response_capture not in index:
-              raise SystemExit("API response capture block did not match expected source")
-          index = index.replace(response_capture, "", 1)
-          response_log = '''      if (capturedJsonResponse) {
-                logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-              }
-
-          '''
-          if response_log not in index:
-              raise SystemExit("API response-body logging block did not match expected source")
-          index = index.replace(response_log, "", 1)
+          response_log_start = index.find("      if (capturedJsonResponse)")
+          response_log_end = index.find("\n\n      if (logLine.length", response_log_start)
+          if response_log_start < 0 or response_log_end < 0:
+              raise SystemExit("Could not locate API response-body logging block")
+          index = index[:response_log_start] + index[response_log_end + 2:]
           index_path.write_text(index)
 
           env_path = Path(".env.example")
@@ -138,30 +124,28 @@ jobs:
           env_path.write_text(env)
 
           audit_path = Path(".github/workflows/security-audit.yml")
-          audit = audit_path.read_text()
-          audit = audit.replace('node-version: "20"', 'node-version: "22"', 1)
+          audit = audit_path.read_text().replace('node-version: "20"', 'node-version: "22"', 1)
           old_dependency_if = "    if: github.event_name == 'pull_request'\n"
-          new_dependency_if = (
-              "    # Enable the repository dependency graph, then set the repository variable "
-              "DEPENDENCY_REVIEW_ENABLED=true.\n"
-              "    if: ${{ github.event_name == 'pull_request' && vars.DEPENDENCY_REVIEW_ENABLED == 'true' }}\n"
-          )
           if old_dependency_if not in audit:
               raise SystemExit("Dependency-review condition did not match expected workflow")
-          audit = audit.replace(old_dependency_if, new_dependency_if, 1)
+          audit = audit.replace(
+              old_dependency_if,
+              "    # Enable after the repository dependency graph is turned on (see issue #309).\n"
+              "    if: false\n",
+              1,
+          )
           audit_path.write_text(audit)
 
           droid_path = Path(".github/workflows/droid.yml")
           droid = droid_path.read_text()
           old_droid_if = "    if: |\n      (github.event_name == 'issue_comment'"
-          new_droid_if = (
-              "    if: |\n"
-              "      github.actor == github.repository_owner &&\n"
-              "      (github.event_name == 'issue_comment'"
-          )
           if old_droid_if not in droid:
               raise SystemExit("Droid trigger condition did not match expected workflow")
-          droid = droid.replace(old_droid_if, new_droid_if, 1)
+          droid = droid.replace(
+              old_droid_if,
+              "    if: |\n      github.actor == github.repository_owner &&\n      (github.event_name == 'issue_comment'",
+              1,
+          )
           droid = droid.replace(
               "uses: Factory-AI/droid-action@main",
               "uses: Factory-AI/droid-action@4028e0ae3063a9eb5b673271e381bd645102e36f",
@@ -172,14 +156,15 @@ jobs:
           review_path = Path(".github/workflows/droid-review.yml")
           review = review_path.read_text()
           old_review_if = "    if: github.event.pull_request.draft == false\n"
-          new_review_if = (
-              "    if: >-\n"
-              "      github.event.pull_request.draft == false &&\n"
-              "      github.event.pull_request.head.repo.full_name == github.repository\n"
-          )
           if old_review_if not in review:
               raise SystemExit("Droid review condition did not match expected workflow")
-          review = review.replace(old_review_if, new_review_if, 1)
+          review = review.replace(
+              old_review_if,
+              "    if: >-\n"
+              "      github.event.pull_request.draft == false &&\n"
+              "      github.event.pull_request.head.repo.full_name == github.repository\n",
+              1,
+          )
           review = review.replace("      contents: write\n", "      contents: read\n", 1)
           review = review.replace("      id-token: write\n", "", 1)
           review = review.replace(
