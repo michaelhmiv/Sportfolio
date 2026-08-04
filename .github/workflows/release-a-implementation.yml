@@ -1,10 +1,12 @@
 name: Unified Sports Release A Implementation
 
+# Triggered after the trusted runner was merged to main.
 on:
   push:
     branches:
       - feat/unified-sports-release-a
     paths:
+      - scripts/apply-unified-sports-release-a.py
       - .github/workflows/release-a-implementation.yml
 
 permissions:
@@ -69,7 +71,7 @@ jobs:
       - name: Build production application
         run: npm run build
 
-      - name: Remove one-shot implementation files
+      - name: Remove one-shot branch implementation files
         run: rm -f scripts/apply-unified-sports-release-a.py .github/workflows/release-a-implementation.yml
 
       - name: Commit validated implementation
