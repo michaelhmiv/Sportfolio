@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "owner": "michaelhmiv",
+  "scanPaths": [
+    "server/mcp/public-tool-registry.ts",
+    "server/mcp/plugin/registry.ts",
+    "server/mcp/plugin/ui",
+    "server/routes/mcp.ts",
+    "server/routes/plugin-mcp.ts",
+    "server/scheduler.ts",
+    "server/jobs/job-registry.ts",
+    "client/src",
+    "dist/index.js",
+    "dist/public"
+  ],
+  "patterns": [
+    {
+      "id": "raw-provider-prefix",
+      "regex": "mlb_mcp__"
+    },
+    {
+      "id": "hosted-research",
+      "regex": "run_hosted_research|review_news_impact"
+    },
+    {
+      "id": "digest",
+      "regex": "get_news_digest|get_news_unread_count|mark_news_read|compileUserDigest"
+    },
+    {
+      "id": "sms",
+      "regex": "get_sms_settings|start_sms_link|complete_sms_link|update_sms_settings|sms-link"
+    },
+    {
+      "id": "agent-thread",
+      "regex": "get_agent_profile|get_agent_capabilities|list_agent_threads|create_agent_thread|send_agent_message|list_thread_messages|list_thread_research_sources"
+    },
+    {
+      "id": "advisory-schedule",
+      "regex": "list_schedules|list_schedule_templates|upsert_schedule|delete_schedule|daily_setup_review"
+    },
+    {
+      "id": "hermes",
+      "regex": "Hermes|runHermes"
+    }
+  ],
+  "exceptions": [
+    {
+      "patternIds": [
+        "raw-provider-prefix",
+        "hosted-research",
+        "digest",
+        "sms",
+        "agent-thread",
+        "advisory-schedule",
+        "hermes"
+      ],
+      "pathRegex": "^(server/mcp/public-tool-registry\\.ts|server/mcp/plugin/registry\\.ts|server/routes/mcp\\.ts|dist/index\\.js)$",
+      "owner": "michaelhmiv",
+      "expiresOn": "2026-09-30",
+      "reason": "Legacy server-only implementation remains during the gated cleanup and standalone MLB retirement sequence; public capability snapshots and client builds must remain clean.",
+      "maxMatches": 5000
+    }
+  ]
+}
