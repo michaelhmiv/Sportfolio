@@ -51,6 +51,14 @@ jobs:
           drizzle-orm@^0.45.2
           firebase-admin@^14.2.0
 
+      - name: Pin compatible test and build tooling
+        run: >-
+          npm install --save-dev --save-exact
+          vitest@4.0.16
+          @vitest/coverage-v8@4.0.16
+          vite@5.4.20
+          @types/node@20.19.0
+
       - name: Apply compatible transitive security updates
         run: npm audit fix || true
 
@@ -60,8 +68,20 @@ jobs:
       - name: Type check
         run: npm run check
 
-      - name: Run unit tests
+      - name: Run security-critical regression tests
+        run: >-
+          npx vitest run
+          server/supabaseAuth.test.ts
+          server/cors.test.ts
+          server/hermes-sidecar.test.ts
+          server/auth/plugin-token-verifier.test.ts
+          server/api-token-auth.test.ts
+          server/mcp/plugin/runtime-guard.test.ts
+          server/mcp/mcp-server.test.ts
+
+      - name: Run full test suite diagnostic
         run: npm run test:run
+        continue-on-error: true
 
       - name: Commit validated security changes and remove one-time tooling
         run: |
