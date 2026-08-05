@@ -19,6 +19,11 @@ export const authEnvironmentSchema = z
     AUTH_MIGRATION_MODE: authMigrationModeSchema.default("off"),
     AUTH_ENVIRONMENT: z.enum(["development", "beta", "production"]).optional(),
     AUTH_DATABASE_ENVIRONMENT: z.enum(["development", "beta", "production"]).optional(),
+    AUTH_SHARED_PRODUCTION_DATABASE: booleanFlag.default("false"),
+    AUTH_MIGRATION_CONFIRM_DATABASE: z
+      .enum(["development", "beta", "production"])
+      .optional(),
+    AUTH_MIGRATION_CONFIRM_CANONICAL_HOST: z.string().optional(),
     BETTER_AUTH_SECRET: z.string().min(32).optional(),
     BETTER_AUTH_URL: optionalUrl,
     BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
@@ -33,6 +38,9 @@ export const authEnvironmentSchema = z
   })
   .superRefine((value, ctx) => {
     const betterAuthEnabled = value.AUTH_PROVIDER !== "SUPABASE";
+    const publicHost = new URL(value.PUBLIC_SITE_URL).hostname;
+    const sharedProductionDatabase =
+      value.AUTH_ENVIRONMENT === "beta" && value.AUTH_DATABASE_ENVIRONMENT === "production";
 
     if (betterAuthEnabled && !value.BETTER_AUTH_SECRET) {
       ctx.addIssue({
@@ -81,24 +89,61 @@ export const authEnvironmentSchema = z
       });
     }
 
+    if (sharedProductionDatabase && !value.AUTH_SHARED_PRODUCTION_DATABASE) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["AUTH_SHARED_PRODUCTION_DATABASE"],
+        message: "must be true when beta intentionally uses the production database",
+      });
+    }
+
+    if (value.AUTH_SHARED_PRODUCTION_DATABASE && !sharedProductionDatabase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["AUTH_SHARED_PRODUCTION_DATABASE"],
+        message: "is only valid for a beta runtime using the production database",
+      });
+    }
+
+    if (
+      value.AUTH_ENVIRONMENT === "production" &&
+      value.AUTH_DATABASE_ENVIRONMENT !== "production"
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["AUTH_DATABASE_ENVIRONMENT"],
+        message: "production runtime must use the production database",
+      });
+    }
+
     if (value.AUTH_MIGRATION_MODE === "execute") {
       if (
-        !value.AUTH_ENVIRONMENT ||
-        !value.AUTH_DATABASE_ENVIRONMENT ||
-        value.AUTH_ENVIRONMENT !== value.AUTH_DATABASE_ENVIRONMENT
+        value.AUTH_ENVIRONMENT !== "production" ||
+        value.AUTH_DATABASE_ENVIRONMENT !== "production"
       ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["AUTH_DATABASE_ENVIRONMENT"],
-          message: "migration execution requires matching explicit app and database environments",
+          path: ["AUTH_MIGRATION_MODE"],
+          message: "migration execution is only allowed from the production runtime",
+        });
+      }
+      if (value.AUTH_MIGRATION_CONFIRM_DATABASE !== "production") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["AUTH_MIGRATION_CONFIRM_DATABASE"],
+          message: "must explicitly confirm the production database",
+        });
+      }
+      if (value.AUTH_MIGRATION_CONFIRM_CANONICAL_HOST !== "www.sportfolio.market") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["AUTH_MIGRATION_CONFIRM_CANONICAL_HOST"],
+          message: "must explicitly confirm www.sportfolio.market",
         });
       }
     }
 
-    if (
-      value.AUTH_ENVIRONMENT === "beta" &&
-      new URL(value.PUBLIC_SITE_URL).hostname !== "beta.sportfolio.market"
-    ) {
+    if (value.AUTH_ENVIRONMENT === "beta" && publicHost !== "beta.sportfolio.market") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["PUBLIC_SITE_URL"],
@@ -106,10 +151,7 @@ export const authEnvironmentSchema = z
       });
     }
 
-    if (
-      value.AUTH_ENVIRONMENT === "production" &&
-      new URL(value.PUBLIC_SITE_URL).hostname !== "www.sportfolio.market"
-    ) {
+    if (value.AUTH_ENVIRONMENT === "production" && publicHost !== "www.sportfolio.market") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["PUBLIC_SITE_URL"],
@@ -133,6 +175,7 @@ export function getAuthDiagnostics(config = getAuthRuntimeConfig()) {
   return {
     environment: config.AUTH_ENVIRONMENT ?? config.NODE_ENV,
     databaseEnvironment: config.AUTH_DATABASE_ENVIRONMENT ?? "unclassified",
+    sharedProductionDatabase: config.AUTH_SHARED_PRODUCTION_DATABASE,
     publicSiteUrl: config.PUBLIC_SITE_URL,
     provider: config.AUTH_PROVIDER,
     capabilities: {
