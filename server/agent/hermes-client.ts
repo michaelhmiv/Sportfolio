@@ -22,7 +22,7 @@ const proposedMemoryWriteSchema = z.object({
     "interaction_style",
   ]),
   summary: z.string().trim().min(1),
-  content: z.record(z.unknown()),
+  content: z.record(z.string(), z.unknown()),
   confidence: z.number().finite().min(0).max(1),
   reason: z.string().trim().min(1),
 });
@@ -33,7 +33,7 @@ const agentToolTraceSchema = z.object({
   status: z.enum(["ok", "failed", "skipped"]),
   latencyMs: z.number().finite().min(0),
   summary: z.string().trim().min(1),
-  details: z.record(z.unknown()).nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 const hermesResponseSchema = z.object({
@@ -41,9 +41,9 @@ const hermesResponseSchema = z.object({
   assistantText: z.string().trim().min(1),
   summary: z.string().trim().nullable().optional(),
   warnings: z.array(z.string()).optional(),
-  proposedActions: z.array(z.record(z.any())).optional(),
-  pendingClarification: z.record(z.any()).nullable().optional(),
-  citations: z.array(z.record(z.any())).optional(),
+  proposedActions: z.array(z.record(z.string(), z.any())).optional(),
+  pendingClarification: z.record(z.string(), z.any()).nullable().optional(),
+  citations: z.array(z.record(z.string(), z.any())).optional(),
   proposedMemoryWrites: z.array(proposedMemoryWriteSchema).optional(),
   toolTrace: z.array(agentToolTraceSchema).optional(),
   toolCallsUsed: z.array(z.string()).optional(),
@@ -77,8 +77,8 @@ const hermesResponseSchema = z.object({
     .nullable()
     .optional(),
   requiresConfirmation: z.boolean().optional(),
-  confirmationPreview: z.record(z.unknown()).nullable().optional(),
-  uiBlocks: z.array(z.record(z.unknown())).optional(),
+  confirmationPreview: z.record(z.string(), z.unknown()).nullable().optional(),
+  uiBlocks: z.array(z.record(z.string(), z.unknown())).optional(),
 });
 
 export function normalizeHermesTurnResponse(payload: unknown): HermesRespondResult {

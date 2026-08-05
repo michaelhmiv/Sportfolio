@@ -67,7 +67,7 @@ const createAgentStrategyInputSchema = z
       .array(z.enum(STRATEGY_ACTION_TYPES))
       .max(STRATEGY_ACTION_TYPES.length)
       .optional(),
-    guardrails: z.record(z.unknown()).optional(),
+    guardrails: z.record(z.string(), z.unknown()).optional(),
     linkedSkillId: z.string().trim().min(1).max(120).nullable().optional(),
   })
   .strict();
@@ -86,8 +86,8 @@ const updateAgentStrategyInputSchema = z
       .array(z.enum(STRATEGY_ACTION_TYPES))
       .max(STRATEGY_ACTION_TYPES.length)
       .optional(),
-    guardrails: z.record(z.unknown()).optional(),
-    normalizedRuleSheet: z.record(z.unknown()).optional(),
+    guardrails: z.record(z.string(), z.unknown()).optional(),
+    normalizedRuleSheet: z.record(z.string(), z.unknown()).optional(),
     linkedSkillId: z.string().trim().min(1).max(120).nullable().optional(),
     lastOutcomeSummary: z.string().trim().min(1).max(4000).nullable().optional(),
   })

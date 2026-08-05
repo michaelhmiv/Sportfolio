@@ -2446,7 +2446,7 @@ const upsertScheduleSchema: RawSchema = {
   enabled: z.boolean().optional(),
   scheduleCron: z.string().min(1).optional(),
   channelTargets: z.array(z.string().min(1)).optional(),
-  policy: z.record(z.unknown()).optional(),
+  policy: z.record(z.string(), z.unknown()).optional(),
 };
 const deleteScheduleSchema: RawSchema = {
   jobType: z.string().min(1),
