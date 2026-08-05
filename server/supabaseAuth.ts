@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { createClient, User as SupabaseUser } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { observeAuthTelemetryEvent } from "./observability/metrics";
+import { attachAuthPrincipal, type AuthPrincipal } from "./auth/principal";
 
 // Fallback to SUPABASE_KEY if specific keys are missing
 // This handles cases where only the generic SUPABASE_KEY (usually anon) is provided
@@ -93,6 +94,20 @@ async function upsertSupabaseUser(supabaseUser: SupabaseUser): Promise<string> {
       : null;
     const existingUser = existingUserById || existingUserByEmail;
 
+    // Avoid a write only when this exact provider subject is already linked to an
+    // active canonical user. Deleted users and newly observed replacement subjects
+    // continue through storage.upsertUser so tombstone and identity-link rules run.
+    const knownProviderSubjects = new Set(
+      [existingUser?.authProviderSubject, ...(existingUser?.authProviderSubjects ?? [])].filter(
+        (value): value is string => Boolean(value),
+      ),
+    );
+    const providerSubjectAlreadyLinked =
+      existingUser?.id === supabaseUser.id || knownProviderSubjects.has(supabaseUser.id);
+    if (existingUser && !existingUser.deletedAt && providerSubjectAlreadyLinked) {
+      return existingUser.id;
+    }
+
     // Only generate a new username for truly new users - preserve existing usernames
     const username =
       existingUser?.username ||
@@ -122,17 +137,19 @@ function isDeletedUserSyncError(error: unknown): error is Error & { code: "USER_
   );
 }
 
-function buildRequestUser(supabaseUser: SupabaseUser, canonicalUserId = supabaseUser.id) {
+function buildSupabasePrincipal(
+  supabaseUser: SupabaseUser,
+  canonicalUserId = supabaseUser.id,
+): AuthPrincipal {
   const fullName = supabaseUser.user_metadata?.full_name || "";
   const nameParts = fullName.split(" ");
-
   return {
-    claims: {
-      sub: canonicalUserId,
-      email: supabaseUser.email,
-      first_name: supabaseUser.user_metadata?.first_name || nameParts[0],
-      last_name: supabaseUser.user_metadata?.last_name || nameParts.slice(1).join(" "),
-    },
+    userId: canonicalUserId,
+    provider: "supabase",
+    providerSubject: supabaseUser.id,
+    email: supabaseUser.email,
+    firstName: supabaseUser.user_metadata?.first_name || nameParts[0] || null,
+    lastName: supabaseUser.user_metadata?.last_name || nameParts.slice(1).join(" ") || null,
   };
 }
 
@@ -161,14 +178,14 @@ export async function isAuthenticated(
   if (isDev && bypassAuth) {
     if (!(req as any).user) {
       const mockUserId = "dev-user-12345678";
-      (req as any).user = {
-        claims: {
-          sub: mockUserId,
-          email: "dev@example.com",
-          first_name: "Dev",
-          last_name: "User",
-        },
-      };
+      attachAuthPrincipal(req, {
+        userId: mockUserId,
+        provider: "development",
+        providerSubject: mockUserId,
+        email: "dev@example.com",
+        firstName: "Dev",
+        lastName: "User",
+      });
 
       try {
         const existingUser = await storage.getUser(mockUserId);
@@ -219,7 +236,7 @@ export async function isAuthenticated(
     return;
   }
 
-  (req as any).user = buildRequestUser(supabaseUser, canonicalUserId);
+  attachAuthPrincipal(req, buildSupabasePrincipal(supabaseUser, canonicalUserId));
 
   next();
 }
@@ -230,14 +247,14 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
 
   if (isDev && bypassAuth && !(req as any).user) {
     const mockUserId = "dev-user-12345678";
-    (req as any).user = {
-      claims: {
-        sub: mockUserId,
-        email: "dev@example.com",
-        first_name: "Dev",
-        last_name: "User",
-      },
-    };
+    attachAuthPrincipal(req, {
+      userId: mockUserId,
+      provider: "development",
+      providerSubject: mockUserId,
+      email: "dev@example.com",
+      firstName: "Dev",
+      lastName: "User",
+    });
 
     try {
       const existingUser = await storage.getUser(mockUserId);
@@ -264,7 +281,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
     if (supabaseUser) {
       try {
         const canonicalUserId = await upsertSupabaseUser(supabaseUser);
-        (req as any).user = buildRequestUser(supabaseUser, canonicalUserId);
+        attachAuthPrincipal(req, buildSupabasePrincipal(supabaseUser, canonicalUserId));
       } catch (error) {
         if (isDeletedUserSyncError(error)) {
           console.warn(`[SUPABASE_AUTH] Ignored deleted optional identity: ${supabaseUser.id}`);

@@ -30,6 +30,7 @@ import { nanoid } from "nanoid";
 import { normalizeSiteUrl } from "@shared/seo";
 import { isWriteMaintenanceMode, maintenanceWriteGuard } from "./maintenance-mode";
 import { getAuthDiagnostics, getAuthRuntimeConfig } from "./auth/config";
+import { mountBetterAuthHandler } from "./auth/better-auth";
 
 const serverStartTime = Date.now();
 let serverReady = false;
@@ -185,6 +186,10 @@ if (app.get("env") !== "production") {
 // keeping health checks and read traffic available. This must be global: MCP
 // and internal mutation routes are intentionally not all mounted under /api.
 app.use(maintenanceWriteGuard());
+
+// Better Auth must be mounted before Express body parsing. It remains a no-op
+// while AUTH_PROVIDER=SUPABASE.
+mountBetterAuthHandler(app, authRuntimeConfig);
 
 declare module "http" {
   interface IncomingMessage {
