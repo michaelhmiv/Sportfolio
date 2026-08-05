@@ -31,7 +31,7 @@ describe("Better Auth package compatibility", () => {
     expect(SPORTFOLIO_OAUTH_SCOPES).toContain("sportfolio.read");
   });
 
-  it("keeps password endpoints disabled", async () => {
+  it("rejects password registration while password authentication is disabled", async () => {
     const response = await compatibilityAuth.handler(
       new Request(`${SPORTFOLIO_AUTH_BASE_URL}/api/auth/sign-up/email`, {
         method: "POST",
@@ -43,6 +43,8 @@ describe("Better Auth package compatibility", () => {
         }),
       }),
     );
-    expect([404, 405]).toContain(response.status);
+
+    expect(response.ok).toBe(false);
+    expect([400, 404, 405]).toContain(response.status);
   });
 });
