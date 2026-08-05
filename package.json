@@ -93,7 +93,8 @@
     "audit:sports-semantics": "tsx scripts/audit-unified-sports-semantics.ts",
     "governance:capabilities": "tsx scripts/public-capability-governance.ts check",
     "governance:capabilities:snapshot": "tsx scripts/public-capability-governance.ts snapshot",
-    "governance:capabilities:update": "tsx scripts/public-capability-governance.ts update"
+    "governance:capabilities:update": "tsx scripts/public-capability-governance.ts update",
+    "auth:config:test": "vitest run server/auth/config.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
