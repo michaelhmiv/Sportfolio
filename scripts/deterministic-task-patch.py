@@ -5,6 +5,28 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+for source_root in (ROOT / "server", ROOT / "shared", ROOT / "client"):
+    if not source_root.exists():
+        continue
+    for source_path in source_root.rglob("*.ts*"):
+        content = source_path.read_text(encoding="utf-8")
+        updated = content.replace(
+            "z.record(z.unknown())",
+            "z.record(z.string(), z.unknown())",
+        ).replace(
+            "z.record(z.any())",
+            "z.record(z.string(), z.any())",
+        )
+        if updated != content:
+            source_path.write_text(updated, encoding="utf-8")
+
+config_path = ROOT / "server/auth/config.ts"
+config = config_path.read_text(encoding="utf-8")
+config = config.replace('booleanFlag.default("false")', "booleanFlag.default(false)")
+config = config.replace('booleanFlag.default("true")', "booleanFlag.default(true)")
+config_path.write_text(config, encoding="utf-8")
+
 package_path = ROOT / "package.json"
 package = json.loads(package_path.read_text(encoding="utf-8"))
 
