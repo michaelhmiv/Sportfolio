@@ -7,7 +7,7 @@ This matrix records package/API compatibility established without connecting to 
 | Matching stable Better Auth package versions | PASS | exact package pins and lockfile |
 | Zod 4 and drizzle-zod compatibility | PASS | exact pins; repository typecheck and full suite |
 | Express/Node handler construction | PASS | `scripts/better-auth-compatibility.test.ts` |
-| Password login/signup disabled | PASS | compatibility route test |
+| Password registration rejected while disabled | PASS | disabled configuration plus non-success route test |
 | Magic-link five-minute expiry | PASS | typed plugin configuration |
 | Hashed verification-token storage | PASS | `storeToken: "hashed"` configuration |
 | Atomic first-attempt token consumption | DOCUMENTED | upstream magic-link contract; database concurrency proof is PR 4 |
