@@ -13,6 +13,15 @@ const base = {
   AUTH_MIGRATION_MODE: "off",
   AUTH_ENVIRONMENT: "production",
   AUTH_DATABASE_ENVIRONMENT: "production",
+  AUTH_SHARED_PRODUCTION_DATABASE: "false",
+};
+
+const sharedBeta = {
+  ...base,
+  PUBLIC_SITE_URL: "https://beta.sportfolio.market",
+  AUTH_ENVIRONMENT: "beta",
+  AUTH_DATABASE_ENVIRONMENT: "production",
+  AUTH_SHARED_PRODUCTION_DATABASE: "true",
 };
 
 describe("auth environment safety", () => {
@@ -20,6 +29,31 @@ describe("auth environment safety", () => {
     const config = authEnvironmentSchema.parse(base);
     expect(config.AUTH_PROVIDER).toBe("SUPABASE");
     expect(getAuthDiagnostics(config).betterAuthConfigured).toBe(false);
+  });
+
+  it("allows beta to intentionally share the production database", () => {
+    const config = authEnvironmentSchema.parse(sharedBeta);
+    expect(config.AUTH_ENVIRONMENT).toBe("beta");
+    expect(config.AUTH_DATABASE_ENVIRONMENT).toBe("production");
+    expect(getAuthDiagnostics(config).sharedProductionDatabase).toBe(true);
+  });
+
+  it("requires an explicit flag when beta uses the production database", () => {
+    expect(() =>
+      authEnvironmentSchema.parse({
+        ...sharedBeta,
+        AUTH_SHARED_PRODUCTION_DATABASE: "false",
+      }),
+    ).toThrow("must be true when beta intentionally uses the production database");
+  });
+
+  it("rejects the shared-database flag for any other environment pairing", () => {
+    expect(() =>
+      authEnvironmentSchema.parse({
+        ...base,
+        AUTH_SHARED_PRODUCTION_DATABASE: "true",
+      }),
+    ).toThrow("is only valid for a beta runtime using the production database");
   });
 
   it("requires Better Auth secrets when Better Auth is active", () => {
@@ -32,14 +66,33 @@ describe("auth environment safety", () => {
     ).toThrow();
   });
 
-  it("requires explicit matching environments for migration execution", () => {
+  it("rejects migration execution from beta even when the database is shared", () => {
+    expect(() =>
+      authEnvironmentSchema.parse({
+        ...sharedBeta,
+        AUTH_MIGRATION_MODE: "execute",
+        AUTH_MIGRATION_CONFIRM_DATABASE: "production",
+        AUTH_MIGRATION_CONFIRM_CANONICAL_HOST: "www.sportfolio.market",
+      }),
+    ).toThrow("migration execution is only allowed from the production runtime");
+  });
+
+  it("requires explicit production confirmations for migration execution", () => {
     expect(() =>
       authEnvironmentSchema.parse({
         ...base,
         AUTH_MIGRATION_MODE: "execute",
-        AUTH_DATABASE_ENVIRONMENT: "beta",
       }),
     ).toThrow();
+
+    expect(() =>
+      authEnvironmentSchema.parse({
+        ...base,
+        AUTH_MIGRATION_MODE: "execute",
+        AUTH_MIGRATION_CONFIRM_DATABASE: "production",
+        AUTH_MIGRATION_CONFIRM_CANONICAL_HOST: "www.sportfolio.market",
+      }),
+    ).not.toThrow();
   });
 
   it("rejects cross-environment public hosts", () => {
