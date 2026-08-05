@@ -29,6 +29,7 @@ import { logger } from "./lib/logger";
 import { nanoid } from "nanoid";
 import { normalizeSiteUrl } from "@shared/seo";
 import { isWriteMaintenanceMode, maintenanceWriteGuard } from "./maintenance-mode";
+import { getAuthDiagnostics, getAuthRuntimeConfig } from "./auth/config";
 
 const serverStartTime = Date.now();
 let serverReady = false;
@@ -59,6 +60,11 @@ startupLog("INIT", "Server starting...");
 
 const app = express();
 const hermesSidecarMode = isHermesSidecarMode();
+const authRuntimeConfig = getAuthRuntimeConfig();
+logger.info(
+  { auth: getAuthDiagnostics(authRuntimeConfig) },
+  "Validated authentication runtime configuration",
+);
 
 initSentry();
 
