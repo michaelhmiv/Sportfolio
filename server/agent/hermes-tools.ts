@@ -135,7 +135,7 @@ const proposedMemoryWritesSchema = z.array(
       "interaction_style",
     ]),
     summary: z.string().trim().min(1),
-    content: z.record(z.unknown()),
+    content: z.record(z.string(), z.unknown()),
     confidence: z.number().finite().min(0).max(1),
     reason: z.string().trim().min(1),
   }),

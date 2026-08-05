@@ -16,8 +16,8 @@ const hermesSidecarRequestSchema = z.object({
   requestMode: z.enum(["auto", "discussion", "plan", "clarification_resume"]).default("auto"),
   orchestrationMode: z.enum(["hermes_first"]).optional(),
   toolAllowlist: z.array(z.string().trim().min(1)).default([]),
-  toolCatalog: z.array(z.record(z.unknown())).default([]),
-  availableSkills: z.array(z.record(z.unknown())).default([]),
+  toolCatalog: z.array(z.record(z.string(), z.unknown())).default([]),
+  availableSkills: z.array(z.record(z.string(), z.unknown())).default([]),
   skillPolicy: z
     .object({
       allowRuntimeSkillCreation: z.boolean().default(true),
@@ -50,8 +50,8 @@ const hermesSidecarRequestSchema = z.object({
     .object({
       threadId: z.string().trim().min(1).nullable().default(null),
       pendingBundleId: z.string().trim().min(1).nullable().default(null),
-      operatorOverview: z.record(z.unknown()).default({}),
-      capabilities: z.record(z.unknown()).default({}),
+      operatorOverview: z.record(z.string(), z.unknown()).default({}),
+      capabilities: z.record(z.string(), z.unknown()).default({}),
     })
     .default({
       threadId: null,
@@ -61,9 +61,9 @@ const hermesSidecarRequestSchema = z.object({
     }),
   memoryContext: z
     .object({
-      profile: z.array(z.record(z.unknown())).default([]),
-      episodic: z.array(z.record(z.unknown())).default([]),
-      semantic: z.array(z.record(z.unknown())).default([]),
+      profile: z.array(z.record(z.string(), z.unknown())).default([]),
+      episodic: z.array(z.record(z.string(), z.unknown())).default([]),
+      semantic: z.array(z.record(z.string(), z.unknown())).default([]),
     })
     .default({
       profile: [],
@@ -72,14 +72,14 @@ const hermesSidecarRequestSchema = z.object({
     }),
   externalContext: z
     .object({
-      canonicalKnowledge: z.array(z.record(z.unknown())).default([]),
-      research: z.array(z.record(z.unknown())).default([]),
+      canonicalKnowledge: z.array(z.record(z.string(), z.unknown())).default([]),
+      research: z.array(z.record(z.string(), z.unknown())).default([]),
     })
     .default({
       canonicalKnowledge: [],
       research: [],
     }),
-  continuityState: z.record(z.unknown()).nullable().optional(),
+  continuityState: z.record(z.string(), z.unknown()).nullable().optional(),
   conversationHistory: z
     .array(
       z.object({
@@ -102,8 +102,8 @@ const hermesSidecarRequestSchema = z.object({
       sourceThreadId: z.string().trim().min(1).nullable().default(null),
       status: z.enum(["draft", "live", "paused", "blocked", "archived"]).nullable().default(null),
       mandate: z.string().trim().min(1),
-      normalizedRuleSheet: z.record(z.unknown()).default({}),
-      guardrails: z.record(z.unknown()).default({}),
+      normalizedRuleSheet: z.record(z.string(), z.unknown()).default({}),
+      guardrails: z.record(z.string(), z.unknown()).default({}),
     })
     .nullable()
     .optional(),

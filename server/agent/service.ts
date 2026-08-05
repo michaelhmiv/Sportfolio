@@ -80,8 +80,8 @@ export const analyzeScoutAgentInputSchema = z
         sourceThreadId: z.string().trim().min(1).max(120).nullable(),
         status: z.enum(["draft", "live", "paused", "blocked", "archived"]).nullable(),
         mandate: z.string().trim().min(1).max(4000),
-        normalizedRuleSheet: z.record(z.unknown()),
-        guardrails: z.record(z.unknown()),
+        normalizedRuleSheet: z.record(z.string(), z.unknown()),
+        guardrails: z.record(z.string(), z.unknown()),
         reviewState: z
           .object({
             status: z.enum(["pending", "approved"]),
