@@ -78,6 +78,262 @@ export const users = pgTable(
   }),
 );
 
+// Better Auth tables are deliberately namespaced. Existing `users.id` remains
+// the canonical application/game identity and is linked through authIdentities.
+export const authUsers = pgTable(
+  "auth_users",
+  {
+    id: varchar("id").primaryKey(),
+    name: text("name").notNull(),
+    email: varchar("email").notNull(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({ emailIdx: uniqueIndex("auth_users_email_idx").on(table.email) }),
+);
+
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: varchar("id").primaryKey(),
+    expiresAt: timestamp("expires_at").notNull(),
+    token: text("token").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex("auth_sessions_token_idx").on(table.token),
+    userIdx: index("auth_sessions_user_idx").on(table.userId),
+    expiresIdx: index("auth_sessions_expires_idx").on(table.expiresAt),
+  }),
+);
+
+export const authAccounts = pgTable(
+  "auth_accounts",
+  {
+    id: varchar("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    providerAccountIdx: uniqueIndex("auth_accounts_provider_account_idx").on(
+      table.providerId,
+      table.accountId,
+    ),
+    userIdx: index("auth_accounts_user_idx").on(table.userId),
+  }),
+);
+
+export const authVerifications = pgTable(
+  "auth_verifications",
+  {
+    id: varchar("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    identifierIdx: index("auth_verifications_identifier_idx").on(table.identifier),
+    valueIdx: uniqueIndex("auth_verifications_value_idx").on(table.value),
+    expiresIdx: index("auth_verifications_expires_idx").on(table.expiresAt),
+  }),
+);
+
+export const authIdentities = pgTable(
+  "auth_identities",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    authUserId: varchar("auth_user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    sportfolioUserId: varchar("sportfolio_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    provider: text("provider").notNull(),
+    providerSubject: text("provider_subject").notNull(),
+    normalizedEmail: varchar("normalized_email"),
+    originalEmail: varchar("original_email"),
+    verifiedAt: timestamp("verified_at"),
+    linkedAt: timestamp("linked_at").notNull().defaultNow(),
+    metadata: jsonb("metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+  },
+  (table) => ({
+    authUserIdx: uniqueIndex("auth_identities_auth_user_idx").on(table.authUserId),
+    providerSubjectIdx: uniqueIndex("auth_identities_provider_subject_idx").on(
+      table.provider,
+      table.providerSubject,
+    ),
+    sportfolioUserIdx: index("auth_identities_sportfolio_user_idx").on(table.sportfolioUserId),
+    emailIdx: index("auth_identities_normalized_email_idx").on(table.normalizedEmail),
+  }),
+);
+
+export const authMigrationRecords = pgTable(
+  "auth_migration_records",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    runId: varchar("run_id").notNull(),
+    sourceProvider: text("source_provider").notNull(),
+    sourceSubject: text("source_subject"),
+    normalizedEmail: varchar("normalized_email"),
+    sportfolioUserId: varchar("sportfolio_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    authUserId: varchar("auth_user_id").references(() => authUsers.id, { onDelete: "set null" }),
+    decision: text("decision").notNull(),
+    conflictCode: text("conflict_code"),
+    details: jsonb("details")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    runSourceIdx: uniqueIndex("auth_migration_records_run_source_idx").on(
+      table.runId,
+      table.sourceProvider,
+      table.sourceSubject,
+    ),
+    runIdx: index("auth_migration_records_run_idx").on(table.runId),
+    conflictIdx: index("auth_migration_records_conflict_idx").on(table.conflictCode),
+  }),
+);
+
+export const authContinuations = pgTable(
+  "auth_continuations",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    purpose: text("purpose").notNull(),
+    destination: text("destination").notNull(),
+    stateHash: varchar("state_hash", { length: 64 }),
+    userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    expiryIdx: index("auth_continuations_expiry_idx").on(table.expiresAt),
+    userIdx: index("auth_continuations_user_idx").on(table.userId),
+  }),
+);
+
+export const authEmailEvents = pgTable(
+  "auth_email_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    providerEventId: text("provider_event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    recipientHash: varchar("recipient_hash", { length: 64 }).notNull(),
+    providerMessageId: text("provider_message_id"),
+    occurredAt: timestamp("occurred_at").notNull(),
+    payload: jsonb("payload")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: uniqueIndex("auth_email_events_provider_event_idx").on(table.providerEventId),
+    recipientIdx: index("auth_email_events_recipient_idx").on(table.recipientHash),
+  }),
+);
+
+export const emailSuppressions = pgTable(
+  "email_suppressions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    emailIdentityHash: varchar("email_identity_hash", { length: 64 }).notNull(),
+    reason: text("reason").notNull(),
+    sourceEventId: text("source_event_id"),
+    suppressedAt: timestamp("suppressed_at").notNull().defaultNow(),
+    liftedAt: timestamp("lifted_at"),
+  },
+  (table) => ({
+    emailIdx: uniqueIndex("email_suppressions_email_idx").on(table.emailIdentityHash),
+  }),
+);
+
+export const nativeAuthHandoffs = pgTable(
+  "native_auth_handoffs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    codeHash: varchar("code_hash", { length: 64 }).notNull(),
+    authUserId: varchar("auth_user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    requestBindingHash: varchar("request_binding_hash", { length: 64 }),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    codeIdx: uniqueIndex("native_auth_handoffs_code_idx").on(table.codeHash),
+    expiryIdx: index("native_auth_handoffs_expiry_idx").on(table.expiresAt),
+  }),
+);
+
+export const authSecurityEvents = pgTable(
+  "auth_security_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    sportfolioUserId: varchar("sportfolio_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    authUserId: varchar("auth_user_id").references(() => authUsers.id, { onDelete: "set null" }),
+    eventType: text("event_type").notNull(),
+    outcome: text("outcome").notNull(),
+    requestId: text("request_id"),
+    ipHash: varchar("ip_hash", { length: 64 }),
+    metadata: jsonb("metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    typeCreatedIdx: index("auth_security_events_type_created_idx").on(
+      table.eventType,
+      table.createdAt,
+    ),
+  }),
+);
+
 export const userApiTokens = pgTable(
   "user_api_tokens",
   {
