@@ -14,14 +14,10 @@ def write(path: str, content: str) -> None:
 package_path = ROOT / "package.json"
 package = json.loads(package_path.read_text(encoding="utf-8"))
 package["dependencies"]["@better-auth/drizzle-adapter"] = "1.6.25"
-package["scripts"]["auth:foundation:test"] = (
-    "vitest run server/auth/principal.test.ts server/auth/better-auth.test.ts"
-)
+package["scripts"]["auth:foundation:test"] = "vitest run server/auth/principal.test.ts server/auth/better-auth.test.ts"
 package_path.write_text(json.dumps(package, indent=2) + "\n", encoding="utf-8")
 
-write(
-    "server/auth/principal.ts",
-    '''import type { Request } from "express";
+write("server/auth/principal.ts", '''import type { Request } from "express";
 
 export type AuthProvider = "supabase" | "better-auth" | "development";
 
@@ -53,9 +49,9 @@ export function toLegacyRequestUser(principal: AuthPrincipal) {
 }
 
 export function attachAuthPrincipal(req: Request, principal: AuthPrincipal): void {
-  const principalRequest = req as PrincipalRequest;
-  principalRequest.authPrincipal = principal;
-  principalRequest.user = toLegacyRequestUser(principal);
+  const target = req as PrincipalRequest;
+  target.authPrincipal = principal;
+  target.user = toLegacyRequestUser(principal);
 }
 
 export function getAuthPrincipal(req: Request): AuthPrincipal | null {
@@ -67,22 +63,14 @@ export function requireAuthPrincipal(req: Request): AuthPrincipal {
   if (!principal) throw new Error("AUTH_PRINCIPAL_MISSING");
   return principal;
 }
-''',
-)
+''')
 
-write(
-    "server/auth/better-auth.ts",
-    '''import type { Express } from "express";
+write("server/auth/better-auth.ts", '''import type { Express } from "express";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { toNodeHandler } from "better-auth/node";
 import { magicLink } from "better-auth/plugins";
-import {
-  authAccounts,
-  authSessions,
-  authUsers,
-  authVerifications,
-} from "@shared/schema";
+import { authAccounts, authSessions, authUsers, authVerifications } from "@shared/schema";
 import { db } from "../db";
 import { logger } from "../lib/logger";
 import { type AuthRuntimeConfig, getAuthRuntimeConfig } from "./config";
@@ -148,9 +136,7 @@ export function createBetterAuthServer(
         storeToken: "hashed",
         disableSignUp: !config.AUTH_NEW_REGISTRATIONS_ENABLED,
         sendMagicLink: async ({ email, url, token }) => {
-          if (!config.AUTH_MAGIC_LINK_ENABLED) {
-            throw new Error("AUTH_MAGIC_LINK_DISABLED");
-          }
+          if (!config.AUTH_MAGIC_LINK_ENABLED) throw new Error("AUTH_MAGIC_LINK_DISABLED");
           await sendMagicLink({ email, url, token });
         },
       }),
@@ -176,7 +162,6 @@ export function mountBetterAuthHandler(
 
   app.set("trust proxy", 1);
   const auth = getBetterAuthServer(config);
-
   app.all(`${BETTER_AUTH_BASE_PATH}/sign-up/email`, (_req, res) => {
     res.status(404).json({ error: "Password registration is not available" });
   });
@@ -184,30 +169,17 @@ export function mountBetterAuthHandler(
     res.status(404).json({ error: "Password login is not available" });
   });
   app.all(`${BETTER_AUTH_BASE_PATH}/*`, toNodeHandler(auth));
-
   logger.info(
-    {
-      provider: config.AUTH_PROVIDER,
-      basePath: BETTER_AUTH_BASE_PATH,
-      trustedOriginCount: trustedOrigins(config).length,
-    },
+    { provider: config.AUTH_PROVIDER, basePath: BETTER_AUTH_BASE_PATH, trustedOriginCount: trustedOrigins(config).length },
     "Mounted Better Auth handler",
   );
   return true;
 }
-''',
-)
+''')
 
-write(
-    "server/auth/principal.test.ts",
-    '''import { describe, expect, it } from "vitest";
-import type { Request } from "express";
-import {
-  attachAuthPrincipal,
-  getAuthPrincipal,
-  requireAuthPrincipal,
-  toLegacyRequestUser,
-} from "./principal";
+write("server/auth/principal.test.ts", '''import type { Request } from "express";
+import { describe, expect, it } from "vitest";
+import { attachAuthPrincipal, getAuthPrincipal, requireAuthPrincipal, toLegacyRequestUser } from "./principal";
 
 describe("provider-neutral authentication principal", () => {
   it("keeps canonical Sportfolio user id as the request subject", () => {
@@ -216,13 +188,11 @@ describe("provider-neutral authentication principal", () => {
       provider: "better-auth" as const,
       providerSubject: "auth-user",
       email: "user@example.com",
-      firstName: "Sport",
-      lastName: "Folio",
     };
     expect(toLegacyRequestUser(principal).claims.sub).toBe("canonical-user");
   });
 
-  it("attaches both the new principal and the temporary legacy claim shape", () => {
+  it("attaches both principal and temporary legacy claim shape", () => {
     const req = {} as Request;
     attachAuthPrincipal(req, {
       userId: "canonical-user",
@@ -230,9 +200,7 @@ describe("provider-neutral authentication principal", () => {
       providerSubject: "supabase-subject",
     });
     expect(getAuthPrincipal(req)?.providerSubject).toBe("supabase-subject");
-    expect((req as Request & { user?: { claims: { sub: string } } }).user?.claims.sub).toBe(
-      "canonical-user",
-    );
+    expect((req as Request & { user?: { claims: { sub: string } } }).user?.claims.sub).toBe("canonical-user");
     expect(requireAuthPrincipal(req).userId).toBe("canonical-user");
   });
 
@@ -240,12 +208,9 @@ describe("provider-neutral authentication principal", () => {
     expect(() => requireAuthPrincipal({} as Request)).toThrow("AUTH_PRINCIPAL_MISSING");
   });
 });
-''',
-)
+''')
 
-write(
-    "server/auth/better-auth.test.ts",
-    '''import express from "express";
+write("server/auth/better-auth.test.ts", '''import express from "express";
 import { describe, expect, it } from "vitest";
 import { getAuthRuntimeConfig } from "./config";
 import {
@@ -285,9 +250,8 @@ describe("Better Auth server foundation", () => {
     expect(BETTER_AUTH_SESSION_UPDATE_AGE_SECONDS).toBe(60 * 60 * 24);
   });
 
-  it("does not mount while Supabase is the selected provider", () => {
-    const app = express();
-    expect(mountBetterAuthHandler(app, testConfig("SUPABASE"))).toBe(false);
+  it("does not mount while Supabase is selected", () => {
+    expect(mountBetterAuthHandler(express(), testConfig("SUPABASE"))).toBe(false);
   });
 
   it("keeps password registration unavailable", async () => {
@@ -296,58 +260,36 @@ describe("Better Auth server foundation", () => {
       new Request(`https://auth.sportfolio.market${BETTER_AUTH_BASE_PATH}/sign-up/email`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email: "passwords-disabled@example.invalid",
-          password: "not-supported",
-          name: "Passwords Disabled",
-        }),
+        body: JSON.stringify({ email: "disabled@example.invalid", password: "nope", name: "Disabled" }),
       }),
     );
     expect(response.ok).toBe(false);
     expect([400, 404, 405]).toContain(response.status);
   });
 });
-''',
-)
+''')
 
 index_path = ROOT / "server/index.ts"
 index = index_path.read_text(encoding="utf-8")
-index_import = 'import { getAuthDiagnostics, getAuthRuntimeConfig } from "./auth/config";'
+config_import = 'import { getAuthDiagnostics, getAuthRuntimeConfig } from "./auth/config";'
 if 'from "./auth/better-auth"' not in index:
-    index = index.replace(
-        index_import,
-        index_import + '\nimport { mountBetterAuthHandler } from "./auth/better-auth";',
-        1,
-    )
-mount_anchor = "app.use(maintenanceWriteGuard());\n\ndeclare module \"http\""
+    index = index.replace(config_import, config_import + '\nimport { mountBetterAuthHandler } from "./auth/better-auth";', 1)
+anchor = 'app.use(maintenanceWriteGuard());\n\ndeclare module "http"'
 if "mountBetterAuthHandler(app, authRuntimeConfig);" not in index:
-    index = index.replace(
-        mount_anchor,
-        "app.use(maintenanceWriteGuard());\n\n// Better Auth must be mounted before Express body parsing. It remains a no-op\n// while AUTH_PROVIDER=SUPABASE.\nmountBetterAuthHandler(app, authRuntimeConfig);\n\ndeclare module \"http\"",
-        1,
-    )
+    index = index.replace(anchor, 'app.use(maintenanceWriteGuard());\n\n// Better Auth must be mounted before Express body parsing. It remains a no-op\n// while AUTH_PROVIDER=SUPABASE.\nmountBetterAuthHandler(app, authRuntimeConfig);\n\ndeclare module "http"', 1)
 index_path.write_text(index, encoding="utf-8")
 
 supabase_path = ROOT / "server/supabaseAuth.ts"
 supabase = supabase_path.read_text(encoding="utf-8")
 telemetry_import = 'import { observeAuthTelemetryEvent } from "./observability/metrics";'
 if 'from "./auth/principal"' not in supabase:
-    supabase = supabase.replace(
-        telemetry_import,
-        telemetry_import + '\nimport { attachAuthPrincipal, type AuthPrincipal } from "./auth/principal";',
-        1,
-    )
-existing_anchor = "    const existingUser = existingUserById || existingUserByEmail;\n\n    // Only generate a new username"
+    supabase = supabase.replace(telemetry_import, telemetry_import + '\nimport { attachAuthPrincipal, type AuthPrincipal } from "./auth/principal";', 1)
+existing_anchor = '    const existingUser = existingUserById || existingUserByEmail;\n\n    // Only generate a new username'
 if "if (existingUser) return existingUser.id;" not in supabase:
-    supabase = supabase.replace(
-        existing_anchor,
-        "    const existingUser = existingUserById || existingUserByEmail;\n\n    // Existing identities are resolved without a provider-driven write on every request.\n    if (existingUser) return existingUser.id;\n\n    // Only generate a new username",
-        1,
-    )
-old_builder_start = "function buildRequestUser(supabaseUser: SupabaseUser, canonicalUserId = supabaseUser.id) {"
-old_builder_end = "\n}\n\nfunction extractToken"
-start = supabase.find(old_builder_start)
-end = supabase.find(old_builder_end, start)
+    supabase = supabase.replace(existing_anchor, '    const existingUser = existingUserById || existingUserByEmail;\n\n    // Existing identities are resolved without a provider-driven write on every request.\n    if (existingUser) return existingUser.id;\n\n    // Only generate a new username', 1)
+supabase = supabase.replace('    const username =\n      existingUser?.username ||\n      supabaseUser.email?.split("@")[0] ||\n      `user_${supabaseUser.id.substring(0, 8)}`;', '    const username =\n      supabaseUser.email?.split("@")[0] || `user_${supabaseUser.id.substring(0, 8)}`;')
+start = supabase.find('function buildRequestUser(supabaseUser: SupabaseUser, canonicalUserId = supabaseUser.id) {')
+end = supabase.find('\n}\n\nfunction extractToken', start)
 if start != -1 and end != -1:
     replacement = '''function buildSupabasePrincipal(
   supabaseUser: SupabaseUser,
@@ -355,7 +297,6 @@ if start != -1 and end != -1:
 ): AuthPrincipal {
   const fullName = supabaseUser.user_metadata?.full_name || "";
   const nameParts = fullName.split(" ");
-
   return {
     userId: canonicalUserId,
     provider: "supabase",
@@ -366,16 +307,9 @@ if start != -1 and end != -1:
   };
 }
 '''
-    supabase = supabase[:start] + replacement + supabase[end + 2 :]
-supabase = supabase.replace(
-    "  (req as any).user = buildRequestUser(supabaseUser, canonicalUserId);",
-    "  attachAuthPrincipal(req, buildSupabasePrincipal(supabaseUser, canonicalUserId));",
-)
-supabase = supabase.replace(
-    "        (req as any).user = buildRequestUser(supabaseUser, canonicalUserId);",
-    "        attachAuthPrincipal(req, buildSupabasePrincipal(supabaseUser, canonicalUserId));",
-)
-legacy_dev = '''      (req as any).user = {
+    supabase = supabase[:start] + replacement + supabase[end + 2:]
+supabase = supabase.replace('(req as any).user = buildRequestUser(supabaseUser, canonicalUserId);', 'attachAuthPrincipal(req, buildSupabasePrincipal(supabaseUser, canonicalUserId));')
+legacy_dev = '''(req as any).user = {
         claims: {
           sub: mockUserId,
           email: "dev@example.com",
@@ -383,7 +317,7 @@ legacy_dev = '''      (req as any).user = {
           last_name: "User",
         },
       };'''
-principal_dev = '''      attachAuthPrincipal(req, {
+principal_dev = '''attachAuthPrincipal(req, {
         userId: mockUserId,
         provider: "development",
         providerSubject: mockUserId,
@@ -392,7 +326,7 @@ principal_dev = '''      attachAuthPrincipal(req, {
         lastName: "User",
       });'''
 supabase = supabase.replace(legacy_dev, principal_dev)
-legacy_optional = '''    (req as any).user = {
+legacy_optional = '''(req as any).user = {
       claims: {
         sub: mockUserId,
         email: "dev@example.com",
@@ -400,7 +334,7 @@ legacy_optional = '''    (req as any).user = {
         last_name: "User",
       },
     };'''
-principal_optional = '''    attachAuthPrincipal(req, {
+principal_optional = '''attachAuthPrincipal(req, {
       userId: mockUserId,
       provider: "development",
       providerSubject: mockUserId,
@@ -411,8 +345,4 @@ principal_optional = '''    attachAuthPrincipal(req, {
 supabase = supabase.replace(legacy_optional, principal_optional)
 supabase_path.write_text(supabase, encoding="utf-8")
 
-subprocess.run(
-    ["npm", "install", "--package-lock-only", "--ignore-scripts"],
-    cwd=ROOT,
-    check=True,
-)
+subprocess.run(["npm", "install", "--package-lock-only", "--ignore-scripts"], cwd=ROOT, check=True)
