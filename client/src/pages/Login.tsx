@@ -14,6 +14,7 @@ import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { hapticMedium, hapticError } from "@/lib/haptics";
 import PasswordlessWebLogin from "@/pages/passwordless-web-login";
+import { fetchAuthCapabilities } from "@/lib/auth-capabilities";
 
 type AuthTab = "login" | "signup";
 
@@ -49,6 +50,20 @@ export default function Login() {
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [signupSuccessEmail, setSignupSuccessEmail] = useState<string | null>(null);
+  const [passwordlessWebEnabled, setPasswordlessWebEnabled] = useState<boolean | null>(
+    isNative ? false : null,
+  );
+
+  useEffect(() => {
+    if (isNative) return;
+    let active = true;
+    void fetchAuthCapabilities().then((capabilities) => {
+      if (active) setPasswordlessWebEnabled(capabilities.passwordlessWeb);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isNative]);
 
   // Ref that holds the browserFinished listener so we can remove it on cleanup or
   // when OAuth completes.  Prevents isLoading from being stuck true if the user
@@ -78,11 +93,11 @@ export default function Login() {
   const emailIsValid = useMemo(() => isValidEmail(normalizedEmail), [normalizedEmail]);
   const showEmailError = emailTouched && normalizedEmail.length > 0 && !emailIsValid;
 
-  if (!isNative) {
+  if (!isNative && passwordlessWebEnabled === true) {
     return <PasswordlessWebLogin />;
   }
 
-  if (authLoading) {
+  if (authLoading || (!isNative && passwordlessWebEnabled === null)) {
     return (
       <div className="flex items-center justify-center min-h-screen" data-testid="login-loading">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

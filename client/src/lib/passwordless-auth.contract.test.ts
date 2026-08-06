@@ -12,6 +12,8 @@ describe("passwordless web surface contract", () => {
     const login = readFileSync("client/src/pages/Login.tsx", "utf8");
     const app = readFileSync("client/src/App.tsx", "utf8");
     expect(login).toContain("PasswordlessWebLogin");
+    expect(login).toContain("fetchAuthCapabilities");
+    expect(login).toContain("passwordlessWebEnabled === true");
     expect(app).toContain('path="/auth/complete"');
   });
   it("allows cookie-authenticated web user fetches without a Supabase token", () => {

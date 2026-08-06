@@ -7,3 +7,5 @@ The implementation remains dormant while Railway uses `AUTH_PROVIDER=SUPABASE`. 
 Completion states distinguish missing, invalid, expired, and consumed links without disclosing whether an email address already existed. Logout revokes the Better Auth server session, signs out the temporary Supabase session when present, clears user-scoped queries, and broadcasts the state change to other tabs.
 
 Because the canonical auth endpoint and application use sibling subdomains, `BETTER_AUTH_COOKIE_DOMAIN=.sportfolio.market` is required during activation. Better Auth then shares only its signed HttpOnly session cookies across the approved Sportfolio subdomains; trusted-origin and CSRF validation remain enabled.
+
+The web login surface is capability-gated by `/api/auth/capabilities`. When Railway remains on `AUTH_PROVIDER=SUPABASE` or magic links are disabled, the existing Supabase login UI remains active. The passwordless UI is exposed only after the server reports the replacement path as enabled.

@@ -15,6 +15,27 @@ const requestSchema = z.object({
   returnTo: z.string().max(2048).optional(),
 });
 
+export const AUTH_CAPABILITIES_PATH = "/api/auth/capabilities";
+
+export function getPublicAuthCapabilities(env: NodeJS.ProcessEnv = process.env) {
+  const rawProvider = (env.AUTH_PROVIDER ?? "SUPABASE").trim().toUpperCase();
+  const provider =
+    rawProvider === "DUAL" || rawProvider === "BETTER_AUTH" ? rawProvider : "SUPABASE";
+  const magicLinkEnabled = env.AUTH_MAGIC_LINK_ENABLED === "true";
+  return {
+    passwordlessWeb: provider !== "SUPABASE" && magicLinkEnabled,
+    nativeHandoff:
+      provider !== "SUPABASE" && magicLinkEnabled && env.AUTH_NATIVE_HANDOFF_ENABLED === "true",
+  };
+}
+
+function registerAuthCapabilitiesRoute(app: Express): void {
+  app.get(AUTH_CAPABILITIES_PATH, (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json(getPublicAuthCapabilities());
+  });
+}
+
 export function normalizeWebAuthDestination(
   candidate: string | undefined,
   config: AuthRuntimeConfig = getAuthRuntimeConfig(),
@@ -76,6 +97,7 @@ async function submitMagicLink(email: string, callbackURL: string, config: AuthR
 }
 
 export function registerWebAuthRoutes(app: Express, config?: AuthRuntimeConfig): boolean {
+  registerAuthCapabilitiesRoute(app);
   const rawProvider = (process.env.AUTH_PROVIDER ?? "SUPABASE").trim().toUpperCase();
   if (!config && rawProvider === "SUPABASE") {
     logger.info("Passwordless web routes remain disabled");

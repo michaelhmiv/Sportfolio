@@ -7,3 +7,5 @@ The server uses the namespaced Drizzle tables introduced by the authentication i
 Password authentication is disabled. Magic-link delivery is also unavailable until the Resend delivery implementation and Railway secrets are configured. The production database migration remains a separate guarded operation.
 
 Because the canonical auth endpoint and application use sibling subdomains, `BETTER_AUTH_COOKIE_DOMAIN=.sportfolio.market` is required during activation. Better Auth then shares only its signed HttpOnly session cookies across the approved Sportfolio subdomains; trusted-origin and CSRF validation remain enabled.
+
+The web login surface is capability-gated by `/api/auth/capabilities`. When Railway remains on `AUTH_PROVIDER=SUPABASE` or magic links are disabled, the existing Supabase login UI remains active. The passwordless UI is exposed only after the server reports the replacement path as enabled.

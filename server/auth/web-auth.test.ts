@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAuthRuntimeConfig } from "./config";
-import { normalizeWebAuthDestination } from "./web-auth";
+import { getPublicAuthCapabilities, normalizeWebAuthDestination } from "./web-auth";
 
 function config() {
   return getAuthRuntimeConfig({
@@ -26,6 +26,21 @@ function config() {
 }
 
 describe("passwordless web continuation policy", () => {
+  it("keeps passwordless UI disabled until both provider and feature flag are active", () => {
+    expect(
+      getPublicAuthCapabilities({ AUTH_PROVIDER: "SUPABASE", AUTH_MAGIC_LINK_ENABLED: "true" })
+        .passwordlessWeb,
+    ).toBe(false);
+    expect(
+      getPublicAuthCapabilities({ AUTH_PROVIDER: "DUAL", AUTH_MAGIC_LINK_ENABLED: "false" })
+        .passwordlessWeb,
+    ).toBe(false);
+    expect(
+      getPublicAuthCapabilities({ AUTH_PROVIDER: "DUAL", AUTH_MAGIC_LINK_ENABLED: "true" })
+        .passwordlessWeb,
+    ).toBe(true);
+  });
+
   it("preserves internal destinations", () => {
     expect(normalizeWebAuthDestination("/portfolio?tab=players", config())).toBe(
       "/portfolio?tab=players",
