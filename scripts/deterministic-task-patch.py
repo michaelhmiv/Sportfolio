@@ -7,18 +7,29 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
+PINNED_CONTRACT_URL = (
+    "https://raw.githubusercontent.com/michaelhmiv/Sportfolio/"
+    "f515744420c151597a548d85e6deed41abe8b58d/"
+    "scripts/deterministic-task-patch.py"
+)
+
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def download(url: str, *, user_agent: str) -> bytes:
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return response.read()
+
+
 def load_pinned_contract() -> dict[str, object]:
-    source = subprocess.check_output(
-        ["git", "show", "HEAD^:scripts/deterministic-task-patch.py"],
-        text=True,
+    source = download(PINNED_CONTRACT_URL, user_agent="Sportfolio finalizer/1.0").decode(
+        "utf-8"
     )
-    namespace: dict[str, object] = {"__name__": "deterministic_task_contract"}
-    exec(compile(source, "<pinned-deterministic-task-contract>", "exec"), namespace)
+    namespace: dict[str, object] = {"__name__": "pinned_contract"}
+    exec(compile(source, "<pinned-contract>", "exec"), namespace)
     return namespace
 
 
@@ -28,15 +39,9 @@ def main() -> None:
     expected_xz_sha = str(contract["PATCH_XZ_SHA256"])
     expected_patch_sha = str(contract["PATCH_SHA256"])
     expected_xz_size = int(contract["PATCH_XZ_SIZE"])
-    delete_paths = list(contract["DELETE_PATHS"])
+    delete_paths = [str(path) for path in contract["DELETE_PATHS"]]
 
-    request = urllib.request.Request(
-        patch_url,
-        headers={"User-Agent": "Sportfolio deterministic patch/1.1"},
-    )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        downloaded = response.read()
-
+    downloaded = download(patch_url, user_agent="Sportfolio finalizer/1.0")
     if len(downloaded) < expected_xz_size:
         raise RuntimeError(
             f"Compressed patch is truncated: {len(downloaded)} < {expected_xz_size}"
@@ -44,29 +49,23 @@ def main() -> None:
 
     compressed = downloaded[:expected_xz_size]
     if sha256(compressed) != expected_xz_sha:
-        raise RuntimeError(
-            "Compressed patch checksum mismatch for the checksum-pinned byte range"
-        )
-
-    if len(downloaded) > expected_xz_size:
-        print(
-            f"Validated the pinned {expected_xz_size}-byte payload; "
-            f"ignored {len(downloaded) - expected_xz_size} trailing transport bytes."
-        )
+        raise RuntimeError("Compressed patch checksum mismatch")
 
     patch = lzma.decompress(compressed)
     if sha256(patch) != expected_patch_sha:
         raise RuntimeError("Patch checksum mismatch")
 
     patch_path = Path(".deterministic-task/retired-surface.patch")
+    patch_path.parent.mkdir(parents=True, exist_ok=True)
     patch_path.write_bytes(patch)
+
     subprocess.run(
-        ["git", "apply", "--index", "--binary", str(patch_path)],
+        ["git", "apply", "--no-index", "--binary", str(patch_path)],
         check=True,
     )
 
     for raw_path in delete_paths:
-        path = Path(str(raw_path))
+        path = Path(raw_path)
         if not path.exists() and not path.is_symlink():
             raise RuntimeError(f"Expected deletion target is missing: {raw_path}")
         if path.is_dir() and not path.is_symlink():
@@ -74,7 +73,10 @@ def main() -> None:
         else:
             path.unlink()
 
-    subprocess.run(["git", "diff", "--cached", "--check"], check=True)
+    print(
+        f"Applied verified patch {expected_patch_sha} and removed "
+        f"{len(delete_paths)} retired paths."
+    )
 
 
 if __name__ == "__main__":
