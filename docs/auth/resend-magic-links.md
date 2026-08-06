@@ -14,3 +14,5 @@ Security properties:
 - Permanent bounces, spam complaints, and provider suppressions create local suppression records.
 
 The webhook endpoint is `/api/webhooks/resend`. Configure it for `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed`, and `email.suppressed` after the sending domain is verified.
+
+Merging this implementation does not activate email delivery. Both application services remain on Supabase authentication until the shared-database migration, Resend credentials, verified sending domain, webhook secret, and dual-auth validation are complete.
