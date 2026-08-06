@@ -1,0 +1,25 @@
+name: One-Shot Patch Transport Probe
+
+on:
+  push:
+    branches:
+      - refactor/remove-retired-agent-sms-curate-mlb
+    paths:
+      - .patch-transport-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download patch transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            'https://drive.usercontent.google.com/download?id=1_vEaRjZWLzKgEYW-NQKGtRR7Iioju0ll&export=download&confirm=t' \
+            --output patch.xz
+          test "$(stat -c%s patch.xz)" -eq 237968
+          echo 'ca346b858d9001b2621ef02e6737858a428190e87027e6f35860501f200defce  patch.xz' | sha256sum --check
