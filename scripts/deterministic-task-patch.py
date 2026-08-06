@@ -2,20 +2,46 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import http.cookiejar
 import lzma
 import shutil
 import subprocess
 import tarfile
+import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 from pathlib import Path
 
-PATCH_URL = "https://drive.usercontent.google.com/download?id=1_vEaRjZWLzKgEYW-NQKGtRR7Iioju0ll&export=download&confirm=t"
+FILE_ID = "1_vEaRjZWLzKgEYW-NQKGtRR7Iioju0ll"
 CONTRACT_URL = "https://raw.githubusercontent.com/michaelhmiv/Sportfolio/f515744420c151597a548d85e6deed41abe8b58d/scripts/deterministic-task-patch.py"
 PATCH_XZ_SHA256 = "ca346b858d9001b2621ef02e6737858a428190e87027e6f35860501f200defce"
 PATCH_SHA256 = "f5b70e4b6244f6885d6486ab39b52b0a58ae49dc3bb83354aa72c2e410c358e9"
 PATCH_XZ_SIZE = 237968
 XZ_MAGIC = b"\xfd7zXZ\x00"
 ROOT = Path.cwd()
+
+
+class DownloadFormParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.action: str | None = None
+        self.fields: dict[str, str] = {}
+        self.in_download_form = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        if tag == "form" and (values.get("id") == "download-form" or "usercontent" in (values.get("action") or "")):
+            self.in_download_form = True
+            self.action = values.get("action")
+        elif tag == "input" and self.in_download_form:
+            name = values.get("name")
+            value = values.get("value")
+            if name and value is not None:
+                self.fields[name] = value
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "form" and self.in_download_form:
+            self.in_download_form = False
 
 
 def run(*args: str, timeout: int | None = None) -> None:
@@ -27,8 +53,28 @@ def sha256(data: bytes) -> str:
 
 
 def download(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "Sportfolio finalizer/1.0"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Sportfolio-finalizer"})
     with urllib.request.urlopen(request, timeout=120) as response:
+        return response.read()
+
+
+def download_drive_file() -> bytes:
+    cookies = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies))
+    first_url = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+    request = urllib.request.Request(first_url, headers={"User-Agent": "Mozilla/5.0"})
+    with opener.open(request, timeout=120) as response:
+        first = response.read()
+    if first.startswith(XZ_MAGIC):
+        return first
+    parser = DownloadFormParser()
+    parser.feed(first.decode("utf-8", errors="replace"))
+    if not parser.action:
+        raise RuntimeError(f"Google Drive confirmation form missing; response_bytes={len(first)}")
+    fields = {"id": FILE_ID, "export": "download", **parser.fields}
+    confirmed_url = f"{parser.action}?{urllib.parse.urlencode(fields)}"
+    request = urllib.request.Request(confirmed_url, headers={"User-Agent": "Mozilla/5.0", "Referer": first_url})
+    with opener.open(request, timeout=120) as response:
         return response.read()
 
 
@@ -67,7 +113,7 @@ def load_delete_paths() -> list[str]:
 
 
 def main() -> None:
-    compressed = extract_pinned_archive(download(PATCH_URL))
+    compressed = extract_pinned_archive(download_drive_file())
     patch = lzma.decompress(compressed)
     if sha256(patch) != PATCH_SHA256:
         raise RuntimeError("Patch checksum mismatch")
