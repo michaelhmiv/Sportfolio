@@ -1,5 +1,6 @@
 import { SiDiscord } from "react-icons/si";
 import { Link } from "wouter";
+import { SPORTFOLIO_DISCORD_INVITE } from "@/lib/community-links";
 
 const linkClass =
   "inline-flex min-h-11 items-center text-sm text-content-muted transition-colors duration-fast hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-8";
@@ -79,7 +80,7 @@ export function Footer() {
               Community
             </h2>
             <a
-              href="https://discord.gg/sportfolio"
+              href={SPORTFOLIO_DISCORD_INVITE}
               target="_blank"
               rel="noopener noreferrer"
               className={`${linkClass} gap-2`}
