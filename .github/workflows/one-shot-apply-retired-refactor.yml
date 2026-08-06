@@ -1,0 +1,94 @@
+name: One-Shot Apply Reviewed Retired Surface Refactor
+
+on:
+  push:
+    branches:
+      - ops/apply-retired-surface-refactor-v5
+    paths:
+      - .refactor-payload/ready
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPECTED_MAIN_SHA: 0cf2943aa577924e4ff772b7e52e927bd912b7a7
+      EXPECTED_PAYLOAD_SHA256: b16d2538128ad9d2dcf6065cd9a829c68cb1c029fe9337beb683d4a4d38e4780
+      TARGET_BRANCH: refactor/remove-retired-agent-sms-curate-mlb
+      DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_refactor_ci
+    steps:
+      - name: Check out transfer branch
+        uses: actions/checkout@v5
+        with:
+          ref: ops/apply-retired-surface-refactor-v5
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reassemble and verify reviewed payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .refactor-payload/part-*.b64 > /tmp/refactor-payload.b64
+          base64 --decode /tmp/refactor-payload.b64 > /tmp/refactor-payload.tar.xz
+          echo "${EXPECTED_PAYLOAD_SHA256}  /tmp/refactor-payload.tar.xz" | sha256sum --check --strict
+          mkdir -p /tmp/refactor-payload
+          tar -xJf /tmp/refactor-payload.tar.xz -C /tmp/refactor-payload
+          test -d /tmp/refactor-payload/files
+          test -f /tmp/refactor-payload/deletions.txt
+
+      - name: Verify validated main commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          ACTUAL_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$ACTUAL_MAIN_SHA" = "$EXPECTED_MAIN_SHA" || {
+            echo "Refusing to apply: main moved from validated commit $EXPECTED_MAIN_SHA to $ACTUAL_MAIN_SHA" >&2
+            exit 1
+          }
+
+      - name: Apply exact reviewed tree changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -B "$TARGET_BRANCH" origin/main
+          while IFS= read -r path; do
+            test -n "$path" || continue
+            rm -rf -- "$path"
+          done < /tmp/refactor-payload/deletions.txt
+          cp -a /tmp/refactor-payload/files/. .
+          rm -rf .refactor-payload .github/workflows/one-shot-apply-retired-refactor.yml
+          git add -A
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+
+      - name: Install dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate applied refactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run format:check
+          npm run check
+          npm run lint
+          npm run retired-surfaces:audit
+          npm run public-tools:audit
+          npm run governance:capabilities
+          npm run build
+
+      - name: Commit and push implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "sportfolio-refactor[bot]"
+          git config user.email "34044957+michaelhmiv@users.noreply.github.com"
+          git commit -m "refactor(mcp): remove retired product surfaces and curate MLB tools"
+          git push --force-with-lease origin "$TARGET_BRANCH"
