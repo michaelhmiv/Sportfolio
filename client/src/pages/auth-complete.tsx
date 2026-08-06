@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
+import { StatusSurface } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { broadcastWebAuthChange, normalizePasswordlessReturnTo } from "@/lib/passwordless-auth";
 
 export default function AuthComplete() {
@@ -15,6 +16,7 @@ export default function AuthComplete() {
       setState("invalid");
       return;
     }
+
     void fetch(`/api/auth/web/complete?continuation=${encodeURIComponent(continuation)}`, {
       credentials: "include",
       headers: { accept: "application/json" },
@@ -25,6 +27,7 @@ export default function AuthComplete() {
           setState(response.status === 410 ? "expired" : "invalid");
           return;
         }
+
         setState("complete");
         broadcastWebAuthChange("signed-in");
         window.setTimeout(
@@ -38,43 +41,56 @@ export default function AuthComplete() {
   const copy =
     state === "expired"
       ? {
-          title: "This link is no longer valid",
+          title: "This sign-in link has expired",
           detail: "Magic links expire after five minutes and can only be used once.",
         }
       : state === "invalid"
-        ? { title: "Sign-in could not be completed", detail: "Request a new link and try again." }
+        ? {
+            title: "Sign-in could not be completed",
+            detail: "The link is invalid or incomplete. Request a new one and try again.",
+          }
         : state === "complete"
-          ? { title: "Signed in", detail: "Returning you to Sportfolio." }
-          : { title: "Completing sign-in", detail: "Verifying your secure session." };
+          ? {
+              title: "You are signed in",
+              detail: "Your secure session is ready. Returning you to Sportfolio.",
+            }
+          : {
+              title: "Verifying your secure link",
+              detail: "This should only take a moment.",
+            };
+
+  const isError = state === "invalid" || state === "expired";
 
   return (
-    <div className="terminal-page flex min-h-screen items-center justify-center p-4">
-      <Card variant="terminal" className="terminal-shell w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+    <StatusSurface>
+      <Card variant="default" className="border-border-strong shadow-medium">
+        <CardContent className="px-6 py-9 text-center sm:px-10">
+          <div
+            className={`mx-auto flex h-14 w-14 items-center justify-center rounded-circle ${
+              isError
+                ? "bg-destructive-subtle text-destructive"
+                : "bg-brand-subtle text-brand"
+            }`}
+          >
             {state === "working" ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-7 w-7 animate-spin" aria-hidden="true" />
             ) : state === "complete" ? (
-              <CheckCircle2 className="h-5 w-5 text-primary" />
+              <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
             ) : (
-              <AlertTriangle className="h-5 w-5 text-destructive" />
+              <AlertTriangle className="h-7 w-7" aria-hidden="true" />
             )}
-            {copy.title}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="terminal-subtle">{copy.detail}</p>
-          {(state === "invalid" || state === "expired") && (
-            <Button
-              variant="terminal"
-              className="w-full"
-              onClick={() => navigate("/login", { replace: true })}
-            >
+          </div>
+
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-content-strong">{copy.title}</h1>
+          <p className="mx-auto mt-3 max-w-sm leading-6 text-content-muted">{copy.detail}</p>
+
+          {isError ? (
+            <Button className="mt-6 w-full" onClick={() => navigate("/login", { replace: true })}>
               Request a new link
             </Button>
-          )}
+          ) : null}
         </CardContent>
       </Card>
-    </div>
+    </StatusSurface>
   );
 }
