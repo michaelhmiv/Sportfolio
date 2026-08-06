@@ -1,0 +1,24 @@
+body[data-route-surface] [data-testid="application-header"],
+body[data-route-surface] [data-testid="app-sidebar"],
+body[data-route-surface] [data-testid="application-footer"],
+body[data-route-surface] [data-testid="bottom-navigation"] {
+  display: none !important;
+}
+
+body[data-route-surface] main > div.flex-1.pb-20 {
+  padding-bottom: 0 !important;
+}
+
+body[data-route-surface] .surface-layout {
+  min-height: 100dvh;
+}
+
+body[data-route-surface] .surface-site-header {
+  padding-top: env(safe-area-inset-top);
+}
+
+@media (max-width: 639px) {
+  body[data-route-surface] .surface-site-main {
+    min-height: calc(100dvh - 4rem - env(safe-area-inset-top));
+  }
+}
