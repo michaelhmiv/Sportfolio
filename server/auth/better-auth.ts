@@ -63,7 +63,18 @@ export function createBetterAuthServer(
       updateAge: BETTER_AUTH_SESSION_UPDATE_AGE_SECONDS,
       deferSessionRefresh: true,
     },
-    advanced: { cookiePrefix: "sportfolio", useSecureCookies: config.NODE_ENV === "production" },
+    advanced: {
+      cookiePrefix: "sportfolio",
+      useSecureCookies: config.NODE_ENV === "production",
+      ...(config.BETTER_AUTH_COOKIE_DOMAIN
+        ? {
+            crossSubDomainCookies: {
+              enabled: true,
+              domain: config.BETTER_AUTH_COOKIE_DOMAIN,
+            },
+          }
+        : {}),
+    },
     plugins: [
       magicLink({
         expiresIn: 300,

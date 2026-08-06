@@ -60,6 +60,30 @@ describe("auth environment safety", () => {
     expect(() => authEnvironmentSchema.parse({ ...base, AUTH_PROVIDER: "DUAL" })).toThrow();
   });
 
+  it("requires and validates a shared cookie domain for the dedicated auth host", () => {
+    const dual = {
+      ...base,
+      AUTH_PROVIDER: "DUAL",
+      BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
+      BETTER_AUTH_URL: "https://auth.sportfolio.market",
+    };
+    expect(() => authEnvironmentSchema.parse(dual)).toThrow(
+      "required when Better Auth and the application use separate subdomains",
+    );
+    expect(() =>
+      authEnvironmentSchema.parse({
+        ...dual,
+        BETTER_AUTH_COOKIE_DOMAIN: ".sportfolio.market",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      authEnvironmentSchema.parse({
+        ...dual,
+        BETTER_AUTH_COOKIE_DOMAIN: ".example.com",
+      }),
+    ).toThrow("must be a shared parent domain");
+  });
+
   it("requires Resend configuration when magic links are enabled", () => {
     expect(() =>
       authEnvironmentSchema.parse({ ...base, AUTH_MAGIC_LINK_ENABLED: "true" }),
