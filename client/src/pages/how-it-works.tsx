@@ -1,169 +1,133 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { TrendingUp, Clock, Zap, BarChart3, Users, CheckCircle2 } from "lucide-react";
-import { SchemaOrg, schemas } from "@/components/schema-org";
+import { BarChart3, BookOpen, BriefcaseBusiness, Clock, Search, ShieldCheck, TrendingUp, Users, Zap } from "lucide-react";
 import { Link } from "wouter";
+import { SchemaOrg, schemas } from "@/components/schema-org";
+import { EditorialSection, PageHero, SurfaceLayout } from "@/components/surface-layout";
+import { Button } from "@/components/ui/button";
 
 const faqs = [
   {
     question: "How does trading player shares work on Sportfolio?",
-    answer:
-      "Players are represented as tradable shares backed by AMM pools. Once a pool is initialized, you can buy or sell instantly against its liquidity with real-time quotes, and prices move as capital flows in or out.",
+    answer: "Players are represented as virtual shares backed by AMM pools. Once a pool is initialized, users can buy or sell against its liquidity and the quoted price changes as virtual capital moves in or out.",
   },
   {
-    question: "What is the Scout System and how do I earn free shares?",
-    answer:
-      "Scouts earn shares every hour based on the Scout-Minute formula. Assign your scouts to players you want long-term exposure to, then stay active so those scouts keep producing hourly share output.",
+    question: "What is scouting?",
+    answer: "Scouting is Sportfolio's recurring share-earning system. Assign scouts to players and remain active to accumulate shares over time through the current scouting rules.",
   },
   {
-    question: "How do Daily Boosts work?",
-    answer:
-      "Daily Boosts let you commit a single share to a started-game virtual outcome mechanic. Slot tier, share multiplier, and any active community multiplier determine the virtual payout after the game settles.",
+    question: "How do boosts work?",
+    answer: "Boosts are the game-day action layer. An eligible share enters a boost slot and its virtual outcome is settled from the applicable rules, multiplier, and real-game performance context.",
   },
   {
-    question: "What happens when I use a share in a boost?",
-    answer:
-      "The assigned share is locked and then burned by the boost flow. That means the share is removed from your available holdings for that player and cannot be used elsewhere while the boost is in play.",
-  },
-  {
-    question: "What do leaderboards measure?",
-    answer:
-      "Leaderboards track account outcomes such as portfolio value, trading performance, and broader platform standing. They are public comparison tools, not a separate lineup game mode.",
+    question: "Can Sportfolio balances or shares be withdrawn for cash?",
+    answer: "No. Sportfolio balances, shares, gains, losses, and payouts are virtual gameplay units with no cash-out or real-money wagering functionality.",
   },
 ];
 
-const sections = [
+const steps = [
+  {
+    icon: Search,
+    number: "01",
+    title: "Read the field",
+    description: "Use schedules, recent form, player roles, injuries, matchup context, and market activity to identify where your sports view differs from the current price.",
+  },
   {
     icon: TrendingUp,
-    title: "1. Trade Player Shares",
-    body: [
-      "Sportfolio turns athletes into live player markets. Pools trade instantly once initialized, so execution happens against AMM liquidity instead of waiting for another user.",
-      "Prices rise when users buy and fall when users sell. Quote previews, slippage handling, and pool liquidity make the market mechanics transparent before you commit capital.",
-    ],
+    number: "02",
+    title: "Trade a player market",
+    description: "Preview a virtual buy or sell against the player's liquidity pool. Review price impact, quantity, and account effect before submitting the trade.",
+  },
+  {
+    icon: BriefcaseBusiness,
+    number: "03",
+    title: "Build the portfolio",
+    description: "Combine positions across players and sports. Track value, exposure, and performance instead of treating every decision as an isolated lineup choice.",
   },
   {
     icon: Clock,
-    title: "2. Scout Free Shares",
-    body: [
-      "Scouting is the primary passive accumulation system. Assign scouts to players you want exposure to and the platform distributes shares hourly based on time-weighted Scout-Minutes.",
-      "Premium users can run more scouts at once, but the core mechanic is the same: sustained attention to a player creates a larger share of that player's hourly output.",
-    ],
+    number: "04",
+    title: "Scout for continued exposure",
+    description: "Assign scouts to players you want to accumulate over time. Scouting adds a long-horizon resource layer beyond direct market purchases.",
   },
   {
     icon: Zap,
-    title: "3. Use Daily Boosts",
-    body: [
-      "Daily Boosts are the short-horizon action layer. You assign one eligible share to a boost slot and the system records that share's multiplier for settlement.",
-      "When the underlying game starts, the share enters the boost lifecycle. After the game settles, virtual payouts depend on slot tier, the share's multiplier, and any community multiplier affecting that boost.",
-    ],
+    number: "05",
+    title: "Act on game day",
+    description: "Use eligible shares in daily boosts when a real-game opportunity fits your strategy. Boosts complement the portfolio; they do not replace it.",
   },
   {
     icon: BarChart3,
-    title: "4. Build a Better Strategy",
-    body: [
-      "Strong play comes from combining market reads with sports knowledge. Some players are good long-term holds, some are better short-term boosts, and some are useful only as liquidity or momentum plays.",
-      "Use player stats, recent form, schedule context, and market pricing together. The best decisions usually come from understanding when market value and game-day upside diverge.",
-    ],
+    number: "06",
+    title: "Review and adapt",
+    description: "Follow market movement, portfolio results, collections, and leaderboards to understand what is working and where your assumptions need to change.",
   },
-  {
-    icon: Users,
-    title: "5. Track Yourself on Leaderboards",
-    body: [
-      "Leaderboards are the public comparison layer. They highlight top portfolios, strong traders, and users who are outperforming the broader field.",
-      "Use them as feedback. If your strategy is working, the leaderboards should reflect that over time even when individual boosts or trades vary day to day.",
-    ],
-  },
-];
+] as const;
 
 export default function HowItWorks() {
   return (
-    <div className="terminal-page">
+    <SurfaceLayout kind="public">
       <SchemaOrg schema={schemas.faqPage(faqs)} />
-      <div className="mx-auto max-w-4xl p-6 md:p-12">
-        <div className="terminal-shell mb-8 p-5 md:p-6">
-          <div className="terminal-strip">System Overview</div>
-          <h1
-            className="terminal-heading mt-4 text-3xl md:text-4xl"
-            data-testid="heading-how-it-works"
-          >
-            How Sportfolio Works
-          </h1>
-          <p className="mt-3 text-sm text-muted-foreground md:text-base">
-            Learn how trading, scouting, boosts, and leaderboards fit together.
-          </p>
-          <p className="mt-2 font-mono text-[11px] uppercase tracking-wide text-muted-foreground/80">
-            Sportfolio uses virtual currency only and does not offer real-money gambling or
-            cash-out.
-          </p>
-        </div>
+      <PageHero
+        eyebrow="How Sportfolio works"
+        title="Research players. Build positions. Make game-day decisions."
+        description="Sportfolio connects persistent player markets with scouting, boosts, collections, and public competition. Each system supports the same portfolio rather than creating a separate mini-game."
+        icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
+        actions={
+          <>
+            <Button asChild size="lg"><Link href="/pools">Open player pools</Link></Button>
+            <Button asChild size="lg" variant="outline"><Link href="/wiki">Read detailed rules</Link></Button>
+          </>
+        }
+      />
 
-        <Card variant="terminal" className="mb-8">
-          <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="terminal-label">Reference Docs</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                The Sportfolio wiki is live for deeper gameplay guides, FAQ coverage, and changelog
-                entries.
-              </p>
+      <EditorialSection
+        title="One continuous strategy loop"
+        description="The interface is organized around the decision you are making now while preserving the history and positions created by earlier decisions."
+      >
+        <div className="divide-y divide-border-subtle rounded-panel border border-border-subtle bg-surface shadow-low">
+          {steps.map(({ icon: Icon, number, title, description }) => (
+            <div key={number} className="grid gap-4 px-5 py-6 sm:grid-cols-[72px_48px_minmax(0,1fr)] sm:items-start sm:px-7">
+              <span className="font-mono text-sm font-bold text-brand">{number}</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-control bg-brand-subtle text-brand">
+                <Icon className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-content-strong">{title}</h3>
+                <p className="mt-2 max-w-3xl leading-7 text-content-muted">{description}</p>
+              </div>
             </div>
-            <Link href="/wiki">
-              <Button variant="terminalOutline" data-testid="button-open-wiki">
-                Open Wiki
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6">
-          {sections.map(({ icon: Icon, title, body }) => (
-            <Card key={title} variant="terminal">
-              <CardHeader>
-                <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
-                  <Icon className="h-5 w-5 text-primary" />
-                  {title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {body.map((paragraph) => (
-                  <p key={paragraph} className="text-muted-foreground">
-                    {paragraph}
-                  </p>
-                ))}
-              </CardContent>
-            </Card>
           ))}
-
-          <Card variant="terminal">
-            <CardHeader>
-              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
-                <CheckCircle2 className="h-5 w-5 text-primary" />
-                Getting Started
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-muted-foreground">Use this quick path to start cleanly:</p>
-              <ol className="space-y-2">
-                <li className="terminal-shell px-3 py-2 text-sm text-muted-foreground">
-                  <span className="terminal-value text-xs">1.</span> Create an account and review
-                  the live player pools.
-                </li>
-                <li className="terminal-shell px-3 py-2 text-sm text-muted-foreground">
-                  <span className="terminal-value text-xs">2.</span> Buy shares in players you want
-                  market exposure to.
-                </li>
-                <li className="terminal-shell px-3 py-2 text-sm text-muted-foreground">
-                  <span className="terminal-value text-xs">3.</span> Assign scouts to build
-                  recurring share flow.
-                </li>
-                <li className="terminal-shell px-3 py-2 text-sm text-muted-foreground">
-                  <span className="terminal-value text-xs">4.</span> Use boosts selectively and
-                  track how your portfolio evolves.
-                </li>
-              </ol>
-            </CardContent>
-          </Card>
         </div>
-      </div>
-    </div>
+      </EditorialSection>
+
+      <EditorialSection title="What the major surfaces are for" className="bg-surface">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          {[
+            { icon: TrendingUp, title: "Player Pools", body: "Discover, compare, filter, and trade active player markets." },
+            { icon: BriefcaseBusiness, title: "Portfolio", body: "Review holdings, exposure, value, and account-level performance." },
+            { icon: Zap, title: "Boosts", body: "Use eligible shares in short-horizon game-day outcomes." },
+            { icon: Users, title: "Collections", body: "Track durable achievements and themed progress across sports." },
+          ].map(({ icon: Icon, title, body }) => (
+            <div key={title} className="rounded-panel border border-border-subtle bg-canvas p-5">
+              <Icon className="h-5 w-5 text-brand" aria-hidden="true" />
+              <h3 className="mt-4 font-bold text-content-strong">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-content-muted">{body}</p>
+            </div>
+          ))}
+        </div>
+      </EditorialSection>
+
+      <EditorialSection title="Important boundary">
+        <div className="flex max-w-3xl gap-4 rounded-panel border border-brand/25 bg-brand-subtle p-5">
+          <ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-brand" aria-hidden="true" />
+          <div>
+            <h3 className="font-bold text-content-strong">Sportfolio is virtual gameplay.</h3>
+            <p className="mt-2 leading-7 text-content-muted">Virtual balances, shares, gains, losses, and payouts are not money, securities, wagers, or withdrawable assets. The platform does not provide real-money betting or cash-out.</p>
+          </div>
+        </div>
+        <Button asChild variant="outline" className="mt-6 gap-2">
+          <Link href="/wiki"><BookOpen className="h-4 w-4" aria-hidden="true" />Open the handbook</Link>
+        </Button>
+      </EditorialSection>
+    </SurfaceLayout>
   );
 }
