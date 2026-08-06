@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getAuthRuntimeConfig } from "./config";
-import { getPublicAuthCapabilities, normalizeWebAuthDestination } from "./web-auth";
+import {
+  getPublicAuthCapabilities,
+  normalizeWebAuthDestination,
+  renderMagicLinkGatePage,
+} from "./web-auth";
 
 function config() {
   return getAuthRuntimeConfig({
@@ -56,5 +60,19 @@ describe("passwordless web continuation policy", () => {
   });
   it("defaults to the application root", () => {
     expect(normalizeWebAuthDestination(undefined, config())).toBe("/");
+  });
+  it("renders a POST-only confirmation form for a valid gate", () => {
+    const gate = "15f78149-0da4-4d79-9333-933ad24d9ab0";
+    const page = renderMagicLinkGatePage(gate);
+    expect(page).toContain('method="post"');
+    expect(page).toContain('action="/api/auth/web/verify"');
+    expect(page).toContain(`value="${gate}"`);
+    expect(page).not.toContain("magic-link/verify");
+  });
+  it("renders a retry path instead of a form for an invalid or expired gate", () => {
+    const page = renderMagicLinkGatePage("not-a-uuid", { expired: true });
+    expect(page).toContain("Sign-in link unavailable");
+    expect(page).toContain('href="/login"');
+    expect(page).not.toContain('action="/api/auth/web/verify"');
   });
 });
