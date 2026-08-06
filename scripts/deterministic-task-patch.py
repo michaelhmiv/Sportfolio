@@ -14,6 +14,7 @@ CONTRACT_URL = "https://raw.githubusercontent.com/michaelhmiv/Sportfolio/f515744
 PATCH_XZ_SHA256 = "ca346b858d9001b2621ef02e6737858a428190e87027e6f35860501f200defce"
 PATCH_SHA256 = "f5b70e4b6244f6885d6486ab39b52b0a58ae49dc3bb83354aa72c2e410c358e9"
 PATCH_XZ_SIZE = 237968
+XZ_MAGIC = b"\xfd7zXZ\x00"
 ROOT = Path.cwd()
 
 
@@ -31,6 +32,27 @@ def download(url: str) -> bytes:
         return response.read()
 
 
+def extract_pinned_archive(downloaded: bytes) -> bytes:
+    offsets = [0]
+    cursor = 0
+    while True:
+        offset = downloaded.find(XZ_MAGIC, cursor)
+        if offset < 0:
+            break
+        if offset not in offsets:
+            offsets.append(offset)
+        cursor = offset + 1
+    for offset in offsets:
+        candidate = downloaded[offset : offset + PATCH_XZ_SIZE]
+        if len(candidate) == PATCH_XZ_SIZE and sha256(candidate) == PATCH_XZ_SHA256:
+            print(f"Validated pinned archive at response offset {offset}; envelope bytes={len(downloaded)}")
+            return candidate
+    raise RuntimeError(
+        f"No checksum-matching archive found; response_bytes={len(downloaded)} "
+        f"magic_offsets={offsets[:10]} prefix={downloaded[:16].hex()}"
+    )
+
+
 def load_delete_paths() -> list[str]:
     source = download(CONTRACT_URL).decode("utf-8")
     tree = ast.parse(source)
@@ -45,12 +67,7 @@ def load_delete_paths() -> list[str]:
 
 
 def main() -> None:
-    downloaded = download(PATCH_URL)
-    if len(downloaded) < PATCH_XZ_SIZE:
-        raise RuntimeError(f"Compressed patch truncated: {len(downloaded)}")
-    compressed = downloaded[:PATCH_XZ_SIZE]
-    if sha256(compressed) != PATCH_XZ_SHA256:
-        raise RuntimeError("Compressed patch checksum mismatch")
+    compressed = extract_pinned_archive(download(PATCH_URL))
     patch = lzma.decompress(compressed)
     if sha256(patch) != PATCH_SHA256:
         raise RuntimeError("Patch checksum mismatch")
