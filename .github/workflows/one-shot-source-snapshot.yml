@@ -1,0 +1,32 @@
+name: One-Shot Source Snapshot
+
+on:
+  push:
+    branches:
+      - ops/local-refactor-snapshot
+    paths:
+      - .snapshot-trigger
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove Git metadata
+        run: rm -rf .git
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: sportfolio-main-source
+          path: .
+          include-hidden-files: true
+          retention-days: 1
