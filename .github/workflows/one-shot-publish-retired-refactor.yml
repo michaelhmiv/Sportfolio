@@ -1,0 +1,108 @@
+name: One-Shot Publish Retired Surface Refactor
+
+on:
+  push:
+    branches:
+      - publish/retired-agent-sms-mlb
+    paths:
+      - .publish-retired-refactor
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-retired-agent-sms-mlb
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      NODE_ENV: test
+      DEV_DATABASE_URL: postgresql://127.0.0.1:5432/sportfolio_publish_ci
+    steps:
+      - name: Check out publication branch
+        uses: actions/checkout@v5
+        with:
+          ref: publish/retired-agent-sms-mlb
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Download and verify implementation patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            'https://drive.usercontent.google.com/download?id=1_vEaRjZWLzKgEYW-NQKGtRR7Iioju0ll&export=download&confirm=t' \
+            --output /tmp/retired-refactor.patch.xz
+          test "$(stat -c%s /tmp/retired-refactor.patch.xz)" -eq 237968
+          echo 'ca346b858d9001b2621ef02e6737858a428190e87027e6f35860501f200defce  /tmp/retired-refactor.patch.xz' | sha256sum --check
+          xz --decompress --stdout /tmp/retired-refactor.patch.xz > /tmp/retired-refactor.patch
+          echo 'f5b70e4b6244f6885d6486ab39b52b0a58ae49dc3bb83354aa72c2e410c358e9  /tmp/retired-refactor.patch' | sha256sum --check
+
+      - name: Apply implementation and explicit deletions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --index --binary /tmp/retired-refactor.patch
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+              echo "Expected deletion target is missing: $path" >&2
+              exit 1
+            fi
+            rm -rf -- "$path"
+          done < .publish/delete-paths.txt
+          rm -rf .publish .publish-retired-refactor
+          rm -f .github/workflows/one-shot-publish-retired-refactor.yml
+          git diff --check
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify formatting
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Full test suite
+        run: timeout 35m npm run test:run
+
+      - name: Retired surface audit
+        run: npm run retired-surfaces:audit
+
+      - name: Public tool audit
+        run: npm run public-tools:audit
+
+      - name: Capability governance
+        run: npm run governance:capabilities
+
+      - name: MCP smoke
+        run: npm run mcp:smoke
+
+      - name: Production build
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'sportfolio-release[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'refactor(mcp): remove retired agent and SMS systems and curate MLB tools'
+          git push origin HEAD:publish/retired-agent-sms-mlb
