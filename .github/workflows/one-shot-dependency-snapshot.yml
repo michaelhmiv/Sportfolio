@@ -1,0 +1,39 @@
+name: One-Shot Dependency Snapshot
+
+on:
+  push:
+    branches:
+      - ops/local-refactor-snapshot
+    paths:
+      - .dependency-snapshot-trigger
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Archive dependencies
+        run: tar -I 'zstd -19 -T0' -cf node-modules.tar.zst node_modules
+
+      - name: Upload dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: sportfolio-node-modules
+          path: node-modules.tar.zst
+          retention-days: 1
