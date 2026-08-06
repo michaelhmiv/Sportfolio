@@ -25,6 +25,7 @@ function testConfig(provider: "SUPABASE" | "DUAL" = "DUAL") {
     AUTH_SHARED_PRODUCTION_DATABASE: "true",
     BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
     BETTER_AUTH_URL: "https://auth.sportfolio.market",
+    BETTER_AUTH_COOKIE_DOMAIN: ".sportfolio.market",
     BETTER_AUTH_TRUSTED_ORIGINS: "sportfolio://,capacitor://localhost",
   });
 }

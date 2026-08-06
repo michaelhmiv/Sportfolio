@@ -23,6 +23,7 @@ function config() {
     AUTH_SHARED_PRODUCTION_DATABASE: "true",
     BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
     BETTER_AUTH_URL: "https://auth.sportfolio.market",
+    BETTER_AUTH_COOKIE_DOMAIN: ".sportfolio.market",
     RESEND_API_KEY: "re_test",
     RESEND_WEBHOOK_SECRET: "whsec_test",
     AUTH_EMAIL_FROM: "Sportfolio <login@auth.sportfolio.market>",

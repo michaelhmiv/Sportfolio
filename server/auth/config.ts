@@ -24,6 +24,7 @@ export const authEnvironmentSchema = z
     AUTH_MIGRATION_CONFIRM_CANONICAL_HOST: z.string().optional(),
     BETTER_AUTH_SECRET: z.string().min(32).optional(),
     BETTER_AUTH_URL: optionalUrl,
+    BETTER_AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
     BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
     RESEND_WEBHOOK_SECRET: z.string().optional(),
@@ -36,7 +37,13 @@ export const authEnvironmentSchema = z
   })
   .superRefine((value, ctx) => {
     const betterAuthEnabled = value.AUTH_PROVIDER !== "SUPABASE";
-    const publicHost = new URL(value.PUBLIC_SITE_URL).hostname;
+    const publicHost = new URL(value.PUBLIC_SITE_URL).hostname.toLowerCase();
+    const authHost = value.BETTER_AUTH_URL
+      ? new URL(value.BETTER_AUTH_URL).hostname.toLowerCase()
+      : null;
+    const cookieDomain = value.BETTER_AUTH_COOKIE_DOMAIN?.trim().replace(/^\./, "").toLowerCase();
+    const hostMatchesCookieDomain = (host: string) =>
+      Boolean(cookieDomain && (host === cookieDomain || host.endsWith(`.${cookieDomain}`)));
     const sharedProductionDatabase =
       value.AUTH_ENVIRONMENT === "beta" && value.AUTH_DATABASE_ENVIRONMENT === "production";
 
@@ -52,6 +59,23 @@ export const authEnvironmentSchema = z
         code: z.ZodIssueCode.custom,
         path: ["BETTER_AUTH_URL"],
         message: "required when Better Auth is active",
+      });
+    }
+    if (betterAuthEnabled && authHost && authHost !== publicHost && !cookieDomain) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["BETTER_AUTH_COOKIE_DOMAIN"],
+        message: "required when Better Auth and the application use separate subdomains",
+      });
+    }
+    if (
+      cookieDomain &&
+      (!hostMatchesCookieDomain(publicHost) || (authHost && !hostMatchesCookieDomain(authHost)))
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["BETTER_AUTH_COOKIE_DOMAIN"],
+        message: "must be a shared parent domain of the application and Better Auth hosts",
       });
     }
 

@@ -98,7 +98,8 @@
     "auth:supabase-inventory": "tsx scripts/auth-supabase-inventory.ts",
     "auth:compatibility:test": "vitest run scripts/auth-supabase-inventory.test.ts scripts/better-auth-compatibility.test.ts server/auth/architecture-contract.test.ts",
     "auth:foundation:test": "vitest run server/auth/principal.test.ts server/auth/better-auth.test.ts server/supabaseAuth.test.ts",
-    "auth:email:test": "vitest run server/auth/magic-link-delivery.test.ts server/auth/resend-webhook.test.ts"
+    "auth:email:test": "vitest run server/auth/magic-link-delivery.test.ts server/auth/resend-webhook.test.ts",
+    "auth:web:test": "vitest run server/auth/better-auth-session.test.ts server/auth/web-auth.test.ts client/src/lib/passwordless-auth.contract.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
