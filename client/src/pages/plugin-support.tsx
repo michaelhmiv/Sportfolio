@@ -1,115 +1,101 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertTriangle, CheckCircle2, Link2, LockKeyhole, RotateCcw, ShieldCheck } from "lucide-react";
+import { EditorialSection, PageHero, SurfaceLayout } from "@/components/surface-layout";
+import { Button } from "@/components/ui/button";
+import { SPORTFOLIO_SUPPORT_EMAIL } from "@/lib/community-links";
 
 const sections = [
   {
+    icon: Link2,
     title: "Connect Sportfolio",
     items: [
       "Open the Sportfolio app in ChatGPT or Codex and choose the account-linking option when prompted.",
       "Sign in on Sportfolio's website, review the requesting application and permissions, then choose Allow access.",
-      "Sportfolio never requires you to paste an API key, password, provider key, access token, refresh token, MFA code, or SMS code into ChatGPT.",
+      "Return to ChatGPT or Codex after the authorization flow completes.",
     ],
   },
   {
-    title: "Market and Gameplay Actions",
+    icon: CheckCircle2,
+    title: "Review consequential actions",
     items: [
       "Virtual trades, scouting, share stacking, boosts, community boosts, and liquidity changes are staged before execution.",
       "Review the exact player, quantity, virtual cost, balance or holdings impact, and warnings shown in the preview.",
-      "Confirm only the pending action you reviewed. You may cancel it instead. A staged preview is not a completed action.",
-      "Immediate account writes such as watchlist or schedule changes should run only after a clear request for that exact change.",
+      "Confirm only the pending action you reviewed. A staged preview is not a completed action.",
     ],
   },
   {
-    title: "Revoke Access",
+    icon: ShieldCheck,
+    title: "Revoke access",
     items: [
       "Open Sportfolio's Connected Applications page while signed in.",
-      "Select Disconnect for the ChatGPT or Codex client you no longer authorize.",
-      "Revocation invalidates the connection's refresh access. You can reconnect later through the normal OAuth flow.",
+      "Choose Disconnect for the ChatGPT or Codex client you no longer authorize.",
+      "You can reconnect later through the normal OAuth flow.",
     ],
   },
   {
-    title: "Scope and Limitations",
+    icon: RotateCcw,
+    title: "Troubleshoot the connection",
     items: [
-      "The app exposes the same supported public MCP capabilities used by Sportfolio, including authenticated reads and writes.",
-      "Admin, internal, debug, raw database, mobile-store billing, and unsupported provider-management controls remain unavailable.",
-      "Sportfolio cannot place real-money bets, create cash prizes, cash out virtual values, or provide securities transactions.",
-      "Sports schedules, statistics, rosters, injuries, and game statuses may be delayed or corrected by upstream data sources.",
+      "If linking does not appear, disconnect the existing Sportfolio grant and start the connection again.",
+      "If authorization expires, restart the connection rather than reusing an old consent URL.",
+      "If a tool still requests authentication, verify that you approved the same Sportfolio account you are trying to use.",
+      "If an action remains pending, ask to show the pending action and then confirm or cancel that exact bundle.",
     ],
   },
-  {
-    title: "Troubleshooting",
-    items: [
-      "If account linking does not appear, disconnect the existing Sportfolio grant and start the connection again.",
-      "If authorization expires, return to ChatGPT or Codex and restart the connection flow rather than reusing an old consent URL.",
-      "If a connected tool still requests authentication, confirm that you approved the same Sportfolio account you are trying to use.",
-      "If an action remains pending, ask ChatGPT to show the pending action and either confirm or cancel that exact bundle.",
-      "For inaccurate gameplay data or actions, verify the current state in Sportfolio and include the affected player, sport, date, and tool request when contacting support.",
-    ],
-  },
-];
+] as const;
 
 export default function PluginSupportPage() {
   return (
-    <main className="terminal-page min-h-screen p-4 sm:p-8">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <header className="terminal-shell p-5 sm:p-7">
-          <div className="terminal-strip">Plugin Support</div>
-          <h1 className="terminal-heading mt-4 text-3xl">Sportfolio for ChatGPT and Codex</h1>
-          <p className="mt-3 text-muted-foreground">
-            Connection, action confirmation, revocation, privacy, and troubleshooting information for the Sportfolio Companion app.
-          </p>
-        </header>
+    <SurfaceLayout kind="public">
+      <PageHero
+        eyebrow="Connected-app support"
+        title="Connect, confirm, revoke, and recover safely."
+        description="Use this guide for Sportfolio account connections in ChatGPT and Codex, including staged actions and common authorization failures."
+        icon={<LockKeyhole className="h-4 w-4" aria-hidden="true" />}
+        compact
+      />
 
-        {sections.map((section) => (
-          <Card key={section.title} variant="terminal">
-            <CardHeader>
-              <CardTitle className="terminal-heading text-base">{section.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ol className="space-y-3 text-muted-foreground">
-                {section.items.map((item, index) => (
-                  <li key={item}>
-                    {index + 1}. {item}
+      <EditorialSection title="Connection workflow">
+        <div className="grid gap-5 md:grid-cols-2">
+          {sections.map(({ icon: Icon, title, items }) => (
+            <section key={title} className="rounded-panel border border-border-subtle bg-surface p-5 sm:p-6">
+              <Icon className="h-5 w-5 text-brand" aria-hidden="true" />
+              <h2 className="mt-4 text-lg font-bold text-content-strong">{title}</h2>
+              <ol className="mt-4 space-y-3">
+                {items.map((item, index) => (
+                  <li key={item} className="grid grid-cols-[24px_minmax(0,1fr)] gap-2 text-sm leading-6 text-content-muted">
+                    <span className="font-mono text-xs font-bold text-brand">{index + 1}</span>
+                    <span>{item}</span>
                   </li>
                 ))}
               </ol>
-            </CardContent>
-          </Card>
-        ))}
+            </section>
+          ))}
+        </div>
+      </EditorialSection>
 
-        <Card variant="terminal">
-          <CardHeader>
-            <CardTitle className="terminal-heading text-base">Links and Contact</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-muted-foreground">
-            <p>
-              <a className="text-primary underline" href="/oauth/connected-apps/">
-                Manage connected applications
-              </a>
-            </p>
-            <p>
-              <a className="text-primary underline" href="/plugin/">
-                Read plugin documentation
-              </a>
-            </p>
-            <p>
-              <a className="text-primary underline" href="/privacy">
-                Privacy Policy
-              </a>{" "}
-              ·{" "}
-              <a className="text-primary underline" href="/terms">
-                Terms of Service
-              </a>
-            </p>
-            <p>
-              Email{" "}
-              <a className="text-primary underline" href="mailto:sportfolioholdings@gmail.com">
-                sportfolioholdings@gmail.com
-              </a>{" "}
-              for support.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+      <EditorialSection title="Security boundary" className="bg-surface">
+        <div className="flex max-w-3xl gap-4 rounded-panel border border-status-warning/30 bg-status-warning-subtle p-5">
+          <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-status-warning" aria-hidden="true" />
+          <div>
+            <h3 className="font-bold text-content-strong">Never paste authentication secrets into conversation.</h3>
+            <p className="mt-2 leading-7 text-content-muted">Sportfolio does not require API keys, passwords, provider keys, access tokens, refresh tokens, MFA codes, or one-time sign-in codes in ChatGPT or Codex. Complete authentication only through the Sportfolio sign-in and consent pages.</p>
+          </div>
+        </div>
+      </EditorialSection>
+
+      <EditorialSection title="Scope and limitations">
+        <ul className="max-w-3xl space-y-3 text-content-muted">
+          <li>Supported public, authenticated read, and approved write capabilities are exposed through the connected app.</li>
+          <li>Admin, internal, debug, raw database, mobile-store billing, credential-management, and private provider controls remain unavailable.</li>
+          <li>Sportfolio cannot place real-money bets, create cash prizes, cash out virtual values, or provide securities transactions.</li>
+          <li>Sports schedules, statistics, rosters, injuries, and game statuses may be delayed or corrected by upstream data sources.</li>
+        </ul>
+        <div className="mt-7 flex flex-wrap gap-3">
+          <Button asChild><a href="/oauth/connected-apps/">Manage connected applications</a></Button>
+          <Button asChild variant="outline"><a href="/plugin/">Read app documentation</a></Button>
+          <Button asChild variant="outline"><a href={`mailto:${SPORTFOLIO_SUPPORT_EMAIL}`}>Email support</a></Button>
+        </div>
+      </EditorialSection>
+    </SurfaceLayout>
   );
 }

@@ -1,12 +1,13 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Calendar, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Calendar, User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useEffect } from "react";
+import { Link, useRoute } from "wouter";
 import { SchemaOrg, schemas } from "@/components/schema-org";
+import { PageHero, SurfaceLayout } from "@/components/surface-layout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { resolveApiUrl } from "@/lib/native-runtime";
 
 interface BlogPost {
@@ -36,27 +37,17 @@ export default function BlogPost() {
     enabled: !!slug,
     queryFn: async () => {
       const response = await fetch(resolveApiUrl(`/api/blog/${slug}`));
-      if (!response.ok) {
-        throw new Error("Failed to fetch blog post");
-      }
+      if (!response.ok) throw new Error("Failed to fetch blog post");
       return response.json();
     },
   });
 
-  // Update page meta tags for SEO - MUST be before any early returns to follow Rules of Hooks
   useEffect(() => {
     if (!data?.post) return;
-
-    // Update title
     document.title = `${data.post.title} | Sportfolio Blog`;
-
-    // Update meta description
     const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute("content", data.post.excerpt);
-    }
+    if (metaDescription) metaDescription.setAttribute("content", data.post.excerpt);
 
-    // Add Open Graph tags for social sharing
     const ogTags = [
       { property: "og:title", content: data.post.title },
       { property: "og:description", content: data.post.excerpt },
@@ -70,66 +61,61 @@ export default function BlogPost() {
 
     ogTags.forEach((tag) => {
       const property = (tag.property || tag.name) as string;
-      const attr = tag.property ? "property" : "name";
-      let meta = document.querySelector(`meta[${attr}="${property}"]`);
-
+      const attribute = tag.property ? "property" : "name";
+      let meta = document.querySelector(`meta[${attribute}="${property}"]`);
       if (!meta) {
         meta = document.createElement("meta");
-        meta.setAttribute(attr, property);
+        meta.setAttribute(attribute, property);
         document.head.appendChild(meta);
       }
       meta.setAttribute("content", tag.content);
     });
 
-    // Cleanup - reset to default on unmount
     return () => {
       document.title = "Sportfolio - Fantasy Sports Stock Market";
     };
-  }, [
-    data?.post?.id,
-    data?.post?.title,
-    data?.post?.excerpt,
-    data?.post?.slug,
-    data?.post?.publishedAt,
-  ]);
+  }, [data?.post]);
 
   if (isLoading) {
     return (
-      <div className="terminal-page p-6 md:p-12">
-        <div className="max-w-3xl mx-auto">
-          <div className="terminal-subtle text-center">Loading...</div>
+      <SurfaceLayout kind="public">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="h-8 w-32 animate-pulse rounded-control bg-surface-raised" />
+          <div className="mt-8 h-14 max-w-2xl animate-pulse rounded-panel bg-surface-raised" />
+          <div className="mt-5 h-6 max-w-xl animate-pulse rounded-control bg-surface-raised" />
+          <div className="mt-12 h-96 animate-pulse rounded-panel bg-surface-raised" />
         </div>
-      </div>
+      </SurfaceLayout>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="terminal-page p-6 md:p-12">
-        <div className="max-w-3xl mx-auto">
-          <Card variant="terminal">
-            <CardContent className="py-12 text-center">
-              <h2 className="terminal-heading mb-4 text-lg">Blog Post Not Found</h2>
-              <p className="terminal-subtle mb-6">
-                The blog post you're looking for doesn't exist or has been removed.
-              </p>
-              <Link href="/blog">
-                <Button variant="terminal">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Blog
-                </Button>
-              </Link>
+      <SurfaceLayout kind="public">
+        <div className="mx-auto max-w-xl px-4 py-20 sm:px-6">
+          <Card variant="empty">
+            <CardContent className="p-8 text-center">
+              <h1 className="text-2xl font-bold text-content-strong">Article not found</h1>
+              <p className="mt-3 leading-6 text-content-muted">The article does not exist or is no longer available.</p>
+              <Button asChild className="mt-6 gap-2">
+                <Link href="/blog"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to the blog</Link>
+              </Button>
             </CardContent>
           </Card>
         </div>
-      </div>
+      </SurfaceLayout>
     );
   }
 
   const { post, author } = data;
+  const authorName = author
+    ? author.firstName && author.lastName
+      ? `${author.firstName} ${author.lastName}`
+      : author.username
+    : null;
 
   return (
-    <div className="terminal-page">
+    <SurfaceLayout kind="public">
       <SchemaOrg
         schema={schemas.createArticle({
           title: post.title,
@@ -140,70 +126,41 @@ export default function BlogPost() {
           authorId: author?.id,
         })}
       />
-      <div className="max-w-3xl mx-auto p-6 md:p-12">
-        {/* Back Button */}
-        <Link href="/blog">
-          <Button
-            variant="terminalOutline"
-            className="gap-2 mb-6"
-            data-testid="button-back-to-blog"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Blog
-          </Button>
-        </Link>
+      <PageHero
+        eyebrow="Sportfolio journal"
+        title={post.title}
+        description={post.excerpt}
+        compact
+      />
 
-        {/* Article */}
-        <article data-testid="article-blog-post">
-          <header className="terminal-shell mb-6 p-6">
-            <div className="terminal-strip mb-4">Market Briefing</div>
-            <h1
-              className="text-2xl font-bold mb-3 terminal-heading"
-              data-testid="heading-blog-post-title"
-            >
-              {post.title}
-            </h1>
-            <div className="terminal-subtle flex flex-wrap items-center gap-4 text-sm">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" />
-                {new Date(post.publishedAt).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </div>
-              {author && (
-                <div className="flex items-center gap-1">
-                  <span>by</span>
-                  <span className="font-medium">
-                    {author.firstName && author.lastName
-                      ? `${author.firstName} ${author.lastName}`
-                      : author.username}
-                  </span>
-                </div>
-              )}
-            </div>
-          </header>
-
-          <Card variant="terminal">
-            <CardContent className="prose prose-sm max-w-none p-6 dark:prose-invert">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} data-testid="content-blog-post">
-                {post.content}
-              </ReactMarkdown>
-            </CardContent>
-          </Card>
-        </article>
-
-        {/* Back Button (bottom) */}
-        <div className="mt-12">
-          <Link href="/blog">
-            <Button variant="terminalOutline" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Blog
-            </Button>
-          </Link>
+      <article className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8" data-testid="article-blog-post">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border-subtle pb-6 text-sm text-content-subtle">
+          <span className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" aria-hidden="true" />
+            {new Date(post.publishedAt).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </span>
+          {authorName ? (
+            <span className="flex items-center gap-2">
+              <User className="h-4 w-4" aria-hidden="true" />
+              {authorName}
+            </span>
+          ) : null}
         </div>
-      </div>
-    </div>
+
+        <div className="prose prose-lg mt-10 max-w-none prose-headings:font-bold prose-a:text-brand dark:prose-invert" data-testid="content-blog-post">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.content}</ReactMarkdown>
+        </div>
+
+        <div className="mt-14 border-t border-border-subtle pt-7">
+          <Button asChild variant="outline" className="gap-2" data-testid="button-back-to-blog">
+            <Link href="/blog"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to the blog</Link>
+          </Button>
+        </div>
+      </article>
+    </SurfaceLayout>
   );
 }

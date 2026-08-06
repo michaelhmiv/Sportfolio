@@ -1,28 +1,20 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
+import { AlertTriangle, CheckCircle2, Loader2, Mail, ShieldCheck, Trash2, Undo2 } from "lucide-react";
 import { Link } from "wouter";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  Loader2,
-  Mail,
-  ShieldCheck,
-  Trash2,
-  Undo2,
-} from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { useToast } from "@/hooks/use-toast";
+import { PageHero, SurfaceLayout } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { SPORTFOLIO_SUPPORT_EMAIL } from "@/lib/community-links";
 import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 
-const SUPPORT_EMAIL = "sportfolioholdings@gmail.com";
-const MAILTO_HREF = `mailto:${SUPPORT_EMAIL}?subject=Sportfolio%20Account%20Deletion%20Help`;
+const MAILTO_HREF = `mailto:${SPORTFOLIO_SUPPORT_EMAIL}?subject=Sportfolio%20Account%20Deletion%20Help`;
 const FALLBACK_CONFIRMATION_TEXT = "DELETE";
 
 interface DeletionRequestView {
@@ -48,15 +40,15 @@ interface AccountDeletionStatusResponse {
 
 const deletedData = [
   "Sportfolio account profile and sign-in access",
-  "Linked SMS settings and phone-link configuration",
-  "Saved app preferences and scouting configuration tied to the account",
-  "In-app automated assistant chat history and related user conversation threads",
-];
+  "Saved preferences, watchlists, schedules, and account-specific settings",
+  "Scouting, collection, and other active gameplay configuration tied to the account",
+  "Connected-application authorizations and account-linked continuation records",
+] as const;
 
 const retainedData = [
-  "Trade, portfolio, and reward ledger records needed for fraud prevention, dispute handling, security review, or legal compliance",
+  "Trade, portfolio, reward, and action ledger records needed for fraud prevention, dispute handling, security review, or legal compliance",
   "Operational logs and backups retained for a limited period while deletion is processed",
-];
+] as const;
 
 function formatTimestamp(value?: string | null) {
   if (!value) return null;
@@ -88,20 +80,15 @@ export default function AccountDeletion() {
     enabled: isAuthenticated,
     queryFn: async () => {
       const response = await authenticatedFetch("/api/account/deletion/status", {
-        headers: {
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-        },
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       });
-      if (!response.ok) {
-        throw new Error("Could not load account deletion status.");
-      }
+      if (!response.ok) throw new Error("Could not load account deletion status.");
       return (await response.json()) as AccountDeletionStatusResponse;
     },
   });
 
   const confirmationText = status?.confirmationText || FALLBACK_CONFIRMATION_TEXT;
-  const requestInFlightStatus = status?.request?.status || status?.status || "none";
+  const requestStatus = status?.request?.status || status?.status || "none";
 
   const requestMutation = useMutation({
     mutationFn: async () => {
@@ -118,14 +105,13 @@ export default function AccountDeletion() {
       setReason("");
       setDetails("");
       toast({
-        title: "Deletion Request Submitted",
-        description:
-          "Your deletion request is active. You can cancel it while it remains in pending status.",
+        title: "Deletion request submitted",
+        description: "You can cancel the request while it remains pending.",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Could Not Submit Request",
+        title: "Could not submit request",
         description: error.message || "Please try again.",
         variant: "destructive",
       });
@@ -139,14 +125,11 @@ export default function AccountDeletion() {
     },
     onSuccess: async () => {
       await refetchStatus();
-      toast({
-        title: "Deletion Request Cancelled",
-        description: "Your account deletion request has been cancelled.",
-      });
+      toast({ title: "Deletion request cancelled", description: "Your account remains active." });
     },
     onError: (error: Error) => {
       toast({
-        title: "Could Not Cancel Request",
+        title: "Could not cancel request",
         description: error.message || "Please try again.",
         variant: "destructive",
       });
@@ -159,7 +142,7 @@ export default function AccountDeletion() {
     isAuthenticated;
 
   const statusTone = useMemo(() => {
-    switch (requestInFlightStatus) {
+    switch (requestStatus) {
       case "pending":
         return "text-status-warning";
       case "processing":
@@ -168,259 +151,143 @@ export default function AccountDeletion() {
         return "text-market-positive";
       case "failed":
         return "text-market-negative";
-      case "cancelled":
-        return "text-muted-foreground";
       default:
-        return "text-muted-foreground";
+        return "text-content-muted";
     }
-  }, [requestInFlightStatus]);
+  }, [requestStatus]);
 
   return (
-    <div className="terminal-page">
-      <div className="mx-auto max-w-4xl p-6 md:p-12">
-        <div className="terminal-shell mb-8 p-5 md:p-6">
-          <div className="terminal-strip">Account Controls</div>
-          <h1
-            className="terminal-heading mt-4 text-3xl md:text-4xl"
-            data-testid="heading-account-deletion"
-          >
-            Delete Your Sportfolio Account
-          </h1>
-          <p className="mt-3 text-sm text-muted-foreground md:text-base">
-            Submit and monitor your account deletion request directly in-app. Email support remains
-            available for help, but deletion initiation happens here.
-          </p>
-        </div>
+    <SurfaceLayout kind="legal">
+      <PageHero
+        eyebrow="Account control"
+        title="Delete your Sportfolio account"
+        description="Submit, review, or cancel an account deletion request directly. This workflow is permanent once processing completes."
+        icon={<Trash2 className="h-4 w-4" aria-hidden="true" />}
+        compact
+      />
 
-        <div className="space-y-6">
-          <Card variant="terminal">
-            <CardHeader>
-              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
-                <Trash2 className="h-5 w-5 text-primary" />
-                Request Deletion
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8 lg:py-14">
+        <main>
+          <Card variant="default" className="border-border-strong shadow-low">
+            <CardContent className="p-6 sm:p-8">
               {!isAuthenticated ? (
-                <div className="terminal-shell space-y-3 p-4">
-                  <p className="text-sm text-muted-foreground">
-                    Sign in to request account deletion from this page.
-                  </p>
-                  <Button asChild variant="terminal" data-testid="button-signin-delete-account">
-                    <Link href="/login?redirect=/account-deletion">Sign In to Continue</Link>
+                <div className="text-center">
+                  <ShieldCheck className="mx-auto h-10 w-10 text-brand" aria-hidden="true" />
+                  <h2 className="mt-4 text-xl font-bold text-content-strong">Sign in to verify the account</h2>
+                  <p className="mx-auto mt-2 max-w-md leading-6 text-content-muted">Deletion requests must be initiated from the account being removed.</p>
+                  <Button asChild className="mt-6" data-testid="button-signin-delete-account">
+                    <Link href="/login?redirect=/account-deletion">Sign in to continue</Link>
                   </Button>
                 </div>
               ) : statusLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading deletion status...
+                <div className="flex min-h-48 items-center justify-center gap-2 text-content-muted">
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                  Loading deletion status…
                 </div>
               ) : status?.hasRequest && status.request ? (
-                <div className="terminal-shell space-y-4 p-4">
-                  <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="terminal-label">Current Request Status</div>
-                      <p className={`text-sm font-semibold uppercase tracking-wide ${statusTone}`}>
-                        {status.request.status}
-                      </p>
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-content-subtle">Current request</p>
+                      <h2 className={`mt-2 text-2xl font-bold capitalize ${statusTone}`}>{status.request.status}</h2>
                     </div>
-                    {status.request.status === "completed" ? (
-                      <CheckCircle2 className="h-5 w-5 text-market-positive" />
-                    ) : null}
+                    {status.request.status === "completed" ? <CheckCircle2 className="h-7 w-7 text-market-positive" aria-hidden="true" /> : null}
                   </div>
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <p>
-                      Requested:{" "}
-                      <span className="text-foreground">
-                        {formatTimestamp(status.request.requestedAt) || "Unavailable"}
-                      </span>
-                      {relativeTimestamp(status.request.requestedAt)
-                        ? ` (${relativeTimestamp(status.request.requestedAt)})`
-                        : ""}
-                    </p>
-                    <p>
-                      Effective processing time:{" "}
-                      <span className="text-foreground">
-                        {formatTimestamp(status.request.effectiveAt) || "Unavailable"}
-                      </span>
-                    </p>
+
+                  <dl className="mt-7 divide-y divide-border-subtle rounded-panel border border-border-subtle bg-surface-raised px-4">
+                    <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+                      <dt className="text-sm font-medium text-content">Requested</dt>
+                      <dd className="text-sm text-content-muted">{formatTimestamp(status.request.requestedAt) || "Unavailable"}{relativeTimestamp(status.request.requestedAt) ? ` (${relativeTimestamp(status.request.requestedAt)})` : ""}</dd>
+                    </div>
+                    <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+                      <dt className="text-sm font-medium text-content">Effective processing time</dt>
+                      <dd className="text-sm text-content-muted">{formatTimestamp(status.request.effectiveAt) || "Unavailable"}</dd>
+                    </div>
                     {status.request.processedAt ? (
-                      <p>
-                        Processed:{" "}
-                        <span className="text-foreground">
-                          {formatTimestamp(status.request.processedAt)}
-                        </span>
-                      </p>
-                    ) : null}
-                    {status.request.cancelledAt ? (
-                      <p>
-                        Cancelled:{" "}
-                        <span className="text-foreground">
-                          {formatTimestamp(status.request.cancelledAt)}
-                        </span>
-                      </p>
+                      <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+                        <dt className="text-sm font-medium text-content">Processed</dt>
+                        <dd className="text-sm text-content-muted">{formatTimestamp(status.request.processedAt)}</dd>
+                      </div>
                     ) : null}
                     {status.request.retainedRecordsNote ? (
-                      <p>{status.request.retainedRecordsNote}</p>
+                      <div className="py-4 text-sm leading-6 text-content-muted">{status.request.retainedRecordsNote}</div>
                     ) : null}
-                  </div>
+                  </dl>
+
                   {status.canCancel ? (
                     <Button
-                      variant="terminalOutline"
+                      variant="outline"
                       onClick={() => cancelMutation.mutate()}
                       disabled={cancelMutation.isPending}
-                      className="gap-2"
+                      className="mt-6 gap-2"
                       data-testid="button-cancel-account-deletion"
                     >
-                      {cancelMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Undo2 className="h-4 w-4" />
-                      )}
-                      Cancel Deletion Request
+                      {cancelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                      Cancel deletion request
                     </Button>
                   ) : null}
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Confirm this action by typing <strong>{confirmationText}</strong>. This request
-                    permanently removes account access once processed.
-                  </p>
-                  <div className="space-y-2">
-                    <Label htmlFor="delete-confirmation" className="terminal-label">
-                      Confirmation
-                    </Label>
-                    <Input
-                      id="delete-confirmation"
-                      variant="terminal"
-                      value={confirmationTextInput}
-                      onChange={(event) => setConfirmationTextInput(event.target.value)}
-                      placeholder={confirmationText}
-                      autoCapitalize="characters"
-                      data-testid="input-delete-confirmation"
-                    />
+                <div>
+                  <div className="flex gap-3 rounded-panel border border-destructive/25 bg-destructive-subtle p-4">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+                    <div>
+                      <h2 className="font-bold text-content-strong">This action becomes permanent.</h2>
+                      <p className="mt-1 text-sm leading-6 text-content-muted">Type <strong className="text-content">{confirmationText}</strong> exactly to enable the request button.</p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="delete-reason" className="terminal-label">
-                      Reason (optional)
-                    </Label>
-                    <Input
-                      id="delete-reason"
-                      variant="terminal"
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                      placeholder="privacy, duplicate account, other"
-                      maxLength={200}
-                    />
+
+                  <div className="mt-7 space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-confirmation">Confirmation</Label>
+                      <Input id="delete-confirmation" value={confirmationTextInput} onChange={(event) => setConfirmationTextInput(event.target.value)} placeholder={confirmationText} autoCapitalize="characters" data-testid="input-delete-confirmation" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-reason">Reason (optional)</Label>
+                      <Input id="delete-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Privacy, duplicate account, or another reason" maxLength={200} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-details">Additional details (optional)</Label>
+                      <Textarea id="delete-details" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={1000} placeholder="Include context needed for safe processing." className="min-h-28" />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="delete-details" className="terminal-label">
-                      Additional details (optional)
-                    </Label>
-                    <Textarea
-                      id="delete-details"
-                      value={details}
-                      onChange={(event) => setDetails(event.target.value)}
-                      maxLength={1000}
-                      placeholder="Include any context needed for safe processing."
-                      className="min-h-[100px] border-border bg-background text-sm"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Retention disclosure: trade and reward ledger records may be retained for fraud
-                    prevention, disputes, security review, and legal compliance.
-                  </p>
+
                   <Button
-                    variant="terminal"
-                    className="gap-2"
+                    variant="destructive"
+                    className="mt-7 gap-2"
                     disabled={!canSubmitRequest}
                     onClick={() => requestMutation.mutate()}
                     data-testid="button-request-account-deletion"
                   >
-                    {requestMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                    Submit Deletion Request
+                    {requestMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Submit deletion request
                   </Button>
                 </div>
               )}
-
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="terminalOutline"
-                  className="gap-2"
-                  onClick={() => window.open(MAILTO_HREF, "_self")}
-                >
-                  <Mail className="h-4 w-4" />
-                  Email Support
-                </Button>
-                <Button asChild variant="terminalOutline" className="gap-2">
-                  <Link href="/contact">
-                    <ExternalLink className="h-4 w-4" />
-                    Contact Page
-                  </Link>
-                </Button>
-              </div>
             </CardContent>
           </Card>
+        </main>
 
-          <Card variant="terminal">
-            <CardHeader>
-              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                What We Delete
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-muted-foreground">
-                After your request is processed, Sportfolio removes these account-linked records
-                from active systems:
-              </p>
-              <ul className="space-y-2">
-                {deletedData.map((item) => (
-                  <li key={item} className="terminal-shell px-3 py-2 text-sm text-muted-foreground">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+        <aside className="space-y-5">
+          <section className="rounded-panel border border-border-subtle bg-surface p-5">
+            <h2 className="font-bold text-content-strong">Removed from active systems</h2>
+            <ul className="mt-4 space-y-3 text-sm leading-6 text-content-muted">
+              {deletedData.map((item) => <li key={item} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />{item}</li>)}
+            </ul>
+          </section>
 
-          <Card variant="terminal">
-            <CardHeader>
-              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
-                <AlertTriangle className="h-5 w-5 text-primary" />
-                Data We May Retain Temporarily
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                Some records may be retained for up to 90 days after processing, or longer when
-                required by law or security obligations.
-              </p>
-              <ul className="space-y-2">
-                {retainedData.map((item) => (
-                  <li key={item} className="terminal-shell px-3 py-2 text-sm text-muted-foreground">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-muted-foreground">
-                Need help? Contact{" "}
-                <a className="text-primary underline underline-offset-4" href={MAILTO_HREF}>
-                  {status?.supportEmail || SUPPORT_EMAIL}
-                </a>
-                .
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+          <section className="rounded-panel border border-status-warning/30 bg-status-warning-subtle p-5">
+            <h2 className="font-bold text-content-strong">Records that may be retained</h2>
+            <ul className="mt-4 space-y-3 text-sm leading-6 text-content-muted">
+              {retainedData.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </section>
 
-        <p className="terminal-subtle mt-8">Last updated: May 28, 2026</p>
+          <Button asChild variant="outline" className="w-full gap-2">
+            <a href={MAILTO_HREF}><Mail className="h-4 w-4" aria-hidden="true" />Email support</a>
+          </Button>
+        </aside>
       </div>
-    </div>
+    </SurfaceLayout>
   );
 }

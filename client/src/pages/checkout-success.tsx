@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useLocation, Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Loader2, ReceiptText, Zap } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { StatusSurface } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Loader2, ArrowRight, Zap, AlertCircle, Clock3 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { authenticatedFetch } from "@/lib/queryClient";
 
 export default function CheckoutSuccess() {
@@ -11,13 +11,12 @@ export default function CheckoutSuccess() {
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [receiptId, setReceiptId] = useState<string | null>(null);
   const [state, setState] = useState<"processing" | "credited" | "pending" | "error">("processing");
-  const [message, setMessage] = useState<string>("We're finalizing your payment...");
+  const [message, setMessage] = useState("We're finalizing your payment…");
   const [showManualCheck, setShowManualCheck] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setSearchParams(params);
-
     const receipt = params.get("receipt_id") || params.get("payment_id");
     setReceiptId(receipt);
 
@@ -25,201 +24,146 @@ export default function CheckoutSuccess() {
     let timer: number | null = null;
     const startedAt = Date.now();
 
-    const finalizeOnce = async (): Promise<{ terminal: boolean; pending: boolean }> => {
+    const finalizeOnce = async (): Promise<{ terminal: boolean }> => {
       if (!receipt) {
         setState("pending");
-        setMessage("Missing receipt id. We could not verify this checkout yet.");
-        return { terminal: true, pending: true };
+        setMessage("The return URL did not include a receipt identifier, so this checkout cannot be verified yet.");
+        return { terminal: true };
       }
 
       try {
         const retryDelaysMs = [300, 700, 1200];
-
         let response: Response | null = null;
-        for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
+
+        for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
           response = await authenticatedFetch("/api/checkout/finalize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ receipt_id: receipt }),
           });
-
-          // Auth can still be initializing right after redirect.
           if (response.status !== 401) break;
-
-          await new Promise((r) => setTimeout(r, retryDelaysMs[attempt]));
+          await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
         }
 
         if (!response) {
           setState("error");
-          setMessage("Network error while finalizing payment.");
-          return { terminal: true, pending: false };
+          setMessage("A network error prevented payment verification.");
+          return { terminal: true };
         }
 
-        let data: any = null;
-        try {
-          data = await response.json();
-        } catch {
-          data = null;
-        }
+        const data = await response.json().catch(() => null);
         if (response.ok && data?.success && data?.state === "credited") {
           setState("credited");
-          setMessage("Payment confirmed and shares credited to your account.");
-          return { terminal: true, pending: false };
+          setMessage("Payment confirmed. Your Sportfolio account has been updated.");
+          return { terminal: true };
         }
 
         if (response.status === 202 || data?.state === "pending" || data?.state === "unresolved") {
           setState("pending");
-          setMessage("Payment received. Confirming automatically...");
-          return { terminal: false, pending: true };
+          setMessage("Payment was received and is still being reconciled automatically.");
+          return { terminal: false };
         }
 
         if (response.status === 401) {
           setState("error");
-          setMessage(
-            "You're not signed in. Please sign in again, then refresh this page to confirm your payment.",
-          );
-          return { terminal: true, pending: false };
+          setMessage("Your sign-in session was not available after checkout. Sign in again, then return to this receipt.");
+          return { terminal: true };
         }
 
-        if (
-          response.status === 409 &&
-          (data?.reason === "underpaid" || data?.reason === "amount_mismatch")
-        ) {
+        if (response.status === 409 && (data?.reason === "underpaid" || data?.reason === "amount_mismatch")) {
           setState("error");
-          setMessage(
-            "We received a payment, but the paid amount didn't match the selected quantity. Please contact support or try the purchase again.",
-          );
-          return { terminal: true, pending: false };
+          setMessage("The payment amount did not match the selected purchase. Contact support before attempting another payment.");
+          return { terminal: true };
         }
 
         setState("error");
-        setMessage(data?.error || "We couldn't confirm this payment yet.");
-        return { terminal: true, pending: false };
+        setMessage(data?.error || "Sportfolio could not confirm this payment yet.");
+        return { terminal: true };
       } catch {
         setState("error");
-        setMessage("Network error while finalizing payment.");
-        return { terminal: true, pending: false };
+        setMessage("A network error prevented payment verification.");
+        return { terminal: true };
       }
     };
 
     const poll = async () => {
       if (cancelled) return;
-
       const result = await finalizeOnce();
       if (cancelled || result.terminal) return;
 
       const elapsedMs = Date.now() - startedAt;
       if (elapsedMs > 10_000) setShowManualCheck(true);
-
-      // Keep polling for a reasonable window; webhook confirmation can lag.
       if (elapsedMs > 60_000) {
-        setMessage("Still reconciling. This can take a bit — try again in a moment.");
+        setMessage("Reconciliation is taking longer than expected. Use Check again or contact support with the receipt identifier.");
         return;
       }
 
-      const delay = elapsedMs < 10_000 ? 2000 : 5000;
-      timer = window.setTimeout(poll, delay);
+      timer = window.setTimeout(poll, elapsedMs < 10_000 ? 2000 : 5000);
     };
 
-    poll();
-
+    void poll();
     return () => {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
   }, []);
 
-  const isCredited = state === "credited";
+  const statePresentation =
+    state === "credited"
+      ? { icon: CheckCircle2, title: "Payment confirmed", tone: "bg-market-positive-subtle text-market-positive" }
+      : state === "pending"
+        ? { icon: Clock3, title: "Payment pending", tone: "bg-status-warning-subtle text-status-warning" }
+        : state === "error"
+          ? { icon: AlertCircle, title: "Payment needs attention", tone: "bg-destructive-subtle text-destructive" }
+          : { icon: Loader2, title: "Confirming payment", tone: "bg-brand-subtle text-brand" };
+  const StateIcon = statePresentation.icon;
 
   return (
-    <div className="terminal-page flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <Card variant="terminal" className="border-border">
-          <CardHeader className="text-center pb-2">
-            <div className="terminal-avatar mx-auto mb-4 h-16 w-16">
-              {state === "processing" && <Loader2 className="w-8 h-8 text-primary animate-spin" />}
-              {state === "credited" && <CheckCircle className="w-8 h-8 text-market-positive" />}
-              {state === "pending" && <Clock3 className="w-8 h-8 text-status-warning" />}
-              {state === "error" && <AlertCircle className="w-8 h-8 text-market-negative" />}
-            </div>
-            <div className="terminal-kicker">Payment Status</div>
-            <CardTitle className="terminal-heading text-xl">
-              {state === "processing" && "Processing Payment..."}
-              {state === "credited" && "Payment Confirmed!"}
-              {state === "pending" && "Payment Pending"}
-              {state === "error" && "Payment Confirmation Failed"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="text-center space-y-2">
-              <p className="text-muted-foreground">{message}</p>
-              {receiptId && (
-                <p className="text-xs text-muted-foreground font-mono">Receipt: {receiptId}</p>
-              )}
-            </div>
+    <StatusSurface>
+      <Card variant="default" className="border-border-strong shadow-medium">
+        <CardContent className="p-6 text-center sm:p-9">
+          <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-circle ${statePresentation.tone}`}>
+            <StateIcon className={`h-8 w-8 ${state === "processing" ? "animate-spin" : ""}`} aria-hidden="true" />
+          </div>
+          <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-content-subtle">Checkout status</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-content-strong">{statePresentation.title}</h1>
+          <p className="mx-auto mt-3 max-w-md leading-6 text-content-muted">{message}</p>
 
-            {isCredited ? (
+          {receiptId ? (
+            <div className="mx-auto mt-5 flex max-w-sm items-center justify-center gap-2 rounded-control bg-surface-raised px-3 py-2 text-xs text-content-subtle">
+              <ReceiptText className="h-4 w-4" aria-hidden="true" />
+              <span className="truncate font-mono">{receiptId}</span>
+            </div>
+          ) : null}
+
+          <div className="mt-7 grid gap-3">
+            {state === "credited" ? (
               <>
-                <div className="space-y-3">
-                  <Button
-                    variant="terminal"
-                    onClick={() => navigate("/boosts")}
-                    className="w-full"
-                    size="lg"
-                  >
-                    <Zap className="w-4 h-4 mr-2" />
-                    Go to Boosts
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-
-                  <Button
-                    onClick={() => navigate("/premium")}
-                    variant="terminalOutline"
-                    className="w-full"
-                  >
-                    View Premium Shares
-                  </Button>
-                </div>
-
-                <div className="text-center">
-                  <Badge variant="outline" className="font-mono text-[10px] uppercase">
-                    You can now use your shares for boosts.
-                  </Badge>
-                </div>
+                <Button onClick={() => navigate("/boosts")} className="gap-2">
+                  <Zap className="h-4 w-4" aria-hidden="true" />
+                  Continue to Boosts
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/portfolio")}>View portfolio</Button>
               </>
             ) : (
-              <div className="text-center">
-                {showManualCheck ? (
-                  <Button onClick={() => window.location.reload()} variant="terminalOutline">
-                    Check Again
-                  </Button>
-                ) : (
-                  <Button onClick={() => window.location.reload()} variant="terminalOutline">
-                    Try Again
-                  </Button>
-                )}
-              </div>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                {showManualCheck ? "Check again" : "Retry verification"}
+              </Button>
             )}
+          </div>
 
-            {process.env.NODE_ENV === "development" && searchParams && (
-              <div className="terminal-shell mt-6 overflow-x-auto p-3 text-xs font-mono">
-                <p className="mb-1 font-semibold">Debug Info:</p>
-                {Array.from(searchParams.entries()).map(([key, value]) => (
-                  <div key={key} className="truncate">
-                    {key}: {value}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="mt-6 text-center">
-          <Link href="/" className="terminal-subtle hover:text-primary">
-            Return to Dashboard
+          <Link href="/" className="mt-6 inline-flex text-sm font-medium text-content-muted hover:text-brand">
+            Return to dashboard
           </Link>
-        </div>
-      </div>
-    </div>
+
+          {process.env.NODE_ENV === "development" && searchParams ? (
+            <pre className="mt-6 overflow-x-auto rounded-panel bg-surface-raised p-3 text-left text-xs">
+              {Array.from(searchParams.entries()).map(([key, value]) => `${key}: ${value}`).join("\n")}
+            </pre>
+          ) : null}
+        </CardContent>
+      </Card>
+    </StatusSurface>
   );
 }
