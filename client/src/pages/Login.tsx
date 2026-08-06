@@ -13,6 +13,7 @@ import { SiApple, SiDiscord, SiGoogle } from "react-icons/si";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { hapticMedium, hapticError } from "@/lib/haptics";
+import PasswordlessWebLogin from "@/pages/passwordless-web-login";
 
 type AuthTab = "login" | "signup";
 
@@ -76,6 +77,10 @@ export default function Login() {
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
   const emailIsValid = useMemo(() => isValidEmail(normalizedEmail), [normalizedEmail]);
   const showEmailError = emailTouched && normalizedEmail.length > 0 && !emailIsValid;
+
+  if (!isNative) {
+    return <PasswordlessWebLogin />;
+  }
 
   if (authLoading) {
     return (

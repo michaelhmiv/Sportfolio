@@ -24,6 +24,7 @@ describe("supabase auth middleware", () => {
     SUPABASE_URL: process.env.SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     SUPABASE_KEY: process.env.SUPABASE_KEY,
+    AUTH_PROVIDER: process.env.AUTH_PROVIDER,
   };
 
   beforeEach(() => {
@@ -35,12 +36,15 @@ describe("supabase auth middleware", () => {
     storageMock.upsertUser.mockReset();
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+    process.env.AUTH_PROVIDER = "SUPABASE";
   });
 
   afterEach(() => {
     process.env.SUPABASE_URL = originalEnv.SUPABASE_URL;
     process.env.SUPABASE_SERVICE_ROLE_KEY = originalEnv.SUPABASE_SERVICE_ROLE_KEY;
     process.env.SUPABASE_KEY = originalEnv.SUPABASE_KEY;
+    if (originalEnv.AUTH_PROVIDER === undefined) delete process.env.AUTH_PROVIDER;
+    else process.env.AUTH_PROVIDER = originalEnv.AUTH_PROVIDER;
   });
 
   function makeRequest() {

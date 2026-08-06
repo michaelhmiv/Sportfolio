@@ -23,6 +23,11 @@ import { Browser } from "@capacitor/browser";
 import { normalizeSiteUrl } from "@shared/seo";
 import { unregisterPushTokenOnLogout } from "@/lib/mobile-push";
 import { resolveApiUrl, resolvePublicAppUrl } from "@/lib/native-runtime";
+import {
+  broadcastWebAuthChange,
+  requestPasswordlessEmail,
+  WEB_AUTH_CHANNEL,
+} from "@/lib/passwordless-auth";
 
 const MOBILE_AUTH_REDIRECT_URL = "sportfolio://auth/callback";
 const IS_DEV = import.meta.env.DEV;
@@ -429,7 +434,8 @@ export function useAuth() {
   const fetchUserWithToken = useCallback(async (): Promise<AuthUserResponse | null> => {
     // In dev mode, we might not have a session, but backend allows bypass.
     // So we should try fetching user even without a token if we're in dev mode.
-    if (!session?.access_token && !DEV_BYPASS_ENABLED) {
+    const isWebRuntime = !Capacitor.isNativePlatform();
+    if (!session?.access_token && !DEV_BYPASS_ENABLED && !isWebRuntime) {
       debugLog("FETCH_USER", "No session or access token, returning null");
       return null;
     }
@@ -468,6 +474,7 @@ export function useAuth() {
         resolveApiUrl(`/api/auth/user?sync=${syncWhopOnAuth ? "true" : "false"}`),
         {
           headers,
+          credentials: "include",
           signal: controller.signal,
         },
       );
@@ -501,7 +508,9 @@ export function useAuth() {
     queryKey: ["/api/auth/user"],
     queryFn: fetchUserWithToken,
     // In dev mode, always enable the query; in production, require session
-    enabled: DEV_BYPASS_ENABLED || (isInitialized && !!supabaseClient && !!session),
+    enabled:
+      DEV_BYPASS_ENABLED ||
+      (isInitialized && (!Capacitor.isNativePlatform() || (!!supabaseClient && !!session))),
     staleTime: 5 * 60 * 1000,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
@@ -516,6 +525,29 @@ export function useAuth() {
       });
     }
   }, [user?.whopSync?.credited, toast]);
+
+  const requestMagicLink = useCallback(
+    async (email: string, returnTo = "/"): Promise<AuthResult> => {
+      const normalizedEmail = normalizeEmail(email);
+      if (!isValidEmail(normalizedEmail)) {
+        return {
+          success: false,
+          code: "invalid_email",
+          error: "Please enter a valid email address.",
+        };
+      }
+      try {
+        await requestPasswordlessEmail(normalizedEmail, returnTo);
+        trackAuthEvent("magic_link_requested");
+        return { success: true };
+      } catch (error) {
+        const mapped = mapAuthError(error, "login");
+        trackAuthEvent("magic_link_request_failure", { code: mapped.code });
+        return mapped;
+      }
+    },
+    [],
+  );
 
   const login = useCallback(
     async (email: string, password: string): Promise<AuthResult> => {
@@ -642,12 +674,17 @@ export function useAuth() {
   const logout = useCallback(async () => {
     debugLog("LOGOUT", "Logout attempt");
     try {
-      if (!supabaseClient) {
-        throw new Error("Auth not initialized");
-      }
-
       await unregisterPushTokenOnLogout();
-      await supabaseClient.auth.signOut();
+      if (!Capacitor.isNativePlatform()) {
+        await fetch("/api/auth/better/sign-out", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        }).catch(() => undefined);
+      }
+      if (supabaseClient) await supabaseClient.auth.signOut();
+      broadcastWebAuthChange("signed-out");
 
       queryClient.removeQueries({
         predicate: (query) => {
@@ -763,6 +800,28 @@ export function useAuth() {
     [supabaseClient],
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined" || Capacitor.isNativePlatform()) return;
+    const refresh = () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    };
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel(WEB_AUTH_CHANNEL);
+      channel.onmessage = refresh;
+    } catch {
+      channel = null;
+    }
+    const storageListener = (event: StorageEvent) => {
+      if (event.key === WEB_AUTH_CHANNEL) refresh();
+    };
+    window.addEventListener("storage", storageListener);
+    return () => {
+      channel?.close();
+      window.removeEventListener("storage", storageListener);
+    };
+  }, [queryClient]);
+
   // In dev mode, we're never loading and always authenticated
   const isLoading = DEV_BYPASS_ENABLED ? false : !isInitialized || isQueryLoading;
 
@@ -771,7 +830,9 @@ export function useAuth() {
     session,
     isLoading,
     // In dev mode, authenticated once user query returns; in production, require session
-    isAuthenticated: DEV_BYPASS_ENABLED ? !!user : !!session && !!user,
+    isAuthenticated:
+      DEV_BYPASS_ENABLED || !Capacitor.isNativePlatform() ? !!user : !!session && !!user,
+    requestMagicLink,
     login,
     signup,
     resendVerification,

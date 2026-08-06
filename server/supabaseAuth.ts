@@ -4,6 +4,9 @@ import { createClient, User as SupabaseUser } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { observeAuthTelemetryEvent } from "./observability/metrics";
 import { attachAuthPrincipal, type AuthPrincipal } from "./auth/principal";
+import { tryAttachBetterAuthPrincipal } from "./auth/better-auth-session";
+import { getAuthRuntimeConfig } from "./auth/config";
+import { registerWebAuthRoutes } from "./auth/web-auth";
 
 // Fallback to SUPABASE_KEY if specific keys are missing
 // This handles cases where only the generic SUPABASE_KEY (usually anon) is provided
@@ -206,6 +209,25 @@ export async function isAuthenticated(
     return next();
   }
 
+  const rawAuthProvider = (process.env.AUTH_PROVIDER ?? "SUPABASE").trim().toUpperCase();
+  if (rawAuthProvider !== "SUPABASE") {
+    const authConfig = getAuthRuntimeConfig();
+    try {
+      if (await tryAttachBetterAuthPrincipal(req, authConfig)) {
+        next();
+        return;
+      }
+    } catch (error) {
+      console.error("[AUTH] Better Auth session resolution failed", error);
+      res.status(503).json({ message: "Authentication temporarily unavailable" });
+      return;
+    }
+    if (!authConfig.AUTH_SUPABASE_FALLBACK_ENABLED) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+  }
+
   const token = extractToken(req);
 
   if (!token) {
@@ -273,6 +295,23 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
     return next();
   }
 
+  const rawAuthProvider = (process.env.AUTH_PROVIDER ?? "SUPABASE").trim().toUpperCase();
+  if (rawAuthProvider !== "SUPABASE") {
+    const authConfig = getAuthRuntimeConfig();
+    try {
+      if (await tryAttachBetterAuthPrincipal(req, authConfig)) {
+        next();
+        return;
+      }
+    } catch (error) {
+      console.error("[AUTH] Optional Better Auth resolution failed", error);
+    }
+    if (!authConfig.AUTH_SUPABASE_FALLBACK_ENABLED) {
+      next();
+      return;
+    }
+  }
+
   const token = extractToken(req);
 
   if (token) {
@@ -322,6 +361,8 @@ export async function setupAuth(app: Express): Promise<void> {
   app.post("/api/auth/logout", (_req: Request, res: Response) => {
     res.json({ success: true, message: "Logged out successfully" });
   });
+
+  registerWebAuthRoutes(app);
 
   app.post("/api/auth/telemetry", (req: Request, res: Response) => {
     const event = typeof req.body?.event === "string" ? req.body.event.trim() : "";

@@ -86,6 +86,7 @@ const loadCollectionsPage = () => import("@/pages/collections");
 const loadCollectionDetailPage = () => import("@/pages/collection-detail");
 const loadLoginPage = () => import("@/pages/Login");
 const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
+const loadAuthCompletePage = () => import("@/pages/auth-complete");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
 const loadOnboardingPage = () => import("@/pages/onboarding");
 const loadScoutDashboardModal = () =>
@@ -139,6 +140,7 @@ const Watchlists = lazy(loadWatchlistsPage);
 const Boosts = lazy(loadBoostsPage);
 const Login = lazy(loadLoginPage);
 const AuthCallback = lazy(loadAuthCallbackPage);
+const AuthComplete = lazy(loadAuthCompletePage);
 const CheckoutSuccess = lazy(loadCheckoutSuccessPage);
 const OnboardingPage = lazy(loadOnboardingPage);
 const ScoutDashboardModal = lazy(loadScoutDashboardModal);
@@ -832,6 +834,7 @@ function Router() {
               {/* Auth routes */}
               <Route path="/login" component={Login} />
               <Route path="/auth/callback" component={AuthCallback} />
+              <Route path="/auth/complete" component={AuthComplete} />
               <Route path="/checkout/success" component={CheckoutSuccess} />
               {/* Native full-screen onboarding — replaces the modal on Android/iOS */}
               <Route path="/onboarding" component={OnboardingPage} />
