@@ -16,7 +16,8 @@ jobs:
     timeout-minutes: 45
     env:
       EXPECTED_MAIN_SHA: 0cf2943aa577924e4ff772b7e52e927bd912b7a7
-      EXPECTED_PAYLOAD_SHA256: b16d2538128ad9d2dcf6065cd9a829c68cb1c029fe9337beb683d4a4d38e4780
+      EXPECTED_PAYLOAD_SHA256: 7094690f9d4463363cddaad79fe4e582991412ffb3afe9111dfcfbd80bc3b3bc
+      EXPECTED_DIFF_SHA256: b45999c3a51955c31cd9cb38b379686b9add003da7a9e9d0add9ded0ab8063b5
       TARGET_BRANCH: refactor/remove-retired-agent-sms-curate-mlb
       DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_refactor_ci
     steps:
@@ -27,17 +28,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Reassemble and verify reviewed payload
+      - name: Reassemble and verify reviewed delta
         shell: bash
         run: |
           set -euo pipefail
-          cat .refactor-payload/part-*.b64 > /tmp/refactor-payload.b64
-          base64 --decode /tmp/refactor-payload.b64 > /tmp/refactor-payload.tar.xz
-          echo "${EXPECTED_PAYLOAD_SHA256}  /tmp/refactor-payload.tar.xz" | sha256sum --check --strict
-          mkdir -p /tmp/refactor-payload
-          tar -xJf /tmp/refactor-payload.tar.xz -C /tmp/refactor-payload
-          test -d /tmp/refactor-payload/files
-          test -f /tmp/refactor-payload/deletions.txt
+          cat .refactor-payload/part-*.b64 > /tmp/refactor-delta.b64
+          base64 --decode /tmp/refactor-delta.b64 > /tmp/refactor-delta.json.xz
+          echo "${EXPECTED_PAYLOAD_SHA256}  /tmp/refactor-delta.json.xz" | sha256sum --check --strict
+          xz --decompress --stdout /tmp/refactor-delta.json.xz > /tmp/refactor-delta.json
 
       - name: Verify validated main commit
         shell: bash
@@ -55,17 +53,50 @@ jobs:
         run: |
           set -euo pipefail
           git checkout -B "$TARGET_BRANCH" origin/main
-          while IFS= read -r path; do
-            test -n "$path" || continue
-            rm -rf -- "$path"
-          done < /tmp/refactor-payload/deletions.txt
-          cp -a /tmp/refactor-payload/files/. .
-          rm -rf .refactor-payload .github/workflows/one-shot-apply-retired-refactor.yml
+          python3 - <<'PY'
+          import base64
+          import json
+          import pathlib
+          import shutil
+
+          root = pathlib.Path.cwd()
+          delta = json.loads(pathlib.Path('/tmp/refactor-delta.json').read_text(encoding='utf-8'))
+          expected_base = '0cf2943aa577924e4ff772b7e52e927bd912b7a7'
+          if delta.get('base') != expected_base:
+              raise SystemExit(f"delta base mismatch: {delta.get('base')} != {expected_base}")
+
+          for rel in delta['delete']:
+              target = root / rel
+              if target.is_dir() and not target.is_symlink():
+                  shutil.rmtree(target)
+              elif target.exists() or target.is_symlink():
+                  target.unlink()
+
+          for rel, payload in delta['add'].items():
+              target = root / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              if 'text' in payload:
+                  target.write_text(payload['text'], encoding='utf-8', newline='')
+              else:
+                  target.write_bytes(base64.b64decode(payload['b64']))
+
+          for rel, hunks in delta['modify'].items():
+              target = root / rel
+              lines = target.read_text(encoding='utf-8').splitlines(keepends=True)
+              for start, count, replacement in reversed(hunks):
+                  lines[start:start + count] = replacement.splitlines(keepends=True)
+              target.write_text(''.join(lines), encoding='utf-8', newline='')
+          PY
           git add -A
           git diff --cached --check
-          test -n "$(git diff --cached --name-only)"
+          ACTUAL_DIFF_SHA256="$(git diff --cached --binary | sha256sum | cut -d' ' -f1)"
+          test "$ACTUAL_DIFF_SHA256" = "$EXPECTED_DIFF_SHA256" || {
+            echo "Refusing to push: reconstructed diff checksum mismatch" >&2
+            echo "expected=$EXPECTED_DIFF_SHA256 actual=$ACTUAL_DIFF_SHA256" >&2
+            exit 1
+          }
 
-      - name: Install dependencies
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
