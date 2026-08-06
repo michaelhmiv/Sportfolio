@@ -50,32 +50,54 @@ describe("magic-link delivery", () => {
     ).toThrow("RETURN_ORIGIN_REJECTED");
   });
   it("renders escaped branded content", () => {
-    const rendered = renderMagicLinkEmail("https://auth.sportfolio.market/callback?a=1&b=2");
-    expect(rendered.html).toContain("Sign in securely");
+    const rendered = renderMagicLinkEmail(
+      "https://beta.sportfolio.market/auth/magic-link?gate=gate-id&a=1",
+    );
+    expect(rendered.html).toContain("Continue to Sportfolio");
     expect(rendered.html).toContain("&amp;");
     expect(rendered.text).toContain("expires in 5 minutes");
+    expect(rendered.text).toContain("confirm that you want to continue");
   });
-  it("sends with a token-derived idempotency key without exposing the token", async () => {
+  it("emails only the scanner-safe gate and keeps a token-derived idempotency key", async () => {
     const send = vi.fn().mockResolvedValue({ id: "email-id", error: null });
-    const sender = createResendMagicLinkSender(config(), { send, isSuppressed: async () => false });
+    const gateUrl =
+      "https://beta.sportfolio.market/auth/magic-link?gate=15f78149-0da4-4d79-9333-933ad24d9ab0";
+    const createGate = vi.fn().mockResolvedValue(gateUrl);
+    const sender = createResendMagicLinkSender(config(), {
+      send,
+      createGate,
+      isSuppressed: async () => false,
+    });
+    const verificationUrl =
+      "https://auth.sportfolio.market/callback?token=secret-token&callbackURL=https%3A%2F%2Fbeta.sportfolio.market%2Fportfolio";
     await sender({
       email: "USER@example.com",
-      url: "https://auth.sportfolio.market/callback?callbackURL=https%3A%2F%2Fbeta.sportfolio.market%2Fportfolio",
+      url: verificationUrl,
       token: "secret-token",
     });
     const call = send.mock.calls[0][0];
+    expect(createGate).toHaveBeenCalledWith(verificationUrl);
     expect(call.to).toEqual(["user@example.com"]);
     expect(call.idempotencyKey).toMatch(/^magic-link\/[a-f0-9]{64}$/);
     expect(call.idempotencyKey).not.toContain("secret-token");
+    expect(call.html).toContain(gateUrl.replace("&", "&amp;"));
+    expect(call.html).not.toContain("secret-token");
+    expect(call.text).not.toContain("secret-token");
   });
-  it("silently accepts suppressed recipients", async () => {
+  it("silently accepts suppressed recipients without creating a gate", async () => {
     const send = vi.fn();
-    const sender = createResendMagicLinkSender(config(), { send, isSuppressed: async () => true });
+    const createGate = vi.fn();
+    const sender = createResendMagicLinkSender(config(), {
+      send,
+      createGate,
+      isSuppressed: async () => true,
+    });
     await sender({
       email: "blocked@example.com",
       url: "https://auth.sportfolio.market/callback",
       token: "token",
     });
     expect(send).not.toHaveBeenCalled();
+    expect(createGate).not.toHaveBeenCalled();
   });
 });
