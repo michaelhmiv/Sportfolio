@@ -97,7 +97,8 @@
     "auth:config:test": "vitest run server/auth/config.test.ts",
     "auth:supabase-inventory": "tsx scripts/auth-supabase-inventory.ts",
     "auth:compatibility:test": "vitest run scripts/auth-supabase-inventory.test.ts scripts/better-auth-compatibility.test.ts server/auth/architecture-contract.test.ts",
-    "auth:foundation:test": "vitest run server/auth/principal.test.ts server/auth/better-auth.test.ts server/supabaseAuth.test.ts"
+    "auth:foundation:test": "vitest run server/auth/principal.test.ts server/auth/better-auth.test.ts server/supabaseAuth.test.ts",
+    "auth:email:test": "vitest run server/auth/magic-link-delivery.test.ts server/auth/resend-webhook.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
@@ -202,7 +203,8 @@
     "zod": "4.4.3",
     "better-auth": "1.6.25",
     "@better-auth/oauth-provider": "1.6.25",
-    "@better-auth/drizzle-adapter": "1.6.25"
+    "@better-auth/drizzle-adapter": "1.6.25",
+    "resend": "6.18.1"
   },
   "devDependencies": {
     "@eslint/js": "^8.57.1",
