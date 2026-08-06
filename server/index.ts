@@ -31,6 +31,7 @@ import { normalizeSiteUrl } from "@shared/seo";
 import { isWriteMaintenanceMode, maintenanceWriteGuard } from "./maintenance-mode";
 import { getAuthDiagnostics, getAuthRuntimeConfig } from "./auth/config";
 import { mountBetterAuthHandler } from "./auth/better-auth";
+import { registerResendWebhookRoute } from "./auth/resend-webhook";
 
 const serverStartTime = Date.now();
 let serverReady = false;
@@ -204,6 +205,8 @@ app.use(
   }),
 );
 app.use(express.urlencoded({ extended: false }));
+
+registerResendWebhookRoute(app, authRuntimeConfig);
 
 app.use((req, res, next) => {
   if (req.requestId) setSentryRequestContext(req.requestId);

@@ -7,6 +7,7 @@ import { authAccounts, authSessions, authUsers, authVerifications } from "@share
 import { db } from "../db";
 import { logger } from "../lib/logger";
 import { type AuthRuntimeConfig, getAuthRuntimeConfig } from "./config";
+import { consumeMagicLinkRequestQuota, createResendMagicLinkSender } from "./magic-link-delivery";
 
 export const BETTER_AUTH_BASE_PATH = "/api/auth/better";
 export const BETTER_AUTH_SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 30;
@@ -34,7 +35,9 @@ function disabledMagicLinkSender(): Promise<never> {
 
 export function createBetterAuthServer(
   config: AuthRuntimeConfig = getAuthRuntimeConfig(),
-  sendMagicLink: BetterAuthMagicLinkSender = disabledMagicLinkSender,
+  sendMagicLink: BetterAuthMagicLinkSender = config.AUTH_MAGIC_LINK_ENABLED
+    ? createResendMagicLinkSender(config)
+    : disabledMagicLinkSender,
 ) {
   if (!config.BETTER_AUTH_SECRET || !config.BETTER_AUTH_URL) {
     throw new Error("Better Auth cannot be created without BETTER_AUTH_SECRET and BETTER_AUTH_URL");
@@ -91,6 +94,10 @@ export function mountBetterAuthHandler(
   }
   app.set("trust proxy", 1);
   const auth = getBetterAuthServer(config);
+  app.use(`${BETTER_AUTH_BASE_PATH}/sign-in/magic-link`, (req, res, next) => {
+    if (!consumeMagicLinkRequestQuota(req.ip)) return res.status(202).json({ accepted: true });
+    next();
+  });
   app.all(`${BETTER_AUTH_BASE_PATH}/sign-up/email`, (_req, res) =>
     res.status(404).json({ error: "Password registration is not available" }),
   );
