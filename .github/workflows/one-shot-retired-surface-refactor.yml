@@ -1,0 +1,110 @@
+name: One-Shot Retired Surface Refactor
+
+on:
+  push:
+    branches:
+      - factory/droid-retired-agent-sms-mlb
+    paths:
+      - .factory/retired-agent-sms-mlb.md
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      NODE_ENV: test
+      DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_factory_ci
+
+    steps:
+      - name: Check out implementation branch
+        uses: actions/checkout@v5
+        with:
+          ref: factory/droid-retired-agent-sms-mlb
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Factory Droid CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL https://app.factory.ai/cli | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Implement approved refactor
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          droid exec --auto high -f .factory/retired-agent-sms-mlb.md
+
+      - name: Remove one-shot task infrastructure
+        shell: bash
+        run: |
+          rm -f .factory/retired-agent-sms-mlb.md
+          rm -f .github/workflows/one-shot-retired-surface-refactor.yml
+          rmdir .factory 2>/dev/null || true
+
+      - name: Run validation matrix
+        shell: bash
+        run: |
+          set +e
+          report=.factory-validation.md
+          : > "$report"
+          overall=0
+
+          run_check() {
+            label="$1"
+            shift
+            echo "## $label" >> "$report"
+            echo '```text' >> "$report"
+            "$@" >> "$report" 2>&1
+            status=$?
+            echo '```' >> "$report"
+            if [ "$status" -eq 0 ]; then
+              echo "Result: PASS" >> "$report"
+            else
+              echo "Result: FAIL (exit $status)" >> "$report"
+              overall=1
+            fi
+            echo >> "$report"
+          }
+
+          run_check "TypeScript check" npm run check
+          run_check "ESLint" npm run lint
+          run_check "Formatting" npm run format:check
+          run_check "Full test suite" timeout 35m npm run test:run
+          run_check "Public tool policy" npm run public-tools:audit
+          if npm run | grep -q 'retired-surfaces:audit'; then
+            run_check "Retired surface audit" npm run retired-surfaces:audit
+          fi
+          run_check "Production build" npm run build
+
+          echo "Overall exit marker: $overall" >> "$report"
+          exit 0
+
+      - name: Commit implementation and validation report
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Factory Droid produced no repository changes." >&2
+            exit 1
+          fi
+          git config user.name "factory-droid[bot]"
+          git config user.email "138933559+factory-droid[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor(mcp): remove retired agent and SMS systems"
+          git push origin HEAD:factory/droid-retired-agent-sms-mlb
