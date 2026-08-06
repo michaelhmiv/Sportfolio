@@ -9,3 +9,5 @@ Completion states distinguish missing, invalid, expired, and consumed links with
 Because the canonical auth endpoint and application use sibling subdomains, `BETTER_AUTH_COOKIE_DOMAIN=.sportfolio.market` is required during activation. Better Auth then shares only its signed HttpOnly session cookies across the approved Sportfolio subdomains; trusted-origin and CSRF validation remain enabled.
 
 The web login surface is capability-gated by `/api/auth/capabilities`. When Railway remains on `AUTH_PROVIDER=SUPABASE` or magic links are disabled, the existing Supabase login UI remains active. The passwordless UI is exposed only after the server reports the replacement path as enabled.
+
+Safe rollout order is: deploy dormant code, apply the additive production migration from the production runtime, configure the shared Better Auth secret and cookie domain, verify the Resend domain and webhook, enable `DUAL` plus magic links on beta, validate session continuity and fallback, then promote the same configuration to production. No client deployment can independently expose the passwordless form while the server capability remains disabled.
