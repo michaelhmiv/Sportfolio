@@ -1,14 +1,15 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import {
+  ArrowLeft,
   BookOpen,
-  ChevronDown,
   ChevronRight,
+  FileText,
+  Menu,
   MessageSquare,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
+  Sparkles,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -19,12 +20,11 @@ import {
   type DocsHandbookChapter,
   type DocsSearchResult,
 } from "@shared/docs";
+import { SurfaceLayout, PageHero } from "@/components/surface-layout";
 import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -34,76 +34,51 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  flattenHandbookChapters,
-  getDefaultOpenHandbookSectionIds,
-  getHandbookMatchState,
-  getHandbookSectionIdForAnchor,
-  getLegacyWikiHref,
-  getRequiredOpenHandbookSectionIds,
-} from "@/features/wiki/handbook";
+import { cn } from "@/lib/utils";
+import { getLegacyWikiHref } from "@/features/wiki/handbook";
 
-type DocsHandbookResponse = {
-  handbook: DocsHandbook;
-};
+type DocsHandbookResponse = { handbook: DocsHandbook };
+type DocsSearchResponse = { results: DocsSearchResult[] };
 
-type DocsSearchResponse = {
-  results: DocsSearchResult[];
-};
+function getHash() {
+  return typeof window === "undefined" ? "" : window.location.hash.replace(/^#/, "").trim();
+}
 
-type HandbookMatchState = ReturnType<typeof getHandbookMatchState>;
+function findChapterForAnchor(handbook: DocsHandbook, anchor: string): DocsHandbookChapter | null {
+  if (!anchor) return null;
+  for (const section of handbook.sections) {
+    for (const chapter of section.chapters) {
+      if (chapter.chapterAnchorId === anchor || chapter.headings.some((heading) => heading.id === anchor)) {
+        return chapter;
+      }
+    }
+  }
+  return null;
+}
 
-function HandbookMarkdown({
-  chapter,
-  matchedHeadingIds,
-}: {
-  chapter: DocsHandbookChapter;
-  matchedHeadingIds: Set<string>;
-}) {
+function HandbookMarkdown({ chapter }: { chapter: DocsHandbookChapter }) {
   let headingIndex = 0;
-
   const resolveHeadingId = (fallbackText: string) => {
-    const nextHeading = chapter.headings[headingIndex];
+    const heading = chapter.headings[headingIndex];
     headingIndex += 1;
-    return (
-      nextHeading?.id || getDocsChapterHeadingAnchorId(chapter.section, chapter.slug, fallbackText)
-    );
+    return heading?.id || getDocsChapterHeadingAnchorId(chapter.section, chapter.slug, fallbackText);
   };
-
-  const resolveHeadingClassName = (headingId: string) =>
-    matchedHeadingIds.has(headingId) ? "text-primary" : undefined;
 
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ children }) => {
-          const text = String(children).trim();
-          const headingId = resolveHeadingId(text);
-          return (
-            <h1 id={headingId} className={resolveHeadingClassName(headingId)}>
-              {children}
-            </h1>
-          );
+          const id = resolveHeadingId(String(children).trim());
+          return <h1 id={id} className="scroll-mt-28">{children}</h1>;
         },
         h2: ({ children }) => {
-          const text = String(children).trim();
-          const headingId = resolveHeadingId(text);
-          return (
-            <h2 id={headingId} className={resolveHeadingClassName(headingId)}>
-              {children}
-            </h2>
-          );
+          const id = resolveHeadingId(String(children).trim());
+          return <h2 id={id} className="scroll-mt-28">{children}</h2>;
         },
         h3: ({ children }) => {
-          const text = String(children).trim();
-          const headingId = resolveHeadingId(text);
-          return (
-            <h3 id={headingId} className={resolveHeadingClassName(headingId)}>
-              {children}
-            </h3>
-          );
+          const id = resolveHeadingId(String(children).trim());
+          return <h3 id={id} className="scroll-mt-28">{children}</h3>;
         },
       }}
     >
@@ -114,97 +89,47 @@ function HandbookMarkdown({
 
 function HandbookNavigation({
   handbook,
-  activeAnchorId,
-  activeSectionId,
-  openSectionIds,
-  matchState,
-  onNavigate,
-  onSectionOpenChange,
+  activeChapter,
+  onSelect,
 }: {
   handbook: DocsHandbook;
-  activeAnchorId: string;
-  activeSectionId: string | null;
-  openSectionIds: Set<string>;
-  matchState: HandbookMatchState;
-  onNavigate?: () => void;
-  onSectionOpenChange: (sectionId: string, open: boolean) => void;
+  activeChapter: DocsHandbookChapter | null;
+  onSelect: (chapter: DocsHandbookChapter) => void;
 }) {
   return (
-    <div className="space-y-4">
-      {handbook.sections.map((section) => {
-        const isOpen = openSectionIds.has(section.id);
-        const isSectionHighlighted =
-          activeSectionId === section.id || matchState.matchedSectionAnchors.has(section.anchorId);
-
-        return (
-          <Collapsible
-            key={section.id}
-            open={isOpen}
-            onOpenChange={(open) => onSectionOpenChange(section.id, open)}
-          >
-            <div className="flex items-center gap-2">
-              <a
-                href={`#${section.anchorId}`}
-                onClick={() => onNavigate?.()}
-                className={cn(
-                  "flex-1 rounded-compact border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground flex items-center justify-between gap-2",
-                  isSectionHighlighted && "border-primary/40 bg-primary/5 text-foreground",
-                )}
-              >
-                <span>{section.label}</span>
-                <Badge
-                  variant="secondary"
-                  className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px] shrink-0"
-                >
-                  {section.chapters.length}
-                </Badge>
-              </a>
-              <CollapsibleTrigger asChild>
+    <nav className="space-y-6" aria-label="Handbook chapters">
+      {handbook.sections.map((section) => (
+        <section key={section.id}>
+          <div className="mb-2 flex items-center justify-between gap-2 px-2">
+            <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-content-subtle">
+              {section.label}
+            </h2>
+            <span className="text-xs tabular-nums text-content-subtle">{section.chapters.length}</span>
+          </div>
+          <div className="space-y-1">
+            {section.chapters.map((chapter) => {
+              const selected = activeChapter?.id === chapter.id;
+              return (
                 <button
+                  key={chapter.id}
                   type="button"
+                  onClick={() => onSelect(chapter)}
                   className={cn(
-                    "inline-flex h-9 w-9 items-center justify-center rounded-compact border border-border text-muted-foreground transition-colors hover:text-foreground",
-                    isSectionHighlighted && "border-primary/40 bg-primary/5 text-foreground",
+                    "flex w-full items-start gap-2 rounded-control px-3 py-2 text-left text-sm transition-colors",
+                    selected
+                      ? "bg-brand-subtle text-content"
+                      : "text-content-muted hover:bg-hover hover:text-content",
                   )}
-                  aria-label={`${isOpen ? "Collapse" : "Expand"} ${section.label}`}
-                  data-testid={`button-handbook-section-toggle-${section.id}`}
                 >
-                  {isOpen ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
+                  <FileText className={cn("mt-0.5 h-4 w-4 shrink-0", selected && "text-brand")} aria-hidden="true" />
+                  <span className="min-w-0 flex-1 leading-5">{chapter.title}</span>
                 </button>
-              </CollapsibleTrigger>
-            </div>
-            <CollapsibleContent className="overflow-hidden pt-2">
-              <div className="space-y-1 pl-3">
-                {section.chapters.map((chapter) => {
-                  const isChapterHighlighted =
-                    matchState.matchedChapterAnchors.has(chapter.chapterAnchorId) ||
-                    chapter.chapterAnchorId === activeAnchorId ||
-                    chapter.headings.some((heading) => heading.id === activeAnchorId);
-
-                  return (
-                    <a
-                      key={chapter.id}
-                      href={`#${chapter.chapterAnchorId}`}
-                      onClick={() => onNavigate?.()}
-                      className={cn(
-                        "block rounded-compact px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
-                        isChapterHighlighted && "bg-primary/5 text-foreground",
-                      )}
-                    >
-                      {chapter.title}
-                    </a>
-                  );
-                })}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        );
-      })}
-    </div>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </nav>
   );
 }
 
@@ -213,35 +138,25 @@ export default function WikiPage() {
   const legacySection = sectionParams?.section || "";
   const [, setLocation] = useLocation();
   const [searchValue, setSearchValue] = useState("");
-  const [isTocOpen, setIsTocOpen] = useState(false);
-  const [activeAnchorId, setActiveAnchorId] = useState(() =>
-    typeof window === "undefined" ? "" : window.location.hash.replace(/^#/, "").trim(),
-  );
-  const [openSectionIds, setOpenSectionIds] = useState<Set<string>>(new Set());
-  const hasInitializedOpenSections = useRef(false);
-  const deferredSearchValue = useDeferredValue(searchValue.trim());
+  const [activeAnchor, setActiveAnchor] = useState(getHash);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const deferredSearch = useDeferredValue(searchValue.trim());
 
   const { data, isLoading, error } = useQuery<DocsHandbookResponse>({
     queryKey: ["/api/docs/handbook"],
     queryFn: async () => {
       const response = await authenticatedFetch("/api/docs/handbook");
-      if (!response.ok) {
-        throw new Error("Failed to fetch docs handbook");
-      }
+      if (!response.ok) throw new Error("Failed to fetch docs handbook");
       return response.json();
     },
   });
 
   const { data: searchData } = useQuery<DocsSearchResponse>({
-    queryKey: ["/api/docs/search", deferredSearchValue],
-    enabled: deferredSearchValue.length > 0,
+    queryKey: ["/api/docs/search", deferredSearch],
+    enabled: deferredSearch.length > 0,
     queryFn: async () => {
-      const response = await authenticatedFetch(
-        `/api/docs/search?q=${encodeURIComponent(deferredSearchValue)}`,
-      );
-      if (!response.ok) {
-        throw new Error("Failed to search docs");
-      }
+      const response = await authenticatedFetch(`/api/docs/search?q=${encodeURIComponent(deferredSearch)}`);
+      if (!response.ok) throw new Error("Failed to search docs");
       return response.json();
     },
   });
@@ -254,508 +169,268 @@ export default function WikiPage() {
   });
 
   useEffect(() => {
-    if (!legacySection) {
-      return;
-    }
-
+    if (!legacySection) return;
     setLocation(getLegacyWikiHref(legacySection), { replace: true });
   }, [legacySection, setLocation]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const updateActiveAnchorId = () => {
-      setActiveAnchorId(window.location.hash.replace(/^#/, "").trim());
+    const update = () => setActiveAnchor(getHash());
+    window.addEventListener("hashchange", update);
+    window.addEventListener("popstate", update);
+    return () => {
+      window.removeEventListener("hashchange", update);
+      window.removeEventListener("popstate", update);
     };
-
-    updateActiveAnchorId();
-    window.addEventListener("hashchange", updateActiveAnchorId);
-
-    return () => window.removeEventListener("hashchange", updateActiveAnchorId);
   }, []);
 
-  useEffect(() => {
-    if (!data?.handbook || !activeAnchorId) {
-      return;
-    }
-
-    const handle = window.requestAnimationFrame(() => {
-      document.getElementById(activeAnchorId)?.scrollIntoView({ block: "start" });
-    });
-
-    return () => window.cancelAnimationFrame(handle);
-  }, [activeAnchorId, data?.handbook]);
-
   const handbook = data?.handbook;
+  const activeChapter = useMemo(
+    () => (handbook ? findChapterForAnchor(handbook, activeAnchor) : null),
+    [activeAnchor, handbook],
+  );
+  const activeSection = useMemo(
+    () => handbook?.sections.find((section) => section.chapters.some((chapter) => chapter.id === activeChapter?.id)),
+    [activeChapter?.id, handbook],
+  );
   const searchResults = searchData?.results || [];
-  const chapters = useMemo(() => (handbook ? flattenHandbookChapters(handbook) : []), [handbook]);
-  const matchState = useMemo(
-    () =>
-      handbook
-        ? getHandbookMatchState(handbook, deferredSearchValue, searchResults)
-        : {
-            matchedSectionAnchors: new Set<string>(),
-            matchedChapterAnchors: new Set<string>(),
-            matchedHeadingIds: new Set<string>(),
-          },
-    [deferredSearchValue, handbook, searchResults],
-  );
-  const activeSectionId = useMemo(
-    () => (handbook ? getHandbookSectionIdForAnchor(handbook, activeAnchorId) : null),
-    [activeAnchorId, handbook],
-  );
-  const requiredOpenSectionIds = useMemo(
-    () =>
-      handbook
-        ? getRequiredOpenHandbookSectionIds(
-            handbook,
-            activeAnchorId,
-            matchState.matchedSectionAnchors,
-          )
-        : new Set<string>(),
-    [activeAnchorId, handbook, matchState.matchedSectionAnchors],
-  );
 
-  useEffect(() => {
-    if (!handbook) {
-      hasInitializedOpenSections.current = false;
-      setOpenSectionIds(new Set());
-      return;
-    }
+  const selectChapter = (chapter: DocsHandbookChapter, anchor = chapter.chapterAnchorId) => {
+    window.history.pushState(null, "", `/wiki#${anchor}`);
+    setActiveAnchor(anchor);
+    setMobileNavigationOpen(false);
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+  };
 
-    if (hasInitializedOpenSections.current) {
-      return;
-    }
-
-    setOpenSectionIds(getDefaultOpenHandbookSectionIds(handbook, activeAnchorId));
-    hasInitializedOpenSections.current = true;
-  }, [activeAnchorId, handbook]);
-
-  useEffect(() => {
-    if (!handbook || requiredOpenSectionIds.size === 0) {
-      return;
-    }
-
-    setOpenSectionIds((currentOpenSectionIds) => {
-      const nextOpenSectionIds = new Set(currentOpenSectionIds);
-      let hasChanged = false;
-
-      requiredOpenSectionIds.forEach((sectionId) => {
-        if (!nextOpenSectionIds.has(sectionId)) {
-          nextOpenSectionIds.add(sectionId);
-          hasChanged = true;
-        }
-      });
-
-      return hasChanged ? nextOpenSectionIds : currentOpenSectionIds;
-    });
-  }, [handbook, requiredOpenSectionIds]);
-
-  const handleSectionOpenChange = (sectionId: string, open: boolean) => {
-    setOpenSectionIds((currentOpenSectionIds) => {
-      const nextOpenSectionIds = new Set(currentOpenSectionIds);
-
-      if (open) {
-        nextOpenSectionIds.add(sectionId);
-      } else {
-        nextOpenSectionIds.delete(sectionId);
-      }
-
-      return nextOpenSectionIds;
+  const selectAnchor = (anchor: string) => {
+    if (!handbook) return;
+    const chapter = findChapterForAnchor(handbook, anchor);
+    if (!chapter) return;
+    selectChapter(chapter, anchor);
+    window.requestAnimationFrame(() => {
+      document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submitQuestion = async (event: React.FormEvent) => {
     event.preventDefault();
     const query = searchValue.trim();
-    if (!query) {
-      return;
-    }
-
+    if (!query) return;
     await askMutation.mutateAsync(query);
   };
 
-  if (legacySection) {
-    return null;
-  }
+  if (legacySection) return null;
 
-  if (isLoading) {
-    return (
-      <div className="terminal-page p-6 md:p-10">
-        <div className="max-w-6xl mx-auto">
-          <div className="terminal-subtle text-center">Loading Sportfolio handbook...</div>
-        </div>
-      </div>
-    );
-  }
+  return (
+    <SurfaceLayout kind="docs">
+      <PageHero
+        eyebrow="Sportfolio handbook"
+        title="Learn the market without fighting the documentation."
+        description="Browse focused chapters, search the complete handbook, or ask a direct question about trading, scouting, boosts, collections, and account features."
+        icon={<BookOpen className="h-4 w-4" aria-hidden="true" />}
+        compact
+      />
 
-  if (error || !handbook) {
-    return (
-      <div className="terminal-page p-6 md:p-10">
-        <div className="max-w-6xl mx-auto">
-          <Card variant="terminal">
-            <CardContent className="py-10 text-center">
-              <p className="terminal-heading text-sm">Wiki unavailable</p>
-              <p className="terminal-subtle mt-2">The handbook could not be loaded.</p>
+      {isLoading ? (
+        <div className="mx-auto max-w-7xl px-4 py-16 text-center text-content-muted">Loading Sportfolio handbook…</div>
+      ) : error || !handbook ? (
+        <div className="mx-auto max-w-2xl px-4 py-16">
+          <Card variant="alert">
+            <CardContent className="p-6 text-center">
+              <h2 className="text-lg font-bold text-content-strong">Handbook unavailable</h2>
+              <p className="mt-2 text-content-muted">The documentation service could not be loaded.</p>
             </CardContent>
           </Card>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="terminal-page">
-      <Drawer open={isTocOpen} onOpenChange={setIsTocOpen}>
-        <DrawerContent className="border border-border bg-card text-foreground lg:hidden">
-          <DrawerHeader className="gap-2 text-left">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <DrawerTitle className="terminal-heading text-sm">Handbook Chapters</DrawerTitle>
-                <DrawerDescription className="terminal-subtle">
-                  Jump to any section or chapter in the Sportfolio handbook.
-                </DrawerDescription>
-              </div>
-              <DrawerClose asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  data-testid="button-wiki-mobile-toc-close"
-                >
-                  <PanelLeftClose className="h-4 w-4" />
-                </Button>
-              </DrawerClose>
-            </div>
-          </DrawerHeader>
-          <div className="max-h-[70vh] overflow-y-auto px-4 pb-6">
-            <HandbookNavigation
-              handbook={handbook}
-              activeAnchorId={activeAnchorId}
-              activeSectionId={activeSectionId}
-              openSectionIds={openSectionIds}
-              matchState={matchState}
-              onNavigate={() => setIsTocOpen(false)}
-              onSectionOpenChange={handleSectionOpenChange}
-            />
-          </div>
-        </DrawerContent>
-      </Drawer>
-
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-10">
-        <div className="terminal-shell mb-8 p-6 md:p-8">
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="terminal-strip mb-3">
-                  <BookOpen className="h-3.5 w-3.5" />
-                  Canonical Sportfolio docs
-                </div>
-                <h1 className="terminal-heading text-3xl" data-testid="heading-wiki">
-                  {handbook.title}
-                </h1>
-                <p className="terminal-subtle mt-2 max-w-3xl md:text-sm">{handbook.summary}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant="secondary"
-                  className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
-                >
-                  {handbook.chapterCount} chapters
-                </Badge>
-                <Button
-                  variant="terminalOutline"
-                  className="gap-2 lg:hidden"
-                  onClick={() => setIsTocOpen(true)}
-                  data-testid="button-wiki-mobile-toc"
-                >
-                  <PanelLeftOpen className="h-4 w-4" />
-                  Chapters
-                </Button>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div className="flex flex-col gap-3 md:flex-row">
+      ) : (
+        <>
+          <div className="border-b border-border-subtle bg-surface/70">
+            <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+              <form onSubmit={submitQuestion} className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-subtle" aria-hidden="true" />
                   <Input
-                    variant="terminal"
                     value={searchValue}
                     onChange={(event) => setSearchValue(event.target.value)}
-                    placeholder="Search the handbook or ask a natural-language question"
-                    className="pl-9"
+                    placeholder="Search chapters or ask a Sportfolio question"
+                    className="h-11 pl-10"
                     data-testid="input-wiki-search"
                   />
                 </div>
-                <Button variant="terminal" type="submit" className="gap-2 md:self-stretch">
-                  <MessageSquare className="h-4 w-4" />
-                  Ask Handbook
+                <Button type="submit" className="h-11 gap-2" disabled={!searchValue.trim() || askMutation.isPending}>
+                  <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                  Ask handbook
                 </Button>
-              </div>
+              </form>
 
-              {deferredSearchValue.length > 0 && (
-                <Card variant="terminal" className="border-primary/20">
-                  <CardHeader className="space-y-2 pb-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <CardTitle className="terminal-heading text-sm">Search Matches</CardTitle>
-                      <Badge
-                        variant="outline"
-                        className="rounded-compact font-mono text-[11px] uppercase tracking-[0.08em]"
+              {deferredSearch ? (
+                <div className="mt-3 overflow-hidden rounded-panel border border-border-subtle bg-surface shadow-medium">
+                  {searchResults.length ? (
+                    searchResults.slice(0, 6).map((result) => (
+                      <button
+                        key={`${result.id}-${result.anchorId}`}
+                        type="button"
+                        onClick={() => selectAnchor(result.anchorId)}
+                        className="flex w-full items-start justify-between gap-4 border-b border-border-subtle px-4 py-3 text-left last:border-b-0 hover:bg-hover"
                       >
-                        {searchResults.length}
-                      </Badge>
-                    </div>
-                    <p className="terminal-subtle text-sm">
-                      Matching chapters stay highlighted in the handbook while you type.
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {searchResults.length > 0 ? (
-                      searchResults.slice(0, 6).map((result) => (
-                        <a
-                          key={`${result.id}-${result.anchorId}`}
-                          href={`#${result.anchorId}`}
-                          className="block rounded-compact border px-3 py-3 transition-colors hover:border-primary/40"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="font-medium">{result.title}</div>
-                              <div className="terminal-subtle mt-1 text-sm">{result.summary}</div>
-                            </div>
-                            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                          </div>
-                        </a>
-                      ))
-                    ) : (
-                      <p className="terminal-subtle text-sm">
-                        No direct chapter matches yet. Press Enter to let the handbook answer in
-                        docs mode.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </form>
-          </div>
-        </div>
-
-        {askMutation.data && (
-          <Card
-            variant="terminal"
-            className="mb-8 border-primary/30"
-            data-testid="card-wiki-answer"
-          >
-            <CardHeader className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className="rounded-compact font-mono text-[11px] uppercase tracking-[0.08em]"
-                  >
-                    Sportfolio Handbook
-                  </Badge>
-                  <Badge
-                    variant="secondary"
-                    className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
-                  >
-                    Docs mode
-                  </Badge>
-                  {askMutation.data.fallbackUsed && (
-                    <Badge
-                      variant="secondary"
-                      className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
-                    >
-                      handbook fallback
-                    </Badge>
+                        <span>
+                          <span className="font-semibold text-content">{result.title}</span>
+                          <span className="mt-1 block text-sm text-content-muted">{result.summary}</span>
+                        </span>
+                        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-content-subtle" aria-hidden="true" />
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-4 py-4 text-sm text-content-muted">No direct chapter matches. Submit the question for a handbook answer.</p>
                   )}
                 </div>
+              ) : null}
+            </div>
+          </div>
+
+          <Drawer open={mobileNavigationOpen} onOpenChange={setMobileNavigationOpen}>
+            <DrawerContent className="max-h-[85dvh]">
+              <DrawerHeader className="text-left">
+                <DrawerTitle>Handbook chapters</DrawerTitle>
+                <DrawerDescription>Select one chapter to open a focused reading view.</DrawerDescription>
+              </DrawerHeader>
+              <div className="overflow-y-auto px-4 pb-6">
+                <HandbookNavigation handbook={handbook} activeChapter={activeChapter} onSelect={selectChapter} />
+                <DrawerClose asChild>
+                  <Button variant="outline" className="mt-6 w-full">Close</Button>
+                </DrawerClose>
               </div>
-              <CardTitle className="text-lg leading-tight">{askMutation.data.query}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="whitespace-pre-wrap text-sm leading-6">{askMutation.data.answer}</p>
-              {askMutation.data.citations.length > 0 && (
-                <div className="space-y-2">
-                  <p className="terminal-heading text-sm">Jump to cited chapters</p>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {askMutation.data.citations.map((citation) => (
-                      <a
-                        key={`${citation.id}-${citation.anchorId}`}
-                        href={`#${citation.anchorId}`}
-                        className="block rounded-compact border px-3 py-3 transition-colors hover:border-primary/40"
-                      >
-                        <div className="font-medium">{citation.title}</div>
-                        <div className="terminal-subtle mt-1 text-sm">{citation.excerpt}</div>
-                      </a>
+            </DrawerContent>
+          </Drawer>
+
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-8 lg:py-12">
+            <aside className="hidden lg:block">
+              <div className="sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto pr-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.history.pushState(null, "", "/wiki");
+                    setActiveAnchor("");
+                  }}
+                  className={cn(
+                    "mb-6 flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm font-semibold",
+                    !activeChapter ? "bg-brand-subtle text-content" : "text-content-muted hover:bg-hover hover:text-content",
+                  )}
+                >
+                  <BookOpen className="h-4 w-4 text-brand" aria-hidden="true" />
+                  Handbook overview
+                </button>
+                <HandbookNavigation handbook={handbook} activeChapter={activeChapter} onSelect={selectChapter} />
+              </div>
+            </aside>
+
+            <main className="min-w-0">
+              <Button variant="outline" className="mb-5 gap-2 lg:hidden" onClick={() => setMobileNavigationOpen(true)}>
+                <Menu className="h-4 w-4" aria-hidden="true" />
+                Browse chapters
+              </Button>
+
+              {askMutation.data ? (
+                <Card variant="summary" className="mb-8 border-brand/30">
+                  <CardContent className="p-5 sm:p-6">
+                    <div className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
+                      Handbook answer
+                    </div>
+                    <h2 className="mt-3 text-xl font-bold text-content-strong">{askMutation.data.query}</h2>
+                    <p className="mt-3 whitespace-pre-wrap leading-7 text-content-muted">{askMutation.data.answer}</p>
+                    {askMutation.data.citations.length ? (
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {askMutation.data.citations.map((citation) => (
+                          <Button key={`${citation.id}-${citation.anchorId}`} variant="outline" size="sm" onClick={() => selectAnchor(citation.anchorId)}>
+                            {citation.title}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {askMutation.isError ? (
+                <div className="mb-8 rounded-panel border border-destructive/30 bg-destructive-subtle p-4 text-sm text-destructive">
+                  {askMutation.error.message || "The handbook could not answer that question."}
+                </div>
+              ) : null}
+
+              {activeChapter ? (
+                <article>
+                  <Button
+                    variant="ghost"
+                    className="mb-4 -ml-3 gap-2 text-content-muted"
+                    onClick={() => {
+                      window.history.pushState(null, "", "/wiki");
+                      setActiveAnchor("");
+                    }}
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    Handbook overview
+                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{activeSection?.label || activeChapter.section}</Badge>
+                    <span className="text-sm text-content-subtle">Reviewed {activeChapter.lastReviewedAt}</span>
+                  </div>
+                  <h1 className="mt-5 text-3xl font-black tracking-tight text-content-strong sm:text-4xl">{activeChapter.title}</h1>
+                  <p className="mt-4 max-w-3xl text-lg leading-8 text-content-muted">{activeChapter.summary}</p>
+
+                  {activeChapter.headings.length ? (
+                    <nav className="mt-7 flex flex-wrap gap-2" aria-label="Chapter headings">
+                      {activeChapter.headings.map((heading) => (
+                        <a key={heading.id} href={`#${heading.id}`} className="rounded-pill border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-content-muted hover:border-border-strong hover:text-content">
+                          {heading.text}
+                        </a>
+                      ))}
+                    </nav>
+                  ) : null}
+
+                  <div className="prose prose-slate mt-10 max-w-none prose-headings:scroll-mt-28 prose-headings:font-bold prose-a:text-brand dark:prose-invert">
+                    <HandbookMarkdown chapter={activeChapter} />
+                  </div>
+                </article>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">{handbook.chapterCount} focused guides</p>
+                      <h2 className="mt-2 text-3xl font-black tracking-tight text-content-strong">Choose what you need to understand.</h2>
+                    </div>
+                  </div>
+                  <p className="mt-4 max-w-2xl leading-7 text-content-muted">{handbook.summary}</p>
+
+                  <div className="mt-9 grid gap-5 md:grid-cols-2">
+                    {handbook.sections.map((section) => (
+                      <section key={section.id} className="rounded-panel border border-border-subtle bg-surface p-5 shadow-low">
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="text-lg font-bold text-content-strong">{section.label}</h3>
+                          <Badge variant="secondary">{section.chapters.length}</Badge>
+                        </div>
+                        <div className="mt-4 space-y-1">
+                          {section.chapters.slice(0, 4).map((chapter) => (
+                            <button key={chapter.id} type="button" onClick={() => selectChapter(chapter)} className="group flex w-full items-start justify-between gap-3 rounded-control px-2 py-2 text-left hover:bg-hover">
+                              <span>
+                                <span className="block text-sm font-medium text-content group-hover:text-brand">{chapter.title}</span>
+                                <span className="mt-0.5 line-clamp-1 block text-xs text-content-subtle">{chapter.summary}</span>
+                              </span>
+                              <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-content-subtle" aria-hidden="true" />
+                            </button>
+                          ))}
+                        </div>
+                        {section.chapters.length > 4 ? (
+                          <p className="mt-3 px-2 text-xs text-content-subtle">+{section.chapters.length - 4} more chapters in navigation</p>
+                        ) : null}
+                      </section>
                     ))}
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {askMutation.isError && (
-          <Card variant="terminal" className="mb-8 border-destructive/40">
-            <CardContent className="py-6">
-              <p className="terminal-heading text-sm">Could not answer from the handbook</p>
-              <p className="terminal-subtle mt-2 text-sm">
-                {askMutation.error.message || "The docs answer request failed."}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="terminal-heading text-lg">Sections</h2>
-            <Badge
-              variant="secondary"
-              className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
-            >
-              {handbook.sections.length}
-            </Badge>
+            </main>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {handbook.sections.map((section) => (
-              <a
-                key={section.id}
-                href={`#${section.anchorId}`}
-                className="group block rounded-compact border p-4 transition-colors hover:border-primary/40 hover:bg-primary/[0.02]"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-medium text-sm">{section.label}</h3>
-                  <Badge
-                    variant="secondary"
-                    className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px] shrink-0"
-                  >
-                    {section.chapters.length}
-                  </Badge>
-                </div>
-                <p className="terminal-subtle mt-1 text-sm line-clamp-2">
-                  {section.chapters.map((c) => c.title).join(" · ")}
-                </p>
-              </a>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <Card
-            variant="terminal"
-            className="hidden lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:flex-col"
-          >
-            <CardHeader>
-              <CardTitle className="terminal-heading text-sm">Chapters</CardTitle>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 px-0 pb-0">
-              <ScrollArea className="h-full">
-                <div className="px-6 pb-6">
-                  <HandbookNavigation
-                    handbook={handbook}
-                    activeAnchorId={activeAnchorId}
-                    activeSectionId={activeSectionId}
-                    openSectionIds={openSectionIds}
-                    matchState={matchState}
-                    onSectionOpenChange={handleSectionOpenChange}
-                  />
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-8">
-            {handbook.sections.map((section) => (
-              <section key={section.id} id={section.anchorId} className="scroll-mt-24 space-y-4">
-                <div className="flex items-center gap-3">
-                  <h2 className="terminal-heading text-2xl">{section.label}</h2>
-                  <Badge
-                    variant="secondary"
-                    className="rounded-compact border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
-                  >
-                    {section.chapters.length}
-                  </Badge>
-                </div>
-
-                <div className="space-y-5">
-                  {section.chapters.map((chapter) => (
-                    <article
-                      key={chapter.id}
-                      id={chapter.chapterAnchorId}
-                      className="scroll-mt-24"
-                      data-testid={`chapter-${chapter.slug}`}
-                    >
-                      <Card
-                        variant="terminal"
-                        className={cn(
-                          "border transition-colors",
-                          matchState.matchedChapterAnchors.has(chapter.chapterAnchorId) &&
-                            "border-primary/40",
-                        )}
-                      >
-                        <CardHeader className="space-y-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className="rounded-compact font-mono text-[11px] uppercase tracking-[0.08em]"
-                            >
-                              {section.label}
-                            </Badge>
-                            <span className="terminal-subtle">
-                              Reviewed {chapter.lastReviewedAt}
-                            </span>
-                          </div>
-                          <div>
-                            <h3 className="terminal-heading text-2xl">{chapter.title}</h3>
-                            <p className="terminal-subtle mt-2 text-sm">{chapter.summary}</p>
-                          </div>
-                          {chapter.headings.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {chapter.headings.map((heading) => (
-                                <a
-                                  key={heading.id}
-                                  href={`#${heading.id}`}
-                                  className={cn(
-                                    "rounded-compact border px-2 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground",
-                                    matchState.matchedHeadingIds.has(heading.id) &&
-                                      "border-primary/40 bg-primary/5 text-foreground",
-                                  )}
-                                >
-                                  {heading.text}
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </CardHeader>
-                        <CardContent className="prose prose-sm max-w-none dark:prose-invert">
-                          <HandbookMarkdown
-                            chapter={chapter}
-                            matchedHeadingIds={matchState.matchedHeadingIds}
-                          />
-                        </CardContent>
-                      </Card>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
-
-        {chapters.length === 0 && (
-          <Card variant="terminal" className="mt-8">
-            <CardContent className="py-10 text-center">
-              <p className="terminal-heading text-sm">No handbook chapters available</p>
-              <p className="terminal-subtle mt-2">
-                The readable docs set is empty for this session.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
+        </>
+      )}
+    </SurfaceLayout>
   );
 }
