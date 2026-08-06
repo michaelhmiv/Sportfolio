@@ -1,279 +1,193 @@
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, Clock, Home, RefreshCw, Smartphone } from "lucide-react";
 import { useLocation } from "wouter";
-import { useEffect, useState } from "react";
+import { StatusSurface } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { AlertCircle, Home, RefreshCw, Smartphone, Clock } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
+
+type ErrorCopy = {
+  title: string;
+  message: string;
+  suggestion: string;
+  canAutoRetry: boolean;
+  isMobileIssue: boolean;
+};
+
+function getErrorCopy(error: string, description: string, isMobile: boolean): ErrorCopy {
+  switch (error) {
+    case "link_expired":
+      return {
+        title: "This sign-in link has expired",
+        message: "The link has already been used or is no longer valid.",
+        suggestion: "Request a fresh sign-in link and use the newest email you receive.",
+        canAutoRetry: false,
+        isMobileIssue: false,
+      };
+    case "access_denied":
+      return {
+        title: "Access was not approved",
+        message: "The authentication request was denied.",
+        suggestion: "Try again and approve the requested account access when prompted.",
+        canAutoRetry: false,
+        isMobileIssue: false,
+      };
+    case "session_lost":
+      return {
+        title: "Your sign-in session was interrupted",
+        message: "Sportfolio could not recover the session created during authentication.",
+        suggestion: isMobile
+          ? "Open Sportfolio directly in Chrome or Safari rather than an in-app browser, then try again."
+          : "Confirm cookies are enabled, then start a new sign-in request.",
+        canAutoRetry: true,
+        isMobileIssue: true,
+      };
+    case "redirect_uri_mismatch":
+      return {
+        title: "Authentication configuration error",
+        message: "The return destination did not match the approved configuration.",
+        suggestion: "Contact Sportfolio support and include the error code shown below.",
+        canAutoRetry: false,
+        isMobileIssue: false,
+      };
+    case "server_error":
+      return {
+        title: "Authentication service unavailable",
+        message: "Sportfolio could not complete the request because of a temporary service issue.",
+        suggestion: "Retry in a moment. Contact support if the issue continues.",
+        canAutoRetry: true,
+        isMobileIssue: false,
+      };
+    default:
+      return {
+        title: "Sign-in could not be completed",
+        message: description,
+        suggestion: "Start a new sign-in request. If the problem continues, try a different browser or clear Sportfolio cookies.",
+        canAutoRetry: true,
+        isMobileIssue: isMobile && error === "auth_failed",
+      };
+  }
+}
 
 export default function AuthError() {
   const [, setLocation] = useLocation();
-  const [autoRetryCount, setAutoRetryCount] = useState(0);
   const [countdown, setCountdown] = useState(0);
-
-  // Parse error from URL query params
+  const [autoRetryCancelled, setAutoRetryCancelled] = useState(false);
   const params = new URLSearchParams(window.location.search);
   const error = params.get("error") || "unknown_error";
-  const description = params.get("description") || "An unexpected authentication error occurred";
-
-  // Detect mobile browser
+  const description = params.get("description") || "An unexpected authentication error occurred.";
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  // Map error codes to user-friendly messages
-  const getErrorMessage = () => {
-    switch (error) {
-      case "link_expired":
-        return {
-          title: "Link Expired",
-          message: "This sign-in link has already been used or has expired.",
-          suggestion: "Please sign in again to get a fresh link.",
-          canAutoRetry: false,
-          isMobileIssue: false,
-        };
-      case "access_denied":
-        return {
-          title: "Access Denied",
-          message:
-            "You denied the authentication request. To use Sportfolio, you need to allow access.",
-          suggestion: 'Click "Try Again" and allow access when prompted.',
-          canAutoRetry: false,
-          isMobileIssue: false,
-        };
-      case "server_error":
-        return {
-          title: "Server Error",
-          message: "We encountered a server configuration issue.",
-          suggestion:
-            "Please try again in a few moments. If the problem persists, contact support.",
-          canAutoRetry: true,
-          isMobileIssue: false,
-        };
-      case "callback_failed":
-        return {
-          title: "Authentication Failed",
-          message: description,
-          suggestion: "This might be a temporary issue. Please try logging in again.",
-          canAutoRetry: true,
-          isMobileIssue: false,
-        };
-      case "session_lost":
-        return {
-          title: "Session Expired",
-          message: "Your login session was lost during authentication.",
-          suggestion: isMobile
-            ? "This can happen on mobile browsers due to cookie settings. Try opening Sportfolio in your default browser (Safari on iPhone, Chrome on Android) instead of in-app browsers."
-            : "This can happen if cookies are blocked. Make sure third-party cookies are enabled.",
-          canAutoRetry: true,
-          isMobileIssue: true,
-        };
-      case "state_mismatch":
-        return {
-          title: "Security Check Failed",
-          message: "A security validation check failed during login.",
-          suggestion:
-            "This usually happens when the login page was open too long. Please try again.",
-          canAutoRetry: true,
-          isMobileIssue: false,
-        };
-      case "login_failed":
-        return {
-          title: "Session Error",
-          message: "We could not establish your login session.",
-          suggestion: "Please try again. If this persists, try clearing your browser cookies.",
-          canAutoRetry: true,
-          isMobileIssue: false,
-        };
-      case "auth_failed":
-        return {
-          title: "Login Failed",
-          message: "We were unable to complete your login.",
-          suggestion: isMobile
-            ? "Please try again. If using an in-app browser (like from Twitter or Discord), try opening in Safari or Chrome instead."
-            : "Please try again. Make sure you're using a valid account.",
-          canAutoRetry: true,
-          isMobileIssue: isMobile,
-        };
-      case "redirect_uri_mismatch":
-        return {
-          title: "Configuration Error",
-          message: "There's a mismatch in the authentication configuration.",
-          suggestion: "Please contact support with this error code.",
-          canAutoRetry: false,
-          isMobileIssue: false,
-        };
-      default:
-        return {
-          title: "Authentication Error",
-          message: description,
-          suggestion:
-            "Please try logging in again. If this continues, try using a different browser or clearing your cookies.",
-          canAutoRetry: true,
-          isMobileIssue: false,
-        };
-    }
-  };
-
-  const errorInfo = getErrorMessage();
-
-  // Check sessionStorage to prevent auto-retry loops across page reloads
+  const copy = useMemo(() => getErrorCopy(error, description, isMobile), [description, error, isMobile]);
   const hasAutoRetried =
     typeof window !== "undefined" && sessionStorage.getItem("auth_auto_retry_attempted") === "true";
 
-  // Auto-retry logic for recoverable errors (only on first attempt, once per session)
   useEffect(() => {
-    if (errorInfo.canAutoRetry && !hasAutoRetried && autoRetryCount === 0) {
-      // Start countdown for auto-retry
-      setCountdown(3);
-      const interval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setAutoRetryCount(1);
-            // Mark that we've attempted auto-retry in sessionStorage (persists across page loads)
-            sessionStorage.setItem("auth_auto_retry_attempted", "true");
-            window.location.href = "/login";
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+    if (!copy.canAutoRetry || hasAutoRetried || autoRetryCancelled) return;
 
-      return () => clearInterval(interval);
-    }
-  }, [errorInfo.canAutoRetry, hasAutoRetried, autoRetryCount]);
+    setCountdown(3);
+    const interval = window.setInterval(() => {
+      setCountdown((current) => {
+        if (current <= 1) {
+          window.clearInterval(interval);
+          sessionStorage.setItem("auth_auto_retry_attempted", "true");
+          window.location.href = "/login";
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
 
-  // Clear the auto-retry flag when user manually clicks retry or goes home
-  const clearRetryFlag = () => {
-    sessionStorage.removeItem("auth_auto_retry_attempted");
-  };
+    return () => window.clearInterval(interval);
+  }, [autoRetryCancelled, copy.canAutoRetry, hasAutoRetried]);
 
-  const handleRetry = () => {
-    clearRetryFlag(); // Allow auto-retry again on next failure
-    window.location.href = "/login";
-  };
-
-  const handleGoHome = () => {
-    clearRetryFlag(); // Clear retry flag when leaving
-    setLocation("/");
-  };
-
-  const cancelAutoRetry = () => {
-    setAutoRetryCount(1); // Prevent auto-retry this session
-    setCountdown(0);
-    sessionStorage.setItem("auth_auto_retry_attempted", "true"); // Prevent future auto-retries
-  };
+  const resetRetryFlag = () => sessionStorage.removeItem("auth_auto_retry_attempted");
 
   return (
-    <div className="terminal-page flex items-center justify-center p-4">
-      <Card variant="terminal" className="w-full max-w-lg">
-        <CardHeader className="text-center space-y-2">
-          <div className="terminal-avatar mx-auto mb-4 h-12 w-12 border-destructive/20 bg-destructive/10">
-            <AlertCircle className="w-6 h-6 text-destructive" data-testid="icon-error" />
+    <StatusSurface width="max-w-xl">
+      <Card variant="default" className="border-border-strong shadow-medium">
+        <CardContent className="p-6 sm:p-8">
+          <div className="flex h-14 w-14 items-center justify-center rounded-circle bg-destructive-subtle text-destructive">
+            <AlertCircle className="h-7 w-7" aria-hidden="true" />
           </div>
-          <div className="terminal-kicker">Authentication Status</div>
-          <CardTitle className="terminal-heading text-xl" data-testid="text-error-title">
-            {errorInfo.title}
-          </CardTitle>
-          <CardDescription
-            className="text-sm text-muted-foreground"
-            data-testid="text-error-message"
-          >
-            {errorInfo.message}
-          </CardDescription>
-        </CardHeader>
 
-        <CardContent className="space-y-4">
-          {countdown > 0 && (
-            <Alert className="rounded-compact border-primary/30 bg-primary/5">
-              <Clock className="h-4 w-4" />
-              <AlertTitle className="terminal-label text-[10px]">Retrying Automatically</AlertTitle>
-              <AlertDescription className="flex items-center justify-between">
-                <span className="font-mono text-[11px]">
-                  Trying again in {countdown} second{countdown !== 1 ? "s" : ""}...
-                </span>
-                <Button
-                  variant="terminalOutline"
-                  size="sm"
-                  onClick={cancelAutoRetry}
-                  data-testid="button-cancel-retry"
-                >
-                  Cancel
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-content-strong" data-testid="text-error-title">
+            {copy.title}
+          </h1>
+          <p className="mt-3 leading-6 text-content-muted" data-testid="text-error-message">
+            {copy.message}
+          </p>
 
-          <Alert className="rounded-compact border-border bg-card/70">
-            <AlertTitle className="terminal-label text-[10px]">What You Can Do</AlertTitle>
-            <AlertDescription
-              className="text-sm text-muted-foreground"
-              data-testid="text-error-suggestion"
-            >
-              {errorInfo.suggestion}
-            </AlertDescription>
-          </Alert>
+          <div className="mt-6 rounded-panel border border-border-subtle bg-surface-raised p-4">
+            <p className="font-semibold text-content">Recommended next step</p>
+            <p className="mt-2 text-sm leading-6 text-content-muted" data-testid="text-error-suggestion">
+              {copy.suggestion}
+            </p>
+          </div>
 
-          {isMobile && errorInfo.isMobileIssue && (
-            <Alert className="rounded-compact border-status-warning/30 bg-status-warning/5">
-              <Smartphone className="h-4 w-4" />
-              <AlertTitle className="terminal-label text-[10px]">Mobile Browser Tip</AlertTitle>
-              <AlertDescription className="text-sm text-muted-foreground">
-                If you're having trouble logging in on mobile, try these steps:
-                <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                  <li>Use Safari (iPhone) or Chrome (Android) directly</li>
-                  <li>Avoid in-app browsers from social media apps</li>
-                  <li>Make sure cookies are enabled in your browser settings</li>
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {error !== "access_denied" && (
-            <div className="text-center text-sm text-muted-foreground">
-              <p>
-                Error Code:{" "}
-                <code
-                  className="border border-border bg-muted/50 px-2 py-1 font-mono text-[11px]"
-                  data-testid="text-error-code"
-                >
-                  {error}
-                </code>
-              </p>
-              {hasAutoRetried && (
-                <p className="mt-1 font-mono text-[11px]">Auto-retry was attempted</p>
-              )}
+          {countdown > 0 ? (
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-panel border border-brand/25 bg-brand-subtle p-4 text-sm text-content">
+              <span className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-brand" aria-hidden="true" />
+                Retrying in {countdown} second{countdown === 1 ? "" : "s"}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAutoRetryCancelled(true);
+                  setCountdown(0);
+                  sessionStorage.setItem("auth_auto_retry_attempted", "true");
+                }}
+                data-testid="button-cancel-retry"
+              >
+                Cancel
+              </Button>
             </div>
-          )}
-        </CardContent>
+          ) : null}
 
-        <CardFooter className="flex flex-col sm:flex-row gap-3">
-          <Button
-            variant="terminal"
-            onClick={handleRetry}
-            className="w-full sm:w-auto flex-1"
-            data-testid="button-retry-login"
-            disabled={countdown > 0}
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Try Again
-          </Button>
-          <Button
-            variant="terminalOutline"
-            onClick={handleGoHome}
-            className="w-full sm:w-auto flex-1"
-            data-testid="button-go-home"
-          >
-            <Home className="w-4 h-4 mr-2" />
-            Go Home
-          </Button>
-        </CardFooter>
+          {isMobile && copy.isMobileIssue ? (
+            <div className="mt-4 flex gap-3 rounded-panel border border-status-warning/30 bg-status-warning-subtle p-4 text-sm">
+              <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-status-warning" aria-hidden="true" />
+              <div>
+                <p className="font-semibold text-content">Mobile browser guidance</p>
+                <p className="mt-1 leading-6 text-content-muted">
+                  Use Chrome on Android or Safari on iPhone directly. In-app browsers opened from social media or messaging apps can interrupt secure session cookies.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-5 text-xs text-content-subtle">
+            Error code: <code className="rounded-control bg-surface-raised px-2 py-1 font-mono" data-testid="text-error-code">{error}</code>
+          </div>
+
+          <div className="mt-7 grid gap-3 sm:grid-cols-2">
+            <Button
+              onClick={() => {
+                resetRetryFlag();
+                window.location.href = "/login";
+              }}
+              disabled={countdown > 0}
+              className="gap-2"
+              data-testid="button-retry-login"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Try again
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetRetryFlag();
+                setLocation("/");
+              }}
+              className="gap-2"
+              data-testid="button-go-home"
+            >
+              <Home className="h-4 w-4" aria-hidden="true" />
+              Return home
+            </Button>
+          </div>
+        </CardContent>
       </Card>
-    </div>
+    </StatusSurface>
   );
 }
