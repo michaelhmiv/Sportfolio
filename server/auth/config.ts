@@ -4,7 +4,13 @@ export const authProviderSchema = z.enum(["SUPABASE", "DUAL", "BETTER_AUTH"]);
 export const authMigrationModeSchema = z.enum(["off", "dry-run", "execute"]);
 
 const booleanFlag = z.enum(["true", "false"]).transform((value) => value === "true");
-const optionalUrl = z.string().url().optional();
+const blankToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+const optionalString = z.preprocess(blankToUndefined, z.string().optional());
+const optionalNonEmptyString = z.preprocess(blankToUndefined, z.string().min(1).optional());
+const optionalEmail = z.preprocess(blankToUndefined, z.string().email().optional());
+const optionalDateTime = z.preprocess(blankToUndefined, z.string().datetime().optional());
+const optionalUrl = z.preprocess(blankToUndefined, z.string().url().optional());
 
 export const authEnvironmentSchema = z
   .object({
@@ -21,19 +27,19 @@ export const authEnvironmentSchema = z
     AUTH_DATABASE_ENVIRONMENT: z.enum(["development", "beta", "production"]).optional(),
     AUTH_SHARED_PRODUCTION_DATABASE: booleanFlag.default(false),
     AUTH_MIGRATION_CONFIRM_DATABASE: z.enum(["development", "beta", "production"]).optional(),
-    AUTH_MIGRATION_CONFIRM_CANONICAL_HOST: z.string().optional(),
-    BETTER_AUTH_SECRET: z.string().min(32).optional(),
+    AUTH_MIGRATION_CONFIRM_CANONICAL_HOST: optionalString,
+    BETTER_AUTH_SECRET: z.preprocess(blankToUndefined, z.string().min(32).optional()),
     BETTER_AUTH_URL: optionalUrl,
-    BETTER_AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
-    BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
-    RESEND_API_KEY: z.string().optional(),
-    RESEND_WEBHOOK_SECRET: z.string().optional(),
-    AUTH_EMAIL_FROM: z.string().optional(),
-    AUTH_EMAIL_REPLY_TO: z.string().email().optional(),
+    BETTER_AUTH_COOKIE_DOMAIN: optionalNonEmptyString,
+    BETTER_AUTH_TRUSTED_ORIGINS: optionalString,
+    RESEND_API_KEY: optionalString,
+    RESEND_WEBHOOK_SECRET: optionalString,
+    AUTH_EMAIL_FROM: optionalString,
+    AUTH_EMAIL_REPLY_TO: optionalEmail,
     PLUGIN_OAUTH_ISSUER: optionalUrl,
     PLUGIN_MCP_RESOURCE: optionalUrl,
-    AUTH_SUPABASE_FALLBACK_EXPIRES_AT: z.string().datetime().optional(),
-    RAILWAY_SERVICE_NAME: z.string().optional(),
+    AUTH_SUPABASE_FALLBACK_EXPIRES_AT: optionalDateTime,
+    RAILWAY_SERVICE_NAME: optionalString,
   })
   .superRefine((value, ctx) => {
     const betterAuthEnabled = value.AUTH_PROVIDER !== "SUPABASE";
