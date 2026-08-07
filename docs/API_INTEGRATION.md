@@ -4,15 +4,13 @@ This document describes the external APIs used by Sportfolio for sports data.
 
 ## Overview
 
-| API          | Sport  | Data Provided           | Auth Required |
-| ------------ | ------ | ----------------------- | ------------- |
-| MLB StatsAPI | MLB    | Roster, Schedule, Stats | No            |
-| NASCAR API   | NASCAR | Roster, Schedule, Stats | Internal      |
+| API             | Sport  | Data Provided                   | Auth Required |
+| --------------- | ------ | ------------------------------- | ------------- |
+| MLB StatsAPI    | MLB    | Roster, Schedule, Stats         | No            |
+| NASCAR API      | NASCAR | Roster, Schedule, Stats         | Internal      |
+| ESPN + nflverse | NFL    | Live/current + identity/history | No            |
 
-> **Migration Note (July 2026):** NBA and NFL data ingestion is disabled during the
-> MLB/NASCAR-only migration. The Ball Don't Lie API (previously used for MLB, NBA, and NFL)
-> is no longer consumed for MLB data. NBA and NFL integrations remain in the codebase
-> but are disabled at the scheduler level (`enabled: false` in `scheduler.ts`).
+> **Migration Note (August 2026):** NBA ingestion remains disabled. NFL has been restored on the unified sports foundation using ESPN for current/live data and nflverse for GSIS identity and 2024+ historical statistics. The legacy Ball Don't Lie NFL path is retired.
 
 ---
 

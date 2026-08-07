@@ -1,6 +1,7 @@
 import { storage } from "../storage";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
+import { isNflPreseasonGame } from "../nfl/season";
 
 const SHARE_PAYOUT_BASE_RATE = "1.0000";
 const SNAPSHOT_LOOKBACK_HOURS = 36;
@@ -22,6 +23,7 @@ export async function snapshotSharePayouts(
 
     const gamesToSnapshot = [] as typeof candidateGames;
     for (const game of candidateGames) {
+      if (isNflPreseasonGame(game)) continue;
       const status = (game.status || "").toLowerCase();
       if (status === "postponed" || status === "cancelled") continue;
 

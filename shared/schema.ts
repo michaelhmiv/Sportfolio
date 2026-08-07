@@ -1363,6 +1363,8 @@ export const dailyGames = pgTable(
     sport: text("sport").notNull().default("NBA"), // NBA, NFL, etc.
     date: timestamp("date", { withTimezone: true }).notNull(), // Game date
     week: integer("week"), // NFL week number (1-18 for regular season, null for NBA)
+    season: integer("season"), // NFL season start year; null for sports that do not use it here
+    seasonType: text("season_type"), // NFL: preseason | regular | postseason
     homeTeam: text("home_team").notNull(), // Team abbreviation
     awayTeam: text("away_team").notNull(), // Team abbreviation
     venue: text("venue"),
@@ -1376,6 +1378,11 @@ export const dailyGames = pgTable(
     sportIdx: index("daily_games_sport_idx").on(table.sport),
     sportDateIdx: index("daily_games_sport_date_idx").on(table.sport, table.date),
     sportWeekIdx: index("daily_games_sport_week_idx").on(table.sport, table.week),
+    sportSeasonWeekIdx: index("daily_games_sport_season_week_idx").on(
+      table.sport,
+      table.season,
+      table.week,
+    ),
     dateIdx: index("daily_games_date_idx").on(table.date),
     statusIdx: index("daily_games_status_idx").on(table.status),
     gameIdDateIdx: index("daily_games_game_date_idx").on(table.gameId, table.date),

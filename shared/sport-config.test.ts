@@ -29,3 +29,10 @@ describe("NHL sport configuration", () => {
     expect(getNHLSeasonDisplay(new Date("2026-07-01T12:00:00Z"))).toBe("2026-27");
   });
 });
+
+describe("NFL sport activation", () => {
+  it("is activated by the deterministic NFL restoration patch", () => {
+    expect(ENABLED_SPORTS).toEqual(["MLB", "NASCAR", "NHL", "NFL"]);
+    expect(isEnabledSport("NFL")).toBe(true);
+  });
+});

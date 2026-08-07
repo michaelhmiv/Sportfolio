@@ -2,7 +2,7 @@
  * Unified Live Stats Sync Job
  *
  * Handles live stats for MLB (via public StatsAPI) and NASCAR.
- * NBA and NFL are disabled during the MLB/NASCAR-only migration.
+ * NFL live ingestion runs in the dedicated nfl_live_stats_sync job; NBA remains disabled.
  */
 import { storage } from "../storage";
 import { syncMLBStats } from "./sync-mlb-stats";
@@ -20,7 +20,7 @@ interface UnifiedResult extends JobResult {
  * Unified live stats sync for MLB only.
  * Called every 5 minutes (cron cadence is the throttle).
  *
- * NBA and NFL are excluded during the MLB/NASCAR-only migration.
+ * NFL is intentionally excluded here to prevent duplicate polling; its dedicated job handles it.
  * Uses the public MLB StatsAPI (no auth required).
  */
 export async function syncAllLiveStats(
@@ -85,7 +85,7 @@ export async function syncAllLiveStats(
       }
     }
 
-    // NBA and NFL are disabled during MLB/NASCAR-only migration.
+    // NFL has a dedicated 5-minute sync; NBA remains disabled.
 
     if (mlbGames.length === 0) {
       console.log("[live_stats_sync] No MLB games in window, skipping");

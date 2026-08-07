@@ -8,7 +8,7 @@
 export const SPORTS = ["NBA", "NFL", "MLB", "NASCAR", "NHL"] as const;
 export type Sport = (typeof SPORTS)[number];
 
-export const ENABLED_SPORTS = ["MLB", "NASCAR", "NHL"] as const;
+export const ENABLED_SPORTS = ["MLB", "NASCAR", "NHL", "NFL"] as const;
 export type EnabledSport = (typeof ENABLED_SPORTS)[number];
 
 export function isEnabledSport(sport: string): sport is EnabledSport {
@@ -57,18 +57,14 @@ function getNBASeasonYear(): number {
  * - January-August: use previous year (e.g., Feb 2025 → 2024)
  */
 function getNFLSeason(): string {
-  const now = new Date();
-  const month = now.getMonth();
-  // NFL: Sept-Feb (months 8-1)
-  // If Jan-Aug, use previous year
-  const seasonYear = month < 8 ? now.getFullYear() - 1 : now.getFullYear();
-  return String(seasonYear);
+  return String(getNFLSeasonYear());
 }
 
 function getNFLSeasonYear(): number {
   const now = new Date();
-  const month = now.getMonth();
-  return month < 8 ? now.getFullYear() - 1 : now.getFullYear();
+  // Fallback only: provider season metadata is authoritative server-side.
+  // NFL preseason begins before September, so July-December is the current season.
+  return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
 /**
@@ -134,7 +130,7 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
     fullName: "National Football League",
     icon: "🏈",
     emoji: "🏈",
-    positions: ["QB", "RB", "WR", "TE", "K", "DEF"],
+    positions: ["QB", "RB", "WR", "TE", "K"],
     positionLabels: {
       QB: "Quarterback",
       RB: "Running Back",
@@ -148,7 +144,7 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
       OL: "Offensive Line",
     },
     seasonType: "september-february",
-    apiProvider: "none",
+    apiProvider: "espn+nflverse",
     getApiSeason: getNFLSeason,
     getSeasonYear: getNFLSeasonYear,
   },

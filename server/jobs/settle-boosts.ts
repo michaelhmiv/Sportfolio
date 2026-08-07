@@ -17,6 +17,7 @@ import { sendUserNotification } from "../services/notification-dispatcher";
 import { notifyBoostSettledPush } from "../services/push-notification-events";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
+import { isNflPreseasonGame } from "../nfl/season";
 
 function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {
   return String(sport || "").toUpperCase() === "NBA" && String(gameId || "").startsWith("18447");
@@ -267,6 +268,8 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
           );
           continue;
         }
+
+        if (isNflPreseasonGame(game)) continue;
 
         // Only settle if game is completed (or very likely completed based on elapsed time)
         const gameStatus = (game.status || "").toLowerCase();

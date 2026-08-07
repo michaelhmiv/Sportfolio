@@ -402,7 +402,9 @@ function formatBoardMetricValue(
     case "marketCap":
       return formatCompactCurrency(toNumber(player.marketCap));
     case "price":
-      return `$${toNumber(player.currentPrice).toFixed(2)}`;
+      return player.poolInitialized === false
+        ? "No market yet"
+        : `$${toNumber(player.currentPrice).toFixed(2)}`;
     case "change": {
       const change = toNumber(player.priceChange24h);
       return `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`;
@@ -1268,7 +1270,7 @@ export function MarketMobileHome({
 
                       <div className="text-right">
                         <div className="font-mono text-sm font-semibold">
-                          ${currentPrice.toFixed(2)}
+                          {poolInitialized ? `$${currentPrice.toFixed(2)}` : "No market yet"}
                         </div>
                       </div>
 

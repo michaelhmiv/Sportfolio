@@ -3,6 +3,7 @@ import { broadcastToUser } from "../websocket";
 import { sendUserNotification } from "../services/notification-dispatcher";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
+import { isNflPreseasonGame } from "../nfl/season";
 
 function toFiniteNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
@@ -56,6 +57,7 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
       try {
         const game = await storage.getDailyGameByGameId(payout.gameId);
         if (!game) continue;
+        if (isNflPreseasonGame(game)) continue;
 
         const gameStatus = (game.status || "").toLowerCase();
         if (gameStatus !== "completed" && gameStatus !== "ended") continue;

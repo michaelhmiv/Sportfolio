@@ -57,6 +57,10 @@ const expectedScheduledJobs = {
   nascar_schedule_sync: "45 3 * * *",
   nascar_stats_sync: "20 * * * *",
   nascar_live_sync: "*/5 * * * *",
+  nfl_live_stats_sync: "*/5 * * * *",
+  nfl_schedule_sync: "40 * * * *",
+  nfl_roster_sync: "25 4 * * *",
+  nflverse_stats_sync: "40 5 * * *",
 } as const;
 
 const expectedAdvertisedManualJobs = [
@@ -90,6 +94,10 @@ const expectedAdvertisedManualJobs = [
   "nascar_schedule_sync",
   "nascar_stats_sync",
   "nascar_live_sync",
+  "nfl_live_stats_sync",
+  "nfl_schedule_sync",
+  "nfl_roster_sync",
+  "nflverse_stats_sync",
 ] as const;
 
 vi.mock("node-cron", () => ({
@@ -135,13 +143,18 @@ vi.mock("./market-snapshot", () => ({
   backfillMarketSnapshots: vi.fn().mockResolvedValue(defaultJobResult),
 }));
 vi.mock("./sync-nfl-schedule", () => ({
-  syncNFLSchedule: vi.fn().mockResolvedValue({ gamesProcessed: 0, errors: [] }),
+  syncNFLSchedule: vi.fn().mockResolvedValue({ requestCount: 0, gamesProcessed: 0, errors: [] }),
 }));
 vi.mock("./sync-nfl-stats", () => ({
-  syncNFLStats: vi.fn().mockResolvedValue({ statsProcessed: 0, errors: [] }),
+  syncNFLStats: vi.fn().mockResolvedValue(defaultJobResult),
 }));
 vi.mock("./sync-nfl-roster", () => ({
-  syncNFLRoster: vi.fn().mockResolvedValue({ playersAdded: 0, playersUpdated: 0, errors: [] }),
+  syncNFLRoster: vi
+    .fn()
+    .mockResolvedValue({ requestCount: 0, playersAdded: 0, playersUpdated: 0, errors: [] }),
+}));
+vi.mock("./sync-nflverse-stats", () => ({
+  syncNflverseStats: vi.fn().mockResolvedValue(defaultJobResult),
 }));
 vi.mock("./sync-mlb-schedule", () => ({
   syncMLBSchedule: schedulerMocks.syncMLBSchedule,
@@ -413,8 +426,8 @@ describe("JobScheduler registration and manual dispatch", () => {
         enabled: true,
       })),
     );
-    expect(scheduler.getConfiguredJobs()).toHaveLength(29);
-    expect(schedulerMocks.schedule).toHaveBeenCalledTimes(29);
+    expect(scheduler.getConfiguredJobs()).toHaveLength(33);
+    expect(schedulerMocks.schedule).toHaveBeenCalledTimes(33);
     for (const [, , options] of schedulerMocks.schedule.mock.calls) {
       expect(options).toEqual({ timezone: "America/New_York" });
     }
@@ -435,7 +448,7 @@ describe("JobScheduler registration and manual dispatch", () => {
       "nascar_active_roster_sync",
     ];
 
-    expect(executableJobNames).toHaveLength(30);
+    expect(executableJobNames).toHaveLength(34);
     for (const jobName of executableJobNames) {
       await expect(scheduler.triggerJob(jobName)).resolves.toMatchObject({
         requestCount: expect.any(Number),
@@ -471,11 +484,11 @@ describe("JobScheduler registration and manual dispatch", () => {
     const { jobDefinitions } = await import("./job-registry");
     const names = jobDefinitions.map((job) => job.name);
 
-    expect(names).toHaveLength(31);
+    expect(names).toHaveLength(35);
     expect(new Set(names).size).toBe(names.length);
-    expect(jobDefinitions.filter((job) => job.schedule)).toHaveLength(29);
-    expect(jobDefinitions.filter((job) => job.manualHandler)).toHaveLength(30);
-    expect(jobDefinitions.filter((job) => job.advertiseManual)).toHaveLength(30);
+    expect(jobDefinitions.filter((job) => job.schedule)).toHaveLength(33);
+    expect(jobDefinitions.filter((job) => job.manualHandler)).toHaveLength(34);
+    expect(jobDefinitions.filter((job) => job.advertiseManual)).toHaveLength(34);
 
     for (const group of ["core", "api"] as const) {
       const orders = jobDefinitions

@@ -14,6 +14,7 @@ import { notifyBoostLockingSoonPush } from "../services/push-notification-events
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { sendUserNotification } from "../services/notification-dispatcher";
+import { isNflPreseasonGame } from "../nfl/season";
 
 function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {
   return String(sport || "").toUpperCase() === "NBA" && String(gameId || "").startsWith("18447");
@@ -110,6 +111,8 @@ export async function lockBoostShares(progressCallback?: ProgressCallback): Prom
           );
           continue;
         }
+
+        if (isNflPreseasonGame(game)) continue;
 
         const gameStart = new Date(game.startTime);
         const msUntilStart = gameStart.getTime() - now.getTime();

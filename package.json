@@ -24,6 +24,7 @@
     "db:migration:dump": "node scripts/postgres-migration.mjs dump",
     "db:migration:restore": "node scripts/postgres-migration.mjs restore",
     "db:migration:verify": "node scripts/postgres-migration.mjs verify",
+    "nfl:migrate-data": "tsx scripts/nfl-data-migration.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
