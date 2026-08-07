@@ -15,7 +15,6 @@ Required runtime configuration:
 - `AUTH_NEW_REGISTRATIONS_ENABLED` as the operational registration switch
 - `AUTH_ENVIRONMENT` and `AUTH_DATABASE_ENVIRONMENT` for startup validation
 - `AUTH_SHARED_PRODUCTION_DATABASE=true` only on beta, because beta intentionally uses production Railway PostgreSQL; production leaves this false
-- `AUTH_SUPABASE_FALLBACK_ENABLED=false` until the compatibility flag itself is removed from the auth schema
 - `BETTER_AUTH_SECRET`
 - `BETTER_AUTH_URL`, using the environment's own public origin (`https://beta.sportfolio.market` on beta and `https://www.sportfolio.market` on production)
 - `BETTER_AUTH_TRUSTED_ORIGINS`
@@ -61,7 +60,7 @@ The following prefixes/names must not be reintroduced:
 - `MLB_MCP_HEALTH_CACHE_MS`
 - `MLB_MCP_AUTH_BEARER`
 
-`AUTH_SUPABASE_FALLBACK_ENABLED` is a temporary compatibility switch only. It must remain explicitly `false` while it exists in the schema and must never be used to restore Supabase runtime behavior.
+`AUTH_SUPABASE_FALLBACK_ENABLED` is retained only as a compatibility field in the auth schema. Its code default is `false`, so it may be omitted from Railway. Setting it to `true` with `AUTH_PROVIDER=BETTER_AUTH` is rejected at startup.
 
 ## Environment parity rule
 
