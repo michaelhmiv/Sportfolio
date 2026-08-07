@@ -186,6 +186,9 @@ export function mountBetterAuthHandler(
   app.all(`${BETTER_AUTH_BASE_PATH}/sign-in/email`, (_req, res) =>
     res.status(404).json({ error: "Password login is not available" }),
   );
+  if (config.AUTH_OAUTH_PROVIDER_ENABLED) {
+    app.all("/.well-known/oauth-authorization-server/*", toNodeHandler(auth));
+  }
   app.all(`${BETTER_AUTH_BASE_PATH}/*`, toNodeHandler(auth));
   logger.info(
     {
