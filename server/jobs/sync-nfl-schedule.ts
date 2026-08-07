@@ -14,6 +14,16 @@ export interface NflScheduleSyncResult {
 const formatDate = (date: Date) =>
   `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}`;
 
+const NFL_ALL_STAR_TEAM_ABBREVIATIONS = new Set(["AFC", "NFC"]);
+
+function isNflAllStarExhibition(game: EspnNflGame): boolean {
+  if (game.seasonType !== "postseason") return false;
+  return (
+    NFL_ALL_STAR_TEAM_ABBREVIATIONS.has(game.homeTeam.toUpperCase()) ||
+    NFL_ALL_STAR_TEAM_ABBREVIATIONS.has(game.awayTeam.toUpperCase())
+  );
+}
+
 async function loadFullSeason(
   season: number,
   result: NflScheduleSyncResult,
@@ -38,6 +48,10 @@ async function loadFullSeason(
         result.requestCount++;
         for (const game of values) {
           if (game.season !== season || game.seasonType !== seasonType) continue;
+          // ESPN classifies the Pro Bowl Games under postseason. Sportfolio's
+          // historical postseason means the competitive playoff bracket only;
+          // the AFC/NFC all-star exhibition must not be persisted as a playoff game.
+          if (isNflAllStarExhibition(game)) continue;
           if (!games.has(game.espnId)) seasonTypeGames++;
           games.set(game.espnId, game);
         }
@@ -63,7 +77,11 @@ async function loadFullSeason(
           });
           result.requestCount++;
           for (const game of values) {
-            if (game.season === season && game.seasonType === seasonType) {
+            if (
+              game.season === season &&
+              game.seasonType === seasonType &&
+              !isNflAllStarExhibition(game)
+            ) {
               games.set(game.espnId, game);
             }
           }
