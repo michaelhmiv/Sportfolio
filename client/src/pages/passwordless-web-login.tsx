@@ -1,18 +1,22 @@
 import { useMemo, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { CheckCircle2, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { AuthSurface } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-input";
-import { normalizePasswordlessReturnTo, requestPasswordlessEmail } from "@/lib/passwordless-auth";
+import { normalizePasswordlessReturnTo } from "@/lib/passwordless-auth";
 
 export default function PasswordlessWebLogin() {
+  const { requestMagicLink } = useAuth();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "sent" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
+  const isNative = Capacitor.isNativePlatform();
   const returnTo = useMemo(() => {
     if (typeof window === "undefined") return "/";
     return normalizePasswordlessReturnTo(
@@ -30,24 +34,19 @@ export default function PasswordlessWebLogin() {
 
     setStatus("submitting");
     setError(null);
-
-    try {
-      await requestPasswordlessEmail(normalizedEmail, returnTo);
+    const result = await requestMagicLink(normalizedEmail, returnTo);
+    if (result.success) {
       setStatus("sent");
-    } catch (requestError) {
-      setStatus("error");
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Authentication is temporarily unavailable.",
-      );
+      return;
     }
+    setStatus("error");
+    setError(result.error || "Authentication is temporarily unavailable.");
   };
 
   return (
     <AuthSurface
       title="Sign in to Sportfolio"
-      description="Use a secure, single-use link to continue. No password is required."
+      description="Use a secure, single-use email link to continue. No password is required."
     >
       <Card variant="default" className="overflow-hidden border-border-strong shadow-medium">
         <CardContent className="p-6 sm:p-7">
@@ -64,6 +63,9 @@ export default function PasswordlessWebLogin() {
                   A sign-in link was requested for{" "}
                   <span className="font-medium text-content">{normalizedEmail}</span>. It expires
                   after five minutes and can only be used once.
+                  {isNative
+                    ? " Open it on this device; Sportfolio will return to the app automatically."
+                    : ""}
                 </p>
               </div>
               <Button
@@ -123,8 +125,9 @@ export default function PasswordlessWebLogin() {
               <div className="flex items-start gap-2 border-t border-border-subtle pt-4 text-xs leading-5 text-content-subtle">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
                 <p>
-                  The link creates a secure HttpOnly session and returns you to the page you were
-                  viewing.
+                  {isNative
+                    ? "The link is bound to this device request and exchanges for a revocable app session."
+                    : "The link creates a secure HttpOnly session and returns you to the page you were viewing."}
                 </p>
               </div>
             </form>
