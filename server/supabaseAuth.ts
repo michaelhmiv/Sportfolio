@@ -7,6 +7,7 @@ import { attachAuthPrincipal, type AuthPrincipal } from "./auth/principal";
 import { tryAttachBetterAuthPrincipal } from "./auth/better-auth-session";
 import { getAuthRuntimeConfig } from "./auth/config";
 import { registerWebAuthRoutes } from "./auth/web-auth";
+import { registerNativeAuthRoutes, tryAttachNativeAuthPrincipal } from "./auth/native-auth";
 
 // Fallback to SUPABASE_KEY if specific keys are missing
 // This handles cases where only the generic SUPABASE_KEY (usually anon) is provided
@@ -217,6 +218,10 @@ export async function isAuthenticated(
         next();
         return;
       }
+      if (await tryAttachNativeAuthPrincipal(req)) {
+        next();
+        return;
+      }
     } catch (error) {
       console.error("[AUTH] Better Auth session resolution failed", error);
       res.status(503).json({ message: "Authentication temporarily unavailable" });
@@ -303,6 +308,10 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
         next();
         return;
       }
+      if (await tryAttachNativeAuthPrincipal(req)) {
+        next();
+        return;
+      }
     } catch (error) {
       console.error("[AUTH] Optional Better Auth resolution failed", error);
     }
@@ -363,6 +372,7 @@ export async function setupAuth(app: Express): Promise<void> {
   });
 
   registerWebAuthRoutes(app);
+  registerNativeAuthRoutes(app);
 
   app.post("/api/auth/telemetry", (req: Request, res: Response) => {
     const event = typeof req.body?.event === "string" ? req.body.event.trim() : "";
