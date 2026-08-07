@@ -20,31 +20,58 @@ async function loadFullSeason(
 ): Promise<EspnNflGame[]> {
   const games = new Map<string, EspnNflGame>();
   const weekCounts: Record<NflSeasonType, number> = { preseason: 5, regular: 18, postseason: 6 };
+  const calendarYears = [season, season + 1];
+
   for (const seasonType of ["preseason", "regular", "postseason"] as const) {
-    try {
-      const values = await espnNfl.getGames({ dates: String(season), seasonType, limit: 1000 });
-      result.requestCount++;
-      for (const game of values) games.set(game.espnId, game);
-      if (values.length > 0) continue;
-    } catch (error: any) {
-      result.errors.push(`${season} ${seasonType} season query: ${error?.message || error}`);
-    }
-    for (let week = 1; week <= weekCounts[seasonType]; week++) {
+    let seasonTypeGames = 0;
+
+    // ESPN's dates=YYYY filter is a calendar-year filter, not an NFL-season filter.
+    // Every NFL season crosses into the following January/February, so query both
+    // calendar years and retain only events whose ESPN season metadata matches.
+    for (const calendarYear of calendarYears) {
       try {
-        // Keep the fallback pinned to the requested historical season. Without dates=season,
-        // ESPN interprets week against the current season and a historical rebuild can silently miss games.
         const values = await espnNfl.getGames({
-          dates: String(season),
+          dates: String(calendarYear),
           seasonType,
-          week,
-          limit: 100,
+          limit: 1000,
         });
         result.requestCount++;
         for (const game of values) {
-          if (game.season === season) games.set(game.espnId, game);
+          if (game.season !== season || game.seasonType !== seasonType) continue;
+          if (!games.has(game.espnId)) seasonTypeGames++;
+          games.set(game.espnId, game);
         }
       } catch (error: any) {
-        result.errors.push(`${season} ${seasonType} week ${week}: ${error?.message || error}`);
+        result.errors.push(
+          `${season} ${seasonType} calendar ${calendarYear}: ${error?.message || error}`,
+        );
+      }
+    }
+
+    if (seasonTypeGames > 0) continue;
+
+    // Fallback for provider shape/regression changes. Keep both calendar years here
+    // too so Week 18 and postseason cannot silently disappear again.
+    for (let week = 1; week <= weekCounts[seasonType]; week++) {
+      for (const calendarYear of calendarYears) {
+        try {
+          const values = await espnNfl.getGames({
+            dates: String(calendarYear),
+            seasonType,
+            week,
+            limit: 100,
+          });
+          result.requestCount++;
+          for (const game of values) {
+            if (game.season === season && game.seasonType === seasonType) {
+              games.set(game.espnId, game);
+            }
+          }
+        } catch (error: any) {
+          result.errors.push(
+            `${season} ${seasonType} week ${week} calendar ${calendarYear}: ${error?.message || error}`,
+          );
+        }
       }
     }
   }
