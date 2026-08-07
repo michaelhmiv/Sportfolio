@@ -75,13 +75,15 @@ export async function syncNFLStats(now = new Date()): Promise<NflStatsSyncResult
         const summary = await espnNfl.getSummary(game.espnId);
         result.requestCount++;
         const lines = extractEspnPlayerStats(summary);
-        if (lines.length === 0) {
-          throw new Error("ESPN summary returned no eligible NFL player statistics");
+        const resolvedLines = lines.flatMap((line) => {
+          const identity = identities.byEspnId.get(line.espnId);
+          return identity?.gsisId ? [{ line, identity }] : [];
+        });
+        if (resolvedLines.length === 0) {
+          throw new Error("ESPN summary returned no resolvable eligible NFL player statistics");
         }
         let written = 0;
-        for (const line of lines) {
-          const identity = identities.byEspnId.get(line.espnId);
-          if (!identity?.gsisId) continue;
+        for (const { line, identity } of resolvedLines) {
           const playerId = createNflPlayerId(identity.gsisId);
           let player = await storage.getPlayer(playerId);
           if (!player) {
@@ -119,7 +121,7 @@ export async function syncNFLStats(now = new Date()): Promise<NflStatsSyncResult
           const team = (line.team || player?.team || identity.team || "FA").toUpperCase();
           const isHome = team === game.homeTeam;
           const opponent = isHome ? game.awayTeam : game.homeTeam;
-          const isLastWrittenCandidate = written === lines.length - 1;
+          const isLastWrittenCandidate = written === resolvedLines.length - 1;
           const statsJson = {
             provider: "espn-nfl",
             espnId: line.espnId,
