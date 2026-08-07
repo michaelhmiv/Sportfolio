@@ -4,7 +4,7 @@ This document is the operational source of truth for application-defined runtime
 
 ## Authentication
 
-Sportfolio uses Better Auth backed by Railway PostgreSQL and Resend passwordless email. Public password login and social login are intentionally unsupported.
+Sportfolio uses Better Auth backed by Railway PostgreSQL and Resend passwordless email. Public password login and social login are intentionally unsupported. The application dependency graph and active runtime no longer include the Supabase JavaScript client; legacy Supabase credentials exist only until the live cutover cleanup is certified.
 
 Required runtime configuration:
 
