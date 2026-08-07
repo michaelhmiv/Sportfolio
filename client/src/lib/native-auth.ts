@@ -4,12 +4,17 @@ import { broadcastWebAuthChange } from "./passwordless-auth";
 
 const NATIVE_TOKEN_KEY = "sportfolio_native_auth_token_v1";
 const NATIVE_BINDING_KEY = "sportfolio_native_auth_binding_v1";
+export const NATIVE_AUTH_EVENT = "sportfolio-native-auth-change";
 
 export type NativeAuthSession = {
   accessToken: string;
   expiresAt: string;
   userId: string;
 };
+
+function notifyNativeAuthChange(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(NATIVE_AUTH_EVENT));
+}
 
 function platform(): "ios" | "android" {
   const value = Capacitor.getPlatform();
@@ -79,6 +84,7 @@ export async function exchangeNativeAuthHandoff(code: string): Promise<NativeAut
   }
   localStorage.setItem(NATIVE_TOKEN_KEY, JSON.stringify(payload));
   localStorage.removeItem(NATIVE_BINDING_KEY);
+  notifyNativeAuthChange();
   broadcastWebAuthChange("signed-in");
   return payload;
 }
@@ -93,5 +99,6 @@ export async function clearNativeAuthSession(): Promise<void> {
       headers: { authorization: `Bearer ${token}` },
     }).catch(() => undefined);
   }
+  notifyNativeAuthChange();
   broadcastWebAuthChange("signed-out");
 }
