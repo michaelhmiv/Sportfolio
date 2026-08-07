@@ -31,7 +31,14 @@ async function loadFullSeason(
     }
     for (let week = 1; week <= weekCounts[seasonType]; week++) {
       try {
-        const values = await espnNfl.getGames({ seasonType, week, limit: 100 });
+        // Keep the fallback pinned to the requested historical season. Without dates=season,
+        // ESPN interprets week against the current season and a historical rebuild can silently miss games.
+        const values = await espnNfl.getGames({
+          dates: String(season),
+          seasonType,
+          week,
+          limit: 100,
+        });
         result.requestCount++;
         for (const game of values) {
           if (game.season === season) games.set(game.espnId, game);
