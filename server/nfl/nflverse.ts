@@ -99,7 +99,7 @@ export interface NflverseWeeklyStat extends CsvRow {
   season: string;
   week: string;
   season_type: string;
-  recent_team: string;
+  team: string;
   opponent_team: string;
 }
 
