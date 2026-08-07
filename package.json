@@ -92,13 +92,13 @@
     "governance:capabilities:snapshot": "tsx scripts/public-capability-governance.ts snapshot",
     "governance:capabilities:update": "tsx scripts/public-capability-governance.ts update",
     "auth:config:test": "vitest run server/auth/config.test.ts",
-    "auth:supabase-inventory": "tsx scripts/auth-supabase-inventory.ts",
-    "auth:compatibility:test": "vitest run scripts/auth-supabase-inventory.test.ts scripts/better-auth-compatibility.test.ts server/auth/architecture-contract.test.ts",
-    "auth:foundation:test": "vitest run server/auth/principal.test.ts server/auth/better-auth.test.ts server/supabaseAuth.test.ts",
+    "auth:compatibility:test": "vitest run scripts/better-auth-compatibility.test.ts server/auth/architecture-contract.test.ts",
+    "auth:foundation:test": "vitest run server/auth/principal.test.ts server/auth/better-auth.test.ts server/auth/better-auth-session.test.ts server/auth/native-auth.test.ts",
     "auth:email:test": "vitest run server/auth/magic-link-delivery.test.ts server/auth/resend-webhook.test.ts",
     "auth:web:test": "vitest run server/auth/better-auth-session.test.ts server/auth/web-auth.test.ts client/src/lib/passwordless-auth.contract.test.ts",
     "retired-surfaces:audit": "node scripts/audit-retired-surfaces.mjs",
-    "nfl:backfill-boxscores": "tsx scripts/nfl-boxscore-backfill.ts"
+    "nfl:backfill-boxscores": "tsx scripts/nfl-boxscore-backfill.ts",
+    "retired-runtime:audit": "node scripts/audit-retired-runtime.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
@@ -154,7 +154,6 @@
     "@sentry/node": "^10.69.0",
     "@sentry/react": "^10.69.0",
     "@sinclair/typebox": "^0.34.48",
-    "@supabase/supabase-js": "^2.87.3",
     "@tanstack/react-query": "^5.60.5",
     "@types/canvas-confetti": "^1.9.0",
     "@types/pg": "^8.16.0",
