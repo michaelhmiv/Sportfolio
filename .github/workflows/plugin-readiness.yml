@@ -132,7 +132,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PLUGIN_OAUTH_ISSUER: https://xolfyrbtkmwgllrazcfh.supabase.co/auth/v1
+      PLUGIN_OAUTH_ISSUER: https://auth.sportfolio.market/api/auth/better
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -140,5 +140,5 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Validate Supabase OAuth discovery and JWKS
+      - name: Validate Better Auth OAuth discovery and JWKS
         run: npx tsx scripts/plugin-oauth-discovery-check.ts
