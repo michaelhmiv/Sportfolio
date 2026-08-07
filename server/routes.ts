@@ -62,6 +62,7 @@ import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getPerformanceEarningUnits } from "./lib/performance-earnings";
 import { buildGameStatsPayload } from "./game-stats-response";
+import { getGameBoxscore } from "./game-boxscores";
 import { buildMlbGameplaySignals, type MlbGameplaySignal } from "./mlb-gameplay-signals";
 import { buildMlbPlayerContextPayload } from "./mlb-player-context";
 import { getOrCompute } from "./cache";
@@ -3817,7 +3818,29 @@ ${items}
         ? await storage.getAllHoldingsWithPlayers(userId)
         : null;
 
-      if (game.sport === "MLB") {
+      if (game.sport === "NFL") {
+        // NFL public reads are persisted-only. The five-minute scheduled sync owns ESPN calls.
+        const storedBoxscore = await getGameBoxscore<any>(game.gameId);
+        if (storedBoxscore) {
+          return res.json(storedBoxscore.payload);
+        }
+        return res.json({
+          gameId: game.gameId,
+          sport: "NFL",
+          status: game.status,
+          seasonType: game.seasonType,
+          gameplayEligible: game.seasonType !== "preseason",
+          homeTeam: game.homeTeam,
+          homeScore: game.homeScore ?? 0,
+          awayTeam: game.awayTeam,
+          awayScore: game.awayScore ?? 0,
+          homePlayers: [],
+          awayPlayers: [],
+          homeTopPerformers: [],
+          awayTopPerformers: [],
+          message: "NFL box score is not available yet",
+        });
+      } else if (game.sport === "MLB") {
         const mlbGameIdStr = gameId.startsWith("mlb_") ? gameId.slice(4) : gameId;
         const mlbGameIdNum = Number(mlbGameIdStr);
         if (!Number.isSafeInteger(mlbGameIdNum) || mlbGameIdNum <= 0) {

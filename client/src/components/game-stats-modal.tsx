@@ -33,21 +33,35 @@ export interface NBALiveStats {
 }
 
 export interface NFLPlayerStats {
-  id: number;
+  id: string;
+  espnId: string;
+  playerId?: string | null;
   name: string;
   position: string;
+  passingCompletions?: number;
+  passingAttempts?: number;
   passingYards?: number;
   passingTDs?: number;
+  interceptions?: number;
+  rushingAttempts?: number;
   rushingYards?: number;
   rushingTDs?: number;
+  receptions?: number;
+  receivingTargets?: number;
   receivingYards?: number;
   receivingTDs?: number;
-  receptions?: number;
+  fieldGoalsMade?: number;
+  fieldGoalsAttempted?: number;
+  extraPointsMade?: number;
+  extraPointsAttempted?: number;
 }
 
 export interface NFLLiveStats {
   gameId: string;
+  sport: "NFL";
   status: string;
+  seasonType?: string;
+  gameplayEligible: boolean;
   homeTeam: string;
   homeScore: number;
   awayTeam: string;
@@ -294,71 +308,88 @@ function NBAStatsTable({ liveStats }: { liveStats: NBALiveStats }) {
 
 // NFL Stats Table
 function NFLStatsTable({ liveStats }: { liveStats: NFLLiveStats }) {
+  const PlayerName = ({ player }: { player: NFLPlayerStats }) =>
+    player.playerId ? (
+      <ModalPlayerName playerId={player.playerId} name={player.name} />
+    ) : (
+      <span className="truncate" title="Provider player not yet admitted to Sportfolio">
+        {player.name}
+      </span>
+    );
+
   const PlayerTable = ({ players, teamName }: { players: NFLPlayerStats[]; teamName: string }) => (
     <div>
       <h4 className="text-xs font-semibold text-muted-foreground mb-1">{teamName}</h4>
-      <div className="overflow-hidden rounded-sm border">
-        {/* Header */}
-        <div className="grid grid-cols-7 gap-1 px-2 py-1.5 bg-muted/50 text-[10px] font-medium text-muted-foreground">
-          <div className="col-span-2">PLAYER</div>
-          <div className="text-center">C/A</div>
+      <div className="overflow-x-auto rounded-sm border">
+        <div className="grid min-w-[620px] grid-cols-[2fr_1.2fr_.8fr_1.2fr_1.4fr_1fr_1fr] gap-1 px-2 py-1.5 bg-muted/50 text-[10px] font-medium text-muted-foreground">
+          <div>PLAYER</div>
           <div className="text-center">PASS</div>
+          <div className="text-center">TD/INT</div>
           <div className="text-center">RUSH</div>
           <div className="text-center">REC</div>
-          <div className="text-center">TD</div>
+          <div className="text-center">FG</div>
+          <div className="text-center">XP</div>
         </div>
-        {/* Rows */}
         {players.map((player) => (
           <div
-            key={player.id}
-            className="grid grid-cols-7 gap-1 px-2 py-1.5 border-t text-xs hover:bg-muted/30"
+            key={`${player.espnId}-${player.position}`}
+            className="grid min-w-[620px] grid-cols-[2fr_1.2fr_.8fr_1.2fr_1.4fr_1fr_1fr] gap-1 px-2 py-1.5 border-t text-xs hover:bg-muted/30"
           >
-            <div className="col-span-2 flex items-center gap-1 min-w-0">
-              <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
-                {player.position}
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="text-[9px] bg-secondary px-1 rounded min-w-6 text-center flex-shrink-0">
+                {player.position || "-"}
               </span>
-              <ModalPlayerName playerId={`nfl_${player.id}`} name={player.name} />
+              <PlayerName player={player} />
             </div>
-            {/* Passing */}
             <div className="text-center font-mono text-[10px]">
-              {player.passingYards !== null && player.passingYards !== undefined
-                ? `${player.passingYards} yd`
+              {player.passingAttempts
+                ? `${player.passingCompletions || 0}/${player.passingAttempts} ${player.passingYards || 0}`
                 : "-"}
             </div>
             <div className="text-center font-mono text-[10px]">
-              {player.passingYards !== null && player.passingYards !== undefined
-                ? `${player.passingTDs} TD`
-                : "-"}
-            </div>
-            {/* Rushing */}
-            <div className="text-center font-mono text-[10px]">
-              {player.rushingYards !== null && player.rushingYards !== undefined
-                ? `${player.rushingYards} yd`
-                : "-"}
-            </div>
-            {/* Receiving */}
-            <div className="text-center font-mono text-[10px]">
-              {player.receivingYards !== null && player.receivingYards !== undefined
-                ? `${player.receptions}-${player.receivingYards}`
+              {player.passingAttempts
+                ? `${player.passingTDs || 0}/${player.interceptions || 0}`
                 : "-"}
             </div>
             <div className="text-center font-mono text-[10px]">
-              {player.passingTDs !== undefined
-                ? player.passingTDs + (player.rushingTDs || 0) + (player.receivingTDs || 0)
+              {player.rushingAttempts
+                ? `${player.rushingAttempts}-${player.rushingYards || 0} ${player.rushingTDs || 0}TD`
+                : "-"}
+            </div>
+            <div className="text-center font-mono text-[10px]">
+              {player.receptions || player.receivingTargets
+                ? `${player.receptions || 0}/${player.receivingTargets || 0}-${player.receivingYards || 0} ${player.receivingTDs || 0}TD`
+                : "-"}
+            </div>
+            <div className="text-center font-mono text-[10px]">
+              {player.fieldGoalsAttempted
+                ? `${player.fieldGoalsMade || 0}/${player.fieldGoalsAttempted}`
+                : "-"}
+            </div>
+            <div className="text-center font-mono text-[10px]">
+              {player.extraPointsAttempted
+                ? `${player.extraPointsMade || 0}/${player.extraPointsAttempted}`
                 : "-"}
             </div>
           </div>
         ))}
+        {players.length === 0 && (
+          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+            No player stats available.
+          </div>
+        )}
       </div>
     </div>
   );
 
   return (
     <div className="space-y-4">
-      {/* Away Team */}
+      {liveStats.seasonType === "preseason" && (
+        <div className="rounded-sm border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          Preseason statistics are informational and do not earn Sportfolio fantasy points.
+        </div>
+      )}
       <PlayerTable players={liveStats.awayPlayers} teamName={liveStats.awayTeam} />
-
-      {/* Home Team */}
       <PlayerTable players={liveStats.homePlayers} teamName={liveStats.homeTeam} />
     </div>
   );
