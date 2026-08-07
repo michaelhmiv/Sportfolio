@@ -15,7 +15,3 @@ test-results
 playwright-report
 vendor
 server/mcp/plugin/ui/generated-widget.ts
-.github/workflows/finalization-apply-patch.yml
-.github/workflows/finalization-format.yml
-.github/workflows/finalization-full-ci.yml
-.github/workflows/finalization-inspect-auth-schema.yml
