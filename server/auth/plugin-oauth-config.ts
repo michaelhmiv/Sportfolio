@@ -1,4 +1,4 @@
-const DEFAULT_AUTH_ORIGIN = "https://auth.sportfolio.market";
+const DEFAULT_PUBLIC_ORIGIN = "https://www.sportfolio.market";
 const DEFAULT_AUTH_PATH = "/api/auth/better";
 const DEFAULT_RESOURCE = "https://www.sportfolio.market/mcp/plugin";
 
@@ -11,6 +11,12 @@ function parseCsv(value: string | undefined): string[] {
 
 function normalizeUrl(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function buildAuthorizationServerDiscoveryUrl(issuer: string): string {
+  const parsed = new URL(normalizeUrl(issuer));
+  const issuerPath = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "");
+  return `${parsed.origin}/.well-known/oauth-authorization-server${issuerPath}`;
 }
 
 export type PluginOAuthConfig = {
@@ -26,7 +32,9 @@ export type PluginOAuthConfig = {
 };
 
 export function getPluginOAuthConfig(env: NodeJS.ProcessEnv = process.env): PluginOAuthConfig {
-  const authOrigin = normalizeUrl(env.BETTER_AUTH_URL || DEFAULT_AUTH_ORIGIN);
+  const authOrigin = normalizeUrl(
+    env.BETTER_AUTH_URL || env.PUBLIC_SITE_URL || DEFAULT_PUBLIC_ORIGIN,
+  );
   const issuer = normalizeUrl(env.PLUGIN_OAUTH_ISSUER || `${authOrigin}${DEFAULT_AUTH_PATH}`);
   const resource = normalizeUrl(env.PLUGIN_MCP_RESOURCE || DEFAULT_RESOURCE);
   const clockSkewSeconds = Number.parseInt(env.PLUGIN_OAUTH_CLOCK_SKEW_SECONDS || "60", 10);
@@ -36,7 +44,7 @@ export function getPluginOAuthConfig(env: NodeJS.ProcessEnv = process.env): Plug
     issuer,
     resource,
     discoveryUrl:
-      env.PLUGIN_OAUTH_DISCOVERY_URL || `${issuer}/.well-known/oauth-authorization-server`,
+      env.PLUGIN_OAUTH_DISCOVERY_URL || buildAuthorizationServerDiscoveryUrl(issuer),
     jwksUrl: env.PLUGIN_OAUTH_JWKS_URL || `${issuer}/jwks`,
     requiredScopes: parseCsv(env.PLUGIN_OAUTH_REQUIRED_SCOPES || "openid sportfolio.read"),
     allowedClientIds: parseCsv(env.PLUGIN_OAUTH_ALLOWED_CLIENT_IDS),
