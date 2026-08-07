@@ -52,7 +52,7 @@ describe("NFL full-season schedule sync", () => {
       .mockResolvedValue(undefined as never);
   });
 
-  it("loads Week 18 and postseason from the following calendar year", async () => {
+  it("loads Week 18 and playoffs from the following calendar year while excluding the Pro Bowl", async () => {
     const preseason = game({
       id: "pre",
       seasonType: "preseason",
@@ -75,11 +75,21 @@ describe("NFL full-season schedule sync", () => {
       home: "BUF",
       away: "DEN",
     });
+    const proBowl = game({
+      id: "probowl",
+      seasonType: "postseason",
+      week: 4,
+      startsAt: "2025-02-02T20:00:00Z",
+      home: "NFC",
+      away: "AFC",
+    });
 
     const getGames = vi.spyOn(espnNfl, "getGames").mockImplementation(async (options = {}) => {
       if (options.dates === "2024" && options.seasonType === "preseason") return [preseason];
       if (options.dates === "2025" && options.seasonType === "regular") return [week18];
-      if (options.dates === "2025" && options.seasonType === "postseason") return [wildCard];
+      if (options.dates === "2025" && options.seasonType === "postseason") {
+        return [wildCard, proBowl];
+      }
       return [];
     });
 
@@ -109,6 +119,9 @@ describe("NFL full-season schedule sync", () => {
         seasonType: "postseason",
         week: 1,
       }),
+    );
+    expect(storage.createDailyGame).not.toHaveBeenCalledWith(
+      expect.objectContaining({ gameId: "nfl_probowl" }),
     );
   });
 });
