@@ -169,6 +169,7 @@ describe("unified sports adapters", () => {
   });
 
   it("registers exactly one adapter for each supported sport", () => {
-    expect(createDefaultSportsAdapterRegistry().list()).toEqual(["mlb", "nascar", "nhl"]);
+    const registry = createDefaultSportsAdapterRegistry();
+    expect(registry.list()).toEqual(["mlb", "nascar", "nhl"]);
   });
 });
