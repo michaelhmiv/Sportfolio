@@ -135,7 +135,7 @@ vi.mock("./market-snapshot", () => ({
   backfillMarketSnapshots: vi.fn().mockResolvedValue(defaultJobResult),
 }));
 vi.mock("./sync-nfl-schedule", () => ({
-  syncNFLSchedule: vi.fn().mockResolvedValue({ gamesProcessed: 0, errors: [] }),
+  syncNFLSchedule: vi.fn().mockResolvedValue({ requestCount: 0, gamesProcessed: 0, errors: [] }),
 }));
 vi.mock("./sync-nfl-stats", () => ({
   syncNFLStats: vi.fn().mockResolvedValue({ statsProcessed: 0, errors: [] }),
