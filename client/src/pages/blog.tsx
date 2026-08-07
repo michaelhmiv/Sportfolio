@@ -50,7 +50,10 @@ export default function Blog() {
         {isLoading ? (
           <div className="grid gap-5 md:grid-cols-2">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-48 animate-pulse rounded-panel border border-border-subtle bg-surface-raised" />
+              <div
+                key={index}
+                className="h-48 animate-pulse rounded-panel border border-border-subtle bg-surface-raised"
+              />
             ))}
           </div>
         ) : posts.length ? (
@@ -74,12 +77,18 @@ export default function Blog() {
                         })}
                       </span>
                     </div>
-                    <h2 className={`mt-5 font-bold tracking-tight text-content-strong group-hover:text-brand ${index === 0 && posts.length > 2 ? "text-2xl sm:text-3xl" : "text-xl"}`}>
+                    <h2
+                      className={`mt-5 font-bold tracking-tight text-content-strong group-hover:text-brand ${index === 0 && posts.length > 2 ? "text-2xl sm:text-3xl" : "text-xl"}`}
+                    >
                       {post.title}
                     </h2>
                     <p className="mt-3 flex-1 leading-7 text-content-muted">{post.excerpt}</p>
                     <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-brand">
-                      Read article <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                      Read article{" "}
+                      <ArrowRight
+                        className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                        aria-hidden="true"
+                      />
                     </span>
                   </CardContent>
                 </Card>
@@ -90,8 +99,12 @@ export default function Blog() {
           <Card variant="empty">
             <CardContent className="px-6 py-14 text-center">
               <Newspaper className="mx-auto h-8 w-8 text-content-subtle" aria-hidden="true" />
-              <h2 className="mt-4 text-lg font-bold text-content-strong">No articles published yet</h2>
-              <p className="mt-2 text-content-muted">Platform updates and strategy notes will appear here.</p>
+              <h2 className="mt-4 text-lg font-bold text-content-strong">
+                No articles published yet
+              </h2>
+              <p className="mt-2 text-content-muted">
+                Platform updates and strategy notes will appear here.
+              </p>
             </CardContent>
           </Card>
         )}

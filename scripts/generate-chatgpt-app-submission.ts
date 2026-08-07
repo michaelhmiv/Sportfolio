@@ -64,7 +64,8 @@ const positiveToolMap: Record<string, string> = {
   "public-player-research": "search_players, get_player_detail, get_player_recent_games",
   "portfolio-overview": "get_portfolio_summary",
   "confirmed-market-buy": "search_players, stage_market_buy, confirm_pending_action",
-  "confirmed-daily-boost": "list_daily_boost_eligible_players, stage_daily_boost_assign, confirm_pending_action",
+  "confirmed-daily-boost":
+    "list_daily_boost_eligible_players, stage_daily_boost_assign, confirm_pending_action",
   "watchlist-management": "search_players, create_watchlist, add_watchlist_player",
 };
 
@@ -118,7 +119,9 @@ if (process.argv.includes("--check")) {
     console.error("chatgpt-app-submission.json is stale. Regenerate it before submission.");
     process.exit(1);
   }
-  console.log(`Submission import verified: ${catalog.length} static tools, 5 positive cases, 3 negative cases.`);
+  console.log(
+    `Submission import verified: ${catalog.length} static tools, 5 positive cases, 3 negative cases.`,
+  );
 } else {
   writeFileSync(outputPath, rendered, "utf8");
   console.log(`Generated chatgpt-app-submission.json for ${catalog.length} static tools.`);

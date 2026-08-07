@@ -1,12 +1,4 @@
 import type { Express, Request, Response } from "express";
-import {
-  cancelAgentThread,
-  confirmAgentThread,
-  createAgentThread,
-  listAgentThreads,
-  sendAgentThreadMessage,
-} from "../agent/thread-service";
-import { getAgentCapabilities } from "../agent/service";
 import { createUserApiTokenMaterial, requireUserApiToken } from "../api-token-auth";
 import {
   buildPublicPromptRegistry,
@@ -40,21 +32,10 @@ function toTokenView(token: UserApiToken) {
   };
 }
 
-function extractErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  return String(error || "");
-}
-
 function handleCliRouteError(res: Response, error: unknown, fallbackMessage: string) {
   console.error("[CLI] Route error:", error);
-  const errorMessage = extractErrorMessage(error);
-  const isAgentConcurrencyError = errorMessage.includes("An agent analysis is already running");
-  const statusCode = isAgentConcurrencyError ? 429 : 500;
-  const message = isAgentConcurrencyError
-    ? "Agent is currently processing another request for this account. Retry in a few seconds."
-    : fallbackMessage;
+  const statusCode = 500;
+  const message = fallbackMessage;
   const errorDetail =
     process.env.NODE_ENV !== "production"
       ? error instanceof Error
@@ -64,79 +45,32 @@ function handleCliRouteError(res: Response, error: unknown, fallbackMessage: str
 
   res.status(statusCode).json({
     message,
-    ...(isAgentConcurrencyError ? { retryable: true } : {}),
     ...(errorDetail ? { error: errorDetail } : {}),
   });
 }
 
-async function stageCliAgentMessage(input: {
-  userId: string;
-  message: string;
-  threadId?: string;
-  title?: string;
-}) {
-  const existingThreadId = input.threadId?.trim() || "";
-  const title = input.title?.trim() || "";
-  const thread =
-    existingThreadId !== ""
-      ? { id: existingThreadId }
-      : await createAgentThread(input.userId, {
-          channel: "cli",
-          ...(title ? { title } : {}),
-        });
-
-  const result = await sendAgentThreadMessage(input.userId, thread.id, { message: input.message });
-
-  return {
-    threadId: thread.id,
-    createdThread: existingThreadId === "",
-    result,
-  };
-}
-
-function buildCliActionMessage(body: any): string | null {
+function buildCliActionInvocation(
+  body: any,
+): { toolName: string; args: Record<string, unknown> } | null {
   const action = typeof body?.action === "string" ? body.action.trim().toLowerCase() : "";
-  const player = typeof body?.player === "string" ? body.player.trim() : "";
-  const dollars = Number(body?.dollars);
+  const playerId =
+    typeof body?.playerId === "string"
+      ? body.playerId.trim()
+      : typeof body?.player === "string"
+        ? body.player.trim()
+        : "";
+  const amount = Number(body?.dollars ?? body?.amount);
   const shares = Number(body?.shares);
 
-  if (action === "buy") {
-    if (!player || !Number.isFinite(dollars) || dollars <= 0) {
-      return null;
-    }
-    return `buy $${dollars} of ${player}`;
+  if (action === "buy" && playerId && Number.isFinite(amount) && amount > 0) {
+    return { toolName: "stage_market_buy", args: { playerId, amount } };
   }
-
-  if (action === "sell") {
-    if (!player || !Number.isFinite(shares) || shares <= 0) {
-      return null;
-    }
-    return `sell ${shares} shares of ${player}`;
+  if (action === "sell" && playerId && Number.isFinite(shares) && shares > 0) {
+    return { toolName: "stage_market_sell", args: { playerId, shares } };
   }
-
-  if (action === "watchlist_add") {
-    if (!player) {
-      return null;
-    }
-    return `add ${player} to my watchlist`;
+  if (action === "community_boost" && playerId) {
+    return { toolName: "stage_community_boost_create", args: { playerId } };
   }
-
-  if (action === "watchlist_remove") {
-    if (!player) {
-      return null;
-    }
-    return `remove ${player} from my watchlist`;
-  }
-
-  if (action === "community_boost") {
-    if (!player) {
-      return null;
-    }
-    const timing =
-      typeof body?.timing === "string" && body.timing.trim() ? body.timing.trim() : "today";
-    return `create a community boost for ${player} ${timing}`;
-  }
-
   return null;
 }
 
@@ -266,7 +200,11 @@ export function registerCliRoutes(app: Express): void {
           username: user.username,
           email: user.email,
         },
-        capabilities: await getAgentCapabilities(userId),
+        capabilities: {
+          toolCatalogUrl: "/api/cli/tools/catalog",
+          stagedActions: true,
+          semanticMlbTools: true,
+        },
         docs: {
           indexUrl: "/api/docs/index",
           searchUrl: "/api/docs/search",
@@ -305,97 +243,24 @@ export function registerCliRoutes(app: Express): void {
     },
   );
 
-  app.get("/api/cli/agent/threads", requireUserApiToken, async (req: Request, res: Response) => {
-    try {
-      const result = await executePublicTool(
-        createPublicContext(getUserId(req)),
-        "list_agent_threads",
-      );
-      res.json(result);
-    } catch (error) {
-      handleCliRouteError(res, error, "Could not load agent threads");
-    }
-  });
-
-  app.post("/api/cli/agent/ask", requireUserApiToken, async (req: Request, res: Response) => {
-    try {
-      const userId = getUserId(req);
-      const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
-
-      if (!message) {
-        res.status(400).json({ message: "Message is required" });
-        return;
-      }
-
-      res.json(
-        await stageCliAgentMessage({
-          userId,
-          message,
-          threadId: typeof req.body?.threadId === "string" ? req.body.threadId : undefined,
-          title: typeof req.body?.title === "string" ? req.body.title : undefined,
-        }),
-      );
-    } catch (error) {
-      handleCliRouteError(res, error, "Could not send agent message");
-    }
-  });
-
   app.post("/api/cli/actions/stage", requireUserApiToken, async (req: Request, res: Response) => {
     try {
-      const message = buildCliActionMessage(req.body);
-      if (!message) {
+      const invocation = buildCliActionInvocation(req.body);
+      if (!invocation) {
         res.status(400).json({ message: "Invalid CLI action payload" });
         return;
       }
-
       res.json(
-        await stageCliAgentMessage({
-          userId: getUserId(req),
-          message,
-          threadId: typeof req.body?.threadId === "string" ? req.body.threadId : undefined,
-          title: typeof req.body?.title === "string" ? req.body.title : undefined,
-        }),
+        await executePublicTool(
+          createPublicContext(getUserId(req)),
+          invocation.toolName,
+          invocation.args,
+        ),
       );
     } catch (error) {
       handleCliRouteError(res, error, "Could not stage CLI action");
     }
   });
-
-  app.post(
-    "/api/cli/agent/threads/:threadId/confirm",
-    requireUserApiToken,
-    async (req: Request, res: Response) => {
-      try {
-        res.json(
-          await confirmAgentThread(
-            getUserId(req),
-            req.params.threadId,
-            typeof req.body?.pendingBundleId === "string" ? req.body.pendingBundleId : undefined,
-          ),
-        );
-      } catch (error) {
-        handleCliRouteError(res, error, "Could not confirm agent action bundle");
-      }
-    },
-  );
-
-  app.post(
-    "/api/cli/agent/threads/:threadId/cancel",
-    requireUserApiToken,
-    async (req: Request, res: Response) => {
-      try {
-        res.json(
-          await cancelAgentThread(
-            getUserId(req),
-            req.params.threadId,
-            typeof req.body?.pendingBundleId === "string" ? req.body.pendingBundleId : undefined,
-          ),
-        );
-      } catch (error) {
-        handleCliRouteError(res, error, "Could not cancel agent action bundle");
-      }
-    },
-  );
 
   app.get("/api/cli/tools", requireUserApiToken, async (req: Request, res: Response) => {
     try {

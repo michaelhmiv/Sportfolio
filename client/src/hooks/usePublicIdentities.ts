@@ -1,9 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type {
-  PublicUserIdentity,
-  PublicIdentityBatchResponse,
-} from "@shared/public-user-identity";
+import type { PublicUserIdentity, PublicIdentityBatchResponse } from "@shared/public-user-identity";
 
 const STALE_TIME = 30_000;
 
@@ -20,9 +17,7 @@ function buildQueryKey(userIds: string[]) {
   return ["/api/public-identities", ...cleaned];
 }
 
-export function usePublicIdentities(
-  userIds: string[],
-): Record<string, PublicUserIdentity | null> {
+export function usePublicIdentities(userIds: string[]): Record<string, PublicUserIdentity | null> {
   const validIds = userIds.filter((id) => !isBlankOrPool(id));
   const deduped = dedupe(validIds);
 

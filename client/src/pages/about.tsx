@@ -1,4 +1,13 @@
-import { BarChart3, Layers3, Radio, Search, ShieldCheck, Sparkles, TrendingUp, Zap } from "lucide-react";
+import {
+  BarChart3,
+  Layers3,
+  Radio,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
 import { Link } from "wouter";
 import { EditorialSection, PageHero, SurfaceLayout } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
@@ -8,22 +17,26 @@ const principles = [
   {
     icon: TrendingUp,
     title: "Markets that react",
-    description: "Player prices move through virtual market activity, liquidity, and changing demand rather than a static roster score.",
+    description:
+      "Player prices move through virtual market activity, liquidity, and changing demand rather than a static roster score.",
   },
   {
     icon: Search,
     title: "Knowledge creates an edge",
-    description: "Schedules, form, role, matchups, injuries, and market context all inform better portfolio decisions.",
+    description:
+      "Schedules, form, role, matchups, injuries, and market context all inform better portfolio decisions.",
   },
   {
     icon: Zap,
     title: "Long-term and game-day play",
-    description: "Hold positions over time, earn shares through scouting, and use boosts when short-horizon opportunity appears.",
+    description:
+      "Hold positions over time, earn shares through scouting, and use boosts when short-horizon opportunity appears.",
   },
   {
     icon: ShieldCheck,
     title: "Virtual by design",
-    description: "Sportfolio uses virtual balances and shares. It does not offer cash-out, real-money wagering, or securities trading.",
+    description:
+      "Sportfolio uses virtual balances and shares. It does not offer cash-out, real-money wagering, or securities trading.",
   },
 ] as const;
 
@@ -37,8 +50,12 @@ export default function About() {
         icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
         actions={
           <>
-            <Button asChild size="lg"><Link href="/pools">Explore player pools</Link></Button>
-            <Button asChild size="lg" variant="outline"><Link href="/how-it-works">How it works</Link></Button>
+            <Button asChild size="lg">
+              <Link href="/pools">Explore player pools</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/how-it-works">How it works</Link>
+            </Button>
           </>
         }
       />
@@ -49,9 +66,21 @@ export default function About() {
       >
         <div className="grid gap-5 md:grid-cols-3">
           {[
-            { icon: Radio, label: "Follow", body: "Track live market and game context across supported sports." },
-            { icon: BarChart3, label: "Position", body: "Build a virtual portfolio around players and strategies you understand." },
-            { icon: Layers3, label: "Develop", body: "Scout, stack, collect, and boost shares as your account grows." },
+            {
+              icon: Radio,
+              label: "Follow",
+              body: "Track live market and game context across supported sports.",
+            },
+            {
+              icon: BarChart3,
+              label: "Position",
+              body: "Build a virtual portfolio around players and strategies you understand.",
+            },
+            {
+              icon: Layers3,
+              label: "Develop",
+              body: "Scout, stack, collect, and boost shares as your account grows.",
+            },
           ].map(({ icon: Icon, label, body }) => (
             <Card key={label} variant="interactive">
               <CardContent className="p-5">
@@ -82,10 +111,18 @@ export default function About() {
         </div>
       </EditorialSection>
 
-      <EditorialSection className="bg-surface" title="Built as a living sports platform" description="Sportfolio is designed to add sports and new strategy layers without forcing every experience into one rigid fantasy format.">
+      <EditorialSection
+        className="bg-surface"
+        title="Built as a living sports platform"
+        description="Sportfolio is designed to add sports and new strategy layers without forcing every experience into one rigid fantasy format."
+      >
         <div className="flex flex-wrap gap-3">
-          <Button asChild><Link href="/wiki">Read the handbook</Link></Button>
-          <Button asChild variant="outline"><Link href="/contact">Contact Sportfolio</Link></Button>
+          <Button asChild>
+            <Link href="/wiki">Read the handbook</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/contact">Contact Sportfolio</Link>
+          </Button>
         </div>
       </EditorialSection>
     </SurfaceLayout>

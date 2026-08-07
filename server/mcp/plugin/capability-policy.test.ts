@@ -28,8 +28,6 @@ describe("marketplace v1 capability contract", () => {
       /^admin_/,
       /^internal_/,
       /token/i,
-      /byok/i,
-      /sms/i,
       /premium/i,
       /checkout/i,
       /redeem/i,
@@ -37,8 +35,6 @@ describe("marketplace v1 capability contract", () => {
       /cancel/i,
       /update_/,
       /delete_/,
-      /create_agent_thread/,
-      /send_agent_message/,
     ];
 
     for (const name of allowedNames) {
@@ -48,13 +44,12 @@ describe("marketplace v1 capability contract", () => {
     }
   });
 
-  it("documents all critical denied capability families", () => {
+  it("documents all critical excluded capability families", () => {
     const deniedNames = PLUGIN_V1_EXCLUDED_CAPABILITIES.map((entry) => entry.name);
-    expect(deniedNames).toContain("save_agent_byok");
-    expect(deniedNames).toContain("complete_sms_link");
     expect(deniedNames).toContain("list_api_tokens");
     expect(deniedNames).toContain("redeem_premium");
+    expect(deniedNames).toContain("confirm_pending_action");
     expect(deniedNames).toContain("stage_*");
-    expect(deniedNames).toContain("dynamic:internal_mlb_mcp");
+    expect(deniedNames).toContain("admin_*");
   });
 });

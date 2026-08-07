@@ -1,7 +1,4 @@
-import type {
-  PublicUserIdentity,
-  PublicIdentityBatchRequest,
-} from "@shared/public-user-identity";
+import type { PublicUserIdentity, PublicIdentityBatchRequest } from "@shared/public-user-identity";
 import type { PublicIdentityRepository } from "./public-identity-repository";
 
 // ── validation ──────────────────────────────────────────────────────────────
@@ -126,17 +123,13 @@ export function deduplicateIds(ids: string[]): string[] {
 // ── service ─────────────────────────────────────────────────────────────────
 
 export interface PublicIdentityService {
-  resolveBatch(
-    request: PublicIdentityBatchRequest,
-  ): Promise<(PublicUserIdentity | null)[]>;
+  resolveBatch(request: PublicIdentityBatchRequest): Promise<(PublicUserIdentity | null)[]>;
 }
 
 export class PostgresPublicIdentityService implements PublicIdentityService {
   constructor(private readonly repository: PublicIdentityRepository) {}
 
-  async resolveBatch(
-    request: PublicIdentityBatchRequest,
-  ): Promise<(PublicUserIdentity | null)[]> {
+  async resolveBatch(request: PublicIdentityBatchRequest): Promise<(PublicUserIdentity | null)[]> {
     const trimmed = request.userIds.map((id) => id.trim());
     return this.repository.resolveIdentities(trimmed);
   }

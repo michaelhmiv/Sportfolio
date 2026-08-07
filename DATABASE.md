@@ -28,7 +28,7 @@ docker-compose -f docker-compose.dev.yml up -d
 2. Add to `.env`:
 
 ```text
-DEV_DATABASE_URL=postgresql://postgres:devpassword@localhost:5433/sportfolio_dev
+DEV_DATABASE_URL=postgresql://localhost:5433/sportfolio_dev
 ```
 
 3. Run migrations:
@@ -37,7 +37,7 @@ DEV_DATABASE_URL=postgresql://postgres:devpassword@localhost:5433/sportfolio_dev
 npm run db:push
 ```
 
-See [/.agent/workflows/local-dev-database.md](.agent/workflows/local-dev-database.md) for full documentation.
+Use `DEV_DATABASE_URL` for local test databases and the approved migration scripts under `scripts/` for controlled changes.
 
 ## Files That Control Database Selection
 

@@ -1,7 +1,4 @@
-import {
-  buildPluginStaticCatalog,
-  type PluginMarketplaceCatalogEntry,
-} from "./registry";
+import { buildPluginStaticCatalog, type PluginMarketplaceCatalogEntry } from "./registry";
 
 export type PluginCatalogEntry = PluginMarketplaceCatalogEntry & {
   annotations: {

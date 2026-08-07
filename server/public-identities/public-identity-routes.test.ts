@@ -3,14 +3,6 @@ import express from "express";
 import type { Express } from "express";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ── mock auth ────────────────────────────────────────────────────────────────
-
-vi.mock("../agent/internal-auth", () => ({
-  requireHermesInternalRequest: (_req: any, _res: any, next: () => void) => {
-    next();
-  },
-}));
-
 import { registerPublicIdentityRoutes } from "./public-identity-routes";
 import type { PublicIdentityService } from "./public-identity-service";
 import type { PublicUserIdentity } from "@shared/public-user-identity";
@@ -226,9 +218,7 @@ describe("public identity routes", () => {
       });
       expect(status).toBe(200);
       expect(body.identities).toHaveLength(100);
-      expect(service.resolveBatch).toHaveBeenCalledWith(
-        expect.objectContaining({ userIds: ids }),
-      );
+      expect(service.resolveBatch).toHaveBeenCalledWith(expect.objectContaining({ userIds: ids }));
     });
 
     // ── response contract ──────────────────────────────────────────────────

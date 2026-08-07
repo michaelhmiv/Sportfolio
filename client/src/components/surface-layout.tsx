@@ -50,7 +50,10 @@ export function SurfaceLayout({
   const compact = kind === "auth" || kind === "status";
 
   return (
-    <div className="surface-layout min-h-[100dvh] bg-canvas text-foreground" data-surface-kind={kind}>
+    <div
+      className="surface-layout min-h-[100dvh] bg-canvas text-foreground"
+      data-surface-kind={kind}
+    >
       <header className="surface-site-header sticky top-0 z-40 border-b border-border-subtle bg-canvas/92 backdrop-blur-xl">
         <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <BrandLink />
@@ -97,10 +100,18 @@ export function SurfaceLayout({
               <span>Virtual sports-market gameplay. No cash-out or real-money wagering.</span>
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
-              <Link href="/about" className="hover:text-content">About</Link>
-              <Link href="/contact" className="hover:text-content">Contact</Link>
-              <Link href="/privacy" className="hover:text-content">Privacy</Link>
-              <Link href="/terms" className="hover:text-content">Terms</Link>
+              <Link href="/about" className="hover:text-content">
+                About
+              </Link>
+              <Link href="/contact" className="hover:text-content">
+                Contact
+              </Link>
+              <Link href="/privacy" className="hover:text-content">
+                Privacy
+              </Link>
+              <Link href="/terms" className="hover:text-content">
+                Terms
+              </Link>
             </div>
           </div>
         </footer>
@@ -167,8 +178,12 @@ export function EditorialSection({
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         {(title || description) && (
           <div className="mb-7 max-w-2xl">
-            {title ? <h2 className="text-2xl font-bold tracking-tight text-content-strong">{title}</h2> : null}
-            {description ? <p className="mt-2 leading-7 text-content-muted">{description}</p> : null}
+            {title ? (
+              <h2 className="text-2xl font-bold tracking-tight text-content-strong">{title}</h2>
+            ) : null}
+            {description ? (
+              <p className="mt-2 leading-7 text-content-muted">{description}</p>
+            ) : null}
           </div>
         )}
         {children}
@@ -201,12 +216,20 @@ export function AuthSurface({
               Your sports knowledge, expressed as a portfolio.
             </h2>
             <p className="mt-5 max-w-lg text-base leading-7 text-content-muted">
-              Follow live player markets, build positions across sports, scout long-term talent, and use game-day boosts from one account.
+              Follow live player markets, build positions across sports, scout long-term talent, and
+              use game-day boosts from one account.
             </p>
           </div>
           <div className="relative grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-            {["Live player-market pricing", "Multi-sport portfolio tracking", "Secure single-use sign-in links"].map((item) => (
-              <div key={item} className="rounded-panel border border-border-subtle bg-canvas/70 px-4 py-3 text-sm font-medium text-content">
+            {[
+              "Live player-market pricing",
+              "Multi-sport portfolio tracking",
+              "Secure single-use sign-in links",
+            ].map((item) => (
+              <div
+                key={item}
+                className="rounded-panel border border-border-subtle bg-canvas/70 px-4 py-3 text-sm font-medium text-content"
+              >
                 {item}
               </div>
             ))}
@@ -216,13 +239,21 @@ export function AuthSurface({
         <div className="flex items-center justify-center px-4 py-10 sm:px-8 lg:px-12">
           <div className="w-full max-w-md">
             <div className="mb-6 lg:hidden">
-              <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">{eyebrow}</div>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-content-strong">{title}</h1>
+              <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">
+                {eyebrow}
+              </div>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-content-strong">
+                {title}
+              </h1>
               <p className="mt-3 leading-6 text-content-muted">{description}</p>
             </div>
             <div className="hidden lg:block">
-              <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">{eyebrow}</div>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-content-strong">{title}</h1>
+              <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">
+                {eyebrow}
+              </div>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-content-strong">
+                {title}
+              </h1>
               <p className="mt-3 leading-6 text-content-muted">{description}</p>
             </div>
             <div className="mt-6">{children}</div>
@@ -268,9 +299,15 @@ export function DocumentShell({
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-8 lg:py-14">
         <aside className="hidden lg:block">
           <nav className="sticky top-24 space-y-1" aria-label={`${title} sections`}>
-            <p className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-content-subtle">On this page</p>
+            <p className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-content-subtle">
+              On this page
+            </p>
             {sections.map((section) => (
-              <a key={section.id} href={`#${section.id}`} className="block rounded-control px-3 py-2 text-sm text-content-muted transition-colors hover:bg-hover hover:text-content">
+              <a
+                key={section.id}
+                href={`#${section.id}`}
+                className="block rounded-control px-3 py-2 text-sm text-content-muted transition-colors hover:bg-hover hover:text-content"
+              >
                 {section.title}
               </a>
             ))}
@@ -278,14 +315,26 @@ export function DocumentShell({
         </aside>
         <article className="min-w-0 max-w-3xl space-y-10">
           {children}
-          {effectiveDate ? <p className="border-t border-border-subtle pt-6 text-sm text-content-subtle">Effective and last updated: {effectiveDate}</p> : null}
+          {effectiveDate ? (
+            <p className="border-t border-border-subtle pt-6 text-sm text-content-subtle">
+              Effective and last updated: {effectiveDate}
+            </p>
+          ) : null}
         </article>
       </div>
     </SurfaceLayout>
   );
 }
 
-export function DocumentSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+export function DocumentSection({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: ReactNode;
+}) {
   return (
     <section id={id} className="scroll-mt-24">
       <h2 className="text-xl font-bold tracking-tight text-content-strong">{title}</h2>

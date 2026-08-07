@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-03-04
 changeTriggers: client/src/lib/sport-context.tsx,client/src/pages/dashboard.tsx,client/src/pages/boosts.tsx,server/routes.ts,shared/schema.ts
 slug: sports-and-slates
-surface: web,agent
+surface: web
 searchKeywords: sports,supported sports,nba,nfl,mlb,nascar,slates,dates
 ---
 

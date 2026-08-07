@@ -12,10 +12,9 @@ They are historical evidence, not current implementation guidance. Their complet
 
 For current behavior, use:
 
-- `docs/wiki/agent/product-mechanics.md`
-- `docs/wiki/agent/api-map.md`
-- `docs/wiki/agent/data-model-economy.md`
-- `docs/wiki/agent/runbooks.md`
+- `docs/wiki/gameplay/player-pools.md`
+- `docs/wiki/gameplay/portfolio-and-holdings.md`
+- `docs/wiki/gameplay/liquidity-providing.md`
 - `server/amm/pool.ts`
 - `server/routes/amm.ts`
 - `server/routes/lp.ts`

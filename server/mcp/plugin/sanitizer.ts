@@ -1,4 +1,5 @@
-const BLOCKED_KEY = /(?:password|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|cookie|service[_-]?role|provider[_-]?key|session[_-]?id|request[_-]?id|stack|sql)/i;
+const BLOCKED_KEY =
+  /(?:password|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|cookie|service[_-]?role|provider[_-]?key|session[_-]?id|request[_-]?id|stack|sql)/i;
 const DIRECT_PII_KEY = /^(?:email|phone|phoneNumber|firstName|lastName|fullName)$/i;
 
 export type PluginSanitizeOptions = {
@@ -14,7 +15,12 @@ const DEFAULTS: Required<PluginSanitizeOptions> = {
 };
 
 function sanitizeString(value: string, maxLength: number): string {
-  const cleaned = value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  const cleaned = [...value]
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code > 31 || code === 9 || code === 10 || code === 13;
+    })
+    .join("");
   return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength)}…` : cleaned;
 }
 
@@ -54,7 +60,11 @@ export function sanitizePluginValue(
   return sanitizeString(String(value), resolved.maxStringLength);
 }
 
-export function assertNoRestrictedPluginFields(value: unknown, path = "$", seen = new WeakSet<object>()): void {
+export function assertNoRestrictedPluginFields(
+  value: unknown,
+  path = "$",
+  seen = new WeakSet<object>(),
+): void {
   if (!value || typeof value !== "object") return;
   if (seen.has(value)) return;
   seen.add(value);

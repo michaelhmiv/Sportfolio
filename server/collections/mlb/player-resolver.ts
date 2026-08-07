@@ -73,7 +73,10 @@ export function resolveTradeableMembers(
       });
       continue;
     }
-    if (requireFunding && (!isPositiveQuantity(row.poolShares) || !isPositiveQuantity(row.poolPlayMoney))) {
+    if (
+      requireFunding &&
+      (!isPositiveQuantity(row.poolShares) || !isPositiveQuantity(row.poolPlayMoney))
+    ) {
       errors.push({
         code: "PLAYER_NOT_TRADEABLE",
         mlbamId: member.mlbamId,

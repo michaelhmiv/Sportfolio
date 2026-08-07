@@ -16,12 +16,12 @@ Sportfolio exposes a dedicated OAuth-backed MCP endpoint for ChatGPT and Codex w
 The app supports the authenticated user's shared public Sportfolio MCP surface, including:
 
 - public documentation, player, schedule, and performance research;
-- connected portfolio, holdings, balance, trade, boost, scouting, watchlist, collection, milestone, news, liquidity, schedule, profile, activity, and agent reads;
+- connected portfolio, holdings, balance, trade, boost, scouting, watchlist, collection, milestone, news, liquidity, schedule, profile, and activity reads;
 - staged virtual market buys and sells;
 - staged scouting, share stacking, daily boosts, community boosts, and liquidity operations;
 - exact-bundle confirmation and cancellation;
-- supported immediate watchlist, schedule, profile, onboarding, milestone, news, account, SMS, premium, agent-profile, and agent-thread controls;
-- dynamically discovered internal MLB MCP tools when the source is healthy.
+- supported immediate watchlist, schedule, profile, onboarding, milestone, news, account, and premium controls;
+- a static semantic MLB tool facade whose public catalog remains stable during provider outages.
 
 The shared registry continues to exclude admin, internal, debug, raw database, mobile-store billing, unsupported provider-management, and web-only capabilities that are not part of the public MCP contract.
 

@@ -1,7 +1,9 @@
 import { buildPublicToolRegistry } from "../server/mcp/public-tool-registry";
 import { buildPluginCatalog } from "../server/mcp/plugin/catalog";
 
-const sourceNames = buildPublicToolRegistry().map((tool) => tool.name).sort();
+const sourceNames = buildPublicToolRegistry()
+  .map((tool) => tool.name)
+  .sort();
 const catalog = buildPluginCatalog();
 const catalogNames = catalog.map((tool) => tool.name).sort();
 
@@ -36,7 +38,9 @@ const writes = catalog.filter((tool) => !tool.readOnly);
 const staged = catalog.filter((tool) => tool.executionModel === "staged_write");
 const destructive = catalog.filter((tool) => tool.destructive);
 if (writes.length === 0 || staged.length === 0 || destructive.length === 0) {
-  throw new Error("Full Sportfolio MCP parity must include write, staged, and destructive actions.");
+  throw new Error(
+    "Full Sportfolio MCP parity must include write, staged, and destructive actions.",
+  );
 }
 
 console.log(

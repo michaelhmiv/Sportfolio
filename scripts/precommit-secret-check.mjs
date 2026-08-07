@@ -84,7 +84,8 @@ const blockedContentPatterns = [
   },
   {
     name: "Discord webhook URL",
-    pattern: /https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+/i,
+    pattern:
+      /https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+/i,
   },
   {
     name: "credential-bearing PostgreSQL URL",
@@ -112,7 +113,11 @@ for (const filePath of stagedFiles) {
     continue;
   }
 
-  if (blockedFileNamePatterns.some((pattern) => pattern.test(normalizedPath) || pattern.test(baseName))) {
+  if (
+    blockedFileNamePatterns.some(
+      (pattern) => pattern.test(normalizedPath) || pattern.test(baseName),
+    )
+  ) {
     blockedFindings.push({ filePath, reason: "blocked credential or key filename pattern" });
     continue;
   }
@@ -125,7 +130,9 @@ for (const filePath of stagedFiles) {
 }
 
 if (blockedFindings.length > 0) {
-  console.error("\n[secret-check] Commit blocked because possible credential material was detected.");
+  console.error(
+    "\n[secret-check] Commit blocked because possible credential material was detected.",
+  );
   for (const finding of blockedFindings) {
     console.error(` - ${finding.filePath}: ${finding.reason}`);
   }

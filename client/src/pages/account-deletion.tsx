@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
-import { AlertTriangle, CheckCircle2, Loader2, Mail, ShieldCheck, Trash2, Undo2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Mail,
+  ShieldCheck,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { Link } from "wouter";
 import { PageHero, SurfaceLayout } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
@@ -173,8 +181,12 @@ export default function AccountDeletion() {
               {!isAuthenticated ? (
                 <div className="text-center">
                   <ShieldCheck className="mx-auto h-10 w-10 text-brand" aria-hidden="true" />
-                  <h2 className="mt-4 text-xl font-bold text-content-strong">Sign in to verify the account</h2>
-                  <p className="mx-auto mt-2 max-w-md leading-6 text-content-muted">Deletion requests must be initiated from the account being removed.</p>
+                  <h2 className="mt-4 text-xl font-bold text-content-strong">
+                    Sign in to verify the account
+                  </h2>
+                  <p className="mx-auto mt-2 max-w-md leading-6 text-content-muted">
+                    Deletion requests must be initiated from the account being removed.
+                  </p>
                   <Button asChild className="mt-6" data-testid="button-signin-delete-account">
                     <Link href="/login?redirect=/account-deletion">Sign in to continue</Link>
                   </Button>
@@ -188,29 +200,48 @@ export default function AccountDeletion() {
                 <div>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-content-subtle">Current request</p>
-                      <h2 className={`mt-2 text-2xl font-bold capitalize ${statusTone}`}>{status.request.status}</h2>
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-content-subtle">
+                        Current request
+                      </p>
+                      <h2 className={`mt-2 text-2xl font-bold capitalize ${statusTone}`}>
+                        {status.request.status}
+                      </h2>
                     </div>
-                    {status.request.status === "completed" ? <CheckCircle2 className="h-7 w-7 text-market-positive" aria-hidden="true" /> : null}
+                    {status.request.status === "completed" ? (
+                      <CheckCircle2 className="h-7 w-7 text-market-positive" aria-hidden="true" />
+                    ) : null}
                   </div>
 
                   <dl className="mt-7 divide-y divide-border-subtle rounded-panel border border-border-subtle bg-surface-raised px-4">
                     <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)]">
                       <dt className="text-sm font-medium text-content">Requested</dt>
-                      <dd className="text-sm text-content-muted">{formatTimestamp(status.request.requestedAt) || "Unavailable"}{relativeTimestamp(status.request.requestedAt) ? ` (${relativeTimestamp(status.request.requestedAt)})` : ""}</dd>
+                      <dd className="text-sm text-content-muted">
+                        {formatTimestamp(status.request.requestedAt) || "Unavailable"}
+                        {relativeTimestamp(status.request.requestedAt)
+                          ? ` (${relativeTimestamp(status.request.requestedAt)})`
+                          : ""}
+                      </dd>
                     </div>
                     <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)]">
-                      <dt className="text-sm font-medium text-content">Effective processing time</dt>
-                      <dd className="text-sm text-content-muted">{formatTimestamp(status.request.effectiveAt) || "Unavailable"}</dd>
+                      <dt className="text-sm font-medium text-content">
+                        Effective processing time
+                      </dt>
+                      <dd className="text-sm text-content-muted">
+                        {formatTimestamp(status.request.effectiveAt) || "Unavailable"}
+                      </dd>
                     </div>
                     {status.request.processedAt ? (
                       <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)]">
                         <dt className="text-sm font-medium text-content">Processed</dt>
-                        <dd className="text-sm text-content-muted">{formatTimestamp(status.request.processedAt)}</dd>
+                        <dd className="text-sm text-content-muted">
+                          {formatTimestamp(status.request.processedAt)}
+                        </dd>
                       </div>
                     ) : null}
                     {status.request.retainedRecordsNote ? (
-                      <div className="py-4 text-sm leading-6 text-content-muted">{status.request.retainedRecordsNote}</div>
+                      <div className="py-4 text-sm leading-6 text-content-muted">
+                        {status.request.retainedRecordsNote}
+                      </div>
                     ) : null}
                   </dl>
 
@@ -222,7 +253,11 @@ export default function AccountDeletion() {
                       className="mt-6 gap-2"
                       data-testid="button-cancel-account-deletion"
                     >
-                      {cancelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                      {cancelMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Undo2 className="h-4 w-4" />
+                      )}
                       Cancel deletion request
                     </Button>
                   ) : null}
@@ -230,25 +265,53 @@ export default function AccountDeletion() {
               ) : (
                 <div>
                   <div className="flex gap-3 rounded-panel border border-destructive/25 bg-destructive-subtle p-4">
-                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+                    <AlertTriangle
+                      className="mt-0.5 h-5 w-5 shrink-0 text-destructive"
+                      aria-hidden="true"
+                    />
                     <div>
-                      <h2 className="font-bold text-content-strong">This action becomes permanent.</h2>
-                      <p className="mt-1 text-sm leading-6 text-content-muted">Type <strong className="text-content">{confirmationText}</strong> exactly to enable the request button.</p>
+                      <h2 className="font-bold text-content-strong">
+                        This action becomes permanent.
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-content-muted">
+                        Type <strong className="text-content">{confirmationText}</strong> exactly to
+                        enable the request button.
+                      </p>
                     </div>
                   </div>
 
                   <div className="mt-7 space-y-5">
                     <div className="space-y-2">
                       <Label htmlFor="delete-confirmation">Confirmation</Label>
-                      <Input id="delete-confirmation" value={confirmationTextInput} onChange={(event) => setConfirmationTextInput(event.target.value)} placeholder={confirmationText} autoCapitalize="characters" data-testid="input-delete-confirmation" />
+                      <Input
+                        id="delete-confirmation"
+                        value={confirmationTextInput}
+                        onChange={(event) => setConfirmationTextInput(event.target.value)}
+                        placeholder={confirmationText}
+                        autoCapitalize="characters"
+                        data-testid="input-delete-confirmation"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="delete-reason">Reason (optional)</Label>
-                      <Input id="delete-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Privacy, duplicate account, or another reason" maxLength={200} />
+                      <Input
+                        id="delete-reason"
+                        value={reason}
+                        onChange={(event) => setReason(event.target.value)}
+                        placeholder="Privacy, duplicate account, or another reason"
+                        maxLength={200}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="delete-details">Additional details (optional)</Label>
-                      <Textarea id="delete-details" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={1000} placeholder="Include context needed for safe processing." className="min-h-28" />
+                      <Textarea
+                        id="delete-details"
+                        value={details}
+                        onChange={(event) => setDetails(event.target.value)}
+                        maxLength={1000}
+                        placeholder="Include context needed for safe processing."
+                        className="min-h-28"
+                      />
                     </div>
                   </div>
 
@@ -259,7 +322,11 @@ export default function AccountDeletion() {
                     onClick={() => requestMutation.mutate()}
                     data-testid="button-request-account-deletion"
                   >
-                    {requestMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    {requestMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                     Submit deletion request
                   </Button>
                 </div>
@@ -272,19 +339,29 @@ export default function AccountDeletion() {
           <section className="rounded-panel border border-border-subtle bg-surface p-5">
             <h2 className="font-bold text-content-strong">Removed from active systems</h2>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-content-muted">
-              {deletedData.map((item) => <li key={item} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />{item}</li>)}
+              {deletedData.map((item) => (
+                <li key={item} className="flex gap-2">
+                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
+                  {item}
+                </li>
+              ))}
             </ul>
           </section>
 
           <section className="rounded-panel border border-status-warning/30 bg-status-warning-subtle p-5">
             <h2 className="font-bold text-content-strong">Records that may be retained</h2>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-content-muted">
-              {retainedData.map((item) => <li key={item}>{item}</li>)}
+              {retainedData.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
             </ul>
           </section>
 
           <Button asChild variant="outline" className="w-full gap-2">
-            <a href={MAILTO_HREF}><Mail className="h-4 w-4" aria-hidden="true" />Email support</a>
+            <a href={MAILTO_HREF}>
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              Email support
+            </a>
           </Button>
         </aside>
       </div>

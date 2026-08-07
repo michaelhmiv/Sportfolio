@@ -11,7 +11,7 @@ Jobs run in Eastern Time (ET). The scheduler is initialized in `server/jobs/sche
 | `news_fetch`                   | Every hour (`:00`)                 | Fetches sports news from Perplexity                                              |
 | `discord_hourly_market_digest` | Every hour (`:00`)                 | Publish market digest to Discord                                                 |
 | `discord_news_post`            | Every hour (`:05`)                 | Publish newly fetched news to Discord                                            |
-| `bot_engine`                   | Dev: every min; prod: every 15 min | Runs Hermes bot scouting/trading/liquidity strategies                            |
+| `bot_engine`                   | Dev: every min; prod: every 15 min | Runs deterministic bot scouting, trading, and liquidity strategies               |
 | `stats_sync_live`              | Every 5 min (`:04`)                | Live stats for MLB (via public MLB StatsAPI)                                     |
 | `mlb_roster_sync`              | Daily 4:15 AM                      | Syncs MLB player roster via StatsAPI                                             |
 | `mlb_schedule_sync`            | Hourly (`:50`)                     | Syncs MLB game schedules/scores via StatsAPI                                     |

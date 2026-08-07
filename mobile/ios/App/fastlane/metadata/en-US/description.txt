@@ -9,6 +9,6 @@ Sportfolio is designed for fans who like sports, markets, and strategy games:
 - Assign scouts and collect time-based virtual rewards
 - Use daily boost slots tied to live game performance
 - Monitor watchlists, news, leaderboards, and market context
-- Review your setup with the Sportfolio agent
+- Review portfolio, scouting, and market context in one place
 
 Sportfolio uses virtual currency only. It does not offer real-money wagering or cash-out.

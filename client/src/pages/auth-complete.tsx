@@ -67,9 +67,7 @@ export default function AuthComplete() {
         <CardContent className="px-6 py-9 text-center sm:px-10">
           <div
             className={`mx-auto flex h-14 w-14 items-center justify-center rounded-circle ${
-              isError
-                ? "bg-destructive-subtle text-destructive"
-                : "bg-brand-subtle text-brand"
+              isError ? "bg-destructive-subtle text-destructive" : "bg-brand-subtle text-brand"
             }`}
           >
             {state === "working" ? (
@@ -81,7 +79,9 @@ export default function AuthComplete() {
             )}
           </div>
 
-          <h1 className="mt-5 text-2xl font-bold tracking-tight text-content-strong">{copy.title}</h1>
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-content-strong">
+            {copy.title}
+          </h1>
           <p className="mx-auto mt-3 max-w-sm leading-6 text-content-muted">{copy.detail}</p>
 
           {isError ? (

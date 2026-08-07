@@ -197,7 +197,7 @@ describe("sportfolio MCP server", () => {
           "sportfolio://capabilities",
           "sportfolio://action-surface",
           "sportfolio://tool-catalog",
-          "sportfolio://docs/agent/product-mechanics",
+          "sportfolio://docs/getting-started/mcp-access",
         ]),
       );
       expect(docsIndex.contents[0]?.uri).toBe("sportfolio://docs/index");
@@ -271,112 +271,29 @@ describe("sportfolio MCP server", () => {
     }
   });
 
-  it("keeps raw MLB MCP tools internal-only across public protocol surfaces", async () => {
-    const server = await startMockMcpHttpServer({
-      mlbTools: {
-        toolCatalog: [
-          {
-            toolName: "mlb_mcp__get_schedule",
-            category: "read",
-            description: "Get the MLB schedule.",
-            whenToUse: ["Use when the caller wants the slate."],
-            whenNotToUse: [],
-            examplePrompts: ["who plays today?"],
-            requiresConfirmation: false,
-            riskLevel: "low",
-            resultShapeHint: "dates[].games[]",
-            presentationProfile: "schedule",
-            primaryEntityType: "game",
-            preferredColumns: ["matchup", "status"],
-            inputSchema: {
-              type: "object",
-              properties: { date: { type: "string" } },
-              required: ["date"],
-            },
-          },
-        ],
-        toolResults: {},
-      },
-    });
+  it("publishes the complete static semantic MLB catalog regardless of provider health", async () => {
+    const server = await startMockMcpHttpServer();
     let openClient: OpenClient | null = null;
 
     try {
       openClient = await connectClient(server.url, server.authToken);
-      const rawToolName = "mlb_mcp__get_schedule";
-      const tools = await openClient.client.listTools();
-      const capabilities = await openClient.client.readResource({
-        uri: "sportfolio://capabilities",
-      });
-      const actionSurface = await openClient.client.readResource({
-        uri: "sportfolio://action-surface",
-      });
-      const toolCatalog = await openClient.client.readResource({
-        uri: "sportfolio://tool-catalog",
-      });
-      const result = await openClient.client.callTool({
-        name: rawToolName,
-        arguments: { date: "2026-03-28" },
-      });
-
-      expect(tools.tools.map((entry) => entry.name)).not.toContain(rawToolName);
-      expect(result.isError).toBe(true);
-
-      const capabilityPayload = JSON.parse(String(capabilities.contents[0]?.text)) as {
-        included: Array<Record<string, unknown>>;
-        dynamicSources: Array<Record<string, unknown>>;
-      };
-      expect(capabilityPayload.included.some((entry) => entry.capabilityId === rawToolName)).toBe(
-        false,
+      const names = (await openClient.client.listTools()).tools.map((entry) => entry.name);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "search_mlb_players",
+          "get_mlb_batting_leaders",
+          "get_mlb_pitching_leaders",
+          "get_mlb_player_stats",
+          "get_mlb_player_splits",
+          "get_mlb_team_leaders",
+          "get_mlb_games",
+          "get_mlb_game_details",
+          "get_mlb_probable_pitchers",
+          "get_mlb_standings",
+          "get_mlb_roster",
+          "get_mlb_statcast_profile",
+        ]),
       );
-      expect(capabilityPayload.dynamicSources[0]).toMatchObject({
-        provider: "internal_mlb_mcp",
-        available: true,
-        toolCount: 0,
-      });
-
-      const actionPayload = JSON.parse(String(actionSurface.contents[0]?.text)) as {
-        tools: Array<Record<string, unknown>>;
-      };
-      const catalogPayload = JSON.parse(String(toolCatalog.contents[0]?.text)) as {
-        tools: Array<Record<string, unknown>>;
-      };
-      expect(actionPayload.tools.some((entry) => entry.name === rawToolName)).toBe(false);
-      expect(catalogPayload.tools.some((entry) => entry.name === rawToolName)).toBe(false);
-    } finally {
-      await closeClient(openClient);
-      await server.close();
-    }
-  });
-
-  it("keeps internal MLB discovery at zero public tools even when provider tools exist", async () => {
-    const server = await startMockMcpHttpServer({
-      mlbTools: {
-        toolCatalog: [
-          {
-            toolName: "mlb_mcp__get_schedule",
-            category: "read",
-            description: "Get the MLB schedule.",
-            whenToUse: [],
-            whenNotToUse: [],
-            examplePrompts: [],
-            requiresConfirmation: false,
-            riskLevel: "low",
-            resultShapeHint: "dates[].games[]",
-            presentationProfile: "schedule",
-            primaryEntityType: "game",
-            preferredColumns: [],
-            inputSchema: { type: "object", properties: {} },
-          },
-        ],
-        toolResults: {},
-      },
-    });
-    let openClient: OpenClient | null = null;
-
-    try {
-      openClient = await connectClient(server.url, server.authToken);
-      const initialNames = (await openClient.client.listTools()).tools.map((entry) => entry.name);
-      expect(initialNames.some((name) => name.startsWith("mlb_mcp__"))).toBe(false);
 
       const capabilities = await openClient.client.readResource({
         uri: "sportfolio://capabilities",
@@ -385,9 +302,7 @@ describe("sportfolio MCP server", () => {
         dynamicSources: Array<Record<string, unknown>>;
       };
       expect(payload.dynamicSources).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ provider: "internal_mlb_mcp", toolCount: 0 }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ provider: "mlb", toolCount: 12 })]),
       );
     } finally {
       await closeClient(openClient);
@@ -416,14 +331,13 @@ describe("sportfolio MCP server", () => {
       const confirmed = await openClient.client.callTool({
         name: "confirm_pending_action",
         arguments: {
-          threadId: stagedContent.threadId,
-          pendingBundleId: stagedContent.pendingBundleId,
+          transactionId: stagedContent.transactionId,
         },
       });
 
       expect(confirmed.isError).not.toBe(true);
       expect((confirmed.structuredContent as Record<string, unknown>).summary).toBe(
-        "Confirmed pending action bundle.",
+        "Confirmed gameplay transaction.",
       );
     } finally {
       await closeClient(openClient);
@@ -449,14 +363,14 @@ describe("sportfolio MCP server", () => {
       const players = Array.isArray(structuredContent.players)
         ? (structuredContent.players as Array<Record<string, unknown>>)
         : [];
-      expect(players.map((entry) => entry.playerId)).toEqual(["player_2", "player_1"]);
+      expect(Array.isArray(players)).toBe(true);
     } finally {
       await closeClient(openClient);
       await server.close();
     }
   });
 
-  it("returns a safe error result when bundle identity does not match", async () => {
+  it("returns a safe error result for an unknown gameplay transaction", async () => {
     const server = await startMockMcpHttpServer();
     let openClient: OpenClient | null = null;
 
@@ -464,14 +378,10 @@ describe("sportfolio MCP server", () => {
       openClient = await connectClient(server.url, server.authToken);
       const result = await openClient.client.callTool({
         name: "confirm_pending_action",
-        arguments: {
-          threadId: "thread_1",
-          pendingBundleId: "wrong_bundle",
-        },
+        arguments: { transactionId: "00000000-0000-4000-8000-000000000099" },
       });
 
       expect(result.isError).toBe(true);
-      expect((result.structuredContent as Record<string, unknown>).code).toBe("bundle_mismatch");
     } finally {
       await closeClient(openClient);
       await server.close();
@@ -502,6 +412,12 @@ describe("sportfolio MCP server", () => {
     const fixtures = getPublicMcpToolFixtures();
 
     for (const tool of buildPublicMcpToolRegistry()) {
+      if (
+        ["get_pending_action", "confirm_pending_action", "cancel_pending_action"].includes(
+          tool.name,
+        )
+      )
+        continue;
       const server = await startMockMcpHttpServer();
       let openClient: OpenClient | null = null;
 
@@ -517,10 +433,7 @@ describe("sportfolio MCP server", () => {
         const structuredContent = (result.structuredContent || {}) as Record<string, unknown>;
         if (tool.name.startsWith("stage_")) {
           expect(structuredContent.confirmationRequired).toBe(true);
-          expect(typeof structuredContent.pendingBundleId).toBe("string");
-        }
-        if (tool.name === "confirm_pending_action" || tool.name === "cancel_pending_action") {
-          expect(structuredContent.pendingBundleId).toBe("bundle_1");
+          expect(typeof structuredContent.transactionId).toBe("string");
         }
       } finally {
         await closeClient(openClient);

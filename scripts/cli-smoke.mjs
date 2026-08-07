@@ -10,51 +10,19 @@ process.env.USERPROFILE = tempHome;
 
 const { runCli } = await import("../packages/sportfolio-cli/src/index.mjs");
 
-function createWrappedResult(summary) {
+const transactionId = "00000000-0000-4000-8000-000000000001";
+
+function createStagedResult(summary) {
   return {
-    threadId: "thread_demo",
-    createdThread: false,
-    result: {
-      thread: {
-        id: "thread_demo",
-        title: "CLI thread",
-        channel: "in_app",
-        domain: "sportfolio",
-        status: "active",
-        lastMessageAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        lastMessagePreview: summary,
-        pendingActionBundle: null,
-      },
-      createdMessages: [
-        {
-          id: "msg_assistant",
-          role: "assistant",
-          messageType: "plan",
-          contentText: summary,
-          createdAt: new Date().toISOString(),
-          runId: "run_demo",
-          actionBundle: null,
-          citations: [],
-          pendingClarification: null,
-        },
-      ],
-      pendingActionBundle: {
-        id: "bundle_demo",
-        status: "pending_confirmation",
-        domain: "sportfolio",
-        summary,
-        warnings: [],
-        actions: [{ actionType: "cli_demo" }],
-        workflowType: "single_action",
-        steps: [{ id: "step_1", title: summary, status: "pending", action: null }],
-        runId: "run_demo",
-        createdAt: new Date().toISOString(),
-        confirmedAt: null,
-        appliedAt: null,
-      },
-      pendingClarification: null,
+    summary,
+    transactionId,
+    warnings: [],
+    confirmationRequired: true,
+    transaction: {
+      transactionId,
+      status: "pending_confirmation",
+      summary,
+      warnings: [],
     },
   };
 }
@@ -194,30 +162,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/cli/tools/list_agent_threads") {
-    res.end(
-      JSON.stringify({
-        summary: "Loaded agent threads.",
-        threads: [
-          {
-            id: "thread_demo",
-            title: "CLI thread",
-            status: "active",
-            updatedAt: new Date().toISOString(),
-          },
-        ],
-      }),
-    );
-    return;
-  }
-
   if (req.method === "GET" && url.pathname === "/api/cli/prompts") {
     res.end(
       JSON.stringify({
         prompts: [
           {
-            name: "review_setup",
-            description: "Prompt starter for a broad gameplay setup review.",
+            name: "find_boost_candidates",
+            description: "Prompt starter for boost candidate discovery.",
           },
         ],
       }),
@@ -225,7 +176,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/cli/prompts/review_setup/render") {
+  if (req.method === "POST" && url.pathname === "/api/cli/prompts/find_boost_candidates/render") {
     res.end(
       JSON.stringify({
         messages: [
@@ -233,7 +184,7 @@ const server = http.createServer(async (req, res) => {
             role: "user",
             content: {
               type: "text",
-              text: "Review my setup.",
+              text: "Find the best boost candidates.",
             },
           },
         ],
@@ -279,31 +230,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/cli/agent/ask") {
-    res.end(JSON.stringify(createWrappedResult(`Planned: ${body.message}`)));
-    return;
-  }
-
   if (req.method === "POST" && url.pathname === "/api/cli/actions/stage") {
-    res.end(JSON.stringify(createWrappedResult(`Staged ${body.action}`)));
+    res.end(JSON.stringify(createStagedResult(`Staged ${body.action}`)));
     return;
   }
 
-  if (req.method === "POST" && url.pathname.endsWith("/confirm")) {
-    res.end(
-      JSON.stringify({
-        createdMessages: [{ contentText: "Confirmed pending bundle." }],
-      }),
-    );
+  if (req.method === "POST" && url.pathname === "/api/cli/tools/confirm_pending_action") {
+    res.end(JSON.stringify({ summary: "Confirmed gameplay transaction.", transactionId }));
     return;
   }
 
-  if (req.method === "POST" && url.pathname.endsWith("/cancel")) {
-    res.end(
-      JSON.stringify({
-        createdMessages: [{ contentText: "Cancelled pending bundle." }],
-      }),
-    );
+  if (req.method === "POST" && url.pathname === "/api/cli/tools/cancel_pending_action") {
+    res.end(JSON.stringify({ summary: "Cancelled gameplay transaction.", transactionId }));
     return;
   }
 
@@ -380,22 +318,6 @@ try {
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /Loaded portfolio summary/);
 
-  result = await invoke(["agent", "threads"]);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /thread_demo/);
-
-  result = await invoke(["agent", "ask", "review", "my", "setup"]);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Pending confirmation/);
-
-  result = await invoke(["agent", "confirm", "thread_demo"]);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Confirmed pending bundle/);
-
-  result = await invoke(["agent", "cancel", "thread_demo"]);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Cancelled pending bundle/);
-
   result = await invoke(["actions", "buy", "nba_1", "--dollars", "25"]);
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /Staged buy/);
@@ -404,17 +326,17 @@ try {
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /Staged sell/);
 
-  result = await invoke(["actions", "watchlist", "add", "nba_1"]);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Staged watchlist_add/);
-
-  result = await invoke(["actions", "watchlist", "remove", "nba_1"]);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Staged watchlist_remove/);
-
   result = await invoke(["actions", "community-boost", "nba_1", "--timing", "tomorrow"]);
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /Staged community_boost/);
+
+  result = await invoke(["actions", "confirm", transactionId]);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /Confirmed gameplay transaction/);
+
+  result = await invoke(["actions", "cancel", transactionId]);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /Cancelled gameplay transaction/);
 
   result = await invoke(["tools", "list"]);
   assert.equal(result.exitCode, 0);
@@ -426,11 +348,11 @@ try {
 
   result = await invoke(["prompts", "list"]);
   assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /review_setup/);
+  assert.match(result.stdout, /find_boost_candidates/);
 
-  result = await invoke(["prompts", "render", "review_setup"]);
+  result = await invoke(["prompts", "render", "find_boost_candidates"]);
   assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Review my setup/);
+  assert.match(result.stdout, /Find the best boost candidates/);
 
   result = await invoke(["resources", "list"]);
   assert.equal(result.exitCode, 0);

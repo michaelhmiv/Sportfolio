@@ -65,7 +65,7 @@
       "justifications": {
         "read_only_justification": "Finalizes or cancels a previously staged Sportfolio action and therefore changes connected-account workflow or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Can complete an irreversible or deletion-style threads action after the user's request and any required confirmation."
+        "destructive_justification": "Can complete an irreversible or deletion-style transactions action after the user's request and any required confirmation."
       }
     },
     "create_watchlist": {
@@ -296,6 +296,138 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
+    "get_mlb_batting_leaders": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_game_details": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_games": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_pitching_leaders": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_player_splits": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_player_stats": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_probable_pitchers": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_roster": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_standings": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_statcast_profile": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "get_mlb_team_leaders": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
     "get_pending_action": {
       "annotations": {
         "readOnlyHint": true,
@@ -303,7 +435,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves sanitized threads information and does not modify Sportfolio account or gameplay state.",
+        "read_only_justification": "Retrieves sanitized transactions information and does not modify Sportfolio account or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
@@ -748,6 +880,18 @@
       },
       "justifications": {
         "read_only_justification": "Retrieves sanitized docs information and does not modify Sportfolio account or gameplay state.",
+        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
+        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
+      }
+    },
+    "search_mlb_players": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves sanitized mlb information and does not modify Sportfolio account or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }

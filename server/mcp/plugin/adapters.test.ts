@@ -14,8 +14,13 @@ describe("marketplace tool adapters", () => {
 
   it("maps every marketplace tool to an existing static public tool", () => {
     for (const adapter of PLUGIN_TOOL_ADAPTERS) {
-      expect(getPublicToolDefinition(adapter.sourceTool), `${adapter.name} -> ${adapter.sourceTool}`).not.toBeNull();
-      expect(adapter.sourceTool).not.toMatch(/^(?:stage_|confirm_|cancel_|save_|clear_|redeem_|create_|update_|delete_|revoke_)/);
+      expect(
+        getPublicToolDefinition(adapter.sourceTool),
+        `${adapter.name} -> ${adapter.sourceTool}`,
+      ).not.toBeNull();
+      expect(adapter.sourceTool).not.toMatch(
+        /^(?:stage_|confirm_|cancel_|save_|clear_|redeem_|create_|update_|delete_|revoke_)/,
+      );
     }
   });
 

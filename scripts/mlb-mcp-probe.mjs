@@ -8,7 +8,7 @@ const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_RAILWAY_SERVICE = "Sportfolio-Replit";
 const DEFAULT_RAILWAY_ENVIRONMENT = "production";
 const PROBABLE_PITCHER_HYDRATE = "probablePitcher(note)";
-const REMOTE_URL_SENTINEL = "env:HERMES_INTERNAL_MLB_MCP_URL";
+const REMOTE_URL_SENTINEL = "env:MLB_MCP_URL";
 const WINDOWS_RAILWAY_CLI =
   process.platform === "win32" && process.env.APPDATA
     ? `${process.env.APPDATA}\\npm\\node_modules\\@railway\\cli\\bin\\railway.js`
@@ -42,12 +42,12 @@ function parseIntegerFlag(name, value) {
 
 function parseArgs(argv) {
   const config = {
-    url: process.env.HERMES_INTERNAL_MLB_MCP_URL || null,
+    url: process.env.MLB_MCP_URL || null,
     date: formatIsoDate(),
     teamId: DEFAULT_TEAM_ID,
     gamePk: null,
     timeoutMs: DEFAULT_TIMEOUT_MS,
-    authBearerToken: process.env.HERMES_INTERNAL_MLB_MCP_AUTH_BEARER || null,
+    authBearerToken: process.env.MLB_MCP_AUTH_BEARER || null,
     railwayService: null,
     railwayEnvironment: DEFAULT_RAILWAY_ENVIRONMENT,
   };
@@ -409,13 +409,13 @@ const rawConfig = Buffer.from(encodedConfig, "base64").toString("utf8");
 const config = JSON.parse(rawConfig);
 const url =
   config.url === ${JSON.stringify(REMOTE_URL_SENTINEL)}
-    ? process.env.HERMES_INTERNAL_MLB_MCP_URL || null
+    ? process.env.MLB_MCP_URL || null
     : config.url;
 const authBearerToken =
-  config.authBearerToken || process.env.HERMES_INTERNAL_MLB_MCP_AUTH_BEARER || null;
+  config.authBearerToken || process.env.MLB_MCP_AUTH_BEARER || null;
 
 if (!url) {
-  throw new Error("HERMES_INTERNAL_MLB_MCP_URL is not configured in the remote environment.");
+  throw new Error("MLB_MCP_URL is not configured in the remote environment.");
 }
 
 const headers = authBearerToken ? { Authorization: \`Bearer \${authBearerToken}\` } : {};

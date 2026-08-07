@@ -9,8 +9,8 @@ owner: product-engineering
 lastReviewedAt: 2026-05-12
 changeTriggers: client/src/App.tsx,client/src/components/app-sidebar.tsx,server/routes.ts,server/routes/amm.ts,server/routes/lp.ts,server/routes/cli.ts,server/routes/mcp.ts,server/mcp/public-tool-registry.ts
 slug: user-action-surface
-surface: web,cli,agent
-searchKeywords: capabilities,actions,feature map,web,cli,mcp,agent
+surface: web,cli
+searchKeywords: capabilities,actions,feature map,web,cli,mcp
 ---
 
 # User Action Surface
@@ -49,31 +49,6 @@ A single reference for which actions are available, where they live, and how exe
 
 - Update profile username and avatar
 - Generate and revoke CLI API tokens
-- Manage agent profile settings
-
----
-
-## Agent Execution Modes
-
-### Manual Chat and CLI Turns
-
-- Mutating actions are staged first
-- `confirm` and `cancel` are explicit
-- Server re-validates state at execution
-
-### Saved Live Strategy Runs
-
-- Allowlisted actions may auto-execute in saved guardrails:
-  - player-pool buys and sells
-  - LP add, remove, and zap
-  - stack shares
-  - scout reallocations
-  - daily boost assign and remove
-  - watchlist add and remove
-- Excluded from auto-runs:
-  - payments, checkout, and purchase flows
-  - premium purchase flows
-  - community boost creation
 
 ---
 
@@ -86,7 +61,6 @@ The CLI follows the same backend rules as web and MCP.
 - `docs list`, `docs search`, `docs open`
 - `auth whoami`, `auth logout`
 - `portfolio summary`
-- `agent threads`
 - `tools list`, `tools call`
 - `prompts list`, `prompts render`
 - `resources list`, `resources read`
@@ -96,9 +70,6 @@ The CLI follows the same backend rules as web and MCP.
 - `actions buy` / `actions sell`
 - `actions watchlist add` / `actions watchlist remove`
 - `actions community-boost`
-- `agent confirm` / `agent cancel`
-
-For scout, daily-boost, LP, and other advanced flows, use `agent` or `tools` commands (same public capability surface, same confirmation semantics).
 
 Command syntax authority: [CLI Command Reference](/wiki/cli/command-reference)
 
@@ -115,7 +86,7 @@ Public `/mcp` shares the same capability registry as CLI.
 - Staged gameplay actions (trades, LP, stack shares, boosts, scouts, community boosts)
 - Confirm and cancel for pending bundles
 - Public prompts and resources
-- Dynamic MLB enrichment tools when available (`mlb_mcp__*` names)
+- Static semantic MLB tools for players, leaders, games, standings, rosters, and Statcast profiles
 
 ### Excluded
 
@@ -128,7 +99,6 @@ For exhaustive live inventory, read `sportfolio://tool-catalog` through MCP.
 
 ## Known Practical Constraints
 
-- Agent requests can be temporarily busy if another analysis is running for the same account
 - Community boost staging resolves best with full player names
 - Some complex workflows are easier in web because the UI exposes richer context panels
 
@@ -136,6 +106,5 @@ For exhaustive live inventory, read `sportfolio://tool-catalog` through MCP.
 
 ## Next Steps
 
-- [Sportfolio Agent](/wiki/features/agent-operator) - agent boundaries and strategy behavior
 - [CLI Command Reference](/wiki/cli/command-reference) - full syntax
 - [MCP Access](/wiki/getting-started/mcp-access) - session protocol and auth details

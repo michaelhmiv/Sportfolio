@@ -28,28 +28,17 @@ const COMMAND_HELP = {
     "  sportfolio docs open cli/command-reference",
   ],
   portfolio: ["Portfolio Commands", "", "Usage:", "  portfolio summary"],
-  agent: [
-    "Agent Commands",
-    "",
-    "Usage:",
-    "  agent threads",
-    "  agent ask <prompt> [--thread <threadId>]",
-    "  agent confirm <threadId> [--pending-bundle <bundleId>]",
-    "  agent cancel <threadId> [--pending-bundle <bundleId>]",
-    "",
-    "Examples:",
-    '  sportfolio agent ask "what is my current balance?"',
-    '  sportfolio agent ask "review my setup" --thread <threadId>',
-  ],
   actions: [
     "Action Staging Commands",
     "",
     "Usage:",
-    "  actions buy <player-name-or-id> --dollars <amount> [--thread <threadId>]",
-    "  actions sell <player-name-or-id> --shares <amount> [--thread <threadId>]",
-    "  actions watchlist add <player-name-or-id> [--thread <threadId>]",
-    "  actions watchlist remove <player-name-or-id> [--thread <threadId>]",
-    "  actions community-boost <player-name> [--timing today|tomorrow] [--thread <threadId>]",
+    "  actions buy <player-id> --dollars <amount>",
+    "  actions sell <player-id> --shares <amount>",
+    "  actions community-boost <player-id> [--timing today|tomorrow]",
+    "  actions confirm <transactionId>",
+    "  actions cancel <transactionId>",
+    "  actions confirm <transactionId>",
+    "  actions cancel <transactionId>",
     "",
     "Notes:",
     "  - Action commands stage a plan and still require explicit confirm.",
@@ -153,15 +142,13 @@ function printHelp() {
     "  docs search <query>",
     "  docs open <section>/<slug>",
     "  portfolio summary",
-    "  agent threads",
-    "  agent ask <prompt> [--thread <threadId>]",
-    "  agent confirm <threadId> [--pending-bundle <bundleId>]",
-    "  agent cancel <threadId> [--pending-bundle <bundleId>]",
-    "  actions buy <player-name-or-id> --dollars <amount> [--thread <threadId>]",
-    "  actions sell <player-name-or-id> --shares <amount> [--thread <threadId>]",
-    "  actions watchlist add <player-name-or-id> [--thread <threadId>]",
-    "  actions watchlist remove <player-name-or-id> [--thread <threadId>]",
-    "  actions community-boost <player-name> [--timing today|tomorrow] [--thread <threadId>]",
+    "  actions buy <player-id> --dollars <amount>",
+    "  actions sell <player-id> --shares <amount>",
+    "  actions community-boost <player-id> [--timing today|tomorrow]",
+    "  actions confirm <transactionId>",
+    "  actions cancel <transactionId>",
+    "  actions confirm <transactionId>",
+    "  actions cancel <transactionId>",
     "  tools list",
     "  tools catalog",
     "  tools schema <tool-name>",
@@ -190,49 +177,6 @@ function ensureToken(config) {
       exitCode: 2,
     });
   }
-}
-
-function renderAgentResult(result) {
-  const lines = [];
-  const assistantMessages = (result?.result?.createdMessages || []).filter(
-    (message) => message.role === "assistant",
-  );
-  const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
-
-  lines.push(`Thread: ${result.threadId}`);
-  lines.push("");
-  lines.push(lastAssistantMessage?.contentText || "No assistant response returned.");
-
-  const pendingBundle = result?.result?.pendingActionBundle;
-  if (pendingBundle) {
-    lines.push("");
-    lines.push(`Pending confirmation: ${pendingBundle.summary}`);
-    if (pendingBundle.warnings?.length) {
-      for (const warning of pendingBundle.warnings) {
-        lines.push(`Warning: ${warning}`);
-      }
-    }
-    if (pendingBundle.steps?.length) {
-      lines.push("");
-      lines.push("Planned steps:");
-      pendingBundle.steps.forEach((step, index) => {
-        lines.push(`${index + 1}. ${step.title} [${step.status}]`);
-      });
-    } else if (pendingBundle.actions?.length) {
-      lines.push("");
-      lines.push("Planned actions:");
-      pendingBundle.actions.forEach((action, index) => {
-        lines.push(`${index + 1}. ${action.actionType}`);
-      });
-    }
-  }
-
-  if (result?.result?.pendingClarification?.prompt) {
-    lines.push("");
-    lines.push(`Needs clarification: ${result.result.pendingClarification.prompt}`);
-  }
-
-  return lines;
 }
 
 function renderToolResult(result) {
@@ -571,91 +515,6 @@ async function handlePortfolio(args, asJson) {
   printList(renderPortfolioSummary(result));
 }
 
-async function handleAgent(args, asJson) {
-  const [subcommand, ...rest] = args;
-
-  if (!subcommand || subcommand === "--help" || subcommand === "help") {
-    printCommandHelp("agent");
-    return;
-  }
-
-  const config = loadConfig();
-  ensureToken(config);
-
-  if (subcommand === "threads") {
-    const result = await callPublicTool(config, "list_agent_threads");
-
-    if (asJson) {
-      printJson(result);
-      return;
-    }
-
-    printList(
-      result.threads.map(
-        (thread) =>
-          `${thread.id}  ${thread.title || "(untitled)"}  ${thread.status}  ${thread.updatedAt}`,
-      ),
-    );
-    return;
-  }
-
-  if (subcommand === "ask") {
-    const threadId = readOption(rest, "--thread");
-    const prompt = removeOption(rest, "--thread").join(" ").trim();
-    if (!prompt) {
-      throw Object.assign(new Error("Prompt is required"), { exitCode: 1 });
-    }
-
-    const result = await requestJson({
-      baseUrl: config.baseUrl,
-      path: "/api/cli/agent/ask",
-      method: "POST",
-      token: config.token,
-      body: {
-        message: prompt,
-        ...(threadId ? { threadId } : {}),
-      },
-    });
-
-    if (asJson) {
-      printJson(result);
-      return;
-    }
-
-    printList(renderAgentResult(result));
-    return;
-  }
-
-  if (subcommand === "confirm" || subcommand === "cancel") {
-    const threadId = rest[0] || "";
-    const pendingBundleId = readOption(rest, "--pending-bundle");
-    if (!threadId) {
-      throw Object.assign(new Error("Thread id is required"), { exitCode: 1 });
-    }
-
-    const result = await requestJson({
-      baseUrl: config.baseUrl,
-      path: `/api/cli/agent/threads/${encodeURIComponent(threadId)}/${subcommand}`,
-      method: "POST",
-      token: config.token,
-      body: pendingBundleId ? { pendingBundleId } : undefined,
-    });
-
-    if (asJson) {
-      printJson(result);
-      return;
-    }
-
-    const assistantMessage = result.createdMessages?.[0];
-    printList([assistantMessage?.contentText || `${subcommand} completed.`]);
-    return;
-  }
-
-  throw Object.assign(new Error("Unknown agent command. Run `sportfolio agent --help`."), {
-    exitCode: 1,
-  });
-}
-
 async function handleActions(args, asJson) {
   const [subcommand, ...rest] = args;
 
@@ -667,9 +526,25 @@ async function handleActions(args, asJson) {
   const config = loadConfig();
   ensureToken(config);
 
-  const threadId = readOption(rest, "--thread");
   const timing = readOption(rest, "--timing");
-  const actionArgs = removeOption(removeOption(rest, "--thread"), "--timing");
+  const actionArgs = removeOption(rest, "--timing");
+
+  if (subcommand === "confirm" || subcommand === "cancel") {
+    const transactionId = rest[0] || "";
+    if (!transactionId) {
+      throw Object.assign(new Error(`Use ` + "`actions " + subcommand + " <transactionId>`"), {
+        exitCode: 1,
+      });
+    }
+    const result = await callPublicTool(
+      config,
+      subcommand === "confirm" ? "confirm_pending_action" : "cancel_pending_action",
+      { transactionId },
+    );
+    if (asJson) printJson(result);
+    else printList(renderToolResult(result));
+    return;
+  }
 
   let payload = null;
 
@@ -693,17 +568,6 @@ async function handleActions(args, asJson) {
       });
     }
     payload = { action: "sell", player, shares };
-  }
-
-  if (subcommand === "watchlist") {
-    const verb = actionArgs[0] || "";
-    const player = actionArgs[1] || "";
-    if ((verb !== "add" && verb !== "remove") || !player) {
-      throw Object.assign(new Error("Use `actions watchlist add|remove <player-name-or-id>`"), {
-        exitCode: 1,
-      });
-    }
-    payload = { action: verb === "add" ? "watchlist_add" : "watchlist_remove", player };
   }
 
   if (subcommand === "community-boost") {
@@ -731,10 +595,7 @@ async function handleActions(args, asJson) {
     path: "/api/cli/actions/stage",
     method: "POST",
     token: config.token,
-    body: {
-      ...payload,
-      ...(threadId ? { threadId } : {}),
-    },
+    body: payload,
   });
 
   if (asJson) {
@@ -742,7 +603,7 @@ async function handleActions(args, asJson) {
     return;
   }
 
-  printList(renderAgentResult(result));
+  printList(renderToolResult(result));
 }
 
 async function handleTools(args, asJson) {
@@ -947,11 +808,6 @@ export async function runCli(rawArgs) {
 
     if (command === "portfolio") {
       await handlePortfolio(rest, asJson);
-      return;
-    }
-
-    if (command === "agent") {
-      await handleAgent(rest, asJson);
       return;
     }
 

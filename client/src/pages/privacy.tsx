@@ -114,8 +114,12 @@ export default function Privacy() {
         <DocumentSection key={section.id} id={section.id} title={section.title}>
           {section.id === "contact" ? (
             <p>
-              Questions about this policy, data access, connected applications, or account deletion may be sent to{" "}
-              <a className="font-medium text-brand underline underline-offset-4" href={`mailto:${SPORTFOLIO_SUPPORT_EMAIL}`}>
+              Questions about this policy, data access, connected applications, or account deletion
+              may be sent to{" "}
+              <a
+                className="font-medium text-brand underline underline-offset-4"
+                href={`mailto:${SPORTFOLIO_SUPPORT_EMAIL}`}
+              >
                 {SPORTFOLIO_SUPPORT_EMAIL}
               </a>
               .

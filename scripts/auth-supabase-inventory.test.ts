@@ -12,16 +12,10 @@ describe("Supabase exit inventory", () => {
   it("classifies current dependency surfaces deterministically", () => {
     expect(classifySupabasePath("client/src/lib/supabase.ts")).toBe("client-auth");
     expect(classifySupabasePath("server/supabaseAuth.ts")).toBe("server-auth");
-    expect(classifySupabasePath("server/services/account-deletion.ts")).toBe(
-      "account-lifecycle",
-    );
-    expect(classifySupabasePath("scripts/plugin-oauth-discovery-check.ts")).toBe(
-      "oauth-mcp",
-    );
+    expect(classifySupabasePath("server/services/account-deletion.ts")).toBe("account-lifecycle");
+    expect(classifySupabasePath("scripts/plugin-oauth-discovery-check.ts")).toBe("oauth-mcp");
     expect(classifySupabasePath("README.md")).toBe("documentation");
-    expect(classifySupabasePath(".agent/workflows/best-practices.md")).toBe(
-      "documentation",
-    );
+    expect(classifySupabasePath("docs/auth/best-practices.md")).toBe("documentation");
     expect(classifySupabasePath(".claude/settings.local.json")).toBe("configuration");
     expect(classifySupabasePath("migrations/example.sql")).toBe("database-security");
     expect(classifySupabasePath("unknown/new-supabase-bridge.ts")).toBeNull();

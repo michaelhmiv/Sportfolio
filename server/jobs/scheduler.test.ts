@@ -445,23 +445,6 @@ describe("JobScheduler registration and manual dispatch", () => {
     }
   });
 
-  it("does not advertise, configure, or dispatch retired agent and digest jobs", async () => {
-    const { JobScheduler } = await import("./scheduler");
-    const scheduler = new JobScheduler();
-    const retired = [
-      "compile_digest",
-      "agent_advisory_schedules",
-      "agent_live_strategies",
-      "agent_strategy_events",
-    ];
-
-    expect(scheduler.getAvailableManualJobNames()).not.toEqual(expect.arrayContaining(retired));
-    expect(scheduler.getConfiguredJobNames()).not.toEqual(expect.arrayContaining(retired));
-    for (const jobName of retired) {
-      await expect(scheduler.triggerJob(jobName)).rejects.toThrow(`Unknown job: ${jobName}`);
-    }
-  });
-
   it("preserves the advertised backfill job as an unknown manual trigger", async () => {
     const { JobScheduler } = await import("./scheduler");
     const scheduler = new JobScheduler();

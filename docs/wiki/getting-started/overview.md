@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-05-31
 changeTriggers: client/src/App.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts
 slug: overview
-surface: web,cli,agent
+surface: web,cli
 searchKeywords: onboarding,start,balance,portfolio,first steps,overview
 ---
 
@@ -69,7 +69,6 @@ Buy shares -> Assign scouts -> Build stack power -> Deploy boosts -> Review payo
 | Portfolio    | Holdings, stack status, LP, and activity        |
 | Boosts       | Stacking, slot assignment, and payout tracking  |
 | News         | Breaking stories and personalized digest        |
-| Agent        | Explain mechanics and stage confirmed actions   |
 
 Saved live strategies can auto-run only an allowlisted gameplay subset. Payment and checkout flows remain excluded from auto-runs.
 

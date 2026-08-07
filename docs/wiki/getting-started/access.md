@@ -9,8 +9,8 @@ owner: product-engineering
 lastReviewedAt: 2026-05-12
 changeTriggers: client/src/App.tsx,client/src/components/bottom-nav.tsx,client/src/components/cli-access-card.tsx,client/src/pages/wiki.tsx,packages/sportfolio-cli,server/routes/docs.ts,server/routes/mcp.ts
 slug: access
-surface: web,cli,agent
-searchKeywords: access,how do i access sportfolio,mcp,model context protocol,cli,api token,agent,wiki,mobile
+surface: web,cli
+searchKeywords: access,how do i access sportfolio,mcp,model context protocol,cli,api token,wiki,mobile
 ---
 
 # How to Access Sportfolio
@@ -32,14 +32,12 @@ The web app is the primary surface. It is fully responsive on mobile browsers.
 
 **Mobile navigation:**
 
-- Bottom bar for main pages (Agent, Portfolio, Boosts, and more)
 - Top-bar help icon to `/wiki`
 
 **Key starting points:**
 
 - `/` - Dashboard
 - `/wiki` - Documentation hub
-- `/agent` - In-app assistant
 
 ---
 
@@ -70,7 +68,6 @@ npm run cli -- auth login --token <your-token> --base-url http://127.0.0.1:5000
 **Main CLI command families:**
 
 - `docs` - wiki navigation (`list`, `search`, `open`)
-- `agent` - ask questions and confirm/cancel staged plans
 - `portfolio` - account snapshot
 - `actions` - helper staging commands only for `buy`, `sell`, `watchlist add/remove`, and `community-boost`
 - `tools` - shared capability surface, including scout, daily-boost, LP, and other advanced flows
@@ -108,4 +105,3 @@ See [MCP Access](/wiki/getting-started/mcp-access) for session lifecycle and pro
 
 - [CLI Command Reference](/wiki/cli/command-reference) - full CLI syntax and examples
 - [MCP Access](/wiki/getting-started/mcp-access) - endpoint contract and session semantics
-- [Sportfolio Agent](/wiki/features/agent-operator) - manual chat vs saved strategy behavior

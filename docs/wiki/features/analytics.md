@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-04-23
 changeTriggers: client/src/pages/analytics.tsx,server/routes.ts,shared/schema.ts
 slug: analytics
-surface: web,agent
+surface: web
 searchKeywords: analytics,market health,charts,trends,economy,share issuance,burn,player comparison
 ---
 
@@ -95,20 +95,6 @@ Point-in-time summaries of the whole Sportfolio economy:
 Analytics is a context tool, not an execution surface. You can't trade from Analytics — it's for observation and analysis.
 
 It also doesn't provide real-time tick-level data. It's a macro observability layer, not a trading terminal.
-
----
-
-## Agent Access
-
-You can ask the agent to summarize analytics-style questions:
-
-```
-"How is the NBA market looking today?"
-"Which players have had the most volume this week?"
-"Is there anything unusual happening in the market right now?"
-```
-
-The agent uses the same underlying data and can apply it to your specific holdings for personalized context.
 
 ---
 

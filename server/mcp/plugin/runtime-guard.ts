@@ -56,7 +56,9 @@ export function pluginRateLimit(
   if (bucket.count > limit) {
     observePluginMcpLimit("rate");
     res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
-    res.status(429).json({ error: "rate_limited", message: "Too many plugin requests. Try again later." });
+    res
+      .status(429)
+      .json({ error: "rate_limited", message: "Too many plugin requests. Try again later." });
     return;
   }
   next();
@@ -71,7 +73,9 @@ export function pluginConcurrencyLimit(
   if (activeRequests >= maxConcurrent) {
     observePluginMcpLimit("concurrency");
     res.setHeader("Retry-After", "1");
-    res.status(503).json({ error: "temporarily_unavailable", message: "Plugin capacity is temporarily full." });
+    res
+      .status(503)
+      .json({ error: "temporarily_unavailable", message: "Plugin capacity is temporarily full." });
     return;
   }
 

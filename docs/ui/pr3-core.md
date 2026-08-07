@@ -59,4 +59,4 @@ Exposure is available during live/final states, posted lineups remain visible af
 | Focused PR 3 E2E        |                                                8/8 pass |
 | Current full-E2E matrix | 18 pass / 9 documented cross-PR contract-drift failures |
 
-The remaining full-E2E failures are outside PR 3's core-surface contract: seven tests target the removed `/agent` workspace and belong to PR 4's Scout/Hermes work; two auth copy/transition expectations belong to PR 5. The reliable full run uses one worker because the host cannot launch seven Chromium workers without exhausting its thread limit.
+The remaining full-E2E failures are outside PR 3's core-surface contract: seven tests target a retired operator workspace outside PR 3's core-surface contract; two auth copy/transition expectations belong to PR 5. The reliable full run uses one worker because the host cannot launch seven Chromium workers without exhausting its thread limit.

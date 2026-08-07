@@ -28,42 +28,50 @@ const checks = [
   {
     id: "oauth_action_consent_review",
     passed: process.env.PLUGIN_OAUTH_ACTION_CONSENT_REVIEW_COMPLETE === "true",
-    detail: "Verify the production OAuth consent screen accurately discloses connected reads and write actions.",
+    detail:
+      "Verify the production OAuth consent screen accurately discloses connected reads and write actions.",
   },
   {
     id: "full_action_workspace_test",
     passed: process.env.PLUGIN_FULL_ACTION_WORKSPACE_TEST_COMPLETE === "true",
-    detail: "Test the full MCP write surface in a ChatGPT workspace that supports custom MCP modify actions.",
+    detail:
+      "Test the full MCP write surface in a ChatGPT workspace that supports custom MCP modify actions.",
   },
   {
     id: "sensitive_tool_review",
     passed: process.env.PLUGIN_SENSITIVE_TOOL_REVIEW_COMPLETE === "true",
-    detail: "Complete manual review of credential, API-token, SMS-link, BYOK, premium, and destructive account tools.",
+    detail:
+      "Complete manual review of credential, API-token, BYOK, premium, and destructive account tools.",
   },
   {
     id: "staged_action_replay_test",
     passed: process.env.PLUGIN_STAGED_ACTION_REPLAY_TEST_COMPLETE === "true",
-    detail: "Verify staging does not execute, confirmation executes once, duplicate confirmation is rejected, and cancellation applies no gameplay change.",
+    detail:
+      "Verify staging does not execute, confirmation executes once, duplicate confirmation is rejected, and cancellation applies no gameplay change.",
   },
   {
     id: "reviewer_account",
     passed: process.env.PLUGIN_REVIEWER_ACCOUNT_READY === "true",
-    detail: "Create and seed the synthetic reviewer account and store credentials only in the submission portal.",
+    detail:
+      "Create and seed the synthetic reviewer account and store credentials only in the submission portal.",
   },
   {
     id: "security_advisors",
     passed: process.env.PLUGIN_SUPABASE_SECURITY_REVIEW_COMPLETE === "true",
-    detail: "Resolve or formally disposition the Supabase security-advisor errors before submission.",
+    detail:
+      "Resolve or formally disposition the Supabase security-advisor errors before submission.",
   },
   {
     id: "dependency_security",
     passed: process.env.PLUGIN_DEPENDENCY_SECURITY_REVIEW_COMPLETE === "true",
-    detail: "Confirm the production dependency audit is clear or formally disposition every remaining high/critical advisory.",
+    detail:
+      "Confirm the production dependency audit is clear or formally disposition every remaining high/critical advisory.",
   },
   {
     id: "legal_review",
     passed: process.env.PLUGIN_LEGAL_REVIEW_COMPLETE === "true",
-    detail: "Complete final legal review of privacy, terms, action disclosures, and country availability.",
+    detail:
+      "Complete final legal review of privacy, terms, action disclosures, and country availability.",
   },
 ];
 
@@ -81,5 +89,7 @@ if (strict && blocked.length > 0) {
 if (blocked.length === 0) {
   console.log("All external release gates are satisfied.");
 } else {
-  console.log(`Pre-release mode: ${blocked.length} external gate(s) remain intentionally unresolved.`);
+  console.log(
+    `Pre-release mode: ${blocked.length} external gate(s) remain intentionally unresolved.`,
+  );
 }

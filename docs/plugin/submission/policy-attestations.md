@@ -33,7 +33,7 @@ Complete the portal attestations only after every statement below has been indep
 
 ## Sensitive account workflows and data
 
-- [ ] Credential, token, SMS-link, and BYOK management tools have received explicit manual review before submission.
+- [ ] Credential, token, and BYOK management tools have received explicit manual review before submission.
 - [ ] The skill never asks users to paste passwords, API keys, provider keys, access tokens, refresh tokens, MFA codes, OTPs, or SMS codes into conversation.
 - [ ] Tool responses are sanitized and contain no passwords, provider keys, authentication tokens, authorization headers, cookies, service-role data, direct contact fields, stack traces, SQL, session IDs, request IDs, or undisclosed internal fields.
 - [ ] Any pending thread and bundle identifiers returned are limited to continuing the user's approved staged workflow.

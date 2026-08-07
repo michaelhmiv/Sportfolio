@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-05-12
 changeTriggers: server/routes/amm.ts,server/routes/lp.ts,server/amm/pool.ts,client/src/pages/marketplace.tsx,client/src/pages/player.tsx,shared/schema.ts
 slug: player-pools
-surface: web,cli,agent
+surface: web,cli
 searchKeywords: amm,pools,buy,sell,liquidity,quotes,slippage,lp
 ---
 

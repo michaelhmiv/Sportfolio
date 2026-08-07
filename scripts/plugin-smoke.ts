@@ -36,7 +36,9 @@ async function main() {
   try {
     await client.connect(transport);
     const listed = await client.listTools();
-    const expectedStatic = buildPublicToolRegistry().map((tool) => tool.name).sort();
+    const expectedStatic = buildPublicToolRegistry()
+      .map((tool) => tool.name)
+      .sort();
     const actual = listed.tools.map((tool) => tool.name).sort();
     const missing = expectedStatic.filter((name) => !actual.includes(name));
     if (missing.length > 0) {
@@ -103,7 +105,9 @@ async function main() {
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
     });
     if (sessionHeaderResponse.status !== 400) {
-      throw new Error(`Stateless endpoint accepted an MCP session ID: ${sessionHeaderResponse.status}.`);
+      throw new Error(
+        `Stateless endpoint accepted an MCP session ID: ${sessionHeaderResponse.status}.`,
+      );
     }
 
     console.log(

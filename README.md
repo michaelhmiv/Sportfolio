@@ -1,6 +1,6 @@
 # Sportfolio
 
-Sportfolio is a multi-sport player-share market with AMM trading, LP participation, scouts, power/boost mechanics, and a Hermes-backed operator across web, CLI, and SMS.
+Sportfolio is a multi-sport player-share market with AMM trading, LP participation, scouts, power/boost mechanics, and authenticated automation across web, CLI, and MCP.
 
 ## Quick Start
 
@@ -62,7 +62,7 @@ npm run cli -- auth login --token <your-token> --base-url https://www.sportfolio
 npm run cli -- auth whoami
 npm run cli -- docs search "power boosts"
 npm run cli -- portfolio summary
-npm run cli -- agent ask "review my setup"
+npm run cli -- resources read sportfolio://capabilities
 ```
 
 For full syntax and troubleshooting:

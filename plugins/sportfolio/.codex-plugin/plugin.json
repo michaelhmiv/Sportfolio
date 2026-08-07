@@ -10,13 +10,7 @@
   "homepage": "https://www.sportfolio.market/plugin/",
   "repository": "https://github.com/michaelhmiv/Sportfolio",
   "license": "MIT",
-  "keywords": [
-    "sports",
-    "fantasy-sports",
-    "portfolio-game",
-    "baseball",
-    "hockey"
-  ],
+  "keywords": ["sports", "fantasy-sports", "portfolio-game", "baseball", "hockey"],
   "skills": "./skills/",
   "apps": "./.app.json",
   "interface": {
@@ -25,10 +19,7 @@
     "longDescription": "Research Sportfolio players and games, review a connected virtual portfolio, and carry out supported market trades, scouting, boosts, liquidity, watchlist, schedule, profile, and gameplay actions through the same public MCP surface used by Sportfolio.",
     "developerName": "Sportfolio",
     "category": "Sports",
-    "capabilities": [
-      "Read",
-      "Write"
-    ],
+    "capabilities": ["Read", "Write"],
     "websiteURL": "https://www.sportfolio.market",
     "privacyPolicyURL": "https://www.sportfolio.market/privacy",
     "termsOfServiceURL": "https://www.sportfolio.market/terms",

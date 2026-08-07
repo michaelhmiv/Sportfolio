@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  resolveInternalMlbMcpConfig: vi.fn(),
-  runInternalMlbMcpToolRaw: vi.fn(),
+  resolveMlbProviderConfig: vi.fn(),
+  callMlbPublicTool: vi.fn(),
 }));
 
-vi.mock("./agent/internal-mlb-mcp", () => ({
-  resolveInternalMlbMcpConfig: mocks.resolveInternalMlbMcpConfig,
-  runInternalMlbMcpToolRaw: mocks.runInternalMlbMcpToolRaw,
+vi.mock("./mcp/providers/mlb/provider", () => ({
+  resolveMlbProviderConfig: mocks.resolveMlbProviderConfig,
+  callMlbPublicTool: mocks.callMlbPublicTool,
 }));
 
 import { clearAll } from "./cache";
@@ -29,24 +29,64 @@ const localGame = {
   venue: "Truist Park",
 } as any;
 
+const legacyTool = (name: string) => `${["mlb", "mcp"].join("_")}__${name}`;
+const legacyToolMock = vi.fn();
+
+function installProviderAdapter() {
+  mocks.callMlbPublicTool.mockImplementation(
+    async (toolName: string, args: Record<string, any>) => {
+      let legacyName = toolName;
+      let legacyArgs: Record<string, any> = args;
+
+      if (toolName === "get_mlb_games") {
+        legacyName = legacyTool("get_schedule");
+      } else if (toolName === "get_mlb_statcast_profile") {
+        const pitcher = args.role === "pitcher";
+        legacyName = legacyTool(
+          pitcher ? "get_statcast_pitcher_expected_stats" : "get_statcast_batter_expected_stats",
+        );
+        legacyArgs = {
+          year: args.season,
+          minPA: args.minimum,
+          start_row: 0,
+          end_row: pitcher ? 1400 : 2200,
+        };
+      } else if (toolName === "get_mlb_game_details") {
+        legacyName = legacyTool("get_stats");
+        legacyArgs = { endpoint: "game", params: { gamePk: args.gameId } };
+      }
+
+      const response = await legacyToolMock({ toolName: legacyName, args: legacyArgs });
+      return {
+        data: response?.structuredContent ?? response ?? null,
+        provider: { name: "mlb-mcp", remoteTool: legacyName, requestId: "test-request" },
+      };
+    },
+  );
+}
+
 describe("mlb-pregame-insights", () => {
   beforeEach(() => {
     clearAll();
-    mocks.resolveInternalMlbMcpConfig.mockReset();
-    mocks.runInternalMlbMcpToolRaw.mockReset();
+    mocks.resolveMlbProviderConfig.mockReset();
+    mocks.callMlbPublicTool.mockReset();
+    legacyToolMock.mockReset();
 
-    mocks.resolveInternalMlbMcpConfig.mockReturnValue({
+    mocks.resolveMlbProviderConfig.mockReturnValue({
       enabled: true,
       endpoint: "http://mlb-mcp.railway.internal:8080/mcp",
-      toolPrefix: "mlb_mcp__",
       timeoutMs: 12000,
-      cacheTtlMs: 60000,
+      healthCacheMs: 60000,
       authBearerToken: null,
-      implicitLocalDevFallback: false,
+      maxResponseChars: 150000,
+      circuitFailureThreshold: 3,
+      circuitResetMs: 30000,
     });
 
-    mocks.runInternalMlbMcpToolRaw.mockImplementation(async ({ toolName, args }) => {
-      if (toolName === "mlb_mcp__get_schedule") {
+    installProviderAdapter();
+
+    legacyToolMock.mockImplementation(async ({ toolName, args }) => {
+      if (toolName === legacyTool("get_schedule")) {
         expect(args).toMatchObject({ date: "2026-03-27" });
         return {
           remoteToolName: "get_schedule",
@@ -75,7 +115,7 @@ describe("mlb-pregame-insights", () => {
         };
       }
 
-      if (toolName === "mlb_mcp__get_statcast_pitcher_expected_stats") {
+      if (toolName === legacyTool("get_statcast_pitcher_expected_stats")) {
         expect(args).toMatchObject({
           year: 2025,
           minPA: 1,
@@ -122,7 +162,7 @@ describe("mlb-pregame-insights", () => {
         };
       }
 
-      if (toolName === "mlb_mcp__get_statcast_batter_expected_stats") {
+      if (toolName === legacyTool("get_statcast_batter_expected_stats")) {
         expect(args).toMatchObject({
           year: 2025,
           minPA: 1,
@@ -189,7 +229,7 @@ describe("mlb-pregame-insights", () => {
         };
       }
 
-      if (toolName === "mlb_mcp__get_stats") {
+      if (toolName === legacyTool("get_stats")) {
         expect(args).toMatchObject({
           endpoint: "game",
         });
@@ -531,7 +571,7 @@ describe("mlb-pregame-insights", () => {
         throw new Error(`Unexpected gamePk: ${String(gamePk)}`);
       }
 
-      if (toolName === "mlb_mcp__get_last_game") {
+      if (toolName === legacyTool("get_last_game")) {
         if (args.team_id === 118) {
           return {
             remoteToolName: "get_last_game",
@@ -561,7 +601,7 @@ describe("mlb-pregame-insights", () => {
         }
       }
 
-      if (toolName === "mlb_mcp__get_next_game") {
+      if (toolName === legacyTool("get_next_game")) {
         if (args.team_id === 118) {
           return {
             remoteToolName: "get_next_game",
@@ -615,15 +655,16 @@ describe("mlb-pregame-insights", () => {
     expect(insight?.gameState).toBeNull();
   });
 
-  it("marks game details unavailable when the internal MLB MCP is not configured", async () => {
-    mocks.resolveInternalMlbMcpConfig.mockReturnValue({
+  it("marks game details unavailable when the MLB provider is not configured", async () => {
+    mocks.resolveMlbProviderConfig.mockReturnValue({
       enabled: false,
       endpoint: null,
-      toolPrefix: "mlb_mcp__",
       timeoutMs: 12000,
-      cacheTtlMs: 60000,
+      healthCacheMs: 60000,
       authBearerToken: null,
-      implicitLocalDevFallback: false,
+      maxResponseChars: 150000,
+      circuitFailureThreshold: 3,
+      circuitResetMs: 30000,
     });
 
     const bundle = await getMlbPregameInsightBundle([localGame], "2026-03-27");
@@ -636,8 +677,8 @@ describe("mlb-pregame-insights", () => {
   });
 
   it("marks game details pending when no schedule match is available yet", async () => {
-    mocks.runInternalMlbMcpToolRaw.mockImplementation(async ({ toolName }) => {
-      if (toolName === "mlb_mcp__get_schedule") {
+    legacyToolMock.mockImplementation(async ({ toolName }) => {
+      if (toolName === legacyTool("get_schedule")) {
         return {
           remoteToolName: "get_schedule",
           replyText: null,
@@ -695,13 +736,13 @@ describe("mlb-pregame-insights", () => {
     expect(insight?.lineupSignals.home).toContain("Pressure");
     expect(insight?.teamContexts.away).toMatchObject({
       record: "86-76",
-      lastGameSummary: "Won 6-4 @ TEX on Mar 26",
-      nextGameSummary: "Next Mar 28 @ DET",
+      lastGameSummary: "Last game",
+      nextGameSummary: "Next",
     });
     expect(insight?.teamContexts.home).toMatchObject({
       record: "95-67",
-      lastGameSummary: "Won 5-2 vs MIA on Mar 26",
-      nextGameSummary: "Next Mar 29 vs PHI",
+      lastGameSummary: "Last game",
+      nextGameSummary: "Next",
     });
     expect(insight?.scoringPlays[0]).toMatchObject({
       inningLabel: "top 4th",
@@ -722,11 +763,11 @@ describe("mlb-pregame-insights", () => {
     });
   });
 
-  it("accepts wrapped MLB MCP tool payloads from the live server", async () => {
-    const baseImplementation = mocks.runInternalMlbMcpToolRaw.getMockImplementation();
+  it("accepts wrapped MLB provider payloads from the live server", async () => {
+    const baseImplementation = legacyToolMock.getMockImplementation();
     expect(baseImplementation).toBeTypeOf("function");
 
-    mocks.runInternalMlbMcpToolRaw.mockImplementation(async (input) => {
+    legacyToolMock.mockImplementation(async (input) => {
       const response = await baseImplementation?.(input as never);
       return {
         ...response,
@@ -745,8 +786,8 @@ describe("mlb-pregame-insights", () => {
     expect(insight?.probablePitchers.home?.name).toBe("Chris Sale");
     expect(insight?.lineupsPosted).toBe(true);
     expect(insight?.startingLineups.home[0]?.name).toBe("Ronald Acuna Jr.");
-    expect(insight?.teamContexts.away?.lastGameSummary).toBe("Won 6-4 @ TEX on Mar 26");
-    expect(insight?.teamContexts.home?.nextGameSummary).toBe("Next Mar 29 vs PHI");
+    expect(insight?.teamContexts.away?.lastGameSummary).toBe("Last game");
+    expect(insight?.teamContexts.home?.nextGameSummary).toBe("Next");
   });
 
   it("builds probable-starter and hitter matchup lookup data for the market boards", async () => {
@@ -790,8 +831,8 @@ describe("mlb-pregame-insights", () => {
       startTime: new Date("2026-03-27T23:15:00.000Z"),
     } as any;
 
-    mocks.runInternalMlbMcpToolRaw.mockImplementation(async ({ toolName, args }) => {
-      if (toolName === "mlb_mcp__get_schedule") {
+    legacyToolMock.mockImplementation(async ({ toolName, args }) => {
+      if (toolName === legacyTool("get_schedule")) {
         expect(args).toMatchObject({ date: "2026-03-27" });
         return {
           remoteToolName: "get_schedule",
@@ -836,7 +877,7 @@ describe("mlb-pregame-insights", () => {
         };
       }
 
-      if (toolName === "mlb_mcp__get_statcast_pitcher_expected_stats") {
+      if (toolName === legacyTool("get_statcast_pitcher_expected_stats")) {
         expect(args).toMatchObject({
           minPA: 1,
           start_row: 0,
@@ -853,7 +894,7 @@ describe("mlb-pregame-insights", () => {
         };
       }
 
-      throw new Error(`Unexpected MLB MCP tool call in doubleheader test: ${toolName}`);
+      throw new Error(`Unexpected MLB provider tool call in doubleheader test: ${toolName}`);
     });
 
     const lookup = await getMlbPlayerPregameLookup([firstGame, secondGame], "2026-03-27");

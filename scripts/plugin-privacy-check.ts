@@ -47,20 +47,16 @@ for (const name of ["list_api_tokens", "revoke_api_token"]) {
   }
 }
 
-for (const retiredName of [
-  "save_agent_byok",
-  "clear_agent_byok",
-  "start_sms_link",
-  "complete_sms_link",
-]) {
-  if (catalog.some((entry) => entry.name === retiredName)) {
-    failures.push(`Retired sensitive account tool remains public: ${retiredName}.`);
-  }
-}
-
 const sanitizer = readFileSync("server/mcp/plugin/sanitizer.ts", "utf8");
-for (const required of ["access[_-]?token", "refresh[_-]?token", "service[_-]?role", "stack", "sql"]) {
-  if (!sanitizer.includes(required)) failures.push(`Sanitizer is missing required blocked pattern: ${required}`);
+for (const required of [
+  "access[_-]?token",
+  "refresh[_-]?token",
+  "service[_-]?role",
+  "stack",
+  "sql",
+]) {
+  if (!sanitizer.includes(required))
+    failures.push(`Sanitizer is missing required blocked pattern: ${required}`);
 }
 
 if (failures.length) {

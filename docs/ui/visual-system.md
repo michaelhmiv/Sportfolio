@@ -189,7 +189,7 @@ Lower-priority signals use a neutral chip with semantic icon/dot. Fully colored 
 
 ### Overlays
 
-Dialog, alert dialog, drawer, sheet, popover, tooltip, command surface, toast, player modal, Scout/Hermes, and ceremonies share:
+Dialog, alert dialog, drawer, sheet, popover, tooltip, command surface, toast, player modal, special product surfaces and ceremonies share:
 
 - Overlay/scrim tokens
 - Radius/padding/heading/action hierarchy

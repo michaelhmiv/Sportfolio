@@ -1,242 +1,110 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { CURATED_MLB_TOOL_NAMES } from "../server/mcp/providers/mlb/provider";
 import {
   buildPublicMcpToolRegistry,
   getPublicMcpToolFixtures,
 } from "../server/mcp/public-tool-registry";
 import { startMockMcpHttpServer } from "../server/mcp/testing";
 
-type OpenClient = {
-  client: Client;
-  transport: StreamableHTTPClientTransport;
-};
-
-type SmokeFailure = {
-  toolName: string;
-  message: string;
-};
-
-const RETIRED_PROMPTS = new Set(["review_setup", "review_idle_cash"]);
-const RAW_PROVIDER_PREFIX = "mlb_mcp__";
-
-async function connectClient(url: string, authToken: string): Promise<OpenClient> {
-  const transport = new StreamableHTTPClientTransport(new URL(url), {
-    requestInit: {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-      },
-    },
-  });
-  const client = new Client({
-    name: "sportfolio-mcp-smoke",
-    version: "1.0.0",
-  });
-  await client.connect(transport);
-  return { client, transport };
-}
-
-async function closeClient(openClient: OpenClient | null) {
-  if (openClient) {
-    await openClient.transport.close();
-  }
-}
-
-function parseResourcePayload(contents: Array<{ text?: string }>): Record<string, unknown> {
-  return JSON.parse(String(contents[0]?.text || "{}")) as Record<string, unknown>;
-}
-
-function containsRawProviderEntry(entries: unknown, key: "name" | "capabilityId"): boolean {
-  return (
-    Array.isArray(entries) &&
-    entries.some(
-      (entry) =>
-        entry &&
-        typeof entry === "object" &&
-        typeof (entry as Record<string, unknown>)[key] === "string" &&
-        String((entry as Record<string, unknown>)[key]).startsWith(RAW_PROVIDER_PREFIX),
-    )
-  );
-}
-
 async function main() {
-  const fixtures = getPublicMcpToolFixtures();
-  const toolNames = buildPublicMcpToolRegistry().map((tool) => tool.name);
-  const failures: SmokeFailure[] = [];
-  const protocolServer = await startMockMcpHttpServer();
-  let protocolClient: OpenClient | null = null;
-
-  try {
-    protocolClient = await connectClient(protocolServer.url, protocolServer.authToken);
-    const listedTools = await protocolClient.client.listTools();
-    const listedPrompts = await protocolClient.client.listPrompts();
-    await protocolClient.client.listResources();
-    await protocolClient.client.readResource({ uri: "sportfolio://docs/index" });
-    await protocolClient.client.readResource({ uri: "sportfolio://tool-catalog" });
-
-    for (const prompt of listedPrompts.prompts) {
-      if (RETIRED_PROMPTS.has(prompt.name)) {
-        failures.push({
-          toolName: "retired_prompt_listing",
-          message: `Retired prompt ${prompt.name} remains publicly listed.`,
-        });
-      }
-    }
-
-    if (!listedPrompts.prompts.some((prompt) => prompt.name === "find_boost_candidates")) {
-      failures.push({
-        toolName: "approved_prompt_listing",
-        message: "Approved find_boost_candidates prompt was not listed.",
-      });
-    }
-
-    if (listedTools.tools.some((tool) => tool.name.startsWith(RAW_PROVIDER_PREFIX))) {
-      failures.push({
-        toolName: "raw_provider_listing",
-        message: "A raw MLB provider tool was listed on the default public surface.",
-      });
-    }
-  } finally {
-    await closeClient(protocolClient);
-    await protocolServer.close();
-  }
-
-  const dynamicServer = await startMockMcpHttpServer({
-    mlbTools: {
-      toolCatalog: [
-        {
-          toolName: "mlb_mcp__get_schedule",
-          category: "read",
-          description: "Get the MLB schedule.",
-          whenToUse: ["Use when the caller wants probable pitchers or the slate."],
-          whenNotToUse: [],
-          examplePrompts: ["who are the probable pitchers today?"],
-          requiresConfirmation: false,
-          riskLevel: "low",
-          resultShapeHint: "dates[].games[] with probable pitchers",
-          inputSchema: {
-            type: "object",
-            properties: {
-              date: {
-                type: "string",
-                description: "Target date in YYYY-MM-DD format.",
-              },
-            },
-            required: ["date"],
-          },
-        },
-      ],
-    },
+  const server = await startMockMcpHttpServer();
+  const transport = new StreamableHTTPClientTransport(new URL(server.url), {
+    requestInit: { headers: { Authorization: `Bearer ${server.authToken}` } },
   });
-  let dynamicClient: OpenClient | null = null;
-
+  const client = new Client({ name: "sportfolio-mcp-smoke", version: "1.0.0" });
+  const failures: Array<{ toolName: string; message: string }> = [];
   try {
-    dynamicClient = await connectClient(dynamicServer.url, dynamicServer.authToken);
-    const tools = await dynamicClient.client.listTools();
-    if (tools.tools.some((tool) => tool.name.startsWith(RAW_PROVIDER_PREFIX))) {
-      failures.push({
-        toolName: "dynamic_mlb_tool_listing",
-        message: "A configured raw MLB provider tool leaked onto the public MCP surface.",
-      });
+    await client.connect(transport);
+    const listed = (await client.listTools()).tools.map((tool) => tool.name);
+    for (const name of CURATED_MLB_TOOL_NAMES) {
+      if (!listed.includes(name))
+        failures.push({ toolName: name, message: "Missing semantic MLB tool." });
     }
-
-    const capabilities = parseResourcePayload(
-      (await dynamicClient.client.readResource({ uri: "sportfolio://capabilities" })).contents,
-    );
-    const actionSurface = parseResourcePayload(
-      (await dynamicClient.client.readResource({ uri: "sportfolio://action-surface" })).contents,
-    );
-    const toolCatalog = parseResourcePayload(
-      (await dynamicClient.client.readResource({ uri: "sportfolio://tool-catalog" })).contents,
-    );
-
-    if (containsRawProviderEntry(capabilities.included, "capabilityId")) {
-      failures.push({
-        toolName: "dynamic_capabilities_resource",
-        message: "A raw MLB provider tool leaked into sportfolio://capabilities.",
-      });
-    }
-    if (containsRawProviderEntry(actionSurface.tools, "name")) {
-      failures.push({
-        toolName: "dynamic_action_surface_resource",
-        message: "A raw MLB provider tool leaked into sportfolio://action-surface.",
-      });
-    }
-    if (containsRawProviderEntry(toolCatalog.tools, "name")) {
-      failures.push({
-        toolName: "dynamic_tool_catalog_resource",
-        message: "A raw MLB provider tool leaked into sportfolio://tool-catalog.",
-      });
-    }
-
-    try {
-      const rawProviderResult = await dynamicClient.client.callTool({
-        name: "mlb_mcp__get_schedule",
-        arguments: { date: "2026-03-28" },
-      });
-      if (!rawProviderResult.isError) {
+    const fixtures = getPublicMcpToolFixtures();
+    const deferred = new Set([
+      "get_pending_action",
+      "confirm_pending_action",
+      "cancel_pending_action",
+    ]);
+    let transactionId = "";
+    for (const tool of buildPublicMcpToolRegistry()) {
+      if (deferred.has(tool.name)) continue;
+      try {
+        const result = await client.callTool({ name: tool.name, arguments: fixtures[tool.name] });
+        if (result.isError) {
+          failures.push({ toolName: tool.name, message: "Tool returned an error result." });
+          continue;
+        }
+        const structured = (result.structuredContent || {}) as Record<string, unknown>;
+        if (structured.confirmationRequired && typeof structured.transactionId === "string") {
+          transactionId = structured.transactionId;
+        }
+      } catch (error) {
         failures.push({
-          toolName: "dynamic_mlb_tool_execution",
-          message: "A raw MLB provider tool could still be executed through the public MCP.",
+          toolName: tool.name,
+          message: error instanceof Error ? error.message : String(error),
         });
       }
-    } catch {
-      // Also acceptable: the MCP client rejects the call because the tool is not registered.
+    }
+
+    if (!transactionId) {
+      failures.push({
+        toolName: "stage_market_buy",
+        message: "No staged transaction was created.",
+      });
+    } else {
+      for (const name of ["get_pending_action", "confirm_pending_action"] as const) {
+        const result = await client.callTool({ name, arguments: { transactionId } });
+        if (result.isError)
+          failures.push({ toolName: name, message: "Tool returned an error result." });
+      }
+    }
+
+    const stagedForCancellation = await client.callTool({
+      name: "stage_market_buy",
+      arguments: fixtures.stage_market_buy,
+    });
+    const cancelTransactionId = (stagedForCancellation.structuredContent as Record<string, unknown>)
+      ?.transactionId;
+    if (typeof cancelTransactionId !== "string") {
+      failures.push({
+        toolName: "cancel_pending_action",
+        message: "Could not create a transaction for cancellation.",
+      });
+    } else {
+      const cancelled = await client.callTool({
+        name: "cancel_pending_action",
+        arguments: { transactionId: cancelTransactionId },
+      });
+      if (cancelled.isError) {
+        failures.push({
+          toolName: "cancel_pending_action",
+          message: "Tool returned an error result.",
+        });
+      }
     }
   } finally {
-    await closeClient(dynamicClient);
-    await dynamicServer.close();
+    await transport.close().catch(() => undefined);
+    await server.close();
   }
-
-  for (const toolName of toolNames) {
-    const server = await startMockMcpHttpServer();
-    let openClient: OpenClient | null = null;
-
-    try {
-      openClient = await connectClient(server.url, server.authToken);
-      const result = await openClient.client.callTool({
-        name: toolName,
-        arguments: fixtures[toolName],
-      });
-
-      if (result.isError) {
-        failures.push({
-          toolName,
-          message:
-            typeof result.content?.[0]?.type === "string" && result.content[0].type === "text"
-              ? result.content[0].text
-              : "Tool returned an MCP error result.",
-        });
-      }
-    } catch (error) {
-      failures.push({
-        toolName,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      await closeClient(openClient);
-      await server.close();
-    }
-  }
-
-  if (failures.length > 0) {
-    console.error("[mcp:smoke] Failures detected:");
+  if (failures.length) {
     console.error(JSON.stringify(failures, null, 2));
-    process.exitCode = 1;
-    return;
+    process.exit(1);
   }
-
   console.log(
     JSON.stringify(
       {
         ok: true,
-        toolCount: toolNames.length,
-        rawProviderToolsPublic: false,
-        retiredPromptsPublic: false,
+        toolCount: buildPublicMcpToolRegistry().length,
+        mlbToolCount: CURATED_MLB_TOOL_NAMES.length,
       },
       null,
       2,
     ),
   );
 }
-
-void main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

@@ -9,8 +9,8 @@ owner: product-engineering
 lastReviewedAt: 2026-05-31
 changeTriggers: client/src/App.tsx,client/src/pages/how-it-works.tsx,client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts,shared/schema.ts
 slug: common-questions
-surface: web,cli,agent
-searchKeywords: faq,questions,trading,stacking,boosts,agent,premium
+surface: web,cli
+searchKeywords: faq,questions,trading,stacking,boosts,premium
 ---
 
 # Common Questions
@@ -76,11 +76,6 @@ LP means adding share and SB liquidity to player pools and earning a portion of 
 
 **Where do I view LP positions?**
 Portfolio -> Liquidity tab.
-
-## Agent
-
-**Can the agent execute actions without confirmation?**
-Manual chat/CLI turns stage first and require confirm. Saved live strategies can auto-run only an allowlisted gameplay subset.
 
 ## Account and Features
 

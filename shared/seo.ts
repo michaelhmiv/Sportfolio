@@ -48,7 +48,6 @@ const knownRoutePatterns = [
   /^\/wiki$/,
   /^\/wiki\/[^/]+$/,
   /^\/wiki\/[^/]+\/[^/]+$/,
-  /^\/sms\/link$/,
   /^\/analytics$/,
   /^\/news$/,
   /^\/boosts$/,
@@ -67,7 +66,6 @@ const privateRoutePatterns = [
   /^\/admin(?:\/.*)?$/,
   /^\/auth(?:\/.*)?$/,
   /^\/login$/,
-  /^\/sms\/link$/,
   /^\/checkout\/success$/,
   /^\/boosts$/,
   /^\/player\/.+/,
@@ -89,15 +87,6 @@ export function isPrivateAppRoute(rawPath: string): boolean {
 
 export function getRouteSeoMeta(rawPath: string): RouteSeoMeta {
   const path = normalizeRoutePath(rawPath);
-
-  if (path === "/sms/link") {
-    return {
-      title: "Link SMS Access | Sportfolio",
-      description: "Complete secure phone linking for the Sportfolio SMS channel.",
-      canonicalPath: "/sms/link",
-      robots: "noindex,nofollow",
-    };
-  }
 
   if (privateRoutePatterns.some((pattern) => pattern.test(path))) {
     return {
@@ -254,7 +243,7 @@ export const HOW_IT_WORKS_FAQS = [
   {
     question: "What is the scout system?",
     answer:
-      "Scouts are assignable agents that distribute free shares hourly based on time-weighted participation.",
+      "Scouts are assignable slots that distribute free shares hourly based on time-weighted participation.",
   },
   {
     question: "How are boosts handled?",

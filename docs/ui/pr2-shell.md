@@ -24,8 +24,6 @@ This stacked change applies the visual-system foundation to Sportfolio's persist
 | Visual regression |                             12 passed |
 | Product E2E       | 11 passed, 14 known baseline failures |
 
-The E2E failure set is unchanged from PR 1: seven removed `/agent` workspace expectations, four legacy MLB modal expectations, two auth wording/transition expectations, and one removed mobile boost-window expectation. No shell test regressed.
-
 ## Reviewed snapshots
 
 - `tests/visual/__screenshots__/desktop-dark/application-shell-navigation.png`

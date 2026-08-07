@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildPluginPresentationCatalog,
-  SPORTFOLIO_UI_RESOURCE_URIS,
-} from "./surface";
+import { buildPluginPresentationCatalog, SPORTFOLIO_UI_RESOURCE_URIS } from "./surface";
 
 describe("Sportfolio plugin UI presentation catalog", () => {
   it("keeps UI-only tools separate, read-only, and versioned", () => {

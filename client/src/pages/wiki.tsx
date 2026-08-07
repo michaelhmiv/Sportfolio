@@ -48,7 +48,10 @@ function findChapterForAnchor(handbook: DocsHandbook, anchor: string): DocsHandb
   if (!anchor) return null;
   for (const section of handbook.sections) {
     for (const chapter of section.chapters) {
-      if (chapter.chapterAnchorId === anchor || chapter.headings.some((heading) => heading.id === anchor)) {
+      if (
+        chapter.chapterAnchorId === anchor ||
+        chapter.headings.some((heading) => heading.id === anchor)
+      ) {
         return chapter;
       }
     }
@@ -61,7 +64,9 @@ function HandbookMarkdown({ chapter }: { chapter: DocsHandbookChapter }) {
   const resolveHeadingId = (fallbackText: string) => {
     const heading = chapter.headings[headingIndex];
     headingIndex += 1;
-    return heading?.id || getDocsChapterHeadingAnchorId(chapter.section, chapter.slug, fallbackText);
+    return (
+      heading?.id || getDocsChapterHeadingAnchorId(chapter.section, chapter.slug, fallbackText)
+    );
   };
 
   return (
@@ -70,15 +75,27 @@ function HandbookMarkdown({ chapter }: { chapter: DocsHandbookChapter }) {
       components={{
         h1: ({ children }) => {
           const id = resolveHeadingId(String(children).trim());
-          return <h1 id={id} className="scroll-mt-28">{children}</h1>;
+          return (
+            <h1 id={id} className="scroll-mt-28">
+              {children}
+            </h1>
+          );
         },
         h2: ({ children }) => {
           const id = resolveHeadingId(String(children).trim());
-          return <h2 id={id} className="scroll-mt-28">{children}</h2>;
+          return (
+            <h2 id={id} className="scroll-mt-28">
+              {children}
+            </h2>
+          );
         },
         h3: ({ children }) => {
           const id = resolveHeadingId(String(children).trim());
-          return <h3 id={id} className="scroll-mt-28">{children}</h3>;
+          return (
+            <h3 id={id} className="scroll-mt-28">
+              {children}
+            </h3>
+          );
         },
       }}
     >
@@ -104,7 +121,9 @@ function HandbookNavigation({
             <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-content-subtle">
               {section.label}
             </h2>
-            <span className="text-xs tabular-nums text-content-subtle">{section.chapters.length}</span>
+            <span className="text-xs tabular-nums text-content-subtle">
+              {section.chapters.length}
+            </span>
           </div>
           <div className="space-y-1">
             {section.chapters.map((chapter) => {
@@ -121,7 +140,10 @@ function HandbookNavigation({
                       : "text-content-muted hover:bg-hover hover:text-content",
                   )}
                 >
-                  <FileText className={cn("mt-0.5 h-4 w-4 shrink-0", selected && "text-brand")} aria-hidden="true" />
+                  <FileText
+                    className={cn("mt-0.5 h-4 w-4 shrink-0", selected && "text-brand")}
+                    aria-hidden="true"
+                  />
                   <span className="min-w-0 flex-1 leading-5">{chapter.title}</span>
                 </button>
               );
@@ -155,7 +177,9 @@ export default function WikiPage() {
     queryKey: ["/api/docs/search", deferredSearch],
     enabled: deferredSearch.length > 0,
     queryFn: async () => {
-      const response = await authenticatedFetch(`/api/docs/search?q=${encodeURIComponent(deferredSearch)}`);
+      const response = await authenticatedFetch(
+        `/api/docs/search?q=${encodeURIComponent(deferredSearch)}`,
+      );
       if (!response.ok) throw new Error("Failed to search docs");
       return response.json();
     },
@@ -189,7 +213,10 @@ export default function WikiPage() {
     [activeAnchor, handbook],
   );
   const activeSection = useMemo(
-    () => handbook?.sections.find((section) => section.chapters.some((chapter) => chapter.id === activeChapter?.id)),
+    () =>
+      handbook?.sections.find((section) =>
+        section.chapters.some((chapter) => chapter.id === activeChapter?.id),
+      ),
     [activeChapter?.id, handbook],
   );
   const searchResults = searchData?.results || [];
@@ -231,13 +258,17 @@ export default function WikiPage() {
       />
 
       {isLoading ? (
-        <div className="mx-auto max-w-7xl px-4 py-16 text-center text-content-muted">Loading Sportfolio handbook…</div>
+        <div className="mx-auto max-w-7xl px-4 py-16 text-center text-content-muted">
+          Loading Sportfolio handbook…
+        </div>
       ) : error || !handbook ? (
         <div className="mx-auto max-w-2xl px-4 py-16">
           <Card variant="alert">
             <CardContent className="p-6 text-center">
               <h2 className="text-lg font-bold text-content-strong">Handbook unavailable</h2>
-              <p className="mt-2 text-content-muted">The documentation service could not be loaded.</p>
+              <p className="mt-2 text-content-muted">
+                The documentation service could not be loaded.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -247,7 +278,10 @@ export default function WikiPage() {
             <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
               <form onSubmit={submitQuestion} className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-subtle" aria-hidden="true" />
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-subtle"
+                    aria-hidden="true"
+                  />
                   <Input
                     value={searchValue}
                     onChange={(event) => setSearchValue(event.target.value)}
@@ -256,7 +290,11 @@ export default function WikiPage() {
                     data-testid="input-wiki-search"
                   />
                 </div>
-                <Button type="submit" className="h-11 gap-2" disabled={!searchValue.trim() || askMutation.isPending}>
+                <Button
+                  type="submit"
+                  className="h-11 gap-2"
+                  disabled={!searchValue.trim() || askMutation.isPending}
+                >
                   <MessageSquare className="h-4 w-4" aria-hidden="true" />
                   Ask handbook
                 </Button>
@@ -274,13 +312,20 @@ export default function WikiPage() {
                       >
                         <span>
                           <span className="font-semibold text-content">{result.title}</span>
-                          <span className="mt-1 block text-sm text-content-muted">{result.summary}</span>
+                          <span className="mt-1 block text-sm text-content-muted">
+                            {result.summary}
+                          </span>
                         </span>
-                        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-content-subtle" aria-hidden="true" />
+                        <ChevronRight
+                          className="mt-1 h-4 w-4 shrink-0 text-content-subtle"
+                          aria-hidden="true"
+                        />
                       </button>
                     ))
                   ) : (
-                    <p className="px-4 py-4 text-sm text-content-muted">No direct chapter matches. Submit the question for a handbook answer.</p>
+                    <p className="px-4 py-4 text-sm text-content-muted">
+                      No direct chapter matches. Submit the question for a handbook answer.
+                    </p>
                   )}
                 </div>
               ) : null}
@@ -291,12 +336,20 @@ export default function WikiPage() {
             <DrawerContent className="max-h-[85dvh]">
               <DrawerHeader className="text-left">
                 <DrawerTitle>Handbook chapters</DrawerTitle>
-                <DrawerDescription>Select one chapter to open a focused reading view.</DrawerDescription>
+                <DrawerDescription>
+                  Select one chapter to open a focused reading view.
+                </DrawerDescription>
               </DrawerHeader>
               <div className="overflow-y-auto px-4 pb-6">
-                <HandbookNavigation handbook={handbook} activeChapter={activeChapter} onSelect={selectChapter} />
+                <HandbookNavigation
+                  handbook={handbook}
+                  activeChapter={activeChapter}
+                  onSelect={selectChapter}
+                />
                 <DrawerClose asChild>
-                  <Button variant="outline" className="mt-6 w-full">Close</Button>
+                  <Button variant="outline" className="mt-6 w-full">
+                    Close
+                  </Button>
                 </DrawerClose>
               </div>
             </DrawerContent>
@@ -313,18 +366,28 @@ export default function WikiPage() {
                   }}
                   className={cn(
                     "mb-6 flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm font-semibold",
-                    !activeChapter ? "bg-brand-subtle text-content" : "text-content-muted hover:bg-hover hover:text-content",
+                    !activeChapter
+                      ? "bg-brand-subtle text-content"
+                      : "text-content-muted hover:bg-hover hover:text-content",
                   )}
                 >
                   <BookOpen className="h-4 w-4 text-brand" aria-hidden="true" />
                   Handbook overview
                 </button>
-                <HandbookNavigation handbook={handbook} activeChapter={activeChapter} onSelect={selectChapter} />
+                <HandbookNavigation
+                  handbook={handbook}
+                  activeChapter={activeChapter}
+                  onSelect={selectChapter}
+                />
               </div>
             </aside>
 
             <main className="min-w-0">
-              <Button variant="outline" className="mb-5 gap-2 lg:hidden" onClick={() => setMobileNavigationOpen(true)}>
+              <Button
+                variant="outline"
+                className="mb-5 gap-2 lg:hidden"
+                onClick={() => setMobileNavigationOpen(true)}
+              >
                 <Menu className="h-4 w-4" aria-hidden="true" />
                 Browse chapters
               </Button>
@@ -336,12 +399,21 @@ export default function WikiPage() {
                       <Sparkles className="h-4 w-4" aria-hidden="true" />
                       Handbook answer
                     </div>
-                    <h2 className="mt-3 text-xl font-bold text-content-strong">{askMutation.data.query}</h2>
-                    <p className="mt-3 whitespace-pre-wrap leading-7 text-content-muted">{askMutation.data.answer}</p>
+                    <h2 className="mt-3 text-xl font-bold text-content-strong">
+                      {askMutation.data.query}
+                    </h2>
+                    <p className="mt-3 whitespace-pre-wrap leading-7 text-content-muted">
+                      {askMutation.data.answer}
+                    </p>
                     {askMutation.data.citations.length ? (
                       <div className="mt-5 flex flex-wrap gap-2">
                         {askMutation.data.citations.map((citation) => (
-                          <Button key={`${citation.id}-${citation.anchorId}`} variant="outline" size="sm" onClick={() => selectAnchor(citation.anchorId)}>
+                          <Button
+                            key={`${citation.id}-${citation.anchorId}`}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => selectAnchor(citation.anchorId)}
+                          >
                             {citation.title}
                           </Button>
                         ))}
@@ -372,15 +444,25 @@ export default function WikiPage() {
                   </Button>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">{activeSection?.label || activeChapter.section}</Badge>
-                    <span className="text-sm text-content-subtle">Reviewed {activeChapter.lastReviewedAt}</span>
+                    <span className="text-sm text-content-subtle">
+                      Reviewed {activeChapter.lastReviewedAt}
+                    </span>
                   </div>
-                  <h1 className="mt-5 text-3xl font-black tracking-tight text-content-strong sm:text-4xl">{activeChapter.title}</h1>
-                  <p className="mt-4 max-w-3xl text-lg leading-8 text-content-muted">{activeChapter.summary}</p>
+                  <h1 className="mt-5 text-3xl font-black tracking-tight text-content-strong sm:text-4xl">
+                    {activeChapter.title}
+                  </h1>
+                  <p className="mt-4 max-w-3xl text-lg leading-8 text-content-muted">
+                    {activeChapter.summary}
+                  </p>
 
                   {activeChapter.headings.length ? (
                     <nav className="mt-7 flex flex-wrap gap-2" aria-label="Chapter headings">
                       {activeChapter.headings.map((heading) => (
-                        <a key={heading.id} href={`#${heading.id}`} className="rounded-pill border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-content-muted hover:border-border-strong hover:text-content">
+                        <a
+                          key={heading.id}
+                          href={`#${heading.id}`}
+                          className="rounded-pill border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-content-muted hover:border-border-strong hover:text-content"
+                        >
                           {heading.text}
                         </a>
                       ))}
@@ -395,32 +477,53 @@ export default function WikiPage() {
                 <div>
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">{handbook.chapterCount} focused guides</p>
-                      <h2 className="mt-2 text-3xl font-black tracking-tight text-content-strong">Choose what you need to understand.</h2>
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">
+                        {handbook.chapterCount} focused guides
+                      </p>
+                      <h2 className="mt-2 text-3xl font-black tracking-tight text-content-strong">
+                        Choose what you need to understand.
+                      </h2>
                     </div>
                   </div>
                   <p className="mt-4 max-w-2xl leading-7 text-content-muted">{handbook.summary}</p>
 
                   <div className="mt-9 grid gap-5 md:grid-cols-2">
                     {handbook.sections.map((section) => (
-                      <section key={section.id} className="rounded-panel border border-border-subtle bg-surface p-5 shadow-low">
+                      <section
+                        key={section.id}
+                        className="rounded-panel border border-border-subtle bg-surface p-5 shadow-low"
+                      >
                         <div className="flex items-center justify-between gap-3">
                           <h3 className="text-lg font-bold text-content-strong">{section.label}</h3>
                           <Badge variant="secondary">{section.chapters.length}</Badge>
                         </div>
                         <div className="mt-4 space-y-1">
                           {section.chapters.slice(0, 4).map((chapter) => (
-                            <button key={chapter.id} type="button" onClick={() => selectChapter(chapter)} className="group flex w-full items-start justify-between gap-3 rounded-control px-2 py-2 text-left hover:bg-hover">
+                            <button
+                              key={chapter.id}
+                              type="button"
+                              onClick={() => selectChapter(chapter)}
+                              className="group flex w-full items-start justify-between gap-3 rounded-control px-2 py-2 text-left hover:bg-hover"
+                            >
                               <span>
-                                <span className="block text-sm font-medium text-content group-hover:text-brand">{chapter.title}</span>
-                                <span className="mt-0.5 line-clamp-1 block text-xs text-content-subtle">{chapter.summary}</span>
+                                <span className="block text-sm font-medium text-content group-hover:text-brand">
+                                  {chapter.title}
+                                </span>
+                                <span className="mt-0.5 line-clamp-1 block text-xs text-content-subtle">
+                                  {chapter.summary}
+                                </span>
                               </span>
-                              <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-content-subtle" aria-hidden="true" />
+                              <ChevronRight
+                                className="mt-1 h-4 w-4 shrink-0 text-content-subtle"
+                                aria-hidden="true"
+                              />
                             </button>
                           ))}
                         </div>
                         {section.chapters.length > 4 ? (
-                          <p className="mt-3 px-2 text-xs text-content-subtle">+{section.chapters.length - 4} more chapters in navigation</p>
+                          <p className="mt-3 px-2 text-xs text-content-subtle">
+                            +{section.chapters.length - 4} more chapters in navigation
+                          </p>
                         ) : null}
                       </section>
                     ))}

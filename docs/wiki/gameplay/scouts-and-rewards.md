@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-03-04
 changeTriggers: client/src/components/scout-widget.tsx,client/src/components/scout-dashboard-modal.tsx,server/routes.ts,server/jobs/scout-distribution.ts,shared/schema.ts
 slug: scouts-and-rewards
-surface: web,cli,agent
+surface: web,cli
 searchKeywords: scouts,share rewards,free shares,scout minutes,hourly distribution
 ---
 

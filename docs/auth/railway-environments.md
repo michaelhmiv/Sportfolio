@@ -6,9 +6,9 @@ Sportfolio deploys the same reviewed `main` commit to two Railway application se
 
 Both services intentionally use the production Railway Postgres database. The beta service is therefore a controlled alternate application surface, not a disposable data sandbox.
 
-| Service           | Public URL                     | Database                    | Purpose                                      |
-| ----------------- | ------------------------------ | --------------------------- | -------------------------------------------- |
-| Sportfolio-Replit | https://www.sportfolio.market  | production Railway Postgres | production                                   |
+| Service           | Public URL                     | Database                    | Purpose                                     |
+| ----------------- | ------------------------------ | --------------------------- | ------------------------------------------- |
+| Sportfolio-Replit | https://www.sportfolio.market  | production Railway Postgres | production                                  |
 | Sportfolio-Beta   | https://beta.sportfolio.market | production Railway Postgres | controlled authentication integration tests |
 
 ## Required safety invariants

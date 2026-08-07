@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-03-07
 changeTriggers: client/src/pages/leaderboards.tsx,client/src/pages/user-profile.tsx,server/routes.ts,server/storage.ts
 slug: leaderboards-and-progress
-surface: web,agent
+surface: web
 searchKeywords: leaderboards,rankings,progress,net worth,cash balance,trading volume,user profile
 ---
 

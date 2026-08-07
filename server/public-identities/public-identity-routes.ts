@@ -34,32 +34,25 @@ function sendError(res: Response, error: unknown): void {
   });
 }
 
-export function registerPublicIdentityRoutes(
-  app: Express,
-  service: PublicIdentityService,
-): void {
-  app.post(
-    "/api/public-identities/resolve",
-    optionalAuth,
-    async (req: Request, res: Response) => {
-      try {
-        const errors = validateBatchRequest(req.body);
-        if (errors.length > 0) {
-          res.status(400).json({
-            error: {
-              code: "INVALID_REQUEST",
-              message: errors[0].message,
-              details: { errors },
-            },
-          });
-          return;
-        }
-
-        const identities = await service.resolveBatch(req.body as { userIds: string[] });
-        res.json({ identities });
-      } catch (error) {
-        sendError(res, error);
+export function registerPublicIdentityRoutes(app: Express, service: PublicIdentityService): void {
+  app.post("/api/public-identities/resolve", optionalAuth, async (req: Request, res: Response) => {
+    try {
+      const errors = validateBatchRequest(req.body);
+      if (errors.length > 0) {
+        res.status(400).json({
+          error: {
+            code: "INVALID_REQUEST",
+            message: errors[0].message,
+            details: { errors },
+          },
+        });
+        return;
       }
-    },
-  );
+
+      const identities = await service.resolveBatch(req.body as { userIds: string[] });
+      res.json({ identities });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
 }

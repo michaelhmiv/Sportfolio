@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Express, Response } from "express";
-import {
-  optionalPluginOAuth,
-  type PluginAuthenticatedRequest,
-} from "../auth/plugin-oauth";
+import { optionalPluginOAuth, type PluginAuthenticatedRequest } from "../auth/plugin-oauth";
 import { getPluginOAuthConfig } from "../auth/plugin-oauth-config";
 import { createPluginMcpServer } from "../mcp/plugin/server";
 import {
@@ -39,7 +36,10 @@ export function registerPluginMcpRoutes(app: Express, deps?: PublicMcpDependenci
   app.get("/health/plugin", (_req, res) => {
     const config = getPluginOAuthConfig();
     const state = getPluginRuntimeState();
-    const ready = config.enabled && config.issuer.startsWith("https://") && config.resource.startsWith("https://");
+    const ready =
+      config.enabled &&
+      config.issuer.startsWith("https://") &&
+      config.resource.startsWith("https://");
     res.status(ready ? 200 : 503).json({
       status: ready ? "ready" : "disabled",
       endpoint: "/mcp/plugin",
@@ -64,7 +64,12 @@ export function registerPluginMcpRoutes(app: Express, deps?: PublicMcpDependenci
       });
 
       if (req.header("mcp-session-id")) {
-        writeJsonRpcError(res, 400, -32000, "The marketplace endpoint is stateless and does not accept session IDs.");
+        writeJsonRpcError(
+          res,
+          400,
+          -32000,
+          "The marketplace endpoint is stateless and does not accept session IDs.",
+        );
         return;
       }
 
@@ -117,6 +122,11 @@ export function registerPluginMcpRoutes(app: Express, deps?: PublicMcpDependenci
 
   app.delete("/mcp/plugin", (_req, res) => {
     if (!pluginEnabled(res)) return;
-    writeJsonRpcError(res, 405, -32000, "Method not allowed. This endpoint has no persistent sessions.");
+    writeJsonRpcError(
+      res,
+      405,
+      -32000,
+      "Method not allowed. This endpoint has no persistent sessions.",
+    );
   });
 }

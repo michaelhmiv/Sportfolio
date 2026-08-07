@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-05-12
 changeTriggers: client/src/App.tsx,client/src/components/app-sidebar.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,client/src/pages/portfolio.tsx,client/src/pages/boosts.tsx
 slug: platform-tour
-surface: web,agent
+surface: web
 searchKeywords: site map,platform tour,navigation,pages,features
 ---
 
@@ -167,22 +167,6 @@ Also see: [Premium](/wiki/features/premium) for what premium actually includes.
 
 ---
 
-## Agent
-
-**Your in-app product operator.**
-
-The Agent page gives you a conversational interface to Sportfolio. It can:
-
-- Answer questions about mechanics, your account, and the market
-- Research current injuries and news
-- Stage gameplay actions (trades, boosts, scouts) that you confirm before execution
-
-> ℹ️ Manual Agent turns stage first and require explicit confirm. Saved live strategies can auto-execute an allowlisted gameplay subset in guardrails, but payments, purchases, checkout, and community boost creation are excluded from auto-runs.
-
-Also see: [Sportfolio Agent](/wiki/features/agent-operator) and [Agent Runtime Model](/wiki/agent/runtime-model).
-
----
-
 ## Wiki
 
 **The canonical product handbook.** You're reading it now.
@@ -194,8 +178,6 @@ The wiki lives in-app at `/wiki`. It covers:
 - Feature guides
 - CLI and MCP access
 - FAQs and the glossary
-
-The agent also uses this wiki as its product knowledge source, so what you read here is exactly what the agent knows.
 
 ---
 

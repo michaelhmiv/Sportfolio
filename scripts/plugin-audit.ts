@@ -27,9 +27,6 @@ for (const deniedName of getDeniedPublicToolNames()) {
     errors.push(`Retired capability leaked into the marketplace catalog: ${deniedName}.`);
   }
 }
-if (catalogNames.some((name) => name.startsWith("mlb_mcp__"))) {
-  errors.push("A raw MLB provider tool leaked into the marketplace catalog.");
-}
 
 for (const tool of catalog) {
   if (tool.openWorld !== false) {
@@ -71,7 +68,8 @@ const requiredActionTools = [
   "cancel_pending_action",
 ];
 for (const name of requiredActionTools) {
-  if (!catalogNames.includes(name)) errors.push(`Required approved MCP action is missing: ${name}.`);
+  if (!catalogNames.includes(name))
+    errors.push(`Required approved MCP action is missing: ${name}.`);
 }
 
 const confirmTool = catalog.find((tool) => tool.name === "confirm_pending_action");
@@ -85,12 +83,6 @@ for (const name of ["list_api_tokens", "revoke_api_token"]) {
     errors.push(`Approved account-security capability is missing: ${name}.`);
   } else if (tool.access !== "oauth") {
     errors.push(`${name} must never be exposed without OAuth.`);
-  }
-}
-
-for (const retiredSensitiveTool of ["save_agent_byok", "start_sms_link", "complete_sms_link"]) {
-  if (catalogNames.includes(retiredSensitiveTool)) {
-    errors.push(`Retired sensitive capability remains public: ${retiredSensitiveTool}.`);
   }
 }
 

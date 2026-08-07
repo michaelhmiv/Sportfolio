@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-04-23
 changeTriggers: client/src/pages/premium.tsx,server/routes.ts,server/storage.ts,shared/schema.ts
 slug: premium
-surface: web,agent
+surface: web
 searchKeywords: premium,scout capacity,premium shares,upgrade,access,entitlement
 ---
 

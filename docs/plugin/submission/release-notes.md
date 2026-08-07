@@ -6,7 +6,7 @@ The app combines Sportfolio's shared public MCP capability registry with a Sport
 
 Version 2 includes the existing Sportfolio staged-action system for virtual market buys and sells, scouting, share stacking, daily boosts, community boosts, and liquidity operations. These workflows produce a current preview and pending bundle, require explicit user confirmation, and execute only through `confirm_pending_action`; users may cancel with `cancel_pending_action`.
 
-The app also includes supported authenticated watchlist, schedule, profile, onboarding, milestone, news, premium, SMS, agent-profile, and agent-thread controls from the shared site MCP surface. Private-data and write tools are OAuth-only, every tool declares explicit safety annotations and an output schema, and all responses pass through marketplace sanitization.
+The app also includes supported authenticated watchlist, schedule, profile, onboarding, milestone, news, premium, and account controls from the shared site MCP surface. Private-data and write tools are OAuth-only, every tool declares explicit safety annotations and an output schema, and all responses pass through marketplace sanitization.
 
 Admin, internal, debug, raw database, mobile-store billing, unsupported provider-management, and other web-only capabilities excluded from the shared public MCP contract remain unavailable.
 

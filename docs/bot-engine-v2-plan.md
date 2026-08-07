@@ -307,7 +307,7 @@ Actually with max_daily_actions caps:
 
 ### Existing files to modify:
 
-- `server/bot/bot-engine.ts` — swap `runHermesBotEngineTick()` call to new engine
+- `server/bot/bot-engine.ts` — route scheduled market activity through the deterministic engine
 - `server/jobs/scheduler.ts` — keep same schedule, point to new engine
 - `server/bot-seed.ts` — update profiles to match v2 roles
 
@@ -315,12 +315,12 @@ Actually with max_daily_actions caps:
 
 - `server/amm/pool.ts` — execution layer (already transparent)
 - `server/bot/player-valuation.ts` — fair value calculations (already great)
-- `server/agent/executor.ts` — action execution (reuse for LP/scout/boost)
+- `server/bot/action-executor.ts` — action execution for LP/scout/boost
 - `server/jobs/scout-distribution.ts` — hourly share distribution (unchanged)
 
 ### Files to archive (not delete):
 
-- `server/bot/runtime.ts` — LLM-based planning (4,108 lines)
+- The former model-planning runtime was removed after deterministic-engine validation
 - `server/bot/trading-strategy.ts` — old random strategy
 
 ---

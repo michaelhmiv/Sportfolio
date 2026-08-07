@@ -24,7 +24,7 @@ import {
 
 type ParsedFrontmatter = Record<string, string>;
 
-type AgentKnowledgeArticleSummary = {
+type KnowledgeArticleSummary = {
   id: string;
   title: string;
   summary: string;
@@ -344,7 +344,7 @@ function getAllArticles(): DocsArticle[] {
   return cachedArticles;
 }
 
-function extractAgentKnowledgeNotes(bodyMarkdown: string): string[] {
+function extractKnowledgeNotes(bodyMarkdown: string): string[] {
   const notes: string[] = [];
 
   for (const rawLine of bodyMarkdown.split("\n")) {
@@ -380,8 +380,8 @@ function canReadArticle(article: DocsArticle, isAuthenticated: boolean): boolean
   return true;
 }
 
-function canUseAgentKnowledgeArticle(article: DocsArticle, isAuthenticated: boolean): boolean {
-  return canReadArticle(article, isAuthenticated) && article.surface.includes("agent");
+function canUseKnowledgeArticle(article: DocsArticle, isAuthenticated: boolean): boolean {
+  return canReadArticle(article, isAuthenticated);
 }
 
 function toHandbookChapter(article: DocsArticle): DocsHandbookChapter {
@@ -461,8 +461,7 @@ export function getDocsHandbook(isAuthenticated = false): DocsHandbook {
 
   return {
     title: "Sportfolio Handbook",
-    summary:
-      "One handbook for Sportfolio access, gameplay, agent behavior, CLI usage, FAQs, and release notes.",
+    summary: "One handbook for Sportfolio access, gameplay, CLI usage, FAQs, and release notes.",
     chapterCount,
     sections,
   };
@@ -534,11 +533,9 @@ export function validateDocsContent(): {
   };
 }
 
-export function listAgentKnowledgeArticles(
-  isAuthenticated = false,
-): AgentKnowledgeArticleSummary[] {
+export function listKnowledgeArticles(isAuthenticated = false): KnowledgeArticleSummary[] {
   return getAllArticles()
-    .filter((article) => canUseAgentKnowledgeArticle(article, isAuthenticated))
+    .filter((article) => canUseKnowledgeArticle(article, isAuthenticated))
     .sort((left, right) => {
       const leftCategoryIndex = docsCategories.indexOf(left.category);
       const rightCategoryIndex = docsCategories.indexOf(right.category);
@@ -555,14 +552,14 @@ export function listAgentKnowledgeArticles(
       summary: article.summary,
       urlPath: article.urlPath,
       lastReviewedAt: article.lastReviewedAt,
-      notes: extractAgentKnowledgeNotes(article.bodyMarkdown),
+      notes: extractKnowledgeNotes(article.bodyMarkdown),
     }));
 }
 
-export function findBestAgentKnowledgeArticle(
+export function findBestKnowledgeArticle(
   query: string,
   isAuthenticated = false,
-): AgentKnowledgeArticleSummary | null {
+): KnowledgeArticleSummary | null {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
     return null;
@@ -578,17 +575,17 @@ export function findBestAgentKnowledgeArticle(
   }
 
   let bestMatch:
-    | (AgentKnowledgeArticleSummary & {
+    | (KnowledgeArticleSummary & {
         score: number;
       })
     | null = null;
 
   for (const article of getAllArticles()) {
-    if (!canUseAgentKnowledgeArticle(article, isAuthenticated)) {
+    if (!canUseKnowledgeArticle(article, isAuthenticated)) {
       continue;
     }
 
-    const notes = extractAgentKnowledgeNotes(article.bodyMarkdown);
+    const notes = extractKnowledgeNotes(article.bodyMarkdown);
     const haystack = [
       article.title,
       article.summary,

@@ -23,7 +23,17 @@ export type SupabaseInventoryEntry = {
 
 const ROOT = resolve(import.meta.dirname, "..");
 const TEXT_EXTENSIONS = new Set([
-  ".cjs", ".js", ".json", ".md", ".mjs", ".sql", ".ts", ".tsx", ".txt", ".yaml", ".yml",
+  ".cjs",
+  ".js",
+  ".json",
+  ".md",
+  ".mjs",
+  ".sql",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".yaml",
+  ".yml",
 ]);
 const EXCLUDED_DIRS = new Set([".git", ".husky", "coverage", "dist", "node_modules", "tmp"]);
 const MARKERS = [
@@ -51,11 +61,7 @@ function walk(directory: string): string[] {
 
 export function classifySupabasePath(path: string): SupabaseInventoryCategory | null {
   if (path === "package.json" || path === "package-lock.json") return "package";
-  if (
-    path === ".env.example" ||
-    path.startsWith(".github/") ||
-    path.startsWith(".claude/")
-  ) {
+  if (path === ".env.example" || path.startsWith(".github/") || path.startsWith(".claude/")) {
     return "configuration";
   }
   if (path.startsWith("attached_assets/")) return "historical-attachment";
@@ -68,8 +74,6 @@ export function classifySupabasePath(path: string): SupabaseInventoryCategory | 
   }
   if (
     path.startsWith("docs/") ||
-    path.startsWith(".agent/") ||
-    path.startsWith(".hermes/") ||
     path === "AGENTS.md" ||
     path.startsWith("tasks/") ||
     (!path.includes("/") && path.endsWith(".md"))
@@ -87,7 +91,8 @@ export function classifySupabasePath(path: string): SupabaseInventoryCategory | 
   if (path.startsWith("client/")) return "client-auth";
   if (path.includes("account-deletion")) return "account-lifecycle";
   if (path.startsWith("server/")) {
-    if (path.includes("plugin") || path.includes("oauth") || path.includes("mcp")) return "oauth-mcp";
+    if (path.includes("plugin") || path.includes("oauth") || path.includes("mcp"))
+      return "oauth-mcp";
     return "server-auth";
   }
   return null;

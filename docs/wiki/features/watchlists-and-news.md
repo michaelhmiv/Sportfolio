@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-04-23
 changeTriggers: client/src/pages/watchlists.tsx,client/src/pages/news.tsx,server/routes.ts,server/storage.ts,shared/schema.ts
 slug: watchlists-and-news
-surface: web,agent
+surface: web
 searchKeywords: watchlist,news,digest,tracking,player list,alerts,injury,breaking news
 ---
 
@@ -43,8 +43,6 @@ A watchlist is a named list of players you want to monitor. You don't need to ow
 ### Managing Watchlists
 
 Access watchlists from the main navigation or from any player's detail page. You can add a player directly from their page — no need to go through a separate watchlist management flow.
-
-The agent can also manage watchlists for you:
 
 ```
 "Add [player] to my watchlist"
@@ -87,22 +85,7 @@ This surfaces the stories most relevant to your account rather than making you s
 
 ---
 
-## Agent Integration
-
-Both watchlists and news are accessible through the agent:
-
-```
-"What's the latest news on my holdings?"
-"Add [player] to my watchlist"
-"Are there any injury updates relevant to tonight's boosts?"
-```
-
-The agent uses your watchlist context and can pull current news as part of its research capability.
-
----
-
 ## Next Steps
 
 - [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — use news to inform boost decisions
 - [Player Pools](/wiki/gameplay/player-pools) — trade based on news signals
-- [Sportfolio Agent](/wiki/features/agent-operator) — ask the agent to research news for you

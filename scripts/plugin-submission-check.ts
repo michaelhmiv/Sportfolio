@@ -22,12 +22,14 @@ if (!Array.isArray(negative.cases) || negative.cases.length !== 3) {
 
 for (const testCase of positive.cases || []) {
   for (const field of ["id", "userPrompt", "expectedBehavior", "expectedResultShape", "fixture"]) {
-    if (!testCase[field]) errors.push(`Positive case ${testCase.id || "unknown"} is missing ${field}.`);
+    if (!testCase[field])
+      errors.push(`Positive case ${testCase.id || "unknown"} is missing ${field}.`);
   }
 }
 for (const testCase of negative.cases || []) {
   for (const field of ["id", "userPrompt", "expectedBehavior", "whyNot"]) {
-    if (!testCase[field]) errors.push(`Negative case ${testCase.id || "unknown"} is missing ${field}.`);
+    if (!testCase[field])
+      errors.push(`Negative case ${testCase.id || "unknown"} is missing ${field}.`);
   }
 }
 
@@ -70,7 +72,10 @@ const reviewerMaterial = `${reviewer}\n${fixture}`;
 const reviewerRequirements: Array<[string, RegExp]> = [
   ["no MFA", /(?:no\s+MFA|MFA\s+disabled)/i],
   ["no SMS", /(?:no\s+SMS|SMS\s+requirement|no\s+phone\s+number)/i],
-  ["no email confirmation", /(?:no\s+email[- ]confirmation|email\s+confirmed\s+before\s+submission)/i],
+  [
+    "no email confirmation",
+    /(?:no\s+email[- ]confirmation|email\s+confirmed\s+before\s+submission)/i,
+  ],
   ["no admin access", /(?:no\s+admin|non-admin)/i],
   ["no private network", /(?:no\s+VPN|no\s+private[- ]network)/i],
 ];
@@ -100,7 +105,8 @@ const credentialPatterns = [
   /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/,
 ];
 for (const pattern of credentialPatterns) {
-  if (pattern.test(combined)) errors.push(`Submission documents appear to contain a credential: ${pattern}.`);
+  if (pattern.test(combined))
+    errors.push(`Submission documents appear to contain a credential: ${pattern}.`);
 }
 
 if (!releaseNotes.toLowerCase().includes("initial")) {
@@ -114,4 +120,6 @@ if (errors.length) {
   console.error("Plugin submission check failed:\n- " + errors.join("\n- "));
   process.exit(1);
 }
-console.log(`Submission kit verified: ${positive.cases.length} positive and ${negative.cases.length} negative cases.`);
+console.log(
+  `Submission kit verified: ${positive.cases.length} positive and ${negative.cases.length} negative cases.`,
+);

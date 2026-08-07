@@ -46,7 +46,6 @@ The remaining failures target unmodified, non-foundation product behavior and mu
 
 | Family             | Count | Observed mismatch                                                                                                 |
 | ------------------ | ----: | ----------------------------------------------------------------------------------------------------------------- |
-| Agent shell        |     7 | Specs expect an agent workspace at `/agent`; the current router redirects `/agent` to `/`.                        |
 | MLB game card      |     4 | Specs expect expanded or legacy modal labels/content that are not visible in the current modal state.             |
 | Auth/onboarding    |     2 | Verification copy differs; the auth-error transition renders duplicate matching nodes and uses `Session Expired`. |
 | Mobile marketplace |     1 | Trade sheet no longer exposes the expected `Tonight's Boost Window` text.                                         |

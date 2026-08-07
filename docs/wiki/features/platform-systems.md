@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-03-04
 changeTriggers: client/src/pages/dashboard.tsx,client/src/pages/analytics.tsx,client/src/pages/news.tsx,client/src/pages/watchlists.tsx,client/src/pages/premium.tsx,server/websocket.ts
 slug: platform-systems
-surface: web,agent
+surface: web
 searchKeywords: dashboard,analytics,news,watchlists,premium,notifications,realtime
 ---
 
@@ -166,4 +166,3 @@ See [How to Access Sportfolio](/wiki/getting-started/access) for setup details.
 - [Analytics](/wiki/features/analytics) — macro market analysis
 - [Watchlists and News](/wiki/features/watchlists-and-news) — player tracking and news digest
 - [Premium](/wiki/features/premium) — expand scout capacity and unlock premium features
-- [Sportfolio Agent](/wiki/features/agent-operator) — conversational product operator

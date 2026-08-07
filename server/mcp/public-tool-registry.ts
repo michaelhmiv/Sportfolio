@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { SportsAdapterRegistry, type SportsAdapter } from "../sports/adapter-registry";
 import { createDefaultSportsAdapterRegistry } from "../sports/default-registry";
@@ -20,58 +20,28 @@ import {
   USER_ACTIVITY_CATEGORIES,
   type UserActivityCategory,
 } from "@shared/activity-feed";
+import { holdings, players, userCollections, userMilestones, users } from "@shared/schema";
 import {
-  holdings,
-  newsFeed,
-  players,
-  userCollections,
-  userMilestones,
-  users,
-} from "@shared/schema";
+  runNativeActionTool,
+  runNativePlanTool,
+  runNativeReadTool,
+  runNativeScanTool,
+} from "./native-operations";
 import {
-  runHermesActionTool,
-  runHermesPlanTool,
-  runHermesReadTool,
-  runHermesScanTool,
-} from "../agent/hermes-tools";
+  cancelGameplayTransaction,
+  confirmGameplayTransaction,
+  getGameplayTransaction,
+  stageGameplayTransaction,
+  type GameplayAction,
+} from "./gameplay-transactions";
 import {
-  getInternalMlbMcpToolCatalog,
-  runInternalMlbMcpToolBounded,
-} from "../agent/internal-mlb-mcp";
-import { planDirectAgentOperation } from "../agent/operations-planner";
-import {
-  clearScoutAgentByok,
-  getAgentCapabilities,
-  getScoutAgentProfile,
-  saveScoutAgentByok,
-  updateScoutAgentProfile,
-} from "../agent/service";
-import { parsePendingClarification } from "../agent/clarification";
-import {
-  cancelAgentThread,
-  confirmAgentThread,
-  createAgentThread,
-  getAgentThread,
-  listAgentThreadMessages,
-  listAgentThreadResearchSources,
-  listAgentThreads,
-  sendAgentThreadMessage,
-  stageAgentThreadBundle,
-} from "../agent/thread-service";
-import {
-  completeSmsPhoneLink,
-  getSmsSettings,
-  startSmsPhoneLink,
-  updateSmsSettings,
-} from "../sms-service";
+  callMlbPublicTool,
+  getMlbProviderHealth,
+  type CuratedMlbToolName,
+} from "./providers/mlb/provider";
+import { CURATED_MLB_TOOLS } from "./providers/mlb/tool-definitions";
 import { redeemPremiumShare } from "../services/premium-redemption";
 import { loadUserEntitlements } from "../services/user-entitlements";
-import type {
-  AgentAction,
-  AgentDomain,
-  AgentPendingClarification,
-  AgentToolDefinition,
-} from "../agent/types";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 
@@ -176,11 +146,6 @@ export type PublicToolCatalogEntry = {
   routeRefs: string[];
 };
 
-type ResolvedDynamicMlbPublicTools = {
-  tools: AgentToolDefinition[];
-  sourceStatus: PublicDynamicSourceStatus;
-};
-
 export type PublicExcludedCapability = {
   capabilityId: string;
   kind: "excluded";
@@ -199,15 +164,15 @@ export type PublicSiteRouteCoverageEntry = {
   notes?: string;
 };
 
-type PublicMcpServerContext = {
+export type PublicMcpServerContext = {
   userId: string;
   deps: PublicMcpDependencies;
-  dynamicMlb?: ResolvedDynamicMlbPublicTools | null;
 };
 
 type StorageSubset = Pick<
   typeof storage,
   | "getPlayers"
+  | "getPlayersBySport"
   | "getPlayer"
   | "getUser"
   | "getUserByUsername"
@@ -219,6 +184,7 @@ type StorageSubset = Pick<
   | "getCommunityBoostsAllSports"
   | "getDailyGames"
   | "getDailyGamesBySport"
+  | "getDailyBoostsAllSports"
   | "getFinancialMarketScanners"
   | "getScoutStatus"
   | "getTotalScoutsForUser"
@@ -239,34 +205,20 @@ type StorageSubset = Pick<
 
 export type PublicMcpDependencies = {
   storage: StorageSubset;
-  runHermesReadTool: typeof runHermesReadTool;
-  runHermesScanTool: typeof runHermesScanTool;
-  runHermesPlanTool: typeof runHermesPlanTool;
-  runHermesActionTool: typeof runHermesActionTool;
-  planDirectAgentOperation: typeof planDirectAgentOperation;
-  getScoutAgentProfile: typeof getScoutAgentProfile;
-  getAgentCapabilities: typeof getAgentCapabilities;
-  updateScoutAgentProfile: typeof updateScoutAgentProfile;
-  saveScoutAgentByok: typeof saveScoutAgentByok;
-  clearScoutAgentByok: typeof clearScoutAgentByok;
-  createAgentThread: typeof createAgentThread;
-  sendAgentThreadMessage: typeof sendAgentThreadMessage;
-  stageAgentThreadBundle: typeof stageAgentThreadBundle;
-  confirmAgentThread: typeof confirmAgentThread;
-  cancelAgentThread: typeof cancelAgentThread;
-  getAgentThread: typeof getAgentThread;
-  listAgentThreadMessages: typeof listAgentThreadMessages;
-  listAgentThreadResearchSources: typeof listAgentThreadResearchSources;
-  listAgentThreads: typeof listAgentThreads;
+  runNativeReadTool: typeof runNativeReadTool;
+  runNativeScanTool: typeof runNativeScanTool;
+  runNativePlanTool: typeof runNativePlanTool;
+  runNativeActionTool: typeof runNativeActionTool;
+  stageGameplayTransaction: typeof stageGameplayTransaction;
+  getGameplayTransaction: typeof getGameplayTransaction;
+  confirmGameplayTransaction: typeof confirmGameplayTransaction;
+  cancelGameplayTransaction: typeof cancelGameplayTransaction;
+  callMlbPublicTool: typeof callMlbPublicTool;
+  getMlbProviderHealth: typeof getMlbProviderHealth;
   listDocsArticles: typeof listDocsArticles;
   searchDocsArticles: typeof searchDocsArticles;
   getDocsArticle: typeof getDocsArticle;
-  getSmsSettings: typeof getSmsSettings;
-  updateSmsSettings: typeof updateSmsSettings;
-  startSmsPhoneLink: typeof startSmsPhoneLink;
-  completeSmsPhoneLink: typeof completeSmsPhoneLink;
   redeemPremiumShare: typeof redeemPremiumShare;
-  compileUserDigest: (userId: string) => Promise<unknown>;
   listCollections: (userId: string) => Promise<unknown[]>;
   getCollectionDetail: (
     userId: string,
@@ -275,28 +227,15 @@ export type PublicMcpDependencies = {
   ) => Promise<{ collection: unknown; ownedPlayers: unknown[] } | null>;
   listMilestones: (userId: string) => Promise<unknown[]>;
   celebrateMilestone: (userId: string, milestoneId: string) => Promise<boolean>;
-  markNewsRead: (userId: string) => Promise<void>;
-  getNewsUnreadCount: (userId: string) => Promise<{
-    count: number;
-    digestCount: number;
-    hasUnreadDigest: boolean;
-    digestReleaseAt: Date;
-  }>;
-  getInternalMlbMcpToolCatalog: () => Promise<AgentToolDefinition[]>;
-  runInternalMlbMcpToolBounded: typeof runInternalMlbMcpToolBounded;
   sportsRegistry?: SportsAdapterRegistry;
   sportsIdentityLookup?: ProviderIdentityLookup;
 };
 
-const PUBLIC_DYNAMIC_MLB_SOURCE_ID = "internal_mlb_mcp";
+const PUBLIC_MLB_SOURCE_ID = "mlb_provider";
+const PUBLIC_MLB_SOURCE_NAME = "Sportfolio MLB provider";
+
 const DEFAULT_PUBLIC_SPORTS_REGISTRY = createDefaultSportsAdapterRegistry();
-const PUBLIC_DYNAMIC_MLB_SOURCE_NAME = "Internal MLB MCP";
-const HIGH_RISK_IMMEDIATE_TOOL_NAMES = new Set([
-  "revoke_api_token",
-  "save_agent_byok",
-  "clear_agent_byok",
-  "redeem_premium",
-]);
+const HIGH_RISK_IMMEDIATE_TOOL_NAMES = new Set(["revoke_api_token", "redeem_premium"]);
 
 class PublicMcpToolError extends Error {
   constructor(
@@ -426,31 +365,16 @@ function getToolInputFieldNames(schema?: RawSchema) {
   return Object.keys(schema);
 }
 
-function getAgentToolInputFieldNames(inputSchema?: Record<string, unknown> | null) {
-  if (!inputSchema || typeof inputSchema !== "object" || Array.isArray(inputSchema)) {
-    return [];
-  }
-
-  const properties =
-    "properties" in inputSchema &&
-    inputSchema.properties &&
-    typeof inputSchema.properties === "object" &&
-    !Array.isArray(inputSchema.properties)
-      ? (inputSchema.properties as Record<string, unknown>)
-      : null;
-
-  return properties ? Object.keys(properties) : [];
-}
-
 function toStaticPublicToolCatalogEntry(tool: PublicToolDefinition): PublicToolCatalogEntry {
   const executionModel = getPublicToolExecutionModel(tool);
+  const isMlb = CURATED_MLB_TOOLS.some((entry) => entry.name === tool.name);
   return {
     name: tool.name,
     title: tool.title || null,
     description: tool.description,
     domain: tool.domain,
-    provider: "sportfolio",
-    source: "public_registry:tool",
+    provider: isMlb ? "mlb" : "sportfolio",
+    source: isMlb ? "public_registry:mlb" : "public_registry:tool",
     category: tool.readOnly ? "read" : "action",
     readOnly: tool.readOnly,
     executionModel,
@@ -470,56 +394,18 @@ function toStaticPublicToolCatalogEntry(tool: PublicToolDefinition): PublicToolC
   };
 }
 
-function toDynamicPublicToolCatalogEntry(tool: AgentToolDefinition): PublicToolCatalogEntry {
-  const executionModel: PublicToolExecutionModel = tool.requiresConfirmation
-    ? "staged_write"
-    : "read";
-  return {
-    name: tool.toolName,
-    title: tool.toolName,
-    description: tool.description,
-    domain: "mlb",
-    provider: "internal_mlb_mcp",
-    source: "dynamic:internal_mlb_mcp",
-    category: tool.category,
-    readOnly: !tool.requiresConfirmation,
-    executionModel,
-    confirmationModel: getPublicToolConfirmationModel(executionModel),
-    requiresConfirmation: tool.requiresConfirmation,
-    riskLevel: tool.riskLevel,
-    whenToUse: [...tool.whenToUse],
-    whenNotToUse: [...tool.whenNotToUse],
-    examplePrompts: [...tool.examplePrompts],
-    resultShapeHint: tool.resultShapeHint || null,
-    presentationProfile: tool.presentationProfile || null,
-    primaryEntityType: tool.primaryEntityType || null,
-    preferredColumns: [...(tool.preferredColumns || [])],
-    inputFieldNames: getAgentToolInputFieldNames(tool.inputSchema),
-    fixtureArgs: {},
-    routeRefs: [],
-  };
-}
-
-export async function resolveDynamicMlbPublicTools(
-  _deps: Pick<PublicMcpDependencies, "getInternalMlbMcpToolCatalog">,
-): Promise<ResolvedDynamicMlbPublicTools> {
-  return {
-    tools: [],
-    sourceStatus: {
-      id: PUBLIC_DYNAMIC_MLB_SOURCE_ID,
-      name: `${PUBLIC_DYNAMIC_MLB_SOURCE_NAME} (internal only)`,
-      provider: "internal_mlb_mcp",
-      available: true,
-      toolCount: 0,
-      error: null,
-    },
-  };
-}
-
-async function getResolvedDynamicMlbPublicToolsForContext(
+async function getMlbSourceStatus(
   context: PublicMcpServerContext,
-): Promise<ResolvedDynamicMlbPublicTools> {
-  return context.dynamicMlb || resolveDynamicMlbPublicTools(context.deps);
+): Promise<PublicDynamicSourceStatus> {
+  const health = await context.deps.getMlbProviderHealth();
+  return {
+    id: PUBLIC_MLB_SOURCE_ID,
+    name: PUBLIC_MLB_SOURCE_NAME,
+    provider: "mlb",
+    available: health.reachable,
+    toolCount: CURATED_MLB_TOOLS.length,
+    error: health.lastErrorCode,
+  };
 }
 
 function toStringValue(value: unknown): string {
@@ -570,18 +456,6 @@ function buildPlayerName(
   return fullName || fallback;
 }
 
-function toAgentDomainValue(value: unknown): AgentDomain {
-  const domain = toStringValue(value);
-  return domain === "scouting" ||
-    domain === "player_pools" ||
-    domain === "daily_boosts" ||
-    domain === "community_boosts" ||
-    domain === "watchlists" ||
-    domain === "sportfolio"
-    ? domain
-    : "sportfolio";
-}
-
 const MAX_ACTIVE_API_TOKENS = 8;
 
 function toTokenView(token: {
@@ -600,24 +474,6 @@ function toTokenView(token: {
     createdAt: token.createdAt,
     lastUsedAt: token.lastUsedAt,
     revokedAt: token.revokedAt,
-  };
-}
-
-function toSmsLinkView(link: Awaited<ReturnType<PublicMcpDependencies["getSmsSettings"]>>) {
-  if (!link) {
-    return null;
-  }
-
-  return {
-    id: link.id,
-    phoneE164: link.phoneE164,
-    verifiedAt: link.verifiedAt,
-    linkedAt: link.linkedAt,
-    lastInboundAt: link.lastInboundAt,
-    lastOutboundAt: link.lastOutboundAt,
-    smsEnabled: link.smsEnabled,
-    smsOptInStatus: link.smsOptInStatus,
-    smsOptInSource: link.smsOptInSource,
   };
 }
 
@@ -660,33 +516,20 @@ function resolveTargetDate(rawDate: unknown): Date {
 }
 
 async function resolvePreferredSport(
-  context: PublicMcpServerContext,
+  _context: PublicMcpServerContext,
   args: Record<string, unknown>,
-  fallback = "NBA",
+  fallback = "MLB",
 ): Promise<string> {
-  const explicit = toStringValue(args.sport).toUpperCase();
-  if (explicit) {
-    return explicit;
-  }
-
-  const profileView = await context.deps.getScoutAgentProfile(context.userId);
-  const preferred = toStringValue(profileView.profile.defaultSport).toUpperCase();
-  return preferred || fallback;
+  return toStringValue(args.sport).toUpperCase() || fallback;
 }
 
 async function executeReadTool(
   context: PublicMcpServerContext,
   toolName: string,
   args: Record<string, unknown> = {},
-  threadId?: string | null,
 ) {
   return toStructuredContent(
-    await context.deps.runHermesReadTool({
-      toolName,
-      userId: context.userId,
-      threadId: threadId || null,
-      args,
-    }),
+    await context.deps.runNativeReadTool({ toolName, userId: context.userId, args }),
   );
 }
 
@@ -696,11 +539,7 @@ async function executeScanTool(
   args: Record<string, unknown> = {},
 ) {
   return toStructuredContent(
-    await context.deps.runHermesScanTool({
-      toolName,
-      userId: context.userId,
-      args,
-    }),
+    await context.deps.runNativeScanTool({ toolName, userId: context.userId, args }),
   );
 }
 
@@ -710,11 +549,7 @@ async function executePlanTool(
   args: Record<string, unknown> = {},
 ) {
   return toStructuredContent(
-    await context.deps.runHermesPlanTool({
-      toolName,
-      userId: context.userId,
-      args,
-    }),
+    await context.deps.runNativePlanTool({ toolName, userId: context.userId, args }),
   );
 }
 
@@ -722,478 +557,76 @@ async function executeActionTool(
   context: PublicMcpServerContext,
   toolName: string,
   args: Record<string, unknown> = {},
-  threadId?: string | null,
 ) {
   return toStructuredContent(
-    await context.deps.runHermesActionTool({
-      toolName,
-      userId: context.userId,
-      threadId: threadId || null,
-      args,
-    }),
+    await context.deps.runNativeActionTool({ toolName, userId: context.userId, args }),
   );
 }
 
-function extractPendingBundle(turnResult: unknown) {
-  if (!turnResult || typeof turnResult !== "object") {
-    return null;
-  }
-
-  const turn = turnResult as Record<string, unknown>;
-  if (turn.pendingActionBundle && typeof turn.pendingActionBundle === "object") {
-    return turn.pendingActionBundle as Record<string, unknown>;
-  }
-
-  const createdMessages = Array.isArray(turn.createdMessages) ? turn.createdMessages : [];
-  for (const message of createdMessages) {
-    if (
-      message &&
-      typeof message === "object" &&
-      (message as Record<string, unknown>).actionBundle &&
-      typeof (message as Record<string, unknown>).actionBundle === "object"
-    ) {
-      return (message as Record<string, unknown>).actionBundle as Record<string, unknown>;
-    }
-  }
-
-  const thread = turn.thread && typeof turn.thread === "object" ? turn.thread : null;
-  if (
-    thread &&
-    typeof thread === "object" &&
-    (thread as Record<string, unknown>).pendingActionBundle &&
-    typeof (thread as Record<string, unknown>).pendingActionBundle === "object"
-  ) {
-    return (thread as Record<string, unknown>).pendingActionBundle as Record<string, unknown>;
-  }
-
-  return null;
-}
-
-function buildStagedActionResponse(threadId: string, turn: unknown) {
-  const pendingBundle = extractPendingBundle(turn);
-  if (!pendingBundle) {
-    throw new PublicMcpToolError(
-      "The request did not create a pending action bundle.",
-      "no_pending_action",
-      { threadId },
-    );
-  }
-
-  return {
-    threadId,
-    pendingBundleId: toStringValue(pendingBundle.id),
-    summary: toStringValue(pendingBundle.summary) || "Pending plan staged.",
-    warnings: Array.isArray(pendingBundle.warnings) ? pendingBundle.warnings : [],
-    confirmationRequired: true,
-    pendingBundle,
-    turn,
-  };
-}
-
-async function ensurePendingBundleMatch(
-  context: PublicMcpServerContext,
-  threadId: string,
-  pendingBundleId: string,
-) {
-  const thread = await context.deps.getAgentThread(context.userId, threadId);
-  const activeId = toStringValue(thread.pendingActionBundle?.id);
-
-  if (!activeId) {
-    throw new PublicMcpToolError("No pending action remains on this thread.", "no_pending_action", {
-      threadId,
-      pendingBundleId,
-    });
-  }
-
-  if (activeId !== pendingBundleId) {
-    throw new PublicMcpToolError(
-      "The provided pending bundle id does not match the thread's active pending bundle.",
-      "bundle_mismatch",
-      {
-        threadId,
-        pendingBundleId,
-        activePendingBundleId: activeId,
-      },
-    );
-  }
-
-  return thread;
-}
-
-function extractPreviewStageState(preview: Record<string, unknown>) {
-  const contextSnapshot = toRecord(preview.contextSnapshot);
-  const nestedPreview = toRecord(contextSnapshot?.preview);
-  const stagePreview = nestedPreview || preview;
-  const beforeState = toRecord(stagePreview.beforeState);
-  const afterState = toRecord(stagePreview.afterState);
-  const topLevelActions = toRecordArray(preview.actions) as unknown as AgentAction[];
-  const pendingClarification = parsePendingClarification(preview.pendingClarification);
-  const stageMessage =
-    toOptionalString(stagePreview.stageMessage) ||
-    toOptionalString(preview.requestMessage) ||
-    toOptionalString(preview.summary);
-  const explicitCanStage =
-    typeof stagePreview.canStage === "boolean" ? stagePreview.canStage : null;
-
-  return {
-    contextSnapshot,
-    stagePreview,
-    beforeState,
-    afterState,
-    stageMessage,
-    canStage:
-      explicitCanStage ??
-      (topLevelActions.length > 0 || Boolean(pendingClarification && stageMessage)),
-    actions: topLevelActions,
-    pendingClarification,
-  };
-}
-
-async function synthesizeDeterministicStageActions(input: {
-  context: PublicMcpServerContext;
-  previewToolName: string;
-  preview: Record<string, unknown>;
-  previewArgs: Record<string, unknown>;
-}): Promise<AgentAction[]> {
-  const stageState = extractPreviewStageState(input.preview);
-  if (!stageState.canStage) {
-    return [];
-  }
-
-  const playerId =
-    toStringValue(input.previewArgs.playerId) ||
-    toStringValue(stageState.contextSnapshot?.playerId) ||
-    toStringValue(stageState.stagePreview.playerId);
-  const player = playerId ? await input.context.deps.storage.getPlayer(playerId) : undefined;
-  const playerName = buildPlayerName(
-    player,
-    toStringValue(stageState.contextSnapshot?.playerName) || playerId,
-  );
-
-  switch (input.previewToolName) {
-    case "preview_pool_buy": {
-      const sbAmount = toNumberValue(input.previewArgs.sbAmount ?? input.previewArgs.amount);
-      if (!playerId || sbAmount == null) {
-        return [];
-      }
-      const quote = toRecord(stageState.contextSnapshot?.quote);
-      return [
-        {
-          actionType: "pool_buy",
-          playerId,
-          playerName,
-          sbAmount,
-          availableBalanceBefore: toNumberValue(stageState.beforeState?.availableBalance),
-          availableBalanceAfter: toNumberValue(stageState.afterState?.availableBalance),
-          maxSlippage: 0.05,
-          estimatedSharesOut:
-            toNumberValue(stageState.afterState?.estimatedSharesOut) ||
-            toNumberValue(quote?.sharesOut),
-          estimatedPricePerShare:
-            toNumberValue(quote?.effectivePrice) ||
-            toNumberValue(stageState.stagePreview.estimatedPricePerShare),
-          estimatedSlippagePercent:
-            toNumberValue(quote?.slippagePercent) != null
-              ? toNumberValue(quote?.slippagePercent)! * 100
-              : toNumberValue(stageState.stagePreview.estimatedSlippagePercent),
-          reasoning: "This stages the requested pool buy using the deterministic preview quote.",
-          confidence: 0.94,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_pool_sell": {
-      const sharesAmount = toPositiveInteger(
-        input.previewArgs.sharesAmount ?? input.previewArgs.shares,
-      );
-      if (!playerId || sharesAmount == null) {
-        return [];
-      }
-      return [
-        {
-          actionType: "pool_sell",
-          playerId,
-          playerName,
-          sharesAmount,
-          availableBalanceBefore: toNumberValue(stageState.beforeState?.availableBalance),
-          availableBalanceAfter: toNumberValue(stageState.afterState?.availableBalance),
-          availableSharesBefore: toNumberValue(stageState.beforeState?.availableShares),
-          availableSharesAfter: toNumberValue(stageState.afterState?.availableShares),
-          maxSlippage: 0.05,
-          estimatedSbOut: toNumberValue(stageState.afterState?.estimatedSbOut),
-          estimatedPricePerShare: toNumberValue(stageState.stagePreview.estimatedPricePerShare),
-          estimatedSlippagePercent: toNumberValue(stageState.stagePreview.estimatedSlippagePercent),
-          reasoning: "This stages the requested pool sell using the deterministic preview quote.",
-          confidence: 0.92,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_lp_add": {
-      const shares = toNumberValue(input.previewArgs.shares);
-      const playMoney = toNumberValue(input.previewArgs.playMoney);
-      if (!playerId || shares == null || playMoney == null) {
-        return [];
-      }
-      return [
-        {
-          actionType: "pool_add_liquidity",
-          playerId,
-          playerName,
-          shares,
-          playMoney,
-          availableBalanceBefore: toNumberValue(stageState.beforeState?.availableBalance),
-          availableBalanceAfter: toNumberValue(stageState.afterState?.availableBalance),
-          availableSharesBefore: toNumberValue(stageState.beforeState?.availableShares),
-          availableSharesAfter: toNumberValue(stageState.afterState?.availableShares),
-          estimatedOwnershipPercent: toNumberValue(
-            stageState.afterState?.projectedOwnershipPercent,
-          ),
-          reasoning:
-            "This stages the requested fixed-ratio liquidity add using the deterministic preview.",
-          confidence: 0.9,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_lp_add_optimal": {
-      const maxShares = toNumberValue(input.previewArgs.maxShares ?? input.previewArgs.shares);
-      const maxPlayMoney = toNumberValue(
-        input.previewArgs.maxPlayMoney ?? input.previewArgs.playMoney,
-      );
-      if (!playerId || maxShares == null || maxPlayMoney == null) {
-        return [];
-      }
-      return [
-        {
-          actionType: "pool_add_liquidity_optimal",
-          playerId,
-          playerName,
-          maxShares,
-          maxPlayMoney,
-          availableBalanceBefore: toNumberValue(stageState.beforeState?.availableBalance),
-          availableBalanceAfter: toNumberValue(stageState.afterState?.availableBalance),
-          availableSharesBefore: toNumberValue(stageState.beforeState?.availableShares),
-          availableSharesAfter: toNumberValue(stageState.afterState?.availableShares),
-          estimatedOwnershipPercent: toNumberValue(
-            stageState.afterState?.projectedOwnershipPercent,
-          ),
-          reasoning:
-            "This stages the requested optimal-ratio liquidity add using the deterministic preview.",
-          confidence: 0.9,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_lp_zap": {
-      const shares = toNumberValue(input.previewArgs.shares);
-      const sb = toNumberValue(
-        input.previewArgs.sb ?? input.previewArgs.amount ?? input.previewArgs.sbAmount,
-      );
-      if (!playerId || (shares == null && sb == null)) {
-        return [];
-      }
-      if (shares != null) {
-        return [
-          {
-            actionType: "pool_zap_add_shares",
+function actionFromPreviewRequest(
+  previewToolName: string,
+  args: Record<string, unknown>,
+): GameplayAction {
+  const playerId = toStringValue(args.playerId);
+  const sport = toStringValue(args.sport).toUpperCase() || "MLB";
+  const boostDate = resolveTargetDateString(args.date);
+  switch (previewToolName) {
+    case "preview_pool_buy":
+      return {
+        actionType: "pool_buy",
+        playerId,
+        sbAmount: Number(args.sbAmount ?? args.amount),
+        maxSlippage: Number(args.maxSlippage ?? 0.05),
+      };
+    case "preview_pool_sell":
+      return {
+        actionType: "pool_sell",
+        playerId,
+        sharesAmount: Number(args.sharesAmount ?? args.shares),
+        maxSlippage: Number(args.maxSlippage ?? 0.05),
+      };
+    case "preview_lp_add":
+      return {
+        actionType: "pool_add_liquidity",
+        playerId,
+        shares: Number(args.shares),
+        playMoney: Number(args.playMoney),
+      };
+    case "preview_lp_add_optimal":
+      return {
+        actionType: "pool_add_liquidity_optimal",
+        playerId,
+        maxShares: Number(args.maxShares ?? args.shares),
+        maxPlayMoney: Number(args.maxPlayMoney ?? args.playMoney),
+      };
+    case "preview_lp_zap":
+      return args.shares != null
+        ? { actionType: "pool_zap_add_shares", playerId, shares: Number(args.shares) }
+        : {
+            actionType: "pool_zap_add_sb",
             playerId,
-            playerName,
-            shares,
-            availableSharesBefore: toNumberValue(stageState.beforeState?.availableShares),
-            availableSharesAfter: toNumberValue(stageState.afterState?.availableShares),
-            estimatedLpSharesMinted: toNumberValue(stageState.afterState?.estimatedLpSharesMinted),
-            reasoning:
-              "This stages the requested share-side LP zap using the deterministic preview.",
-            confidence: 0.9,
-          } satisfies AgentAction,
-        ];
-      }
-      return [
-        {
-          actionType: "pool_zap_add_sb",
-          playerId,
-          playerName,
-          sb: sb!,
-          availableBalanceBefore: toNumberValue(stageState.beforeState?.availableBalance),
-          availableBalanceAfter: toNumberValue(stageState.afterState?.availableBalance),
-          estimatedLpSharesMinted: toNumberValue(stageState.afterState?.estimatedLpSharesMinted),
-          reasoning: "This stages the requested cash-side LP zap using the deterministic preview.",
-          confidence: 0.9,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_lp_remove": {
-      const lpShares = toNumberValue(input.previewArgs.lpShares ?? input.previewArgs.shares);
-      if (!playerId || lpShares == null) {
-        return [];
-      }
-      return [
-        {
-          actionType: "pool_remove_liquidity",
-          playerId,
-          playerName,
-          lpShares,
-          currentLpShares: toNumberValue(stageState.beforeState?.currentLpShares),
-          remainingLpShares: toNumberValue(stageState.afterState?.remainingLpShares),
-          estimatedSharesOut: toNumberValue(stageState.afterState?.estimatedSharesOut),
-          estimatedPlayMoneyOut: toNumberValue(stageState.afterState?.estimatedPlayMoneyOut),
-          reasoning:
-            "This stages the requested LP removal using the deterministic preview calculation.",
-          confidence: 0.9,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_stack_shares": {
-      const sharesToStack = toPositiveInteger(input.previewArgs.shares);
-      if (!playerId || sharesToStack == null) {
-        return [];
-      }
-      return [
-        {
-          actionType: "holdings_stack_shares",
-          playerId,
-          playerName,
-          sharesToStack,
-          availableSharesBefore: toNumberValue(stageState.contextSnapshot?.availableShares),
-          availableSharesAfter: toNumberValue(stageState.contextSnapshot?.availableShares),
-          expectedMultiplierGained: sharesToStack / 2,
-          expectedStackedShareCount: 1,
-          reasoning: "This stages the requested Stack Shares action directly from the tool input.",
-          confidence: 0.92,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_daily_boost_assign": {
-      const sport =
-        toStringValue(input.previewArgs.sport) || toStringValue(stageState.contextSnapshot?.sport);
-      const slotTier = toPositiveInteger(input.previewArgs.slotTier);
-      const boostDate =
-        toStringValue(input.previewArgs.date) ||
-        toStringValue(stageState.contextSnapshot?.boostDate);
-      const gameId = toStringValue(stageState.contextSnapshot?.gameId);
-      if (
-        !playerId ||
-        !sport ||
-        !boostDate ||
-        !gameId ||
-        !slotTier ||
-        ![2, 3, 4, 5].includes(slotTier)
-      ) {
-        return [];
-      }
-      return [
-        {
-          actionType: "daily_boost_assign",
-          playerId,
-          playerName,
-          sport,
-          slotTier: slotTier as 2 | 3 | 4 | 5,
-          sharesEntered: 1,
-          boostDate,
-          gameId,
-          gameStartTime: toOptionalString(stageState.contextSnapshot?.gameStartTime),
-          opponent: toOptionalString(stageState.contextSnapshot?.opponent),
-          availableShares: toNumberValue(stageState.contextSnapshot?.availableShares) ?? undefined,
-          shareMultiplier:
-            toNumberValue(stageState.contextSnapshot?.selectedMultiplier) ?? undefined,
-          reasoning:
-            "This stages the requested daily boost assignment directly from the preview context.",
-          confidence: 0.93,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_daily_boost_remove": {
-      const sport =
-        toStringValue(input.previewArgs.sport) || toStringValue(stageState.contextSnapshot?.sport);
-      const slotTier =
-        toPositiveInteger(input.previewArgs.slotTier) ||
-        toPositiveInteger(stageState.contextSnapshot?.slotTier);
-      const boostDate =
-        toStringValue(input.previewArgs.date) ||
-        toStringValue(stageState.contextSnapshot?.boostDate);
-      const boostId = toStringValue(stageState.contextSnapshot?.boostId);
-      if (
-        !playerId ||
-        !sport ||
-        !boostDate ||
-        !boostId ||
-        !slotTier ||
-        ![2, 3, 4, 5].includes(slotTier)
-      ) {
-        return [];
-      }
-      return [
-        {
-          actionType: "daily_boost_remove",
-          boostId,
-          playerId,
-          playerName,
-          sport,
-          slotTier: slotTier as 2 | 3 | 4 | 5,
-          boostDate,
-          gameId: toOptionalString(stageState.contextSnapshot?.gameId),
-          gameStartTime: toOptionalString(stageState.contextSnapshot?.gameStartTime),
-          reasoning:
-            "This stages the requested daily boost removal directly from the preview context.",
-          confidence: 0.93,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_community_boost_create": {
-      const sport =
-        toStringValue(input.previewArgs.sport) || toStringValue(stageState.contextSnapshot?.sport);
-      const boostDate =
-        toStringValue(input.previewArgs.date) ||
-        toStringValue(stageState.contextSnapshot?.boostDate);
-      const gameId = toStringValue(stageState.contextSnapshot?.gameId);
-      if (!playerId || !sport || !boostDate || !gameId) {
-        return [];
-      }
-      return [
-        {
-          actionType: "community_boost_create",
-          playerId,
-          playerName,
-          sport,
-          boostDate,
-          gameId,
-          gameStartTime: toOptionalString(stageState.contextSnapshot?.gameStartTime),
-          opponent: toOptionalString(stageState.contextSnapshot?.opponent),
-          communitySharesAvailable:
-            toNumberValue(stageState.contextSnapshot?.communitySharesAvailable) ?? undefined,
-          reasoning: "This stages the requested community boost directly from the preview context.",
-          confidence: 0.94,
-        } satisfies AgentAction,
-      ];
-    }
-    case "preview_scout_adjustment": {
-      const targetCount = toPositiveInteger(input.previewArgs.targetCount);
-      if (!playerId || targetCount == null) {
-        return [];
-      }
-      const assignments = await input.context.deps.storage.getUserScoutAssignments(
-        input.context.userId,
-      );
-      const currentAssignment = assignments.find((entry) => entry.playerId === playerId);
-      return [
-        {
-          actionType: "scout_set_count",
-          playerId,
-          playerName,
-          targetCount,
-          currentCount: toPositiveInteger(currentAssignment?.scoutCount) || 0,
-          reasoning:
-            "This stages the requested scout assignment count directly from the tool input.",
-          confidence: 0.9,
-          evidence: {
-            trend: null,
-            injury: null,
-            upcomingGame: null,
-            performanceNote: null,
-          },
-          riskFlags: [],
-        } satisfies AgentAction,
-      ];
-    }
+            sb: Number(args.sbAmount ?? args.sb ?? args.amount),
+          };
+    case "preview_lp_remove":
+      return { actionType: "pool_remove_liquidity", playerId, lpShares: Number(args.lpShares) };
+    case "preview_scout_adjustment":
+      return { actionType: "scout_set_count", playerId, targetCount: Number(args.targetCount) };
+    case "preview_stack_shares":
+      return { actionType: "holdings_stack_shares", playerId, sharesToStack: Number(args.shares) };
+    case "preview_daily_boost_assign":
+      return {
+        actionType: "daily_boost_assign",
+        playerId,
+        sport,
+        slotTier: Number(args.slotTier) as 2 | 3 | 4 | 5,
+        boostDate,
+      };
+    case "preview_community_boost_create":
+      return { actionType: "community_boost_create", playerId, sport, boostDate };
     default:
-      return [];
+      throw new PublicMcpToolError("Unsupported staged gameplay action.", "invalid_arguments", {
+        previewToolName,
+      });
   }
 }
 
@@ -1203,101 +636,38 @@ async function stagePreviewedAction(input: {
   previewArgs: Record<string, unknown>;
   threadId?: string | null;
 }) {
-  const preview = assertRecord(
-    await executePlanTool(input.context, input.previewToolName, input.previewArgs),
-    "invalid_preview_result",
-  );
-  const stageState = extractPreviewStageState(preview);
-  const stagedActions =
-    stageState.actions.length > 0
-      ? stageState.actions
-      : await synthesizeDeterministicStageActions({
-          context: input.context,
-          previewToolName: input.previewToolName,
-          preview,
-          previewArgs: input.previewArgs,
-        });
-  const canStage =
-    stagedActions.length > 0 ||
-    Boolean(stageState.pendingClarification && stageState.stageMessage) ||
-    (stageState.canStage && Boolean(stageState.stageMessage));
-
-  if (!canStage) {
-    throw new PublicMcpToolError(
-      "The requested action could not be staged with the current inputs.",
-      "cannot_stage",
-      { preview },
+  let action: GameplayAction;
+  if (input.previewToolName === "preview_daily_boost_remove") {
+    const playerId = toStringValue(input.previewArgs.playerId);
+    const boostDate = resolveTargetDateString(input.previewArgs.date);
+    const slotTier = Number(input.previewArgs.slotTier);
+    const boosts = await input.context.deps.storage.getDailyBoostsAllSports(
+      input.context.userId,
+      resolveTargetDate(boostDate),
     );
+    const boost = boosts.find(
+      (entry) =>
+        entry.playerId === playerId &&
+        (!Number.isFinite(slotTier) || Number(entry.slotTier) === slotTier) &&
+        entry.status === "active",
+    );
+    if (!boost) {
+      throw new PublicMcpToolError("No matching active daily boost was found.", "not_found");
+    }
+    action = { actionType: "daily_boost_remove", boostId: boost.id, boostDate };
+  } else {
+    action = actionFromPreviewRequest(input.previewToolName, input.previewArgs);
   }
-
-  const pendingClarification =
-    stageState.pendingClarification ||
-    (parsePendingClarification(preview.pendingClarification) as AgentPendingClarification | null);
-
-  if (stagedActions.length > 0 || pendingClarification) {
-    const turn = await input.context.deps.stageAgentThreadBundle({
-      userId: input.context.userId,
-      threadId: toOptionalString(input.threadId),
-      channel: "cli",
-      domain: toAgentDomainValue(preview.domain),
-      title: "MCP action thread",
-      requestMessage: stageState.stageMessage,
-      summary: toStringValue(preview.summary) || "Pending plan staged.",
-      replyText:
-        toStringValue(preview.replyText) ||
-        toStringValue(preview.summary) ||
-        "Pending plan staged.",
-      warnings: Array.isArray(preview.warnings) ? preview.warnings : [],
-      actions: stagedActions,
-      pendingClarification,
-    });
-    return buildStagedActionResponse(toStringValue(turn.thread.id), turn);
-  }
-
-  const existingThreadId = toOptionalString(input.threadId);
-  const createdThread = existingThreadId
-    ? null
-    : assertRecord(
-        await input.context.deps.createAgentThread(input.context.userId, {
-          channel: "cli",
-          domain: "sportfolio",
-          title: "MCP action thread",
-        }),
-        "thread_creation_failed",
-      );
-  const threadId = existingThreadId || toStringValue(createdThread?.id);
-
-  if (!threadId) {
-    throw new PublicMcpToolError("Could not create an agent thread.", "thread_creation_failed");
-  }
-
-  const turn = await input.context.deps.sendAgentThreadMessage(input.context.userId, threadId, {
-    message: stageState.stageMessage!,
+  const transaction = await input.context.deps.stageGameplayTransaction({
+    userId: input.context.userId,
+    action,
   });
-
-  return buildStagedActionResponse(threadId, turn);
-}
-
-async function buildSetupReview(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const profile = (await context.deps.getScoutAgentProfile(context.userId)).profile;
-  const message = toStringValue(args.message) || "review my setup";
-  const plan = await context.deps.planDirectAgentOperation({
-    userId: context.userId,
-    profile,
-    message,
-  });
-
-  if (!plan) {
-    return {
-      intentFocus: "setup_review",
-      summary: "No setup review plan was produced.",
-      message: "No setup review was produced for that request.",
-    };
-  }
-
   return {
-    intentFocus: "setup_review",
-    ...plan,
+    transactionId: transaction.transactionId,
+    summary: transaction.summary,
+    warnings: transaction.warnings,
+    confirmationRequired: true,
+    transaction,
   };
 }
 
@@ -1687,14 +1057,6 @@ async function getGameInsights(context: PublicMcpServerContext, args: Record<str
   };
 }
 
-async function getNewsDigest(context: PublicMcpServerContext) {
-  const digest = await context.deps.compileUserDigest(context.userId);
-  return {
-    summary: "Loaded the user's daily news digest.",
-    digest,
-  };
-}
-
 async function listCommunityBoostEligiblePlayers(
   context: PublicMcpServerContext,
   args: Record<string, unknown>,
@@ -1780,90 +1142,34 @@ async function getLpZapQuote(context: PublicMcpServerContext, args: Record<strin
   };
 }
 
-async function listAgentThreadState(
-  context: PublicMcpServerContext,
-  args: Record<string, unknown>,
-) {
-  const threadId = toStringValue(args.threadId);
-  if (!threadId) {
-    throw new PublicMcpToolError("threadId is required.", "invalid_arguments");
-  }
-
-  return executeReadTool(context, "get_thread_state", {}, threadId);
-}
-
 async function getPendingAction(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const threadId = toStringValue(args.threadId);
-  if (!threadId) {
-    throw new PublicMcpToolError("threadId is required.", "invalid_arguments");
+  const transactionId = toStringValue(args.transactionId);
+  if (!transactionId) {
+    throw new PublicMcpToolError("transactionId is required.", "invalid_arguments");
   }
-
-  return executeReadTool(context, "get_pending_bundle", {}, threadId);
-}
-
-async function sendAgentMessage(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const threadId = toStringValue(args.threadId);
-  const message = toStringValue(args.message);
-  if (!threadId || !message) {
-    throw new PublicMcpToolError("threadId and message are required.", "invalid_arguments", {
-      threadId,
-    });
-  }
-
-  const turn = await context.deps.sendAgentThreadMessage(context.userId, threadId, { message });
-  const pendingBundle = extractPendingBundle(turn);
-  return {
-    summary: pendingBundle
-      ? "Sent message and staged a pending action bundle."
-      : "Sent message to agent thread.",
-    threadId,
-    ...(pendingBundle
-      ? {
-          pendingBundleId: toStringValue(pendingBundle.id),
-          warnings: Array.isArray(pendingBundle.warnings) ? pendingBundle.warnings : [],
-          confirmationRequired: true,
-          pendingBundle,
-        }
-      : {}),
-    turn,
-  };
+  const transaction = await context.deps.getGameplayTransaction(context.userId, transactionId);
+  return { summary: transaction.summary, transaction };
 }
 
 async function confirmPendingAction(
   context: PublicMcpServerContext,
   args: Record<string, unknown>,
 ) {
-  const threadId = toStringValue(args.threadId);
-  const pendingBundleId = toStringValue(args.pendingBundleId);
-  if (!threadId || !pendingBundleId) {
-    throw new PublicMcpToolError("threadId and pendingBundleId are required.", "invalid_arguments");
+  const transactionId = toStringValue(args.transactionId);
+  if (!transactionId) {
+    throw new PublicMcpToolError("transactionId is required.", "invalid_arguments");
   }
-
-  await ensurePendingBundleMatch(context, threadId, pendingBundleId);
-  const result = await context.deps.confirmAgentThread(context.userId, threadId, pendingBundleId);
-  return {
-    summary: "Confirmed pending action bundle.",
-    threadId,
-    pendingBundleId,
-    result,
-  };
+  const transaction = await context.deps.confirmGameplayTransaction(context.userId, transactionId);
+  return { summary: "Confirmed gameplay transaction.", transactionId, transaction };
 }
 
 async function cancelPendingAction(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const threadId = toStringValue(args.threadId);
-  const pendingBundleId = toStringValue(args.pendingBundleId);
-  if (!threadId || !pendingBundleId) {
-    throw new PublicMcpToolError("threadId and pendingBundleId are required.", "invalid_arguments");
+  const transactionId = toStringValue(args.transactionId);
+  if (!transactionId) {
+    throw new PublicMcpToolError("transactionId is required.", "invalid_arguments");
   }
-
-  await ensurePendingBundleMatch(context, threadId, pendingBundleId);
-  const result = await context.deps.cancelAgentThread(context.userId, threadId, pendingBundleId);
-  return {
-    summary: "Cancelled pending action bundle.",
-    threadId,
-    pendingBundleId,
-    result,
-  };
+  const transaction = await context.deps.cancelGameplayTransaction(context.userId, transactionId);
+  return { summary: "Cancelled gameplay transaction.", transactionId, transaction };
 }
 
 function resolveActivityTypes(args: Record<string, unknown>): UserActivityCategory[] {
@@ -2013,60 +1319,6 @@ async function revokeApiToken(context: PublicMcpServerContext, args: Record<stri
   };
 }
 
-async function getSmsSettingsTool(context: PublicMcpServerContext) {
-  return {
-    summary: "Loaded SMS settings.",
-    link: toSmsLinkView(await context.deps.getSmsSettings(context.userId)),
-  };
-}
-
-async function updateSmsSettingsTool(
-  context: PublicMcpServerContext,
-  args: Record<string, unknown>,
-) {
-  const smsEnabled = toBooleanValue(args.smsEnabled);
-  if (smsEnabled === null) {
-    throw new PublicMcpToolError("smsEnabled must be a boolean.", "invalid_arguments");
-  }
-
-  const link = await context.deps.updateSmsSettings(context.userId, smsEnabled);
-  if (!link) {
-    throw new PublicMcpToolError("No linked phone found for this account.", "not_found");
-  }
-
-  return {
-    summary: "Updated SMS settings.",
-    link: toSmsLinkView(link),
-  };
-}
-
-async function startSmsLinkTool(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const phone = toStringValue(args.phone);
-  if (!phone) {
-    throw new PublicMcpToolError("Phone number is required.", "invalid_arguments");
-  }
-
-  const result = await context.deps.startSmsPhoneLink(context.userId, phone);
-  return {
-    summary: "Started SMS phone link.",
-    phoneE164: result.phoneE164,
-    expiresAt: result.expiresAt,
-  };
-}
-
-async function completeSmsLinkTool(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const token = toStringValue(args.token);
-  if (!token) {
-    throw new PublicMcpToolError("Token is required.", "invalid_arguments");
-  }
-
-  const link = await context.deps.completeSmsPhoneLink(context.userId, token);
-  return {
-    summary: "Completed SMS phone link.",
-    link: toSmsLinkView(link),
-  };
-}
-
 async function getPremiumStatusTool(context: PublicMcpServerContext) {
   const userState = await loadUserEntitlements(context.deps.storage, context.userId);
   if (!userState) {
@@ -2091,67 +1343,6 @@ async function getPremiumStatusTool(context: PublicMcpServerContext) {
     rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
     maxScouts: userState.entitlements.maxScouts,
     recentPurchases: recentSessions.filter((session) => session.status === "completed").slice(0, 5),
-  };
-}
-
-async function markNewsReadTool(context: PublicMcpServerContext) {
-  await context.deps.markNewsRead(context.userId);
-
-  return {
-    summary: "Marked news as read.",
-    success: true,
-  };
-}
-
-async function getNewsUnreadCountTool(context: PublicMcpServerContext) {
-  const { count, digestCount, hasUnreadDigest, digestReleaseAt } =
-    await context.deps.getNewsUnreadCount(context.userId);
-  return {
-    summary: "Loaded unread news counts.",
-    count,
-    digestCount,
-    hasUnreadDigest,
-    digestReleaseAt,
-  };
-}
-
-async function getAgentProfileTool(context: PublicMcpServerContext) {
-  const profile = await context.deps.getScoutAgentProfile(context.userId);
-  return {
-    summary: "Loaded agent profile.",
-    profile,
-  };
-}
-
-async function getAgentCapabilitiesTool(context: PublicMcpServerContext) {
-  const capabilities = await context.deps.getAgentCapabilities(context.userId);
-  return {
-    summary: "Loaded agent capabilities.",
-    capabilities,
-  };
-}
-
-async function updateAgentProfileTool(
-  context: PublicMcpServerContext,
-  args: Record<string, unknown>,
-) {
-  return {
-    summary: "Updated agent profile.",
-    profile: await context.deps.updateScoutAgentProfile(context.userId, args),
-  };
-}
-
-async function saveAgentByokTool(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  return {
-    summary: "Saved agent BYOK credentials.",
-    profile: await context.deps.saveScoutAgentByok(context.userId, args),
-  };
-}
-
-async function clearAgentByokTool(context: PublicMcpServerContext) {
-  return {
-    summary: "Cleared agent BYOK credentials.",
-    profile: await context.deps.clearScoutAgentByok(context.userId),
   };
 }
 
@@ -2225,40 +1416,6 @@ async function redeemPremiumTool(context: PublicMcpServerContext) {
   };
 }
 
-async function listThreadMessagesTool(
-  context: PublicMcpServerContext,
-  args: Record<string, unknown>,
-) {
-  const threadId = toStringValue(args.threadId);
-  if (!threadId) {
-    throw new PublicMcpToolError("threadId is required.", "invalid_arguments");
-  }
-
-  const messages = await context.deps.listAgentThreadMessages(context.userId, threadId);
-  return {
-    summary: `Loaded ${messages.length} thread message(s).`,
-    threadId,
-    messages,
-  };
-}
-
-async function listThreadResearchSourcesTool(
-  context: PublicMcpServerContext,
-  args: Record<string, unknown>,
-) {
-  const threadId = toStringValue(args.threadId);
-  if (!threadId) {
-    throw new PublicMcpToolError("threadId is required.", "invalid_arguments");
-  }
-
-  const citations = await context.deps.listAgentThreadResearchSources(context.userId, threadId);
-  return {
-    summary: `Loaded ${citations.length} research source(s).`,
-    threadId,
-    citations,
-  };
-}
-
 const noArgsSchema: RawSchema = {};
 const optionalMessageSchema: RawSchema = {
   message: z.string().min(1).max(1200).optional(),
@@ -2271,47 +1428,17 @@ const optionalSportDateSchema: RawSchema = {
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
 };
-const threadIdSchema: RawSchema = {
-  threadId: z.string().min(1),
-};
 const pendingActionSchema: RawSchema = {
-  threadId: z.string().min(1),
-  pendingBundleId: z.string().min(1),
+  transactionId: z.string().uuid(),
 };
 const tokenIdSchema: RawSchema = {
   tokenId: z.string().min(1),
-};
-const smsSettingsSchema: RawSchema = {
-  smsEnabled: z.boolean(),
-};
-const startSmsLinkSchema: RawSchema = {
-  phone: z.string().min(1),
-};
-const completeSmsLinkSchema: RawSchema = {
-  token: z.string().min(1),
 };
 const usernameSchema: RawSchema = {
   username: z.string().min(3).max(20),
 };
 const profileImageSchema: RawSchema = {
   profileImageUrl: z.string().url(),
-};
-const updateAgentProfileSchema: RawSchema = {
-  enabled: z.boolean().optional(),
-  displayName: z.string().min(1).max(80).optional(),
-  providerMode: z.enum(["managed", "byok"]).optional(),
-  model: z.string().min(1).max(120).optional(),
-  systemPrompt: z.string().max(12000).optional(),
-  userPromptTemplate: z.string().max(12000).optional(),
-  temperature: z.number().min(0).max(2).optional(),
-  maxTokens: z.number().int().positive().max(200000).optional(),
-  analysisWindowMinutes: z.number().int().min(1).max(1440).optional(),
-  defaultSport: z.string().min(2).max(16).optional(),
-};
-const saveAgentByokSchema: RawSchema = {
-  apiKey: z.string().min(1),
-  baseUrl: z.string().url().optional(),
-  model: z.string().min(1).max(120),
 };
 const playerIdSchema: RawSchema = {
   playerId: z.string().min(1),
@@ -2358,18 +1485,15 @@ const timeRangeSchema: RawSchema = {
 const stageMarketBuySchema: RawSchema = {
   playerId: z.string().min(1),
   amount: z.number().positive(),
-  threadId: z.string().min(1).optional(),
 };
 const stageMarketSellSchema: RawSchema = {
   playerId: z.string().min(1),
   shares: z.number().positive(),
-  threadId: z.string().min(1).optional(),
 };
 const stageLpAddSchema: RawSchema = {
   playerId: z.string().min(1),
   shares: z.number().positive(),
   playMoney: z.number().positive(),
-  threadId: z.string().min(1).optional(),
 };
 const stageLpAddOptimalSchema: RawSchema = {
   playerId: z.string().min(1),
@@ -2377,23 +1501,19 @@ const stageLpAddOptimalSchema: RawSchema = {
   maxPlayMoney: z.number().positive().optional(),
   shares: z.number().positive().optional(),
   playMoney: z.number().positive().optional(),
-  threadId: z.string().min(1).optional(),
 };
 const stageLpZapSchema: RawSchema = {
   playerId: z.string().min(1),
   shares: z.number().positive().optional(),
   sbAmount: z.number().positive().optional(),
-  threadId: z.string().min(1).optional(),
 };
 const stageLpRemoveSchema: RawSchema = {
   playerId: z.string().min(1),
   lpShares: z.number().positive(),
-  threadId: z.string().min(1).optional(),
 };
 const stageScoutSchema: RawSchema = {
   playerId: z.string().min(1),
   targetCount: z.number().int().min(0).max(10),
-  threadId: z.string().min(1).optional(),
 };
 const stageStackSharesSchema: RawSchema = {
   playerId: z.string().min(1),
@@ -2404,7 +1524,6 @@ const stageStackSharesSchema: RawSchema = {
     .refine((value) => value % 2 === 0, {
       message: "Stack Shares requires an even share count.",
     }),
-  threadId: z.string().min(1).optional(),
 };
 const stageBoostSchema: RawSchema = {
   playerId: z.string().min(1),
@@ -2414,7 +1533,6 @@ const stageBoostSchema: RawSchema = {
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   sport: z.string().min(2).max(16).optional(),
-  threadId: z.string().min(1).optional(),
 };
 const stageCommunityBoostSchema: RawSchema = {
   playerId: z.string().min(1),
@@ -2423,7 +1541,6 @@ const stageCommunityBoostSchema: RawSchema = {
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   sport: z.string().min(2).max(16).optional(),
-  threadId: z.string().min(1).optional(),
 };
 const createWatchlistSchema: RawSchema = {
   name: z.string().min(1).max(80),
@@ -2440,24 +1557,6 @@ const deleteWatchlistSchema: RawSchema = {
 const watchlistPlayerSchema: RawSchema = {
   playerId: z.string().min(1),
   watchlistId: z.string().min(1).optional(),
-};
-const upsertScheduleSchema: RawSchema = {
-  jobType: z.string().min(1),
-  enabled: z.boolean().optional(),
-  scheduleCron: z.string().min(1).optional(),
-  channelTargets: z.array(z.string().min(1)).optional(),
-  policy: z.record(z.string(), z.unknown()).optional(),
-};
-const deleteScheduleSchema: RawSchema = {
-  jobType: z.string().min(1),
-};
-const createAgentThreadSchema: RawSchema = {
-  title: z.string().min(1).max(120).optional(),
-  channel: z.enum(["in_app", "sms", "cli"]).optional(),
-};
-const sendAgentMessageSchema: RawSchema = {
-  threadId: z.string().min(1),
-  message: z.string().min(1).max(2000),
 };
 const activityFeedSchema: RawSchema = {
   types: z.array(z.string().min(1)).optional(),
@@ -2618,15 +1717,6 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
     inputSchema: optionalMessageSchema,
     fixtureArgs: {},
     execute: (context, args) => executeScanTool(context, "scan_top_market_opportunities", args),
-  }),
-  defineTool({
-    name: "review_news_impact",
-    description: "Review current hosted research and explain account-specific impact.",
-    domain: "research",
-    readOnly: true,
-    inputSchema: optionalMessageSchema,
-    fixtureArgs: { message: "What changed today that affects my setup?" },
-    execute: (context, args) => executeScanTool(context, "scan_news_impact", args),
   }),
   defineTool({
     name: "get_balance_state",
@@ -2859,25 +1949,26 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
     fixtureArgs: { playerId: "player_1", type: "buy", amount: 25 },
     execute: (context, args) => executeReadTool(context, "get_amm_trade_quote", args),
   }),
-  defineTool({
-    name: "list_schedules",
-    description: "List the user's advisory schedules.",
-    domain: "schedules",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: (context) => executeReadTool(context, "get_user_schedules"),
-  }),
-  defineTool({
-    name: "list_schedule_templates",
-    description: "List supported schedule templates.",
-    domain: "schedules",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: (context) => executeReadTool(context, "get_schedule_templates"),
-  }),
 ];
+
+const MLB_TOOLS: PublicToolDefinition[] = CURATED_MLB_TOOLS.map((tool) =>
+  defineTool({
+    name: tool.name,
+    title: tool.name
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" "),
+    description: tool.description,
+    domain: "mlb",
+    readOnly: true,
+    inputSchema: tool.inputSchema,
+    fixtureArgs: tool.fixtureArgs,
+    execute: async (context, args) =>
+      toStructuredContent(
+        await context.deps.callMlbPublicTool(tool.name as CuratedMlbToolName, args),
+      ),
+  }),
+);
 
 const CUSTOM_TOOLS: PublicToolDefinition[] = [
   defineTool({
@@ -2950,15 +2041,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     execute: getUnifiedEventLiveState,
   }),
   defineTool({
-    name: "review_setup",
-    description: "Review the user's overall setup with a broad gameplay read.",
-    domain: "advisory",
-    readOnly: true,
-    inputSchema: optionalSportDateSchema,
-    fixtureArgs: {},
-    execute: buildSetupReview,
-  }),
-  defineTool({
     name: "get_dashboard_overview",
     description:
       "Load a composed dashboard overview spanning balance, portfolio, boosts, scouts, and watchlists.",
@@ -3005,15 +2087,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     execute: listApiTokens,
   }),
   defineTool({
-    name: "get_sms_settings",
-    description: "Load current SMS link and opt-in settings.",
-    domain: "sms",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: getSmsSettingsTool,
-  }),
-  defineTool({
     name: "get_premium_status",
     description: "Load the authenticated user's premium status and redeemable share count.",
     domain: "premium",
@@ -3021,24 +2094,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     inputSchema: noArgsSchema,
     fixtureArgs: {},
     execute: getPremiumStatusTool,
-  }),
-  defineTool({
-    name: "get_agent_profile",
-    description: "Load the current agent profile configuration.",
-    domain: "agent_settings",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: getAgentProfileTool,
-  }),
-  defineTool({
-    name: "get_agent_capabilities",
-    description: "Load the current agent capability summary.",
-    domain: "agent_settings",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: getAgentCapabilitiesTool,
   }),
   defineTool({
     name: "search_players",
@@ -3083,33 +2138,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     },
     fixtureArgs: { sport: "NBA" },
     execute: getGameInsights,
-  }),
-  defineTool({
-    name: "get_news_digest",
-    description: "Load the user's compiled daily digest.",
-    domain: "news",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: getNewsDigest,
-  }),
-  defineTool({
-    name: "get_news_unread_count",
-    description: "Load unread news and digest badge counts for the authenticated user.",
-    domain: "news",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: getNewsUnreadCountTool,
-  }),
-  defineTool({
-    name: "mark_news_read",
-    description: "Mark the authenticated user's news digest as read.",
-    domain: "news",
-    readOnly: false,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: markNewsReadTool,
   }),
   defineTool({
     name: "list_collections",
@@ -3183,17 +2211,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
         article,
       };
     },
-  }),
-  defineTool({
-    name: "run_hosted_research",
-    description: "Run hosted web research through the existing Hermes research path.",
-    domain: "research",
-    readOnly: true,
-    inputSchema: {
-      message: z.string().min(1).max(1200),
-    },
-    fixtureArgs: { message: "latest Nikola Jokic news" },
-    execute: (context, args) => executeReadTool(context, "get_hosted_research", args),
   }),
   defineTool({
     name: "get_scout_status",
@@ -3279,51 +2296,12 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     execute: getLpZapQuote,
   }),
   defineTool({
-    name: "list_agent_threads",
-    description: "List recent agent threads.",
-    domain: "threads",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: async (context) => ({
-      summary: "Loaded agent threads.",
-      threads: await context.deps.listAgentThreads(context.userId),
-    }),
-  }),
-  defineTool({
-    name: "get_thread_state",
-    description: "Load thread state and messages.",
-    domain: "threads",
-    readOnly: true,
-    inputSchema: threadIdSchema,
-    fixtureArgs: { threadId: "thread_1" },
-    execute: listAgentThreadState,
-  }),
-  defineTool({
-    name: "list_thread_messages",
-    description: "List messages for a thread.",
-    domain: "threads",
-    readOnly: true,
-    inputSchema: threadIdSchema,
-    fixtureArgs: { threadId: "thread_1" },
-    execute: listThreadMessagesTool,
-  }),
-  defineTool({
-    name: "list_thread_research_sources",
-    description: "List research sources attached to a thread.",
-    domain: "threads",
-    readOnly: true,
-    inputSchema: threadIdSchema,
-    fixtureArgs: { threadId: "thread_1" },
-    execute: listThreadResearchSourcesTool,
-  }),
-  defineTool({
     name: "get_pending_action",
-    description: "Load the active pending action bundle for a thread.",
-    domain: "threads",
+    description: "Load one staged gameplay transaction.",
+    domain: "transactions",
     readOnly: true,
-    inputSchema: threadIdSchema,
-    fixtureArgs: { threadId: "thread_1" },
+    inputSchema: pendingActionSchema,
+    fixtureArgs: { transactionId: "00000000-0000-4000-8000-000000000001" },
     execute: getPendingAction,
   }),
   defineTool({
@@ -3341,7 +2319,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
           playerId: args.playerId,
           sbAmount: args.amount,
         },
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3359,7 +2336,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
           playerId: args.playerId,
           shares: args.shares,
         },
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3378,7 +2354,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
           shares: args.shares,
           playMoney: args.playMoney,
         },
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3397,7 +2372,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
           maxShares: args.maxShares ?? args.shares,
           maxPlayMoney: args.maxPlayMoney ?? args.playMoney,
         },
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3418,7 +2392,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
           amount: args.sbAmount,
           sb: args.sbAmount,
         },
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3436,7 +2409,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
           playerId: args.playerId,
           lpShares: args.lpShares,
         },
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3451,7 +2423,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
         context,
         previewToolName: "preview_scout_adjustment",
         previewArgs: args,
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3469,7 +2440,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
           playerId: args.playerId,
           shares: args.shares,
         },
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3484,7 +2454,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
         context,
         previewToolName: "preview_daily_boost_assign",
         previewArgs: args,
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3493,13 +2462,12 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     domain: "boosts",
     readOnly: false,
     inputSchema: stageBoostSchema,
-    fixtureArgs: { playerId: "player_1", slotTier: 4, sport: "NBA" },
+    fixtureArgs: { playerId: "player_1", slotTier: 2, sport: "MLB" },
     execute: (context, args) =>
       stagePreviewedAction({
         context,
         previewToolName: "preview_daily_boost_remove",
         previewArgs: args,
-        threadId: toOptionalString(args.threadId),
       }),
   }),
   defineTool({
@@ -3559,31 +2527,7 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
         context,
         previewToolName: "preview_community_boost_create",
         previewArgs: args,
-        threadId: toOptionalString(args.threadId),
       }),
-  }),
-  defineTool({
-    name: "upsert_schedule",
-    description: "Create or update an advisory schedule immediately.",
-    domain: "schedules",
-    readOnly: false,
-    inputSchema: upsertScheduleSchema,
-    fixtureArgs: {
-      jobType: "daily_setup_review",
-      enabled: true,
-      scheduleCron: "0 8 * * *",
-      channelTargets: ["in_app"],
-    },
-    execute: (context, args) => executeActionTool(context, "upsert_user_schedule", args),
-  }),
-  defineTool({
-    name: "delete_schedule",
-    description: "Delete an advisory schedule immediately.",
-    domain: "schedules",
-    readOnly: false,
-    inputSchema: deleteScheduleSchema,
-    fixtureArgs: { jobType: "daily_setup_review" },
-    execute: (context, args) => executeActionTool(context, "delete_user_schedule", args),
   }),
   defineTool({
     name: "revoke_api_token",
@@ -3613,64 +2557,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     execute: updateProfileImageTool,
   }),
   defineTool({
-    name: "update_sms_settings",
-    description: "Update SMS opt-in settings immediately.",
-    domain: "sms",
-    readOnly: false,
-    inputSchema: smsSettingsSchema,
-    fixtureArgs: { smsEnabled: true },
-    execute: updateSmsSettingsTool,
-  }),
-  defineTool({
-    name: "start_sms_link",
-    description: "Start an SMS phone-link flow immediately.",
-    domain: "sms",
-    readOnly: false,
-    inputSchema: startSmsLinkSchema,
-    fixtureArgs: { phone: "+15555550123" },
-    execute: startSmsLinkTool,
-  }),
-  defineTool({
-    name: "complete_sms_link",
-    description: "Complete an SMS phone-link flow immediately.",
-    domain: "sms",
-    readOnly: false,
-    inputSchema: completeSmsLinkSchema,
-    fixtureArgs: { token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
-    execute: completeSmsLinkTool,
-  }),
-  defineTool({
-    name: "update_agent_profile",
-    description: "Update the user's agent profile immediately.",
-    domain: "agent_settings",
-    readOnly: false,
-    inputSchema: updateAgentProfileSchema,
-    fixtureArgs: { enabled: true, defaultSport: "NBA" },
-    execute: updateAgentProfileTool,
-  }),
-  defineTool({
-    name: "save_agent_byok",
-    description: "Save BYOK credentials for the user's agent immediately.",
-    domain: "agent_settings",
-    readOnly: false,
-    inputSchema: saveAgentByokSchema,
-    fixtureArgs: {
-      apiKey: "sk-demo-key",
-      baseUrl: "https://api.openai.com/v1",
-      model: "gpt-4.1-mini",
-    },
-    execute: saveAgentByokTool,
-  }),
-  defineTool({
-    name: "clear_agent_byok",
-    description: "Clear the user's saved BYOK credentials immediately.",
-    domain: "agent_settings",
-    readOnly: false,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: clearAgentByokTool,
-  }),
-  defineTool({
     name: "redeem_premium",
     description: "Redeem one premium share immediately for premium access.",
     domain: "premium",
@@ -3680,46 +2566,21 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     execute: redeemPremiumTool,
   }),
   defineTool({
-    name: "create_agent_thread",
-    description: "Create an agent thread.",
-    domain: "threads",
-    readOnly: false,
-    inputSchema: createAgentThreadSchema,
-    fixtureArgs: { title: "MCP Thread", channel: "cli" },
-    execute: async (context, args) => ({
-      summary: "Created agent thread.",
-      thread: await context.deps.createAgentThread(context.userId, {
-        title: toOptionalString(args.title) || undefined,
-        channel: toOptionalString(args.channel) || "cli",
-        domain: "sportfolio",
-      }),
-    }),
-  }),
-  defineTool({
-    name: "send_agent_message",
-    description: "Send a message into an agent thread.",
-    domain: "threads",
-    readOnly: false,
-    inputSchema: sendAgentMessageSchema,
-    fixtureArgs: { threadId: "thread_1", message: "review my setup" },
-    execute: sendAgentMessage,
-  }),
-  defineTool({
     name: "confirm_pending_action",
-    description: "Confirm a staged pending action bundle.",
-    domain: "threads",
+    description: "Confirm and execute a staged gameplay transaction.",
+    domain: "transactions",
     readOnly: false,
     inputSchema: pendingActionSchema,
-    fixtureArgs: { threadId: "thread_1", pendingBundleId: "bundle_1" },
+    fixtureArgs: { transactionId: "00000000-0000-4000-8000-000000000001" },
     execute: confirmPendingAction,
   }),
   defineTool({
     name: "cancel_pending_action",
-    description: "Cancel a staged pending action bundle.",
-    domain: "threads",
+    description: "Cancel a staged gameplay transaction.",
+    domain: "transactions",
     readOnly: false,
     inputSchema: pendingActionSchema,
-    fixtureArgs: { threadId: "thread_1", pendingBundleId: "bundle_1" },
+    fixtureArgs: { transactionId: "00000000-0000-4000-8000-000000000001" },
     execute: cancelPendingAction,
   }),
 ];
@@ -3843,90 +2704,55 @@ async function defaultCelebrateMilestone(userId: string, milestoneId: string): P
   }
 }
 
-async function defaultMarkNewsRead(userId: string): Promise<void> {
-  await db
-    .update(users)
-    .set({
-      lastNewsViewedAt: new Date(),
-    })
-    .where(eq(users.id, userId));
-}
-
-async function defaultGetNewsUnreadCount(userId: string) {
-  const user = await storage.getUser(userId);
-  const lastViewed = user?.lastNewsViewedAt || new Date(0);
-  const countResult = await db
-    .select({
-      count: sql<number>`COUNT(*)`,
-    })
-    .from(newsFeed)
-    .where(gte(newsFeed.createdAt, lastViewed));
-
-  const count = countResult[0]?.count || 0;
-  const now = new Date();
-  const todayET = getTodayET();
-  const { startOfDay: todayStartET } = getETDayBoundaries(todayET);
-  let digestReleaseAt = new Date(todayStartET.getTime() + 6 * 60 * 60 * 1000);
-
-  if (now < digestReleaseAt) {
-    digestReleaseAt = new Date(digestReleaseAt.getTime() - 24 * 60 * 60 * 1000);
-  }
-
-  const hasUnreadDigest = lastViewed < digestReleaseAt;
-  return {
-    count,
-    digestCount: hasUnreadDigest ? 1 : 0,
-    hasUnreadDigest,
-    digestReleaseAt,
-  };
-}
-
 export function createDefaultPublicMcpDependencies(): PublicMcpDependencies {
   return {
     storage,
-    runHermesReadTool,
-    runHermesScanTool,
-    runHermesPlanTool,
-    runHermesActionTool,
-    planDirectAgentOperation,
-    getScoutAgentProfile,
-    getAgentCapabilities,
-    updateScoutAgentProfile,
-    saveScoutAgentByok,
-    clearScoutAgentByok,
-    createAgentThread,
-    sendAgentThreadMessage,
-    stageAgentThreadBundle,
-    confirmAgentThread,
-    cancelAgentThread,
-    getAgentThread,
-    listAgentThreadMessages,
-    listAgentThreadResearchSources,
-    listAgentThreads,
+    runNativeReadTool,
+    runNativeScanTool,
+    runNativePlanTool,
+    runNativeActionTool,
+    stageGameplayTransaction,
+    getGameplayTransaction,
+    confirmGameplayTransaction,
+    cancelGameplayTransaction,
+    callMlbPublicTool,
+    getMlbProviderHealth,
     listDocsArticles,
     searchDocsArticles,
     getDocsArticle,
-    getSmsSettings,
-    updateSmsSettings,
-    startSmsPhoneLink,
-    completeSmsPhoneLink,
     redeemPremiumShare,
-    compileUserDigest: async (userId: string) => {
-      const module = await import("../jobs/compile-digest");
-      return module.compileUserDigest(userId);
-    },
     listCollections: defaultListCollections,
     getCollectionDetail: defaultGetCollectionDetail,
     listMilestones: defaultListMilestones,
     celebrateMilestone: defaultCelebrateMilestone,
-    markNewsRead: defaultMarkNewsRead,
-    getNewsUnreadCount: defaultGetNewsUnreadCount,
-    getInternalMlbMcpToolCatalog,
-    runInternalMlbMcpToolBounded,
   };
 }
 
 const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
+  {
+    capabilityId: "news_digest_site_only",
+    kind: "excluded",
+    status: "excluded",
+    domain: "news",
+    source: "/api/news/digest",
+    notes: "The website news digest remains outside the shared CLI and MCP capability surface.",
+  },
+  {
+    capabilityId: "news_mark_read_site_only",
+    kind: "excluded",
+    status: "excluded",
+    domain: "news",
+    source: "/api/news/mark-read",
+    notes: "Website news-read state remains outside the shared CLI and MCP capability surface.",
+  },
+  {
+    capabilityId: "news_unread_count_site_only",
+    kind: "excluded",
+    status: "excluded",
+    domain: "news",
+    source: "/api/news/unread-count",
+    notes: "Website news badge counts remain outside the shared CLI and MCP capability surface.",
+  },
   {
     capabilityId: "premium_checkout_session",
     kind: "excluded",
@@ -4033,138 +2859,12 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
       "Debug-only diagnostics must not be exposed through the shared public capability surface.",
   },
   {
-    capabilityId: "agent_thread_runtime_details",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/threads/:threadId/runtime-details",
-    notes:
-      "The cockpit runtime-details route is a web-only aggregation view and must not expand the shared CLI or MCP capability surface.",
-  },
-  {
-    capabilityId: "agent_thread_turn_events",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/threads/:threadId/turns/:turnId/events",
-    notes:
-      "The cockpit live turn event stream is UI telemetry and remains excluded from the shared CLI and MCP capability surface.",
-  },
-  {
-    capabilityId: "agent_strategy_templates",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/strategies",
-    notes:
-      "Strategy template lifecycle remains a web-only Hermes cockpit surface until the public capability model includes first-class strategy management.",
-  },
-  {
-    capabilityId: "agent_strategy_template_update",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/strategies/:strategyId",
-    notes:
-      "Strategy template mutation remains web-only until the shared public capability surface includes a stable strategy contract.",
-  },
-  {
-    capabilityId: "agent_strategy_live_state",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/strategies/:strategyId/(activate|review|pause|archive)",
-    notes:
-      "Live strategy slot management remains web-only until Hermes-native strategy execution is exposed consistently across product surfaces.",
-  },
-  {
-    capabilityId: "agent_strategy_run_history",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/strategies/:strategyId/runs",
-    notes:
-      "Strategy run history remains a web-only cockpit audit surface until the public capability model includes first-class strategy execution telemetry.",
-  },
-  {
-    capabilityId: "agent_strategy_event_history",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/strategies/:strategyId/events",
-    notes:
-      "Strategy event history remains a web-only Hermes cockpit surface until the public capability model includes first-class strategy lifecycle telemetry.",
-  },
-  {
-    capabilityId: "agent_strategy_manual_run",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/strategies/:strategyId/run",
-    notes:
-      "Manual live-strategy execution remains web-only until Hermes-native strategy execution is exposed consistently across product surfaces.",
-  },
-  {
-    capabilityId: "agent_strategy_detail",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/strategies/:strategyId",
-    notes:
-      "Strategy detail, performance, and guardrail editing remain web-only until the public capability model includes a stable Hermes-native strategy contract.",
-  },
-  {
     capabilityId: "admin_internal_routes",
     kind: "excluded",
     status: "excluded",
     domain: "admin",
     source: "admin/internal-only routes",
     notes: "Admin and internal-only routes must not be exposed through CLI or MCP.",
-  },
-  {
-    capabilityId: "agent_mcp_source_list",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/mcp-sources",
-    notes:
-      "MCP source management remains web-only until the public capability model includes first-class external data source configuration.",
-  },
-  {
-    capabilityId: "agent_mcp_source_detail",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/mcp-sources/:sourceId",
-    notes:
-      "MCP source detail remains web-only until the public capability model includes first-class external data source configuration.",
-  },
-  {
-    capabilityId: "agent_mcp_source_create",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/mcp-sources",
-    notes:
-      "MCP source creation remains web-only until the public capability model includes first-class external data source configuration.",
-  },
-  {
-    capabilityId: "agent_mcp_source_update",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/mcp-sources/:sourceId",
-    notes:
-      "MCP source mutation remains web-only until the public capability model includes first-class external data source configuration.",
-  },
-  {
-    capabilityId: "agent_mcp_source_delete",
-    kind: "excluded",
-    status: "excluded",
-    domain: "agent",
-    source: "/api/agent/mcp-sources/:sourceId",
-    notes:
-      "MCP source deletion remains web-only until the public capability model includes first-class external data source configuration.",
   },
   {
     capabilityId: "collection_allocation_set_web_only",
@@ -4282,129 +2982,6 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
   },
   { method: "POST", path: "/api/scouts/assign", capabilityIds: ["stage_scout_assignment"] },
   { method: "GET", path: "/api/scouts/roster/:playerId", capabilityIds: ["get_scout_roster"] },
-  { method: "GET", path: "/api/agent/profile", capabilityIds: ["get_agent_profile"] },
-  { method: "GET", path: "/api/agent/capabilities", capabilityIds: ["get_agent_capabilities"] },
-  { method: "PUT", path: "/api/agent/profile", capabilityIds: ["update_agent_profile"] },
-  { method: "PUT", path: "/api/agent/byok-key", capabilityIds: ["save_agent_byok"] },
-  { method: "DELETE", path: "/api/agent/byok-key", capabilityIds: ["clear_agent_byok"] },
-  { method: "GET", path: "/api/agent/threads", capabilityIds: ["list_agent_threads"] },
-  { method: "POST", path: "/api/agent/threads", capabilityIds: ["create_agent_thread"] },
-  { method: "GET", path: "/api/agent/threads/:threadId", capabilityIds: ["get_thread_state"] },
-  {
-    method: "GET",
-    path: "/api/agent/threads/:threadId/messages",
-    capabilityIds: ["list_thread_messages"],
-  },
-  {
-    method: "GET",
-    path: "/api/agent/threads/:threadId/research-sources",
-    capabilityIds: ["list_thread_research_sources"],
-  },
-  {
-    method: "GET",
-    path: "/api/agent/threads/:threadId/runtime-details",
-    excludedCapabilityId: "agent_thread_runtime_details",
-  },
-  {
-    method: "GET",
-    path: "/api/agent/threads/:threadId/turns/:turnId/events",
-    excludedCapabilityId: "agent_thread_turn_events",
-  },
-  {
-    method: "POST",
-    path: "/api/agent/threads/:threadId/messages",
-    capabilityIds: ["send_agent_message"],
-  },
-  {
-    method: "POST",
-    path: "/api/agent/threads/:threadId/confirm",
-    capabilityIds: ["confirm_pending_action"],
-  },
-  {
-    method: "POST",
-    path: "/api/agent/threads/:threadId/cancel",
-    capabilityIds: ["cancel_pending_action"],
-  },
-  {
-    method: "GET",
-    path: "/api/agent/strategies",
-    excludedCapabilityId: "agent_strategy_templates",
-  },
-  {
-    method: "POST",
-    path: "/api/agent/strategies",
-    excludedCapabilityId: "agent_strategy_templates",
-  },
-  {
-    method: "GET",
-    path: "/api/agent/strategies/:strategyId",
-    excludedCapabilityId: "agent_strategy_detail",
-  },
-  {
-    method: "PATCH",
-    path: "/api/agent/strategies/:strategyId",
-    excludedCapabilityId: "agent_strategy_template_update",
-  },
-  {
-    method: "POST",
-    path: "/api/agent/strategies/:strategyId/activate",
-    excludedCapabilityId: "agent_strategy_live_state",
-  },
-  {
-    method: "POST",
-    path: "/api/agent/strategies/:strategyId/review",
-    excludedCapabilityId: "agent_strategy_live_state",
-  },
-  {
-    method: "POST",
-    path: "/api/agent/strategies/:strategyId/pause",
-    excludedCapabilityId: "agent_strategy_live_state",
-  },
-  {
-    method: "POST",
-    path: "/api/agent/strategies/:strategyId/archive",
-    excludedCapabilityId: "agent_strategy_live_state",
-  },
-  {
-    method: "GET",
-    path: "/api/agent/strategies/:strategyId/runs",
-    excludedCapabilityId: "agent_strategy_run_history",
-  },
-  {
-    method: "GET",
-    path: "/api/agent/strategies/:strategyId/events",
-    excludedCapabilityId: "agent_strategy_event_history",
-  },
-  {
-    method: "POST",
-    path: "/api/agent/strategies/:strategyId/run",
-    excludedCapabilityId: "agent_strategy_manual_run",
-  },
-  {
-    method: "GET",
-    path: "/api/agent/mcp-sources",
-    excludedCapabilityId: "agent_mcp_source_list",
-  },
-  {
-    method: "GET",
-    path: "/api/agent/mcp-sources/:sourceId",
-    excludedCapabilityId: "agent_mcp_source_detail",
-  },
-  {
-    method: "POST",
-    path: "/api/agent/mcp-sources",
-    excludedCapabilityId: "agent_mcp_source_create",
-  },
-  {
-    method: "PATCH",
-    path: "/api/agent/mcp-sources/:sourceId",
-    excludedCapabilityId: "agent_mcp_source_update",
-  },
-  {
-    method: "DELETE",
-    path: "/api/agent/mcp-sources/:sourceId",
-    excludedCapabilityId: "agent_mcp_source_delete",
-  },
   { method: "GET", path: "/api/user/portfolio-history", capabilityIds: ["get_portfolio_history"] },
   { method: "POST", path: "/api/premium/redeem", capabilityIds: ["redeem_premium"] },
   {
@@ -4444,9 +3021,13 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
   },
   { method: "POST", path: "/api/checkout/finalize", excludedCapabilityId: "checkout_finalize" },
   { method: "GET", path: "/api/premium/status", capabilityIds: ["get_premium_status"] },
-  { method: "GET", path: "/api/news/digest", capabilityIds: ["get_news_digest"] },
-  { method: "POST", path: "/api/news/mark-read", capabilityIds: ["mark_news_read"] },
-  { method: "GET", path: "/api/news/unread-count", capabilityIds: ["get_news_unread_count"] },
+  { method: "GET", path: "/api/news/digest", excludedCapabilityId: "news_digest_site_only" },
+  { method: "POST", path: "/api/news/mark-read", excludedCapabilityId: "news_mark_read_site_only" },
+  {
+    method: "GET",
+    path: "/api/news/unread-count",
+    excludedCapabilityId: "news_unread_count_site_only",
+  },
   { method: "POST", path: "/api/holdings/stack-shares", capabilityIds: ["stage_stack_shares"] },
   {
     method: "GET",
@@ -4513,22 +3094,14 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
   { method: "POST", path: "/api/lp/:playerId/remove", capabilityIds: ["stage_lp_remove"] },
   { method: "GET", path: "/api/lp/:playerId/history", capabilityIds: ["list_lp_history"] },
   { method: "GET", path: "/api/lp/history", capabilityIds: ["list_lp_history"] },
-  { method: "GET", path: "/api/account/sms", capabilityIds: ["get_sms_settings"] },
-  { method: "PUT", path: "/api/account/sms", capabilityIds: ["update_sms_settings"] },
-  { method: "POST", path: "/api/sms/link/start", capabilityIds: ["start_sms_link"] },
-  { method: "POST", path: "/api/sms/link/complete", capabilityIds: ["complete_sms_link"] },
   { method: "GET", path: "/api/account/tokens", capabilityIds: ["list_api_tokens"] },
   { method: "DELETE", path: "/api/account/tokens/:id", capabilityIds: ["revoke_api_token"] },
 ];
 
 const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
-  "review_setup",
-  "review_idle_cash",
-  "review_portfolio_cleanup",
   "list_boost_candidates",
   "list_scout_opportunities",
   "list_market_opportunities",
-  "review_news_impact",
   "get_balance_state",
   "get_player_stats",
   "get_player_recent_games",
@@ -4536,8 +3109,6 @@ const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
   "get_player_shares_info",
   "get_amm_pool_state",
   "get_trade_quote",
-  "list_schedules",
-  "list_schedule_templates",
   "get_dashboard_overview",
   "search_players",
   "get_market_scanners",
@@ -4545,26 +3116,19 @@ const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
   "get_game_insights",
   "search_docs",
   "get_doc_article",
-  "run_hosted_research",
   "get_pending_action",
-  "upsert_schedule",
-  "delete_schedule",
-
+  "confirm_pending_action",
+  "cancel_pending_action",
   "get_supported_sports_capabilities",
   "search_sports_entities",
   "get_sports_entity",
   "get_event_slate",
   "get_event_live_state",
-
   "get_sports_context",
+  ...CURATED_MLB_TOOLS.map((tool) => tool.name),
 ] as const;
 
-const PUBLIC_PROMPT_NAMES = [
-  "review_setup",
-  "review_idle_cash",
-  "find_boost_candidates",
-  "stage_trade",
-] as const;
+const PUBLIC_PROMPT_NAMES = ["find_boost_candidates", "stage_trade"] as const;
 
 const PUBLIC_STATIC_RESOURCE_URIS = [
   "sportfolio://docs/index",
@@ -4792,7 +3356,7 @@ function buildDocsArticleResources(context: PublicMcpServerContext): PublicResou
 }
 
 export function buildPublicToolRegistry(): PublicToolDefinition[] {
-  return [...READ_ALIAS_TOOLS, ...CUSTOM_TOOLS].filter((tool) =>
+  return [...READ_ALIAS_TOOLS, ...CUSTOM_TOOLS, ...MLB_TOOLS].filter((tool) =>
     isApprovedPublicToolName(tool.name),
   );
 }
@@ -4805,12 +3369,9 @@ export async function buildResolvedPublicToolCatalog(context: PublicMcpServerCon
   tools: PublicToolCatalogEntry[];
   dynamicSources: PublicDynamicSourceStatus[];
 }> {
-  const staticTools = buildPublicToolRegistry().map(toStaticPublicToolCatalogEntry);
-  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
-
   return {
-    tools: [...staticTools, ...dynamicMlb.tools.map(toDynamicPublicToolCatalogEntry)],
-    dynamicSources: [dynamicMlb.sourceStatus],
+    tools: buildPublicToolRegistry().map(toStaticPublicToolCatalogEntry),
+    dynamicSources: [await getMlbSourceStatus(context)],
   };
 }
 
@@ -4821,34 +3382,8 @@ export async function buildResolvedPublicCapabilityInventory(
   excluded: PublicExcludedCapability[];
   dynamicSources: PublicDynamicSourceStatus[];
 }> {
-  const baseInventory = buildPublicCapabilityInventory();
-  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
-
-  return {
-    included: [
-      ...baseInventory.included,
-      ...dynamicMlb.tools.map(
-        (tool) =>
-          ({
-            capabilityId: tool.toolName,
-            kind: "tool",
-            status: "included",
-            domain: "mlb",
-            title: tool.toolName,
-            toolName: tool.toolName,
-            provider: "internal_mlb_mcp",
-            readOnly: !tool.requiresConfirmation,
-            executionModel: tool.requiresConfirmation ? "staged_write" : "read",
-            confirmationModel: tool.requiresConfirmation ? "staged_confirmation" : "immediate",
-            requiresConfirmation: tool.requiresConfirmation,
-            riskLevel: tool.riskLevel,
-            source: "dynamic:internal_mlb_mcp",
-          }) satisfies PublicIncludedCapability,
-      ),
-    ],
-    excluded: [...baseInventory.excluded],
-    dynamicSources: [dynamicMlb.sourceStatus],
-  };
+  const inventory = buildPublicCapabilityInventory();
+  return { ...inventory, dynamicSources: [await getMlbSourceStatus(context)] };
 }
 
 export function buildPublicResourceRegistry(
@@ -5076,46 +3611,14 @@ export async function executeResolvedPublicTool(
   name: string,
   args: Record<string, unknown> = {},
 ) {
-  const staticTool = getPublicToolDefinition(name);
-  if (staticTool) {
-    return staticTool.execute(context, parseSchemaArgs(staticTool.inputSchema, args));
-  }
-
-  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
-  const dynamicTool = dynamicMlb.tools.find((tool) => tool.toolName === name);
-  if (!dynamicTool) {
-    throw new PublicMcpToolError("Unknown public tool.", "not_found", { name });
-  }
-
-  const result = await context.deps.runInternalMlbMcpToolBounded({
-    toolName: dynamicTool.toolName,
-    args,
-  });
-
-  return {
-    summary: result.replyText || `Loaded MLB data via ${result.remoteToolName}.`,
-    remoteToolName: result.remoteToolName,
-    content: Array.isArray(result.content) ? result.content : [],
-    structuredContent: result.structuredContent ?? null,
-    payloadTruncated: result.payloadTruncated ?? false,
-    truncation: result.truncation ?? null,
-  };
+  return executePublicTool(context, name, args);
 }
 
 export async function resolvePublicCapabilityCatalog(context: PublicMcpServerContext) {
-  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
-  const resolvedContext = {
-    ...context,
-    dynamicMlb,
-  };
-  const resources = buildPublicResourceRegistry(resolvedContext);
-  const inventory = await buildResolvedPublicCapabilityInventory(resolvedContext);
-
+  const resources = buildPublicResourceRegistry(context);
+  const inventory = await buildResolvedPublicCapabilityInventory(context);
   return {
-    tools: [
-      ...buildPublicToolRegistry().map(toStaticPublicToolCatalogEntry),
-      ...dynamicMlb.tools.map(toDynamicPublicToolCatalogEntry),
-    ],
+    tools: buildPublicToolRegistry().map(toStaticPublicToolCatalogEntry),
     prompts: buildPublicPromptRegistry().map((prompt) => ({
       name: prompt.name,
       description: prompt.description,
@@ -5131,7 +3634,7 @@ export async function resolvePublicCapabilityCatalog(context: PublicMcpServerCon
     })),
     included: inventory.included,
     excluded: inventory.excluded,
-    dynamicSources: [dynamicMlb.sourceStatus],
+    dynamicSources: inventory.dynamicSources,
   };
 }
 

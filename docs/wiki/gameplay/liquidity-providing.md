@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-04-23
 changeTriggers: server/routes/lp.ts,server/amm/pool.ts,client/src/pages/player.tsx,client/src/pages/portfolio.tsx,shared/schema.ts
 slug: liquidity-providing
-surface: web,cli,agent
+surface: web,cli
 searchKeywords: lp,liquidity,pool,fees,zap,add liquidity,remove liquidity,lp shares,impermanent loss
 ---
 

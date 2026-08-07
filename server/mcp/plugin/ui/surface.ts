@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getAgentThread } from "../../../agent/thread-service";
+import { getGameplayTransaction } from "../../gameplay-transactions";
 import { getLpPosition, getPool } from "../../../amm/pool";
 import { getPluginOAuthConfig } from "../../../auth/plugin-oauth-config";
 import { pluginMcpAuthError } from "../../../auth/plugin-auth-challenge";
@@ -11,12 +11,7 @@ import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 type JsonRecord = Record<string, unknown>;
-type PluginUiView =
-  | "player_market"
-  | "trade_preview"
-  | "portfolio"
-  | "market_movers"
-  | "liquidity";
+type PluginUiView = "player_market" | "trade_preview" | "portfolio" | "market_movers" | "liquidity";
 type PluginUiAccess = "public" | "oauth";
 
 type PluginPresentationDefinition = {
@@ -55,8 +50,7 @@ const playerMarketInputSchema: RawSchema = {
 };
 
 const tradePreviewInputSchema: RawSchema = {
-  threadId: z.string().min(1),
-  pendingBundleId: z.string().min(1),
+  transactionId: z.string().uuid(),
 };
 
 const portfolioInputSchema: RawSchema = {
@@ -86,9 +80,7 @@ function flagEnabled(name: string, defaultValue = true): boolean {
 }
 
 function record(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as JsonRecord)
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
 function array(value: unknown): unknown[] {
@@ -208,17 +200,27 @@ async function renderPlayerMarket(
   if (!player) throw new Error("Player not found.");
 
   const userId = context.auth?.userId || null;
-  const [pool, rawHistory, financialMetrics, stats, recentGames, holdingState, availableBalance, lp] =
-    await Promise.all([
-      safe(getPool(playerId), null),
-      safe(storage.getPriceHistory(playerId, rangeDays(range)), []),
-      safe(storage.getPlayerFinancialMetrics(playerId), null),
-      safe(storage.getPlayerSeasonStatsFromLogs(playerId), null),
-      safe(storage.getPlayerRecentGamesFromLogs(playerId, 5), []),
-      userId ? safe(storage.getHoldingMultiplierState(userId, playerId), null) : Promise.resolve(null),
-      userId ? safe(storage.getAvailableBalance(userId), 0) : Promise.resolve(0),
-      userId ? safe(getLpPosition(playerId, userId), null) : Promise.resolve(null),
-    ]);
+  const [
+    pool,
+    rawHistory,
+    financialMetrics,
+    stats,
+    recentGames,
+    holdingState,
+    availableBalance,
+    lp,
+  ] = await Promise.all([
+    safe(getPool(playerId), null),
+    safe(storage.getPriceHistory(playerId, rangeDays(range)), []),
+    safe(storage.getPlayerFinancialMetrics(playerId), null),
+    safe(storage.getPlayerSeasonStatsFromLogs(playerId), null),
+    safe(storage.getPlayerRecentGamesFromLogs(playerId, 5), []),
+    userId
+      ? safe(storage.getHoldingMultiplierState(userId, playerId), null)
+      : Promise.resolve(null),
+    userId ? safe(storage.getAvailableBalance(userId), 0) : Promise.resolve(0),
+    userId ? safe(getLpPosition(playerId, userId), null) : Promise.resolve(null),
+  ]);
 
   const sourcePoints = rawHistory
     .map((row) => ({
@@ -294,9 +296,7 @@ async function renderPlayerMarket(
     capabilities: {
       authenticated: Boolean(userId),
       canTrade: Boolean(userId && poolInitialized && flagEnabled("PLUGIN_UI_TRADING_ENABLED")),
-      canManageLiquidity: Boolean(
-        userId && flagEnabled("PLUGIN_UI_LIQUIDITY_ENABLED"),
-      ),
+      canManageLiquidity: Boolean(userId && flagEnabled("PLUGIN_UI_LIQUIDITY_ENABLED")),
     },
     toolBindings: {
       quote: "get_amm_trade_quote",
@@ -314,23 +314,14 @@ async function renderTradePreview(
 ): Promise<JsonRecord> {
   const userId = context.auth?.userId;
   if (!userId) throw new Error("Authentication is required.");
-  const threadId = stringValue(args.threadId);
-  const pendingBundleId = stringValue(args.pendingBundleId);
-  const thread = await getAgentThread(userId, threadId);
-  const threadRecord = record(thread);
-  const pendingBundle = record(threadRecord.pendingActionBundle);
-  const activeBundleId = stringValue(pendingBundle.id);
-  if (!activeBundleId) throw new Error("No pending Sportfolio action remains on this thread.");
-  if (activeBundleId !== pendingBundleId) {
-    throw new Error("The requested pending bundle does not match the active bundle.");
-  }
+  const transactionId = stringValue(args.transactionId);
+  const transaction = await getGameplayTransaction(userId, transactionId);
   return sanitizePresentation("trade_preview", {
-    threadId,
-    pendingBundleId,
-    summary: stringValue(pendingBundle.summary, "Sportfolio action ready for confirmation."),
-    warnings: array(pendingBundle.warnings).filter((entry): entry is string => typeof entry === "string"),
-    confirmationRequired: true,
-    pendingBundle,
+    transactionId,
+    summary: transaction.summary,
+    warnings: transaction.warnings,
+    confirmationRequired: transaction.status === "pending_confirmation",
+    transaction,
   });
 }
 
@@ -575,13 +566,13 @@ const PRESENTATION_DEFINITIONS: PluginPresentationDefinition[] = [
     name: "render_trade_preview",
     title: "Show Pending Sportfolio Action",
     description:
-      "Render the exact active staged Sportfolio action bundle with Confirm and Cancel controls. Use this only after a stage_* tool returns threadId and pendingBundleId.",
+      "Render one staged Sportfolio gameplay transaction with Confirm and Cancel controls. Use this only after a stage_* tool returns transactionId.",
     view: "trade_preview",
     access: "oauth",
     featureFlag: "PLUGIN_UI_TRADING_ENABLED",
     resourceUri: SPORTFOLIO_UI_RESOURCE_URIS.tradePreview,
     inputSchema: tradePreviewInputSchema,
-    fixtureArgs: { threadId: "thread_1", pendingBundleId: "bundle_1" },
+    fixtureArgs: { transactionId: "00000000-0000-4000-8000-000000000001" },
     invoking: "Loading staged action…",
     invoked: "Staged action ready for review.",
     render: renderTradePreview,
@@ -655,12 +646,9 @@ function registerUiResources(server: McpServer): void {
       "Interactive Sportfolio player market, chart, quote, and staged trade interface.",
     [SPORTFOLIO_UI_RESOURCE_URIS.tradePreview]:
       "Exact-bundle Sportfolio action confirmation interface.",
-    [SPORTFOLIO_UI_RESOURCE_URIS.portfolio]:
-      "Interactive Sportfolio portfolio dashboard.",
-    [SPORTFOLIO_UI_RESOURCE_URIS.marketMovers]:
-      "Sportfolio market movers carousel.",
-    [SPORTFOLIO_UI_RESOURCE_URIS.liquidity]:
-      "Sportfolio virtual liquidity position interface.",
+    [SPORTFOLIO_UI_RESOURCE_URIS.portfolio]: "Interactive Sportfolio portfolio dashboard.",
+    [SPORTFOLIO_UI_RESOURCE_URIS.marketMovers]: "Sportfolio market movers carousel.",
+    [SPORTFOLIO_UI_RESOURCE_URIS.liquidity]: "Sportfolio virtual liquidity position interface.",
   };
 
   for (const [index, uri] of Object.values(SPORTFOLIO_UI_RESOURCE_URIS).entries()) {
@@ -757,7 +745,8 @@ export async function registerPluginUiSurface(
             structuredContent,
           } as any;
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Sportfolio could not render this view.";
+          const message =
+            error instanceof Error ? error.message : "Sportfolio could not render this view.";
           return {
             isError: true,
             content: [{ type: "text" as const, text: message }],
