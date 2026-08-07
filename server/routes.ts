@@ -7464,7 +7464,7 @@ ${items}
     const expectedToken = process.env.ADMIN_API_TOKEN;
 
     const setAdminContext = (
-      method: "token" | "dev_bypass" | "supabase_jwt" | "session",
+      method: "token" | "dev_bypass" | "session",
       ctx?: { userId?: string; email?: string },
     ) => {
       req.adminContext = {
@@ -7491,58 +7491,7 @@ ${items}
       return next();
     }
 
-    // Check 3: Verify Supabase JWT token and check isAdmin flag
-    if (token) {
-      try {
-        // Import supabase admin client to verify JWT tokens
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-        if (supabaseUrl && supabaseServiceRoleKey) {
-          const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-            auth: { autoRefreshToken: false, persistSession: false },
-          });
-
-          const {
-            data: { user: supabaseUser },
-            error,
-          } = await supabaseAdmin.auth.getUser(token);
-
-          if (!error && supabaseUser) {
-            // Token is valid, check if user is admin
-            const user = await storage.getUser(supabaseUser.id);
-            if (user?.isAdmin) {
-              // Set req.user for downstream use
-              req.user = {
-                claims: {
-                  sub: supabaseUser.id,
-                  email: supabaseUser.email,
-                },
-              };
-              setAdminContext("supabase_jwt", {
-                userId: supabaseUser.id,
-                email: supabaseUser.email || undefined,
-              });
-              console.log(
-                `[ADMIN] Admin access granted for user ${supabaseUser.email} (${supabaseUser.id})`,
-              );
-              return next();
-            } else {
-              console.warn(
-                `[ADMIN] User ${supabaseUser.email} is not an admin (isAdmin: ${user?.isAdmin})`,
-              );
-            }
-          } else if (error) {
-            console.log(`[ADMIN] Supabase token verification failed: ${error.message}`);
-          }
-        }
-      } catch (error: any) {
-        console.error("[ADMIN] Error verifying Supabase token:", error.message);
-      }
-    }
-
-    // Check 4: Fallback - check if req.user is already set (from session or other middleware)
+    // Check 3: Check if req.user is already set by Better Auth or native auth middleware
     try {
       let userId: string | null = null;
 
@@ -8075,8 +8024,8 @@ ${items}
           env: {
             NODE_ENV: process.env.NODE_ENV || null,
             hasAdminApiToken: !!process.env.ADMIN_API_TOKEN,
-            hasSupabaseUrl: !!process.env.SUPABASE_URL,
-            hasSupabaseServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+            hasBetterAuthSecret: !!process.env.BETTER_AUTH_SECRET,
+            hasResendApiKey: !!process.env.RESEND_API_KEY,
             hasPerplexityKey: !!process.env.PERPLEXITY_API_KEY,
             hasTwitterKeys: !!process.env.TWITTER_API_KEY && !!process.env.TWITTER_API_SECRET,
           },

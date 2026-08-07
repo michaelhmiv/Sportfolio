@@ -135,13 +135,10 @@ export async function runOAuthDiscoveryCheck(issuer: string): Promise<OAuthDisco
 
 async function main() {
   const issuer =
-    process.env.PLUGIN_OAUTH_ISSUER?.trim() ||
-    (process.env.SUPABASE_URL?.trim()
-      ? `${process.env.SUPABASE_URL.trim().replace(/\/$/, "")}/auth/v1`
-      : "");
+    process.env.PLUGIN_OAUTH_ISSUER?.trim() || process.env.BETTER_AUTH_URL?.trim() || "";
 
   if (!issuer) {
-    throw new Error("Set PLUGIN_OAUTH_ISSUER or SUPABASE_URL before running the OAuth probe.");
+    throw new Error("Set PLUGIN_OAUTH_ISSUER or BETTER_AUTH_URL before running the OAuth probe.");
   }
 
   const result = await runOAuthDiscoveryCheck(issuer);

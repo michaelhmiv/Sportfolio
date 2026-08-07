@@ -4,6 +4,7 @@ import path from "node:path";
 
 const roots = ["client/src", "server", "shared", "scripts"];
 const extensions = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
+const ignoredFiles = new Set(["scripts/audit-retired-runtime.mjs", "scripts/audit-retired-surfaces.mjs"]);
 const forbidden = [
   /@supabase\/supabase-js/,
   /SUPABASE_(?:URL|ANON_KEY|SERVICE_ROLE_KEY)/,
