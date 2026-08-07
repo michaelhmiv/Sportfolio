@@ -30,17 +30,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
-          npm run test:run -- --reporter=default > /tmp/vitest-output.txt 2>&1
+          NO_COLOR=1 npm run test:run -- --reporter=default > /tmp/vitest-output.txt 2>&1
           status=$?
+          sed -r 's/\x1B\[[0-9;]*[mGKHF]//g' /tmp/vitest-output.txt > /tmp/vitest-plain.txt
           {
-            echo "<!-- finalization-test-diagnostic -->"
-            echo "### Finalization test diagnostic"
+            echo "<!-- finalization-test-diagnostic-exact -->"
+            echo "### Exact finalization failures"
             echo
             echo "Commit: $GITHUB_SHA"
             echo "Exit status: $status"
             echo
             echo '```text'
-            grep -E -B 4 -A 18 'FAIL |Failed Tests|AssertionError|expected .* received|Error:|Test Files|Tests ' /tmp/vitest-output.txt | tail -n 220 || tail -n 220 /tmp/vitest-output.txt
+            grep -E '^ FAIL |^(AssertionError|Error):|^ Test Files |^      Tests ' /tmp/vitest-plain.txt || true
             echo '```'
           } > /tmp/summary.md
           cat /tmp/summary.md
