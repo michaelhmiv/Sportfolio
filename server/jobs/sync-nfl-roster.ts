@@ -5,6 +5,7 @@ import {
   createNflEspnAlias,
   createNflPlayerId,
   splitNflDisplayName,
+  normalizeNflTeamAbbreviation,
 } from "../nfl/identity";
 import { nflverse } from "../nfl/nflverse";
 
@@ -49,13 +50,15 @@ export async function syncNFLRoster(): Promise<NflRosterSyncResult> {
             continue;
           }
           const playerId = createNflPlayerId(identity.gsisId);
-          const { firstName, lastName } = splitNflDisplayName(athlete.displayName || identity.displayName);
+          const { firstName, lastName } = splitNflDisplayName(
+            athlete.displayName || identity.displayName,
+          );
           await storage.upsertPlayer({
             id: playerId,
             sport: "NFL",
             firstName,
             lastName,
-            team: team.abbreviation,
+            team: normalizeNflTeamAbbreviation(team.abbreviation),
             position: athlete.position,
             jerseyNumber: athlete.jersey,
             isActive: athlete.active,

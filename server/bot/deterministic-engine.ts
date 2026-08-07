@@ -400,6 +400,7 @@ async function buildFeasibleActionParams(
       return { params: { shares: 1 } };
     }
     case "pool_create": {
+      if (String(target.sport || "").toUpperCase() === "NFL") return null;
       if (availableShares < 1) {
         return null;
       }

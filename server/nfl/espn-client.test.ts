@@ -15,7 +15,11 @@ describe("ESPN NFL provider", () => {
       week: { number: 1 },
       competitions: [
         {
-          status: { period: 2, displayClock: "03:15", type: { name: "STATUS_IN_PROGRESS", state: "in" } },
+          status: {
+            period: 2,
+            displayClock: "03:15",
+            type: { name: "STATUS_IN_PROGRESS", state: "in" },
+          },
           venue: { fullName: "Example Stadium" },
           competitors: [
             { homeAway: "home", score: "14", team: { abbreviation: "CAR" } },
@@ -68,7 +72,8 @@ describe("ESPN NFL provider", () => {
             team: { abbreviation: "CAR" },
             statistics: [
               {
-                names: ["fieldGoalsMade", "extraPointsMade"],
+                name: "kicking",
+                names: ["FG", "XP"],
                 athletes: [
                   {
                     athlete: {
@@ -88,6 +93,47 @@ describe("ESPN NFL provider", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].stats).toMatchObject({ fieldgoalsmade: 1, extrapointsmade: 2 });
     expect(rows[0].fieldGoalDistances).toEqual([52]);
+  });
+
+  it("namespaces ESPN shorthand stats by category", () => {
+    const [row] = extractEspnPlayerStats({
+      boxscore: {
+        players: [
+          {
+            team: { abbreviation: "BUF" },
+            statistics: [
+              {
+                name: "passing",
+                names: ["YDS", "TD", "INT"],
+                athletes: [
+                  {
+                    athlete: { id: "17", displayName: "QB Test", position: { abbreviation: "QB" } },
+                    stats: ["280", "2", "1"],
+                  },
+                ],
+              },
+              {
+                name: "rushing",
+                names: ["YDS", "TD"],
+                athletes: [
+                  {
+                    athlete: { id: "17", displayName: "QB Test", position: { abbreviation: "QB" } },
+                    stats: ["42", "1"],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(row.stats).toMatchObject({
+      passingyards: 280,
+      passingtouchdowns: 2,
+      interceptions: 1,
+      rushingyards: 42,
+      rushingtouchdowns: 1,
+    });
   });
 
   it("retries one 429 response and succeeds", async () => {

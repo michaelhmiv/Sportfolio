@@ -1,6 +1,7 @@
 import { storage } from "../storage";
 import { espnNfl, type EspnNflGame } from "../nfl/espn-client";
 import { getNflSeasonYear, type NflSeasonType } from "../nfl/season";
+import { normalizeNflTeamAbbreviation } from "../nfl/identity";
 
 export interface NflScheduleSyncResult {
   requestCount: number;
@@ -13,7 +14,10 @@ export interface NflScheduleSyncResult {
 const formatDate = (date: Date) =>
   `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}`;
 
-async function loadFullSeason(season: number, result: NflScheduleSyncResult): Promise<EspnNflGame[]> {
+async function loadFullSeason(
+  season: number,
+  result: NflScheduleSyncResult,
+): Promise<EspnNflGame[]> {
   const games = new Map<string, EspnNflGame>();
   const weekCounts: Record<NflSeasonType, number> = { preseason: 5, regular: 18, postseason: 6 };
   for (const seasonType of ["preseason", "regular", "postseason"] as const) {
@@ -49,8 +53,8 @@ async function persistGame(game: EspnNflGame, result: NflScheduleSyncResult) {
     week: game.week,
     season: game.season,
     seasonType: game.seasonType,
-    homeTeam: game.homeTeam,
-    awayTeam: game.awayTeam,
+    homeTeam: normalizeNflTeamAbbreviation(game.homeTeam),
+    awayTeam: normalizeNflTeamAbbreviation(game.awayTeam),
     venue: game.venue,
     status: game.status,
     startTime: game.startsAt,
@@ -60,7 +64,9 @@ async function persistGame(game: EspnNflGame, result: NflScheduleSyncResult) {
   const existing = await storage.getDailyGameByGameId(gameId);
   if (existing) {
     const status =
-      existing.status === "completed" && data.status !== "completed" ? existing.status : data.status;
+      existing.status === "completed" && data.status !== "completed"
+        ? existing.status
+        : data.status;
     await storage.updateDailyGame(existing.id, { ...data, status });
     result.gamesUpdated++;
   } else {
@@ -70,11 +76,13 @@ async function persistGame(game: EspnNflGame, result: NflScheduleSyncResult) {
   result.gamesProcessed++;
 }
 
-export async function syncNFLSchedule(options: {
-  season?: number;
-  fullSeason?: boolean;
-  now?: Date;
-} = {}): Promise<NflScheduleSyncResult> {
+export async function syncNFLSchedule(
+  options: {
+    season?: number;
+    fullSeason?: boolean;
+    now?: Date;
+  } = {},
+): Promise<NflScheduleSyncResult> {
   const result: NflScheduleSyncResult = {
     requestCount: 0,
     gamesProcessed: 0,
@@ -91,7 +99,10 @@ export async function syncNFLSchedule(options: {
     } else {
       const from = new Date(now.getTime() - 3 * 86_400_000);
       const to = new Date(now.getTime() + 21 * 86_400_000);
-      games = await espnNfl.getGames({ dates: `${formatDate(from)}-${formatDate(to)}`, limit: 200 });
+      games = await espnNfl.getGames({
+        dates: `${formatDate(from)}-${formatDate(to)}`,
+        limit: 200,
+      });
       result.requestCount++;
     }
     for (const game of games) {

@@ -17,7 +17,10 @@ async function scalar(client: any, text: string, params: unknown[] = []): Promis
 }
 
 async function main() {
-  if (process.env.NODE_ENV !== "production" && process.env.NFL_MIGRATION_ALLOW_NON_PROD !== "true") {
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.NFL_MIGRATION_ALLOW_NON_PROD !== "true"
+  ) {
     throw new Error("nfl:migrate-data is production-only unless NFL_MIGRATION_ALLOW_NON_PROD=true");
   }
 
@@ -56,7 +59,10 @@ async function main() {
     const before = {
       players: legacyIds.length,
       games: await scalar(client, "SELECT count(*) FROM daily_games WHERE UPPER(sport)='NFL'"),
-      stats: await scalar(client, "SELECT count(*) FROM player_game_stats WHERE UPPER(sport)='NFL'"),
+      stats: await scalar(
+        client,
+        "SELECT count(*) FROM player_game_stats WHERE UPPER(sport)='NFL'",
+      ),
       pools: await scalar(
         client,
         "SELECT count(*) FROM player_pools pp JOIN players p ON p.id=pp.player_id WHERE UPPER(p.sport)='NFL'",
@@ -72,11 +78,14 @@ async function main() {
     try {
       if (legacyIds.length > 0) {
         const columns = await client.query(`
-          SELECT table_name, column_name
-          FROM information_schema.columns
-          WHERE table_schema='public'
-            AND column_name IN ('player_id','asset_id','canonical_player_id','alias_player_id')
-          ORDER BY table_name, column_name
+          SELECT c.table_name, c.column_name
+          FROM information_schema.columns c
+          JOIN information_schema.tables t
+            ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+          WHERE c.table_schema='public'
+            AND t.table_type='BASE TABLE'
+            AND c.column_name IN ('player_id','asset_id','canonical_player_id','alias_player_id')
+          ORDER BY c.table_name, c.column_name
         `);
         for (const row of columns.rows) {
           const table = String(row.table_name);
@@ -125,7 +134,10 @@ async function main() {
     const verification = {
       players: await scalar(client, "SELECT count(*) FROM players WHERE UPPER(sport)='NFL'"),
       games: await scalar(client, "SELECT count(*) FROM daily_games WHERE UPPER(sport)='NFL'"),
-      stats: await scalar(client, "SELECT count(*) FROM player_game_stats WHERE UPPER(sport)='NFL'"),
+      stats: await scalar(
+        client,
+        "SELECT count(*) FROM player_game_stats WHERE UPPER(sport)='NFL'",
+      ),
       orphanStats: await scalar(
         client,
         `SELECT count(*) FROM player_game_stats s

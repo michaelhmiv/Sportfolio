@@ -19,6 +19,10 @@ import { syncAllLiveStats } from "./sync-all-live-stats";
 import { syncMLBRoster } from "./sync-mlb-roster";
 import { syncMLBSchedule } from "./sync-mlb-schedule";
 import { syncMLBStats } from "./sync-mlb-stats";
+import { syncNFLRoster } from "./sync-nfl-roster";
+import { syncNFLSchedule } from "./sync-nfl-schedule";
+import { syncNFLStats } from "./sync-nfl-stats";
+import { syncNflverseStats } from "./sync-nflverse-stats";
 import { syncNascarLive } from "./sync-nascar-live";
 import { syncNascarRoster, syncNascarActiveRoster } from "./sync-nascar-roster";
 import { syncNascarSchedule } from "./sync-nascar-schedule";
@@ -160,6 +164,42 @@ async function runMlbRoster(): Promise<JobResult> {
     requestCount: 0,
     recordsProcessed: result.playersAdded + result.playersUpdated,
     errorCount: result.errors.length,
+  };
+}
+
+async function runNflRoster(): Promise<JobResult> {
+  const result = await syncNFLRoster();
+  return {
+    requestCount: result.requestCount,
+    recordsProcessed: result.playersAdded + result.playersUpdated,
+    errorCount: result.errors.length,
+  };
+}
+
+async function runNflSchedule(): Promise<JobResult> {
+  const result = await syncNFLSchedule();
+  return {
+    requestCount: result.requestCount,
+    recordsProcessed: result.gamesProcessed,
+    errorCount: result.errors.length,
+  };
+}
+
+async function runNflStats(): Promise<JobResult> {
+  const result = await syncNFLStats();
+  return {
+    requestCount: result.requestCount,
+    recordsProcessed: result.recordsProcessed,
+    errorCount: result.errorCount,
+  };
+}
+
+async function runNflverseStats(): Promise<JobResult> {
+  const result = await syncNflverseStats();
+  return {
+    requestCount: result.requestCount,
+    recordsProcessed: result.recordsProcessed,
+    errorCount: result.errorCount,
   };
 }
 
@@ -510,6 +550,46 @@ const rawJobDefinitions = [
     advertiseManual: true,
     manualOrder: 29,
     ...runWithoutProgress(runNascarLive),
+  },
+  {
+    name: "nfl_live_stats_sync",
+    group: "api",
+    schedule: "*/5 * * * *",
+    scheduleOrder: 11,
+    enabled: true,
+    advertiseManual: true,
+    manualOrder: 30,
+    ...runWithoutProgress(runNflStats),
+  },
+  {
+    name: "nfl_schedule_sync",
+    group: "api",
+    schedule: "40 * * * *",
+    scheduleOrder: 12,
+    enabled: true,
+    advertiseManual: true,
+    manualOrder: 31,
+    ...runWithoutProgress(runNflSchedule),
+  },
+  {
+    name: "nfl_roster_sync",
+    group: "api",
+    schedule: "25 4 * * *",
+    scheduleOrder: 13,
+    enabled: true,
+    advertiseManual: true,
+    manualOrder: 32,
+    ...runWithoutProgress(runNflRoster),
+  },
+  {
+    name: "nflverse_stats_sync",
+    group: "api",
+    schedule: "40 5 * * *",
+    scheduleOrder: 14,
+    enabled: true,
+    advertiseManual: true,
+    manualOrder: 33,
+    ...runWithoutProgress(runNflverseStats),
   },
   {
     name: "mlb_stats_sync",

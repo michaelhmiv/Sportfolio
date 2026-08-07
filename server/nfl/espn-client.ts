@@ -128,7 +128,12 @@ export function normalizeEspnGame(value: unknown): EspnNflGame | null {
   };
 }
 
-function recursiveAthletes(value: unknown, team: string | null, out: EspnNflAthlete[], seen: Set<string>) {
+function recursiveAthletes(
+  value: unknown,
+  team: string | null,
+  out: EspnNflAthlete[],
+  seen: Set<string>,
+) {
   if (Array.isArray(value)) {
     for (const item of value) recursiveAthletes(item, team, out, seen);
     return;
@@ -138,7 +143,9 @@ function recursiveAthletes(value: unknown, team: string | null, out: EspnNflAthl
   const athlete = record(node.athlete) || node;
   const id = text(athlete.id);
   const name = text(athlete.fullName || athlete.displayName || athlete.shortName);
-  const position = text(athlete.position?.abbreviation || node.position?.abbreviation).toUpperCase();
+  const position = text(
+    athlete.position?.abbreviation || node.position?.abbreviation,
+  ).toUpperCase();
   if (id && name && NFL_ELIGIBLE_POSITIONS.has(position) && !seen.has(id)) {
     seen.add(id);
     out.push({
@@ -218,6 +225,64 @@ function statValue(value: unknown): number | string | null {
   return Number.isFinite(parsed) ? parsed : text(value) || null;
 }
 
+function madeFromAttempts(value: unknown): number | string | null {
+  const raw = text(value);
+  const match = raw.match(/^(\d+)\s*\//);
+  return match ? Number(match[1]) : statValue(value);
+}
+
+function canonicalEspnStat(categoryName: string, statName: string): string {
+  const category = normalizeKey(categoryName);
+  const stat = normalizeKey(statName);
+  const alreadyCanonical: Record<string, string> = {
+    passingyards: "passingYards",
+    passingtouchdowns: "passingTouchdowns",
+    passingtds: "passingTouchdowns",
+    interceptions: "interceptions",
+    rushingyards: "rushingYards",
+    rushingtouchdowns: "rushingTouchdowns",
+    rushingtds: "rushingTouchdowns",
+    receptions: "receptions",
+    receivingyards: "receivingYards",
+    receivingtouchdowns: "receivingTouchdowns",
+    receivingtds: "receivingTouchdowns",
+    fumbleslost: "fumblesLost",
+    lostfumbles: "fumblesLost",
+    fieldgoalsmade: "fieldGoalsMade",
+    extrapointsmade: "extraPointsMade",
+  };
+  if (alreadyCanonical[stat]) return alreadyCanonical[stat];
+  if (category.includes("passing")) {
+    if (stat === "yds" || stat === "yards") return "passingYards";
+    if (stat === "td" || stat === "tds") return "passingTouchdowns";
+    if (stat === "int") return "interceptions";
+  }
+  if (category.includes("rushing")) {
+    if (stat === "yds" || stat === "yards") return "rushingYards";
+    if (stat === "td" || stat === "tds") return "rushingTouchdowns";
+  }
+  if (category.includes("receiving")) {
+    if (stat === "rec") return "receptions";
+    if (stat === "yds" || stat === "yards") return "receivingYards";
+    if (stat === "td" || stat === "tds") return "receivingTouchdowns";
+  }
+  if (category.includes("fumble") && stat === "lost") return "fumblesLost";
+  if (category.includes("kicking")) {
+    if (stat === "fg") return "fieldGoalsMade";
+    if (stat === "xp") return "extraPointsMade";
+  }
+  return `${category || "stat"}_${stat}`;
+}
+
+function canonicalEspnStatValue(categoryName: string, statName: string, value: unknown) {
+  const category = normalizeKey(categoryName);
+  const stat = normalizeKey(statName);
+  if (category.includes("kicking") && (stat === "fg" || stat === "xp")) {
+    return madeFromAttempts(value);
+  }
+  return statValue(value);
+}
+
 export function extractEspnPlayerStats(payload: unknown): EspnNflPlayerStatLine[] {
   const summary = record(payload);
   if (!summary) return [];
@@ -227,6 +292,7 @@ export function extractEspnPlayerStats(payload: unknown): EspnNflPlayerStatLine[
   for (const teamBlock of array(summary.boxscore?.players)) {
     const team = text(teamBlock?.team?.abbreviation).toUpperCase() || null;
     for (const category of array(teamBlock?.statistics)) {
+      const categoryName = text(category?.name || category?.displayName || category?.label);
       const names = array(category?.names).map((name) => text(name));
       for (const entry of array(category?.athletes)) {
         const athlete = record(entry?.athlete);
@@ -246,7 +312,12 @@ export function extractEspnPlayerStats(payload: unknown): EspnNflPlayerStatLine[
         const values = array(entry?.stats);
         names.forEach((name, index) => {
           if (!name) return;
-          existing.stats[normalizeKey(name)] = statValue(values[index]);
+          const canonicalName = canonicalEspnStat(categoryName, name);
+          existing.stats[normalizeKey(canonicalName)] = canonicalEspnStatValue(
+            categoryName,
+            name,
+            values[index],
+          );
         });
         merged.set(espnId, existing);
       }
@@ -255,7 +326,10 @@ export function extractEspnPlayerStats(payload: unknown): EspnNflPlayerStatLine[
   return [...merged.values()];
 }
 
-export function espnStatNumber(stats: Record<string, number | string | null>, ...aliases: string[]): number {
+export function espnStatNumber(
+  stats: Record<string, number | string | null>,
+  ...aliases: string[]
+): number {
   for (const alias of aliases) {
     const raw = stats[normalizeKey(alias)];
     const parsed = Number(raw);
@@ -293,7 +367,8 @@ export class EspnNflClient {
           continue;
         }
         const payload = await response.json();
-        if (!payload || typeof payload !== "object") throw new Error("ESPN NFL returned invalid JSON");
+        if (!payload || typeof payload !== "object")
+          throw new Error("ESPN NFL returned invalid JSON");
         return payload;
       } catch (error) {
         lastError = error;
@@ -307,12 +382,14 @@ export class EspnNflClient {
     throw lastError instanceof Error ? lastError : new Error("ESPN NFL request failed");
   }
 
-  async getScoreboard(options: {
-    dates?: string;
-    seasonType?: NflSeasonType;
-    week?: number;
-    limit?: number;
-  } = {}) {
+  async getScoreboard(
+    options: {
+      dates?: string;
+      seasonType?: NflSeasonType;
+      week?: number;
+      limit?: number;
+    } = {},
+  ) {
     return this.json("scoreboard", {
       dates: options.dates,
       seasontype: options.seasonType ? NFL_SEASON_TYPE_CODE[options.seasonType] : undefined,
@@ -321,7 +398,9 @@ export class EspnNflClient {
     });
   }
 
-  async getGames(options: Parameters<EspnNflClient["getScoreboard"]>[0] = {}): Promise<EspnNflGame[]> {
+  async getGames(
+    options: Parameters<EspnNflClient["getScoreboard"]>[0] = {},
+  ): Promise<EspnNflGame[]> {
     const payload = await this.getScoreboard(options);
     return array((payload as any).events)
       .map(normalizeEspnGame)

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const sportSchema = z.enum(["mlb", "nhl", "nascar"]);
+export const sportSchema = z.enum(["mlb", "nhl", "nascar", "nfl"]);
 export type Sport = z.infer<typeof sportSchema>;
 
 export const providerMetadataSchema = z.object({

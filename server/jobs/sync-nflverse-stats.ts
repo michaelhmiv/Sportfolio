@@ -5,6 +5,7 @@ import {
   createNflEspnAlias,
   createNflPlayerId,
   splitNflDisplayName,
+  normalizeNflTeamAbbreviation,
 } from "../nfl/identity";
 import {
   nflverse,
@@ -92,12 +93,16 @@ function historicalFantasyInput(row: NflverseWeeklyStat) {
   };
 }
 
-export async function syncNflverseStats(options: {
-  years?: number[];
-  now?: Date;
-} = {}): Promise<NflverseStatsSyncResult> {
+export async function syncNflverseStats(
+  options: {
+    years?: number[];
+    now?: Date;
+  } = {},
+): Promise<NflverseStatsSyncResult> {
   const now = options.now || new Date();
-  const years = [...new Set(options.years || [now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1])]
+  const years = [
+    ...new Set(options.years || [now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1]),
+  ]
     .filter((year) => Number.isInteger(year) && year >= 2024 && year <= now.getFullYear())
     .sort();
   const result: NflverseStatsSyncResult = {
@@ -130,11 +135,14 @@ export async function syncNflverseStats(options: {
             if (seasonType === "preseason") continue;
             const week = nflverseWeek(row);
             const gsisId = String(row.player_id || "").trim();
-            const team = String(row.recent_team || "").trim().toUpperCase();
-            const opponent = String(row.opponent_team || "").trim().toUpperCase();
+            const team = normalizeNflTeamAbbreviation(row.recent_team);
+            const opponent = normalizeNflTeamAbbreviation(row.opponent_team);
             const identity = identities.byGsisId.get(gsisId);
-            const position = String(row.position || identity?.position || "").trim().toUpperCase();
-            if (!week || !gsisId || !team || !opponent || !NFL_ELIGIBLE_POSITIONS.has(position)) continue;
+            const position = String(row.position || identity?.position || "")
+              .trim()
+              .toUpperCase();
+            if (!week || !gsisId || !team || !opponent || !NFL_ELIGIBLE_POSITIONS.has(position))
+              continue;
             const game = gamesByKey.get(
               gameLookupKey({ season: year, seasonType, week, team, opponent }),
             );

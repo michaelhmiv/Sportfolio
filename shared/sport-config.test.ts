@@ -32,7 +32,7 @@ describe("NHL sport configuration", () => {
 
 describe("NFL sport activation", () => {
   it("is activated by the deterministic NFL restoration patch", () => {
-    expect(ENABLED_SPORTS).toEqual(["MLB", "NASCAR", "NHL"]);
-    expect(isEnabledSport("NFL")).toBe(false);
+    expect(ENABLED_SPORTS).toEqual(["MLB", "NASCAR", "NHL", "NFL"]);
+    expect(isEnabledSport("NFL")).toBe(true);
   });
 });

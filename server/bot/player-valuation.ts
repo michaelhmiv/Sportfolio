@@ -350,7 +350,8 @@ export async function getMarketMakingCandidates(
 ): Promise<PlayerValuation[]> {
   // SPORT-AWARE DISTRIBUTION: Process each sport separately
   // This ensures NFL players get fair representation instead of being drowned out by NBA's larger player pool
-  const sports = ["NBA", "NFL"];
+  // NFL markets are user-created and must never be bootstrapped from stat-derived fair value.
+  const sports = ["NBA"];
   const perSportLimit = Math.ceil(limit / sports.length);
 
   // Get players that have low/no pool activity (need liquidity bootstrapping) - shared across all sports
