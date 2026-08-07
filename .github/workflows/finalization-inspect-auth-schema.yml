@@ -1,0 +1,25 @@
+name: Finalization Inspect Auth Schema
+
+on:
+  push:
+    branches:
+      - finalization/2026-08-07
+    paths:
+      - scripts/inspect-better-auth-schema.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: finalization/2026-08-07
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/inspect-better-auth-schema.mjs
