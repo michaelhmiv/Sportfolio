@@ -31,6 +31,22 @@ describe("auth environment safety", () => {
     expect(getAuthDiagnostics(config).betterAuthConfigured).toBe(false);
   });
 
+  it("normalizes blank optional Railway variables to undefined", () => {
+    const config = authEnvironmentSchema.parse({
+      ...base,
+      BETTER_AUTH_COOKIE_DOMAIN: "",
+      BETTER_AUTH_URL: "   ",
+      BETTER_AUTH_TRUSTED_ORIGINS: "",
+      AUTH_EMAIL_REPLY_TO: "",
+      AUTH_SUPABASE_FALLBACK_EXPIRES_AT: "",
+    });
+    expect(config.BETTER_AUTH_COOKIE_DOMAIN).toBeUndefined();
+    expect(config.BETTER_AUTH_URL).toBeUndefined();
+    expect(config.BETTER_AUTH_TRUSTED_ORIGINS).toBeUndefined();
+    expect(config.AUTH_EMAIL_REPLY_TO).toBeUndefined();
+    expect(config.AUTH_SUPABASE_FALLBACK_EXPIRES_AT).toBeUndefined();
+  });
+
   it("allows beta to intentionally share the production database", () => {
     const config = authEnvironmentSchema.parse(sharedBeta);
     expect(config.AUTH_ENVIRONMENT).toBe("beta");
