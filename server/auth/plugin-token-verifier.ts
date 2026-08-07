@@ -95,16 +95,25 @@ async function loadJwks(config: PluginOAuthConfig, forceRefresh = false): Promis
       signal: AbortSignal.timeout(5000),
     });
   } catch {
-    throw new PluginTokenError("jwks_unavailable", "The authorization server keys are unavailable.");
+    throw new PluginTokenError(
+      "jwks_unavailable",
+      "The authorization server keys are unavailable.",
+    );
   }
 
   if (!response.ok) {
-    throw new PluginTokenError("jwks_unavailable", "The authorization server keys are unavailable.");
+    throw new PluginTokenError(
+      "jwks_unavailable",
+      "The authorization server keys are unavailable.",
+    );
   }
 
   const value = (await response.json()) as JwkSet;
   if (!Array.isArray(value.keys) || value.keys.length === 0) {
-    throw new PluginTokenError("jwks_unavailable", "The authorization server returned no signing keys.");
+    throw new PluginTokenError(
+      "jwks_unavailable",
+      "The authorization server returned no signing keys.",
+    );
   }
 
   cachedJwks = { value, expiresAt: Date.now() + JWKS_CACHE_MS };
@@ -128,7 +137,10 @@ function verifyJwtSignature(
     return verifySignature("sha256", data, { key, dsaEncoding: "ieee-p1363" }, signature);
   }
 
-  throw new PluginTokenError("unsupported_algorithm", "The access token uses an unsupported algorithm.");
+  throw new PluginTokenError(
+    "unsupported_algorithm",
+    "The access token uses an unsupported algorithm.",
+  );
 }
 
 function validateClaims(claims: PluginAccessTokenClaims, config: PluginOAuthConfig): void {
@@ -140,7 +152,10 @@ function validateClaims(claims: PluginAccessTokenClaims, config: PluginOAuthConf
   }
 
   if (!tokenAudienceIncludes(claims.aud, config.resource)) {
-    throw new PluginTokenError("invalid_audience", "The access token was not issued for this resource.");
+    throw new PluginTokenError(
+      "invalid_audience",
+      "The access token was not issued for this resource.",
+    );
   }
 
   if (!Number.isFinite(claims.exp) || claims.exp <= now - skew) {
@@ -156,17 +171,26 @@ function validateClaims(claims: PluginAccessTokenClaims, config: PluginOAuthConf
   }
 
   if (typeof claims.client_id !== "string" || !claims.client_id.trim()) {
-    throw new PluginTokenError("missing_client_id", "The access token has no OAuth client identifier.");
+    throw new PluginTokenError(
+      "missing_client_id",
+      "The access token has no OAuth client identifier.",
+    );
   }
 
   if (config.allowedClientIds.length > 0 && !config.allowedClientIds.includes(claims.client_id)) {
-    throw new PluginTokenError("unapproved_client", "This OAuth client is not approved for Sportfolio.");
+    throw new PluginTokenError(
+      "unapproved_client",
+      "This OAuth client is not approved for Sportfolio.",
+    );
   }
 
   const tokenScopes = parseScopes(claims.scope);
   const missingScopes = config.requiredScopes.filter((scope) => !tokenScopes.has(scope));
   if (missingScopes.length > 0) {
-    throw new PluginTokenError("insufficient_scope", `Missing required scope: ${missingScopes.join(", ")}`);
+    throw new PluginTokenError(
+      "insufficient_scope",
+      `Missing required scope: ${missingScopes.join(", ")}`,
+    );
   }
 }
 
@@ -184,7 +208,10 @@ export async function verifyPluginAccessToken(
   const claims = parseJsonPart<PluginAccessTokenClaims>(encodedPayload);
 
   if (!header.alg || !["ES256", "RS256"].includes(header.alg)) {
-    throw new PluginTokenError("unsupported_algorithm", "The access token uses an unsupported algorithm.");
+    throw new PluginTokenError(
+      "unsupported_algorithm",
+      "The access token uses an unsupported algorithm.",
+    );
   }
   if (!header.kid) {
     throw new PluginTokenError("unknown_key", "The access token does not identify a signing key.");

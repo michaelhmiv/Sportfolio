@@ -20,16 +20,14 @@ Operational guidance for Factory droids working in this repository.
 - Runtime: TypeScript throughout (`client/`, `server/`, `shared/`)
 - Key mode: AMM-first trading + LP support
 
-## Canonical Agent Docs (Read Before Domain Changes)
+## Canonical Domain Docs (Read Before Changes)
 
-- `docs/agent/CONTEXT_INDEX.md`
-- `docs/agent/REPO_MAP.md`
-- `docs/agent/CONTEXT_BUDGET.md`
-- `docs/agent/REFACTOR_QUEUE.md`
-- `docs/wiki/agent/product-mechanics.md`
-- `docs/wiki/agent/api-map.md`
-- `docs/wiki/agent/data-model-economy.md`
-- `docs/wiki/agent/runbooks.md`
+- `docs/architecture-module-ownership.md`
+- `docs/wiki/gameplay/player-pools.md`
+- `docs/wiki/gameplay/portfolio-and-holdings.md`
+- `docs/wiki/gameplay/liquidity-providing.md`
+- `docs/wiki/gameplay/scouts-and-rewards.md`
+- `docs/wiki/features/user-action-surface.md`
 
 ## External Sports Data Contract (BallDontLie)
 
@@ -108,7 +106,7 @@ Stacked-share multiplier state is separate from regular tradeable holdings and d
    - `/api/daily-boosts/eligible*`
    - `/api/daily-boosts/assign`
 
-If your change affects economics, read `docs/wiki/agent/runbooks.md` first and follow the relevant checklist.
+If your change affects economics, read the applicable gameplay handbook chapters and migration runbooks first.
 
 ## Auth & Access Patterns
 

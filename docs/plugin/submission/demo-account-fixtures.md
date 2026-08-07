@@ -9,7 +9,7 @@ Create one dedicated, synthetic Sportfolio reviewer account before submission. C
 - Strong unique password stored in the organization's approved password manager
 - Email confirmed before submission so there is no email-confirmation requirement during review
 - MFA disabled for this account only, with no MFA requirement during review
-- No phone number, SMS link, or SMS requirement during review
+- No phone-number verification requirement during review
 - No admin, moderation, bot, or staff privileges
 - No payment method or premium purchase history required
 
@@ -46,7 +46,7 @@ Before submission and after any reviewer-support intervention:
 
 1. Confirm the account can sign in without additional verification.
 2. Revoke existing OAuth grants so the initial connection flow is reproducible.
-3. Cancel or clear any pending action bundles created during testing.
+3. Cancel or clear any pending gameplay transactions created during testing.
 4. Restore the required holdings, virtual balance, collection progress, milestone state, and boost history.
 5. Restore an open daily-boost slot and eligible candidate state.
 6. Remove the `Review Targets` watchlist and restore the baseline existing watchlist.

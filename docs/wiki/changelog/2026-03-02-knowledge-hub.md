@@ -24,3 +24,7 @@ searchKeywords: changelog,wiki,docs,cli,api tokens
 # What this means
 
 Sportfolio now has a single versioned place to document mechanics, platform changes, and operator workflows. It also has a stable base for scripted usage outside the browser.
+
+# Current surface note
+
+The current application surface keeps the wiki and CLI contracts aligned with the semantic sports catalog, neutral gameplay transactions, and the reviewed OAuth/MCP capability registry.

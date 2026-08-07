@@ -25,7 +25,11 @@ function extractBearerToken(req: Request): string | null {
   return match?.[1]?.trim() || null;
 }
 
-function authFailureResponse(error: unknown): { status: number; code: string; description: string } {
+function authFailureResponse(error: unknown): {
+  status: number;
+  code: string;
+  description: string;
+} {
   if (!(error instanceof PluginTokenError)) {
     return { status: 401, code: "invalid_token", description: "The access token is invalid." };
   }
@@ -52,7 +56,10 @@ async function authenticateToken(token: string): Promise<PluginAuthContext> {
     clientId: claims.client_id,
     scopes:
       typeof claims.scope === "string"
-        ? claims.scope.split(/\s+/).map((scope) => scope.trim()).filter(Boolean)
+        ? claims.scope
+            .split(/\s+/)
+            .map((scope) => scope.trim())
+            .filter(Boolean)
         : [],
     claims,
   };

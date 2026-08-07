@@ -50,7 +50,7 @@ describe("public-auth-editorial visual-system contract", () => {
     const contents = source("pages/auth-error.tsx");
     expect(contents).toContain('data-testid="text-error-title"');
     expect(contents).toContain('data-testid="text-error-code"');
-    expect(contents).toContain("Link Expired");
+    expect(contents).toContain("This sign-in link has expired");
   });
 
   it("preserves the login/signup contract for email verification flow", () => {

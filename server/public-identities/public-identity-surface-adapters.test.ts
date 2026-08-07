@@ -42,9 +42,7 @@ describe("resolveIdentityBatch", () => {
   });
 
   it("excludes pool/system/bot/blank IDs", async () => {
-    (publicIdentityRepository.resolveIdentities as any).mockResolvedValue([
-      makeIdentity("real"),
-    ]);
+    (publicIdentityRepository.resolveIdentities as any).mockResolvedValue([makeIdentity("real")]);
 
     const result = await resolveIdentityBatch(["pool", "system", "bot", "", "  ", "real"]);
     expect(result.size).toBe(1);
@@ -68,9 +66,18 @@ describe("resolveIdentityBatch", () => {
     const result = await resolveIdentityBatch(ids);
     expect(result.size).toBe(250);
     expect(publicIdentityRepository.resolveIdentities).toHaveBeenCalledTimes(3);
-    expect(publicIdentityRepository.resolveIdentities).toHaveBeenNthCalledWith(1, ids.slice(0, 100));
-    expect(publicIdentityRepository.resolveIdentities).toHaveBeenNthCalledWith(2, ids.slice(100, 200));
-    expect(publicIdentityRepository.resolveIdentities).toHaveBeenNthCalledWith(3, ids.slice(200, 250));
+    expect(publicIdentityRepository.resolveIdentities).toHaveBeenNthCalledWith(
+      1,
+      ids.slice(0, 100),
+    );
+    expect(publicIdentityRepository.resolveIdentities).toHaveBeenNthCalledWith(
+      2,
+      ids.slice(100, 200),
+    );
+    expect(publicIdentityRepository.resolveIdentities).toHaveBeenNthCalledWith(
+      3,
+      ids.slice(200, 250),
+    );
   });
 
   it("maps null for missing users", async () => {
@@ -87,9 +94,7 @@ describe("resolveIdentityBatch", () => {
   });
 
   it("trims IDs before deduplication", async () => {
-    (publicIdentityRepository.resolveIdentities as any).mockResolvedValue([
-      makeIdentity("user-1"),
-    ]);
+    (publicIdentityRepository.resolveIdentities as any).mockResolvedValue([makeIdentity("user-1")]);
 
     const result = await resolveIdentityBatch(["  user-1  "]);
     expect(result.has("user-1")).toBe(true);

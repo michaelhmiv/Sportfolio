@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-05-31
 changeTriggers: client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts,shared/schema.ts
 slug: portfolio-and-holdings
-surface: web,agent
+surface: web
 searchKeywords: portfolio,holdings,singles,stack power,lp,locks,premium,community shares
 ---
 

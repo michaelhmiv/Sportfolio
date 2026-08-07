@@ -3,7 +3,6 @@ export const docsCategories = [
   "getting-started",
   "gameplay",
   "features",
-  "agent",
   "cli",
   "faq",
   "changelog",
@@ -11,12 +10,11 @@ export const docsCategories = [
   "internal",
 ] as const;
 export const docsStatuses = ["draft", "published", "deprecated"] as const;
-export const docsSurfaces = ["web", "cli", "agent", "internal"] as const;
+export const docsSurfaces = ["web", "cli", "internal"] as const;
 export const docsSectionOrder = [
   "getting-started",
   "gameplay",
   "features",
-  "agent",
   "cli",
   "faq",
   "changelog",
@@ -28,7 +26,6 @@ export const docsSectionLabels: Record<string, string> = {
   "getting-started": "Getting Started",
   gameplay: "Gameplay",
   features: "Features",
-  agent: "Agent",
   cli: "CLI",
   faq: "FAQ",
   changelog: "Changelog",

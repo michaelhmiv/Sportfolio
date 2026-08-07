@@ -23,7 +23,6 @@ import {
   scoutHistory,
   sharePayouts,
   trades,
-  userAgentProposals,
   users,
   vesting,
   vestingClaims,
@@ -835,10 +834,6 @@ async function rewriteSimpleReferences(tx: Tx, oldPlayerId: string, canonicalPla
       .update(watchList)
       .set({ playerId: canonicalPlayerId })
       .where(eq(watchList.playerId, oldPlayerId)),
-    tx
-      .update(userAgentProposals)
-      .set({ playerId: canonicalPlayerId })
-      .where(eq(userAgentProposals.playerId, oldPlayerId)),
     tx
       .update(vesting)
       .set({ playerId: canonicalPlayerId })

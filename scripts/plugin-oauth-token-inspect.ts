@@ -31,8 +31,7 @@ export function inspectPluginOAuthClaims(input: {
   const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
   const exp = typeof input.payload.exp === "number" ? input.payload.exp : null;
   const nbf = typeof input.payload.nbf === "number" ? input.payload.nbf : null;
-  const clientId =
-    typeof input.payload.client_id === "string" ? input.payload.client_id : null;
+  const clientId = typeof input.payload.client_id === "string" ? input.payload.client_id : null;
 
   const checks = {
     issuerMatches: input.payload.iss === input.expectedIssuer,

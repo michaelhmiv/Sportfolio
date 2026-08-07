@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync, sign } from "crypto";
-import {
-  resetPluginJwksCacheForTests,
-  verifyPluginAccessToken,
-} from "./plugin-token-verifier";
+import { resetPluginJwksCacheForTests, verifyPluginAccessToken } from "./plugin-token-verifier";
 import type { PluginOAuthConfig } from "./plugin-oauth-config";
 
 const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
@@ -51,11 +48,12 @@ beforeEach(() => {
   resetPluginJwksCacheForTests();
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () =>
-      new Response(
-        JSON.stringify({ keys: [{ ...publicJwk, kid, alg: "ES256", use: "sig" }] }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      ),
+    vi.fn(
+      async () =>
+        new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: "ES256", use: "sig" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
     ),
   );
 });

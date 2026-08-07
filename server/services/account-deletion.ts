@@ -5,7 +5,6 @@ import {
   userApiTokens,
   userBadgePreferences,
   userFeaturedCollections,
-  userPhoneLinks,
   userPushDevices,
   userPushTokens,
   users,
@@ -350,16 +349,6 @@ async function processSingleAccountDeletionRequest(
       .where(and(eq(userApiTokens.userId, user.id), sql`${userApiTokens.revokedAt} IS NULL`));
 
     await tx.delete(userPushTokens).where(eq(userPushTokens.userId, user.id));
-
-    await tx
-      .update(userPhoneLinks)
-      .set({
-        smsEnabled: false,
-        smsOptInStatus: "opted_out",
-        smsOptedOutAt: now,
-        updatedAt: now,
-      })
-      .where(eq(userPhoneLinks.userId, user.id));
 
     const [processingMarked] = await tx
       .update(accountDeletionRequests)

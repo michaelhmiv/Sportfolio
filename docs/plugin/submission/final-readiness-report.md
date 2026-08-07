@@ -10,8 +10,8 @@ Status date: August 3, 2026
 - OAuth-protected connected-account reads and all supported write actions
 - Existing staged previews for virtual market trades, scouting, share stacking, daily boosts, community boosts, and liquidity operations
 - Exact-bundle `confirm_pending_action` and `cancel_pending_action` finalizers
-- Supported immediate watchlist, schedule, profile, onboarding, milestone, news, premium, SMS, agent-profile, and agent-thread controls
-- Dynamically discovered bounded MLB MCP tools when the source reports healthy discovery
+- Supported immediate watchlist, schedule, profile, onboarding, milestone, news, premium, and account controls
+- Twelve static semantic MLB tools with bounded inputs and structured provider errors
 - Explicit security schemes, `readOnlyHint`, `openWorldHint`, `destructiveHint`, output schemas, sanitization, rate limits, deadlines, concurrency controls, health reporting, and metrics
 - Public privacy, terms, documentation, and support pages
 - Plugin package manifest, app binding template, local marketplace entry, five positive cases, three negative cases, reviewer fixtures, release notes, and policy worksheet
@@ -67,7 +67,7 @@ The marketplace smoke must prove that:
 4. Receive and configure the OpenAI domain-verification challenge token.
 5. Identify the final registered OAuth client ID, add it to `public.plugin_oauth_clients`, set `PLUGIN_OAUTH_ALLOWED_CLIENT_IDS`, and enable `public.sportfolio_plugin_access_token_hook` under Supabase Authentication → Hooks → Custom Access Token.
 6. Create and seed the synthetic reviewer account; keep credentials out of Git and provide them only through the submission portal.
-7. Complete manual OpenAI-policy review of credential, token, SMS-link, BYOK, premium, and other sensitive account-management tools included for site MCP parity.
+7. Complete manual OpenAI-policy review of credential, token, BYOK, premium, and other sensitive account-management tools included for site MCP parity.
 8. Complete final legal review of policy text and initial country availability.
 9. Add final marketplace artwork and screenshots that reflect the deployed full-action product.
 10. Run all eight submission cases in fresh ChatGPT conversations and freeze the final MCP and skill snapshots.

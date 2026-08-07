@@ -610,7 +610,10 @@ export class PostgresCollectionRepository implements CollectionRepository {
       FROM user_collection_allocations a
       JOIN collection_slots s ON s.id = a.collection_slot_id
       WHERE a.user_id = ${userId}
-        AND a.player_id IN (${sql.join(identityIds.map((id) => sql`${id}`), sql`, `)})
+        AND a.player_id IN (${sql.join(
+          identityIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})
       ORDER BY a.user_id, s.collection_version_id
     `);
     return result.rows.map((row) => ({

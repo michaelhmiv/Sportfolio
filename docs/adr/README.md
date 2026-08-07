@@ -1,7 +1,7 @@
 # Architecture Decision Records (ADRs)
 
 Use ADRs to capture medium/long-lived technical decisions, especially for economics,
-agent orchestration, and architecture boundaries.
+runtime orchestration and architecture boundaries.
 
 ## Naming
 

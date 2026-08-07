@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-05-31
 changeTriggers: client/src/pages/boosts.tsx,client/src/pages/portfolio.tsx,server/routes.ts,server/jobs/lock-boost-shares.ts,server/jobs/settle-boosts.ts,server/jobs/settle-community-boosts.ts,server/storage.ts,shared/schema.ts
 slug: stacking-shares-and-boosts
-surface: web,cli,agent
+surface: web,cli
 searchKeywords: stack shares,singles,stack power,boosts,daily boosts,community boosts
 ---
 

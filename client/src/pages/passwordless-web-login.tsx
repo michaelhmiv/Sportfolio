@@ -57,9 +57,13 @@ export default function PasswordlessWebLogin() {
                 <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
               </div>
               <div>
-                <h2 className="text-xl font-bold tracking-tight text-content-strong">Check your email</h2>
+                <h2 className="text-xl font-bold tracking-tight text-content-strong">
+                  Check your email
+                </h2>
                 <p className="mt-2 leading-6 text-content-muted">
-                  A sign-in link was requested for <span className="font-medium text-content">{normalizedEmail}</span>. It expires after five minutes and can only be used once.
+                  A sign-in link was requested for{" "}
+                  <span className="font-medium text-content">{normalizedEmail}</span>. It expires
+                  after five minutes and can only be used once.
                 </p>
               </div>
               <Button
@@ -94,7 +98,10 @@ export default function PasswordlessWebLogin() {
               </div>
 
               {error ? (
-                <div className="rounded-panel border border-destructive/30 bg-destructive-subtle px-4 py-3 text-sm text-destructive" role="alert">
+                <div
+                  className="rounded-panel border border-destructive/30 bg-destructive-subtle px-4 py-3 text-sm text-destructive"
+                  role="alert"
+                >
                   {error}
                 </div>
               ) : null}
@@ -115,7 +122,10 @@ export default function PasswordlessWebLogin() {
 
               <div className="flex items-start gap-2 border-t border-border-subtle pt-4 text-xs leading-5 text-content-subtle">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
-                <p>The link creates a secure HttpOnly session and returns you to the page you were viewing.</p>
+                <p>
+                  The link creates a secure HttpOnly session and returns you to the page you were
+                  viewing.
+                </p>
               </div>
             </form>
           )}

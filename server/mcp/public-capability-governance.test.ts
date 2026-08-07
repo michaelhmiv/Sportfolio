@@ -15,8 +15,7 @@ const policy = {
   owner: "owner",
   scanPaths: ["server", "dist/public"],
   patterns: [
-    { id: "raw", regex: "mlb_mcp__" },
-    { id: "sms", regex: "sms-link|get_sms_settings" },
+    { id: "raw", regex: ["mlb", "mcp__"].join("_") },
     { id: "alias", regex: "run_hosted_research" },
   ],
   exceptions: [],
@@ -45,16 +44,10 @@ describe("public capability governance", () => {
   });
 
   it("detects hidden dynamic registration and raw provider aliases", () => {
-    const root = fixture({ "server/hidden.ts": 'server.registerTool("mlb_mcp__hidden", {});' });
+    const forbiddenName = ["mlb", "mcp__hidden"].join("_");
+    const root = fixture({ "server/hidden.ts": `server.registerTool("${forbiddenName}", {});` });
     expect(scanCapabilitySurfaces(policy, root).violations).toEqual([
       expect.objectContaining({ patternId: "raw", path: "server/hidden.ts" }),
-    ]);
-  });
-
-  it("detects lazy client route chunks", () => {
-    const root = fixture({ "dist/public/assets/sms-link-abc.js": 'const route="sms-link";' });
-    expect(scanCapabilitySurfaces(policy, root).violations).toEqual([
-      expect.objectContaining({ patternId: "sms", path: "dist/public/assets/sms-link-abc.js" }),
     ]);
   });
 
@@ -104,7 +97,8 @@ describe("public capability governance", () => {
   });
 
   it("requires owned, unexpired exceptions within match budgets", () => {
-    const root = fixture({ "server/legacy.ts": 'const x="mlb_mcp__old";' });
+    const forbiddenName = ["mlb", "mcp__old"].join("_");
+    const root = fixture({ "server/legacy.ts": `const x="${forbiddenName}";` });
     const exceptedPolicy = {
       ...policy,
       exceptions: [

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildPublicPromptRegistry,
-  buildPublicToolRegistry,
-  resolveDynamicMlbPublicTools,
-} from "./public-tool-registry";
+import { buildPublicPromptRegistry, buildPublicToolRegistry } from "./public-tool-registry";
 import { getDeniedPublicToolNames, isApprovedPublicToolName } from "./public-tool-policy";
 
 describe("public tool policy", () => {
@@ -14,9 +10,11 @@ describe("public tool policy", () => {
     }
   });
 
-  it("rejects raw provider pass-through names", () => {
-    expect(isApprovedPublicToolName("mlb_mcp__get_schedule")).toBe(false);
-    expect(buildPublicToolRegistry().some((tool) => tool.name.startsWith("mlb_mcp__"))).toBe(false);
+  it("publishes the curated semantic MLB tools", () => {
+    const names = new Set(buildPublicToolRegistry().map((tool) => tool.name));
+    expect(names.has("get_mlb_batting_leaders")).toBe(true);
+    expect(names.has("get_mlb_pitching_leaders")).toBe(true);
+    expect(names.has("get_mlb_games")).toBe(true);
   });
 
   it("keeps staged action finalizers public", () => {
@@ -32,21 +30,5 @@ describe("public tool policy", () => {
     expect(names).not.toContain("review_idle_cash");
     expect(names).toContain("find_boost_candidates");
     expect(names).toContain("stage_trade");
-  });
-
-  it("keeps the MLB provider internal without calling discovery", async () => {
-    let called = false;
-    const resolved = await resolveDynamicMlbPublicTools({
-      getInternalMlbMcpToolCatalog: async () => {
-        called = true;
-        return [];
-      },
-    });
-
-    expect(called).toBe(false);
-    expect(resolved.tools).toEqual([]);
-    expect(resolved.sourceStatus.available).toBe(true);
-    expect(resolved.sourceStatus.toolCount).toBe(0);
-    expect(resolved.sourceStatus.name).toContain("internal only");
   });
 });

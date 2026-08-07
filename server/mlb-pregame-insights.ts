@@ -1,14 +1,13 @@
 import type { DailyGame } from "@shared/schema";
 
 import { getOrCompute } from "./cache";
-import { resolveInternalMlbMcpConfig, runInternalMlbMcpToolRaw } from "./agent/internal-mlb-mcp";
+import { callMlbPublicTool, resolveMlbProviderConfig } from "./mcp/providers/mlb/provider";
 
 const SCHEDULE_CACHE_TTL_MS = 10 * 60 * 1000;
 const PITCHER_STATS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const BATTER_STATS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const GAME_DETAILS_CACHE_TTL_MS = 2 * 60 * 1000;
 const TEAM_REFERENCE_CACHE_TTL_MS = 10 * 60 * 1000;
-const DEFAULT_TOOL_PREFIX = "mlb_mcp__";
 const MLB_TOOL_TIMEOUT_WINDOW = 12 * 60 * 60 * 1000;
 
 const MLB_TEAM_NAME_TO_CODE: Record<string, string> = {
@@ -1097,23 +1096,12 @@ function normalizeTeamReferencePointer(payload: unknown): NormalizedTeamReferenc
   };
 }
 
-function getToolName(toolSuffix: string): string {
-  const configuredPrefix = resolveInternalMlbMcpConfig().toolPrefix || DEFAULT_TOOL_PREFIX;
-  return `${configuredPrefix}${toolSuffix}`;
-}
-
 async function fetchScheduleGamesForDate(dateStr: string): Promise<NormalizedScheduleGame[]> {
   return getOrCompute(
     `mlb_pregame:schedule:${dateStr}`,
     async () => {
-      const response = await runInternalMlbMcpToolRaw({
-        toolName: getToolName("get_schedule"),
-        args: {
-          date: dateStr,
-        },
-      });
-
-      return normalizeScheduleResponse(response.structuredContent);
+      const response = await callMlbPublicTool("get_mlb_games", { date: dateStr });
+      return normalizeScheduleResponse(response.data);
     },
     SCHEDULE_CACHE_TTL_MS,
   );
@@ -1125,17 +1113,12 @@ async function fetchPitcherExpectedStatsForYear(
   return getOrCompute(
     `mlb_pregame:pitcher_expected_stats:${statYear}`,
     async () => {
-      const response = await runInternalMlbMcpToolRaw({
-        toolName: getToolName("get_statcast_pitcher_expected_stats"),
-        args: {
-          year: statYear,
-          minPA: 1,
-          start_row: 0,
-          end_row: 1400,
-        },
+      const response = await callMlbPublicTool("get_mlb_statcast_profile", {
+        role: "pitcher",
+        season: statYear,
+        minimum: 1,
       });
-
-      return normalizePitcherStatsResponse(response.structuredContent, statYear);
+      return normalizePitcherStatsResponse(response.data, statYear);
     },
     PITCHER_STATS_CACHE_TTL_MS,
   );
@@ -1147,17 +1130,12 @@ async function fetchBatterExpectedStatsForYear(
   return getOrCompute(
     `mlb_pregame:batter_expected_stats:${statYear}`,
     async () => {
-      const response = await runInternalMlbMcpToolRaw({
-        toolName: getToolName("get_statcast_batter_expected_stats"),
-        args: {
-          year: statYear,
-          minPA: 1,
-          start_row: 0,
-          end_row: 2200,
-        },
+      const response = await callMlbPublicTool("get_mlb_statcast_profile", {
+        role: "batter",
+        season: statYear,
+        minimum: 1,
       });
-
-      return normalizeBatterStatsResponse(response.structuredContent, statYear);
+      return normalizeBatterStatsResponse(response.data, statYear);
     },
     BATTER_STATS_CACHE_TTL_MS,
   );
@@ -1167,17 +1145,8 @@ async function fetchGameDetails(gameId: number): Promise<NormalizedGameDetails> 
   return getOrCompute(
     `mlb_pregame:game_details:${gameId}`,
     async () => {
-      const response = await runInternalMlbMcpToolRaw({
-        toolName: getToolName("get_stats"),
-        args: {
-          endpoint: "game",
-          params: {
-            gamePk: gameId,
-          },
-        },
-      });
-
-      return normalizeGameDetails(response.structuredContent);
+      const response = await callMlbPublicTool("get_mlb_game_details", { gameId });
+      return normalizeGameDetails(response.data);
     },
     GAME_DETAILS_CACHE_TTL_MS,
   );
@@ -1187,20 +1156,12 @@ async function fetchTeamReferencePointer(
   teamId: number,
   direction: "last" | "next",
 ): Promise<NormalizedTeamReferencePointer | null> {
-  return getOrCompute(
-    `mlb_pregame:team_reference:${direction}:${teamId}`,
-    async () => {
-      const response = await runInternalMlbMcpToolRaw({
-        toolName: getToolName(direction === "last" ? "get_last_game" : "get_next_game"),
-        args: {
-          team_id: teamId,
-        },
-      });
-
-      return normalizeTeamReferencePointer(response.structuredContent);
-    },
-    TEAM_REFERENCE_CACHE_TTL_MS,
-  );
+  // The retired provider exposed dedicated last/next-game helpers that are not
+  // part of the curated public contract. Keep this enrichment fail-open until
+  // it can be derived from a bounded schedule query.
+  void teamId;
+  void direction;
+  return null;
 }
 
 function getCandidateStatYears(dateStr: string): number[] {
@@ -1281,7 +1242,7 @@ async function loadMatchedMlbScheduleGames(
   matchedGames: MatchedMlbScheduleGame[];
   unavailableStatus: MlbEnrichmentStatus | null;
 }> {
-  const config = resolveInternalMlbMcpConfig();
+  const config = resolveMlbProviderConfig();
   const mlbGames = games.filter((game) => String(game.sport || "").toUpperCase() === "MLB");
   if (mlbGames.length === 0) {
     return {

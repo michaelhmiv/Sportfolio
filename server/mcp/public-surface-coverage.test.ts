@@ -12,7 +12,6 @@ const ROUTE_FILES = [
   path.resolve("server/routes/amm.ts"),
   path.resolve("server/routes/lp.ts"),
   path.resolve("server/routes/mobile-rewarded-scout-boost.ts"),
-  path.resolve("server/routes/sms.ts"),
   path.resolve("server/routes/cli.ts"),
   path.resolve("server/collections/routes.ts"),
 ];

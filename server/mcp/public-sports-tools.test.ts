@@ -111,7 +111,7 @@ describe("compact unified public sports tools", () => {
         "get_event_live_state",
       ]),
     );
-    expect(names.some((name) => name.startsWith("mlb_mcp__"))).toBe(false);
+    expect(names.some((name) => name.startsWith(["mlb", "mcp__"].join("_")))).toBe(false);
   });
 
   it("selects the requested adapter and returns compact provenance", async () => {

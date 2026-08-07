@@ -48,10 +48,12 @@ export async function resolveIdentityBatch(
 /**
  * Extract non-pool buyer/seller IDs from a market activity item.
  */
-export function extractActorIds(items: Array<{
-  buyerId?: string | null;
-  sellerId?: string | null;
-}>): string[] {
+export function extractActorIds(
+  items: Array<{
+    buyerId?: string | null;
+    sellerId?: string | null;
+  }>,
+): string[] {
   const ids = new Set<string>();
   for (const item of items) {
     if (item.buyerId && item.buyerId !== "pool") {

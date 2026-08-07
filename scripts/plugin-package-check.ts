@@ -36,7 +36,9 @@ if (
   appId !== "REPLACE_WITH_SPORTFOLIO_PLUGIN_ASDK_APP_ID" &&
   !/^plugin_asdk_app_[A-Za-z0-9_-]+$/.test(appId)
 ) {
-  throw new Error("Sportfolio app binding must be the documented placeholder or a plugin_asdk_app ID.");
+  throw new Error(
+    "Sportfolio app binding must be the documented placeholder or a plugin_asdk_app ID.",
+  );
 }
 
 const entry = marketplace.plugins?.find((plugin: any) => plugin.name === "sportfolio");

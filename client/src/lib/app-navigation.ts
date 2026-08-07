@@ -16,7 +16,6 @@ export type AppNavItemId =
   | "pools"
   | "analytics"
   | "wiki"
-  | "agent"
   | "boosts"
   | "portfolio"
   | "premium"

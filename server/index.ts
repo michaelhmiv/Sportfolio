@@ -17,8 +17,6 @@ import { apiCorsMiddleware } from "./cors";
 import { registerRoutes } from "./routes";
 import { registerMobilePushNotificationRoutes } from "./routes/mobile-push-notifications";
 import { registerMobileRewardedScoutBoostRoutes } from "./routes/mobile-rewarded-scout-boost";
-import { registerHermesSidecarRoutes } from "./hermes-sidecar";
-import { isHermesSidecarMode } from "./service-role";
 import { setupVite, serveStatic, log } from "./vite";
 import { jobScheduler } from "./jobs/scheduler.js";
 import { startAccountDeletionProcessor } from "./services/account-deletion";
@@ -61,7 +59,6 @@ function registerGlobalErrorHandlers(app: express.Express) {
 startupLog("INIT", "Server starting...");
 
 const app = express();
-const hermesSidecarMode = isHermesSidecarMode();
 const authRuntimeConfig = getAuthRuntimeConfig();
 logger.info(
   { auth: getAuthDiagnostics(authRuntimeConfig) },
@@ -109,7 +106,7 @@ const enforceCanonicalHost =
   app.get("env") === "production" &&
   canonicalHost &&
   process.env.ENFORCE_CANONICAL_HOST_REDIRECT !== "false" &&
-  !hermesSidecarMode;
+  true;
 
 if (enforceCanonicalHost && canonicalSiteUrl && canonicalHost) {
   app.use((req, res, next) => {
@@ -229,29 +226,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  if (hermesSidecarMode) {
-    startupLog("HERMES", "Starting Hermes sidecar mode");
-    registerHermesSidecarRoutes(app);
-    registerGlobalErrorHandlers(app);
-
-    const port = parseInt(process.env.PORT || "5000", 10);
-    startupLog("LISTEN", `Starting Hermes sidecar on port ${port}...`);
-
-    const server = app.listen(
-      {
-        port,
-        host: "0.0.0.0",
-      },
-      () => {
-        serverReady = true;
-        startupLog("READY", `Hermes sidecar listening on port ${port}`);
-        log(`hermes sidecar listening on port ${port}`);
-      },
-    );
-
-    return;
-  }
-
   startupLog("ROUTES", "Registering routes...");
   const server = await registerRoutes(app);
   await registerMobilePushNotificationRoutes(app);

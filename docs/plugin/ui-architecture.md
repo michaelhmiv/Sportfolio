@@ -16,13 +16,13 @@ Presentation tools are always read-only, non-destructive, and closed-world. They
 
 ## Registered surfaces
 
-| Tool | Resource | Access | Purpose |
-| --- | --- | --- | --- |
-| `render_player_market` | `ui://sportfolio/player-market/v1.html` | Public with optional OAuth context | Player identity, pool price, bounded history, holdings, quotes, and staged trading |
-| `render_trade_preview` | `ui://sportfolio/trade-preview/v1.html` | OAuth | Exact pending-bundle confirmation and cancellation |
-| `render_portfolio` | `ui://sportfolio/portfolio/v1.html` | OAuth | Portfolio value, balance, allocation, and holding exploration |
-| `render_market_movers` | `ui://sportfolio/market-movers/v1.html` | Public; OAuth for watchlist scope | Gainers, decliners, volume, trade activity, and watchlist movers |
-| `render_liquidity_position` | `ui://sportfolio/liquidity/v1.html` | OAuth | AMM pool state, LP position, and staged add/remove liquidity actions |
+| Tool                        | Resource                                | Access                             | Purpose                                                                            |
+| --------------------------- | --------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `render_player_market`      | `ui://sportfolio/player-market/v1.html` | Public with optional OAuth context | Player identity, pool price, bounded history, holdings, quotes, and staged trading |
+| `render_trade_preview`      | `ui://sportfolio/trade-preview/v1.html` | OAuth                              | Exact pending-bundle confirmation and cancellation                                 |
+| `render_portfolio`          | `ui://sportfolio/portfolio/v1.html`     | OAuth                              | Portfolio value, balance, allocation, and holding exploration                      |
+| `render_market_movers`      | `ui://sportfolio/market-movers/v1.html` | Public; OAuth for watchlist scope  | Gainers, decliners, volume, trade activity, and watchlist movers                   |
+| `render_liquidity_position` | `ui://sportfolio/liquidity/v1.html`     | OAuth                              | AMM pool state, LP position, and staged add/remove liquidity actions               |
 
 ## Mutation safety
 

@@ -10,7 +10,7 @@ This repository is intentionally isolated from OpenClaw agent workspace code.
 
 1. Only Sportfolio code and docs belong in this repo.
 2. Do **not** run development, tests, commits, or pushes for Sportfolio from `/home/exedev/clawd`.
-3. Do **not** copy `skills/`, agent runtime files, or unrelated tooling into this repo.
+3. Do **not** copy unrelated skills, automation runtimes, or external project tooling into this repo.
 4. Before commit/push, verify isolation:
    - `git status --short`
    - `git ls-files | grep -E '^(skills|memory|\.openclaw|\.clawdhub)/'` (should return nothing)

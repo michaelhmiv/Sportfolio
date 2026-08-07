@@ -49,34 +49,20 @@ export const PLUGIN_V1_TOOLS = [
 ] as const satisfies readonly PluginToolPolicy[];
 
 export const PLUGIN_V1_EXCLUDED_CAPABILITIES = [
-  { name: "save_agent_byok", reason: "credential_or_authentication_secret" },
-  { name: "clear_agent_byok", reason: "credential_or_authentication_secret" },
-  { name: "complete_sms_link", reason: "credential_or_authentication_secret" },
-  { name: "start_sms_link", reason: "account_security_management" },
-  { name: "update_sms_settings", reason: "account_security_management" },
   { name: "list_api_tokens", reason: "account_security_management" },
   { name: "revoke_api_token", reason: "account_security_management" },
   { name: "update_username", reason: "user_profile_mutation" },
   { name: "update_profile_image", reason: "user_profile_mutation" },
   { name: "complete_onboarding", reason: "user_profile_mutation" },
-  { name: "mark_news_read", reason: "user_profile_mutation" },
   { name: "celebrate_milestone", reason: "user_profile_mutation" },
-  { name: "upsert_schedule", reason: "user_profile_mutation" },
-  { name: "delete_schedule", reason: "user_profile_mutation" },
   { name: "redeem_premium", reason: "billing_or_purchase" },
-  { name: "create_agent_thread", reason: "raw_internal_agent_surface" },
-  { name: "send_agent_message", reason: "raw_internal_agent_surface" },
   { name: "confirm_pending_action", reason: "gameplay_mutation" },
   { name: "cancel_pending_action", reason: "gameplay_mutation" },
-  { name: "run_hosted_research", reason: "open_world_research" },
-  { name: "get_news_digest", reason: "open_world_research" },
-  { name: "review_setup", reason: "raw_internal_agent_surface" },
   { name: "stage_*", reason: "gameplay_mutation" },
   { name: "billing_*", reason: "billing_or_purchase" },
   { name: "checkout_*", reason: "billing_or_purchase" },
   { name: "admin_*", reason: "admin_or_internal" },
   { name: "internal_*", reason: "admin_or_internal" },
-  { name: "dynamic:internal_mlb_mcp", reason: "dynamic_or_unversioned_surface" },
 ] as const satisfies readonly PluginExcludedCapability[];
 
 export const PLUGIN_MARKETPLACE_V1_CONTRACT = {

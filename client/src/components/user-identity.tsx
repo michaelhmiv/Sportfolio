@@ -7,12 +7,7 @@ import { CollectionArt } from "./collection-art";
 
 // ── types ────────────────────────────────────────────────────────────────────
 
-export type UserIdentityVariant =
-  | "micro"
-  | "compact"
-  | "ranked"
-  | "featured"
-  | "profile";
+export type UserIdentityVariant = "micro" | "compact" | "ranked" | "featured" | "profile";
 
 export interface UserIdentityProps {
   variant: UserIdentityVariant;
@@ -106,20 +101,12 @@ function PremiumCrown({ show }: { show: boolean }) {
 
 function IdentityCard({ identity }: { identity: PublicUserIdentity }) {
   return (
-    <div
-      data-testid="identity-popover"
-      className="flex flex-col gap-3 min-w-[200px]"
-    >
+    <div data-testid="identity-popover" className="flex flex-col gap-3 min-w-[200px]">
       {/* Header row */}
       <div className="flex items-center gap-3">
         <Avatar className="h-12 w-12">
-          <AvatarImage
-            src={identity.avatarUrl || undefined}
-            alt={displayName(identity.username)}
-          />
-          <AvatarFallback className="text-sm">
-            {initials(identity.username)}
-          </AvatarFallback>
+          <AvatarImage src={identity.avatarUrl || undefined} alt={displayName(identity.username)} />
+          <AvatarFallback className="text-sm">{initials(identity.username)}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1 truncate text-sm font-semibold text-content">
@@ -127,9 +114,7 @@ function IdentityCard({ identity }: { identity: PublicUserIdentity }) {
             <PremiumCrown show={identity.premiumActive} />
           </div>
           {identity.activeBadge && (
-            <div className="text-xs text-muted-foreground">
-              {identity.activeBadge.title}
-            </div>
+            <div className="text-xs text-muted-foreground">{identity.activeBadge.title}</div>
           )}
         </div>
       </div>
@@ -143,9 +128,7 @@ function IdentityCard({ identity }: { identity: PublicUserIdentity }) {
             size="sm"
           />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-semibold">
-              {identity.activeBadge.title}
-            </div>
+            <div className="truncate text-xs font-semibold">{identity.activeBadge.title}</div>
             <div className="text-[10px] text-muted-foreground">
               {identity.activeBadge.sport} &middot; {identity.activeBadge.season}
             </div>
@@ -170,14 +153,8 @@ function AvatarBlock({
       className={cn(AVATAR_SIZES[variant], "shrink-0")}
       data-testid="avatar-fallback-container"
     >
-      <AvatarImage
-        src={identity.avatarUrl || undefined}
-        alt={displayName(identity.username)}
-      />
-      <AvatarFallback
-        className={cn(FALLBACK_SIZES[variant])}
-        data-testid="avatar-fallback"
-      >
+      <AvatarImage src={identity.avatarUrl || undefined} alt={displayName(identity.username)} />
+      <AvatarFallback className={cn(FALLBACK_SIZES[variant])} data-testid="avatar-fallback">
         {initials(identity.username)}
       </AvatarFallback>
     </Avatar>
@@ -206,10 +183,7 @@ function CompactIdentity({ identity }: { identity: PublicUserIdentity }) {
           <BadgePin identity={identity} />
         </div>
       </BadgeFrame>
-      <span
-        data-testid="username-display"
-        className="text-sm font-medium text-content truncate"
-      >
+      <span data-testid="username-display" className="text-sm font-medium text-content truncate">
         {displayName(identity.username)}
         <PremiumCrown show={identity.premiumActive} />
       </span>
@@ -219,13 +193,7 @@ function CompactIdentity({ identity }: { identity: PublicUserIdentity }) {
 
 // ── ranked variant (compact + rank number) ───────────────────────────────────
 
-function RankedIdentity({
-  identity,
-  rank,
-}: {
-  identity: PublicUserIdentity;
-  rank?: number;
-}) {
+function RankedIdentity({ identity, rank }: { identity: PublicUserIdentity; rank?: number }) {
   return (
     <div className="flex items-center gap-2">
       <span
@@ -240,10 +208,7 @@ function RankedIdentity({
           <BadgePin identity={identity} />
         </div>
       </BadgeFrame>
-      <span
-        data-testid="username-display"
-        className="text-sm font-medium text-content truncate"
-      >
+      <span data-testid="username-display" className="text-sm font-medium text-content truncate">
         {displayName(identity.username)}
         <PremiumCrown show={identity.premiumActive} />
       </span>
@@ -265,10 +230,7 @@ function FeaturedIdentity({ identity }: { identity: PublicUserIdentity }) {
           <BadgePin identity={identity} />
         </div>
       </BadgeFrame>
-      <span
-        data-testid="username-display"
-        className="text-sm font-medium text-content truncate"
-      >
+      <span data-testid="username-display" className="text-sm font-medium text-content truncate">
         {displayName(identity.username)}
         <PremiumCrown show={identity.premiumActive} />
       </span>
@@ -290,10 +252,7 @@ function ProfileIdentity({ identity }: { identity: PublicUserIdentity }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1">
-          <h2
-            data-testid="username-display"
-            className="text-lg font-bold text-content truncate"
-          >
+          <h2 data-testid="username-display" className="text-lg font-bold text-content truncate">
             {displayName(identity.username)}
           </h2>
           <PremiumCrown show={identity.premiumActive} />
@@ -309,9 +268,7 @@ function ProfileIdentity({ identity }: { identity: PublicUserIdentity }) {
               sport={identity.activeBadge.sport}
             />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">
-                {identity.activeBadge.title}
-              </div>
+              <div className="truncate text-sm font-semibold">{identity.activeBadge.title}</div>
               <div className="text-xs text-muted-foreground">
                 {identity.activeBadge.sport} {identity.activeBadge.league} &middot;{" "}
                 {identity.activeBadge.season}
@@ -328,10 +285,7 @@ function ProfileIdentity({ identity }: { identity: PublicUserIdentity }) {
 
 function FallbackIdentity() {
   return (
-    <div
-      data-testid="identity-fallback"
-      className="flex items-center gap-2 text-muted-foreground"
-    >
+    <div data-testid="identity-fallback" className="flex items-center gap-2 text-muted-foreground">
       <Avatar className="h-9 w-9 shrink-0">
         <AvatarFallback className="text-xs">??</AvatarFallback>
       </Avatar>
@@ -369,26 +323,18 @@ function IdentityContent({
 
 // ── main component ───────────────────────────────────────────────────────────
 
-export function UserIdentity({
-  variant,
-  identity,
-  rank,
-  className,
-}: UserIdentityProps) {
+export function UserIdentity({ variant, identity, rank, className }: UserIdentityProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLSpanElement>(null);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        setOpen(true);
-      } else if (e.key === "Escape") {
-        setOpen(false);
-      }
-    },
-    [],
-  );
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      setOpen(true);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }, []);
 
   if (!identity) {
     return <FallbackIdentity />;

@@ -8,17 +8,14 @@ const TOKEN_NAMESPACE = "spt";
 const TOKEN_PATTERN = /^spt_[a-f0-9]{12}_[a-f0-9]{48}$/i;
 
 function getTokenSecret(): string {
-  const configuredSecret =
-    process.env.USER_API_TOKEN_SECRET?.trim() || process.env.USER_AGENT_SECRET_KEY?.trim() || "";
+  const configuredSecret = process.env.USER_API_TOKEN_SECRET?.trim() || "";
 
   if (configuredSecret) {
     return configuredSecret;
   }
 
   if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "USER_API_TOKEN_SECRET or USER_AGENT_SECRET_KEY must be configured for API token auth in production",
-    );
+    throw new Error("USER_API_TOKEN_SECRET must be configured for API token auth in production");
   }
 
   return "development-only-api-token-secret";

@@ -8,7 +8,6 @@ const validCategories = new Set([
   "getting-started",
   "gameplay",
   "features",
-  "agent",
   "cli",
   "faq",
   "changelog",
@@ -16,7 +15,7 @@ const validCategories = new Set([
   "internal",
 ]);
 const validStatuses = new Set(["draft", "published", "deprecated"]);
-const validSurfaces = new Set(["web", "cli", "agent", "internal"]);
+const validSurfaces = new Set(["web", "cli", "internal"]);
 
 function walkMarkdownFiles(dirPath) {
   if (!fs.existsSync(dirPath)) {

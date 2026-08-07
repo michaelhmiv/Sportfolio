@@ -9,7 +9,7 @@ owner: product-engineering
 lastReviewedAt: 2026-05-31
 changeTriggers: shared/schema.ts,server/routes.ts,server/amm/pool.ts,server/websocket.ts,client/src/pages
 slug: glossary
-surface: web,cli,agent
+surface: web,cli
 searchKeywords: glossary,terms,definitions,amm,stacking,boosts,scouts,lp
 ---
 
@@ -85,17 +85,6 @@ Assignable unit that earns player shares over time.
 
 **Scout-Minutes**
 Time-weighted measure used for hourly share distribution.
-
-## Agent Terms
-
-**Thread**
-Persisted agent conversation context.
-
-**Staged Action**
-Prepared action plan awaiting confirm/cancel.
-
-**Strategy**
-Saved recurring agent mandate with guardrails.
 
 ## One-Line Summary
 

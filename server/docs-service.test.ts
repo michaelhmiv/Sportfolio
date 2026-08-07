@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  findBestAgentKnowledgeArticle,
+  findBestKnowledgeArticle,
   getDocsHandbook,
-  listAgentKnowledgeArticles,
+  listKnowledgeArticles,
   searchDocsArticles,
 } from "./docs-service";
 
@@ -66,28 +66,23 @@ describe("docs-service", () => {
     expect(results.some((result) => result.slug === "mcp-access")).toBe(true);
   });
 
-  it("exposes canonical wiki articles flagged for agent grounding", () => {
-    const articles = listAgentKnowledgeArticles();
+  it("exposes canonical wiki articles for knowledge grounding", () => {
+    const articles = listKnowledgeArticles();
 
     expect(articles.length).toBeGreaterThan(0);
-    expect(articles.some((article) => article.id === "feature-sms-agent")).toBe(true);
-
-    const agentArticle = articles.find((article) => article.id === "feature-sms-agent");
-
-    expect(agentArticle?.urlPath).toBe("/wiki/features/sms-agent");
-    expect(agentArticle?.notes.length).toBeGreaterThan(0);
+    expect(articles.every((article) => article.urlPath.startsWith("/wiki/"))).toBe(true);
   });
 
-  it("matches the best agent-grounding article for guest topic routing", () => {
-    const article = findBestAgentKnowledgeArticle("how do i link my phone number by text");
+  it("matches the best knowledge article for MCP access", () => {
+    const article = findBestKnowledgeArticle("how do i connect through mcp");
 
     expect(article).not.toBeNull();
-    expect(article?.id).toBe("feature-sms-agent");
+    expect(article?.urlPath).toMatch(/^\/wiki\//);
   });
 
-  it("keeps guest agent grounding scoped to the public article set", () => {
-    const guestArticles = listAgentKnowledgeArticles(false);
-    const authenticatedArticles = listAgentKnowledgeArticles(true);
+  it("keeps guest knowledge grounding scoped to the public article set", () => {
+    const guestArticles = listKnowledgeArticles(false);
+    const authenticatedArticles = listKnowledgeArticles(true);
 
     expect(guestArticles.length).toBeGreaterThan(0);
     expect(authenticatedArticles.length).toBeGreaterThanOrEqual(guestArticles.length);

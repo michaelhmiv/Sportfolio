@@ -1,66 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  completeSimple: vi.fn(),
-  resolveManagedPiRuntime: vi.fn(),
-}));
-
-vi.mock("@mariozechner/pi-ai", () => ({
-  completeSimple: mocks.completeSimple,
-}));
-
-vi.mock("./agent/pi-provider", () => ({
-  resolveManagedPiRuntime: mocks.resolveManagedPiRuntime,
-}));
-
+import { describe, expect, it } from "vitest";
 import { answerDocsQuestion } from "./docs-qa";
 
 describe("docs-qa", () => {
-  beforeEach(() => {
-    mocks.completeSimple.mockReset();
-    mocks.resolveManagedPiRuntime.mockReset();
-  });
-
-  it("falls back to handbook extracts when the managed runtime is unavailable", async () => {
-    mocks.resolveManagedPiRuntime.mockRejectedValue(new Error("not configured"));
-
+  it("answers CLI access questions from handbook extracts", async () => {
     const result = await answerDocsQuestion("how do i access the cli");
-
     expect(result.fallbackUsed).toBe(true);
     expect(result.citations.length).toBeGreaterThan(0);
     expect(result.answer.toLowerCase()).toContain("api token");
   });
 
-  it("describes the live public MCP surface clearly in fallback mode", async () => {
-    mocks.resolveManagedPiRuntime.mockRejectedValue(new Error("not configured"));
-
+  it("describes the public MCP endpoint and bearer authentication", async () => {
     const result = await answerDocsQuestion("how do i access the sportfolio mcp protocol");
-
     expect(result.fallbackUsed).toBe(true);
     expect(result.answer).toContain("/mcp");
     expect(result.answer.toLowerCase()).toContain("bearer");
-    expect(result.answer.toLowerCase()).toContain("gameplay-focused");
+    expect(result.citations.length).toBeGreaterThan(0);
   });
 
-  it("returns a model answer when the managed runtime succeeds", async () => {
-    mocks.resolveManagedPiRuntime.mockResolvedValue({
-      apiKey: "test-key",
-      model: { id: "test-model" },
-    });
-    mocks.completeSimple.mockResolvedValue({
-      content: [
-        {
-          type: "text",
-          text: "Use a profile API token as a bearer token against /mcp when you need the public MCP surface.",
-        },
-      ],
-    });
-
+  it("returns a grounded extract for terminal automation questions", async () => {
     const result = await answerDocsQuestion("how do i access sportfolio from a terminal");
-
-    expect(result.fallbackUsed).toBe(false);
-    expect(result.answer).toContain("/mcp");
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.answer.length).toBeGreaterThan(20);
     expect(result.citations.length).toBeGreaterThan(0);
-    expect(mocks.completeSimple).toHaveBeenCalledTimes(1);
   });
 });

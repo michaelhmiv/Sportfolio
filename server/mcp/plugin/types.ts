@@ -25,8 +25,7 @@ export type PluginExcludedCapability = {
     | "billing_or_purchase"
     | "admin_or_internal"
     | "dynamic_or_unversioned_surface"
-    | "open_world_research"
-    | "raw_internal_agent_surface";
+    | "open_world_research";
 };
 
 export type PluginMarketplaceContract = {

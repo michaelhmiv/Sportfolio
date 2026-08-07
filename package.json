@@ -4,7 +4,7 @@
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
-    "dev": "node scripts/dev-orchestrator.mjs",
+    "dev": "cross-env NODE_ENV=development tsx watch server/index.ts",
     "dev:app": "cross-env NODE_ENV=development tsx watch server/index.ts",
     "dev:mcp": "node scripts/run-mlb-mcp.mjs",
     "worktree:new": "node scripts/worktree-bootstrap.mjs",
@@ -65,10 +65,6 @@
     "build:client": "npm run plugin:ui:build && vite build",
     "prepare": "husky",
     "openapi:check": "node scripts/openapi-check.mjs",
-    "invariants:check": "node scripts/check-agent-invariants.mjs",
-    "qa:smoke": "node scripts/agent-readiness-smoke.mjs",
-    "agent:debug": "node scripts/agent-debug-loop.mjs",
-    "agent:improve": "node scripts/agent-self-improve.mjs",
     "cli:audit": "tsx scripts/cli-audit.ts",
     "mcp:audit": "tsx scripts/mcp-audit.ts",
     "mcp:smoke": "tsx scripts/mcp-smoke.ts",
@@ -82,7 +78,6 @@
     "mlb-mcp:probe": "node scripts/mlb-mcp-probe.mjs",
     "mlb-mcp:full-validate": "tsx scripts/mlb-mcp-full-validate.ts",
     "mlb-mcp:probe:railway": "node scripts/mlb-mcp-railway-smoke.mjs",
-    "public-surface:dev": "tsx scripts/public-surface-dev-validate.ts",
     "text:check": "node scripts/check-text-encoding.mjs",
     "redditbot:typecheck": "npm --prefix packages/sportfoliobot run typecheck",
     "redditbot:playtest": "npm --prefix packages/sportfoliobot run playtest",
@@ -99,7 +94,8 @@
     "auth:compatibility:test": "vitest run scripts/auth-supabase-inventory.test.ts scripts/better-auth-compatibility.test.ts server/auth/architecture-contract.test.ts",
     "auth:foundation:test": "vitest run server/auth/principal.test.ts server/auth/better-auth.test.ts server/supabaseAuth.test.ts",
     "auth:email:test": "vitest run server/auth/magic-link-delivery.test.ts server/auth/resend-webhook.test.ts",
-    "auth:web:test": "vitest run server/auth/better-auth-session.test.ts server/auth/web-auth.test.ts client/src/lib/passwordless-auth.contract.test.ts"
+    "auth:web:test": "vitest run server/auth/better-auth-session.test.ts server/auth/web-auth.test.ts client/src/lib/passwordless-auth.contract.test.ts",
+    "retired-surfaces:audit": "node scripts/audit-retired-surfaces.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",

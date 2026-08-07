@@ -66,7 +66,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 const SNAPSHOT_PATH = resolve(ROOT, "config/public-capability-snapshot.json");
 const POLICY_PATH = resolve(ROOT, "config/public-capability-governance.json");
 const RETIRED_NAME =
-  /^(mlb_mcp__|run_hosted_research$|review_news_impact$|get_news_digest$|get_news_unread_count$|mark_news_read$|get_sms_settings$|start_sms_link$|complete_sms_link$|update_sms_settings$|get_agent_profile$|get_agent_capabilities$|list_agent_threads$|create_agent_thread$|send_agent_message$|list_thread_messages$|list_thread_research_sources$|list_schedules$|list_schedule_templates$|upsert_schedule$|delete_schedule$)/i;
+  /^(run_hosted_research$|review_news_impact$|get_news_digest$|get_news_unread_count$|mark_news_read$|list_schedules$|list_schedule_templates$|upsert_schedule$|delete_schedule$)/i;
 
 function sportClassification(domain: string, name: string): SnapshotEntry["sportClassification"] {
   const normalized = domain.toLowerCase();

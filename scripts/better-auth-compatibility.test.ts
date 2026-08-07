@@ -15,9 +15,7 @@ describe("Better Auth package compatibility", () => {
   it("pins matching stable package versions", () => {
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
     expect(packageJson.dependencies["better-auth"]).toBe(BETTER_AUTH_VERSION);
-    expect(packageJson.dependencies["@better-auth/oauth-provider"]).toBe(
-      OAUTH_PROVIDER_VERSION,
-    );
+    expect(packageJson.dependencies["@better-auth/oauth-provider"]).toBe(OAUTH_PROVIDER_VERSION);
     expect(packageJson.dependencies.zod).toBe(ZOD_VERSION);
     expect(packageJson.dependencies["drizzle-zod"]).toBe(DRIZZLE_ZOD_VERSION);
   });

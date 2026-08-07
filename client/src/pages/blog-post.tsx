@@ -96,9 +96,14 @@ export default function BlogPost() {
           <Card variant="empty">
             <CardContent className="p-8 text-center">
               <h1 className="text-2xl font-bold text-content-strong">Article not found</h1>
-              <p className="mt-3 leading-6 text-content-muted">The article does not exist or is no longer available.</p>
+              <p className="mt-3 leading-6 text-content-muted">
+                The article does not exist or is no longer available.
+              </p>
               <Button asChild className="mt-6 gap-2">
-                <Link href="/blog"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to the blog</Link>
+                <Link href="/blog">
+                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                  Back to the blog
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -133,7 +138,10 @@ export default function BlogPost() {
         compact
       />
 
-      <article className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8" data-testid="article-blog-post">
+      <article
+        className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8"
+        data-testid="article-blog-post"
+      >
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border-subtle pb-6 text-sm text-content-subtle">
           <span className="flex items-center gap-2">
             <Calendar className="h-4 w-4" aria-hidden="true" />
@@ -151,13 +159,19 @@ export default function BlogPost() {
           ) : null}
         </div>
 
-        <div className="prose prose-lg mt-10 max-w-none prose-headings:font-bold prose-a:text-brand dark:prose-invert" data-testid="content-blog-post">
+        <div
+          className="prose prose-lg mt-10 max-w-none prose-headings:font-bold prose-a:text-brand dark:prose-invert"
+          data-testid="content-blog-post"
+        >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.content}</ReactMarkdown>
         </div>
 
         <div className="mt-14 border-t border-border-subtle pt-7">
           <Button asChild variant="outline" className="gap-2" data-testid="button-back-to-blog">
-            <Link href="/blog"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to the blog</Link>
+            <Link href="/blog">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to the blog
+            </Link>
           </Button>
         </div>
       </article>

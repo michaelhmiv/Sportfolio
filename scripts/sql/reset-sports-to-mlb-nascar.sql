@@ -5,7 +5,7 @@
 --     - MLB players keyed as mlb_<MLBAM_ID> from public MLB StatsAPI
 --     - NASCAR data from the existing public NASCAR integration
 --   Preserves users/auth, profile/config tables, docs/blog content, notification settings,
---   agent configuration, and other non-sports infrastructure.
+--   automation configuration and other non-sports infrastructure.
 --
 -- SAFETY
 --   DO NOT run casually. Run the DRY RUN section first and review row counts.

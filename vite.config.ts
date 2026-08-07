@@ -22,7 +22,13 @@ export default defineConfig({
       input: {
         app: path.resolve(import.meta.dirname, "client", "index.html"),
         oauthConsent: path.resolve(import.meta.dirname, "client", "oauth", "consent", "index.html"),
-        connectedApps: path.resolve(import.meta.dirname, "client", "oauth", "connected-apps", "index.html"),
+        connectedApps: path.resolve(
+          import.meta.dirname,
+          "client",
+          "oauth",
+          "connected-apps",
+          "index.html",
+        ),
         pluginDocs: path.resolve(import.meta.dirname, "client", "plugin", "index.html"),
         pluginSupport: path.resolve(import.meta.dirname, "client", "plugin-support", "index.html"),
       },

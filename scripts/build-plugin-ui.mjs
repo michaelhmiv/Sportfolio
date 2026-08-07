@@ -23,8 +23,7 @@ const result = await build({
 });
 
 const javascript =
-  result.outputFiles.find((file) => file.path.endsWith(".js"))?.text ||
-  result.outputFiles[0]?.text;
+  result.outputFiles.find((file) => file.path.endsWith(".js"))?.text || result.outputFiles[0]?.text;
 const stylesheet = result.outputFiles.find((file) => file.path.endsWith(".css"))?.text || "";
 
 if (!javascript) {

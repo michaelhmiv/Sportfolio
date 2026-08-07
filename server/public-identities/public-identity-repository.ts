@@ -1,9 +1,7 @@
 import { and, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { pool } from "../db";
-import {
-  users,
-} from "@shared/schema";
+import { users } from "@shared/schema";
 import type { PublicUserIdentity, PublicBadgeIdentity } from "@shared/public-user-identity";
 import { resolveUserEntitlements } from "../services/user-entitlements";
 
@@ -72,12 +70,7 @@ export class PostgresPublicIdentityRepository implements PublicIdentityRepositor
         deletedAt: users.deletedAt,
       })
       .from(users)
-      .where(
-        and(
-          inArray(users.id, deduped),
-          sql`${users.deletedAt} IS NULL`,
-        ),
-      );
+      .where(and(inArray(users.id, deduped), sql`${users.deletedAt} IS NULL`));
 
     const userById = new Map<string, UserRow>();
     for (const row of userRows) {

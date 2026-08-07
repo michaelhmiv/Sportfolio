@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-  PublicUserIdentity,
-  PublicBadgeIdentity,
-} from "@shared/public-user-identity";
+import type { PublicUserIdentity, PublicBadgeIdentity } from "@shared/public-user-identity";
 
 // We'll import these after creating the service
 // For now, define the interface inline for RED phase
@@ -127,9 +124,7 @@ const MAX_RAW_IDS = 100;
 const MAX_RAW_REQUEST_IDS = 100;
 const MAX_ID_LENGTH = 200;
 
-function validateBatchRequest(
-  body: unknown,
-): ValidationError[] {
+function validateBatchRequest(body: unknown): ValidationError[] {
   const errors: ValidationError[] = [];
 
   if (!body || typeof body !== "object" || Array.isArray(body)) {

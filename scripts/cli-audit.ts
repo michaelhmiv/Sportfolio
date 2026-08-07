@@ -45,7 +45,7 @@ const server = createServer(async (req, res) => {
     res.end(
       JSON.stringify({
         user: harness.state.user,
-        capabilities: await harness.deps.getAgentCapabilities(harness.userId),
+        capabilities: { stagedActions: true, semanticMlbTools: true },
         docs: {
           indexUrl: "/api/docs/index",
           searchUrl: "/api/docs/search",
@@ -180,11 +180,10 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const validToken = `spt_aaaaaaaaaaaa_${"b".repeat(48)}`;
 const toolFixtures = getPublicToolFixtures();
 const promptFixtures = getPublicPromptFixtures();
-let activeThreadId = "thread_1";
-let activePendingBundleId = "bundle_1";
+let activeTransactionId = "";
 
-async function ensurePendingBundle() {
-  if (activePendingBundleId) {
+async function ensurePendingTransaction() {
+  if (activeTransactionId) {
     return;
   }
 
@@ -192,34 +191,16 @@ async function ensurePendingBundle() {
     playerId: "player_1",
     amount: 25,
   });
-  activeThreadId = String(staged.threadId || activeThreadId);
-  activePendingBundleId = String(staged.pendingBundleId || "");
+  activeTransactionId = String(staged.transactionId || "");
 }
 
 function resolveToolArgs(toolName: string) {
   const args = { ...(toolFixtures[toolName] || {}) };
-
   if (
-    [
-      "get_thread_state",
-      "list_thread_messages",
-      "list_thread_research_sources",
-      "get_pending_action",
-      "send_agent_message",
-    ].includes(toolName)
+    ["get_pending_action", "confirm_pending_action", "cancel_pending_action"].includes(toolName)
   ) {
-    args.threadId = activeThreadId;
+    args.transactionId = activeTransactionId;
   }
-
-  if (toolName === "send_agent_message") {
-    args.message = "stage preview_pool_buy player_1";
-  }
-
-  if (toolName === "confirm_pending_action" || toolName === "cancel_pending_action") {
-    args.threadId = activeThreadId;
-    args.pendingBundleId = activePendingBundleId;
-  }
-
   return args;
 }
 
@@ -233,8 +214,10 @@ try {
   assert.equal(listedTools.tools.length, buildPublicToolRegistry().length);
 
   for (const tool of buildPublicToolRegistry()) {
-    if (tool.name === "confirm_pending_action" || tool.name === "cancel_pending_action") {
-      await ensurePendingBundle();
+    if (
+      ["get_pending_action", "confirm_pending_action", "cancel_pending_action"].includes(tool.name)
+    ) {
+      await ensurePendingTransaction();
     }
 
     result = await invoke([
@@ -247,16 +230,11 @@ try {
     ]);
     assert.equal(result.exitCode, 0, `${tool.name}: ${result.stderr || result.stdout}`);
     const parsedResult = JSON.parse(result.stdout);
-    if (parsedResult.threadId) {
-      activeThreadId = String(parsedResult.threadId);
-    } else if (parsedResult.thread?.id) {
-      activeThreadId = String(parsedResult.thread.id);
-    }
-    if (parsedResult.pendingBundleId) {
-      activePendingBundleId = String(parsedResult.pendingBundleId);
+    if (parsedResult.transactionId && parsedResult.confirmationRequired) {
+      activeTransactionId = String(parsedResult.transactionId);
     }
     if (tool.name === "confirm_pending_action" || tool.name === "cancel_pending_action") {
-      activePendingBundleId = "";
+      activeTransactionId = "";
     }
   }
 

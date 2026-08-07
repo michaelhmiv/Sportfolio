@@ -6,8 +6,6 @@
 /.env.example @michaelhmiv
 /server/supabaseAuth.ts @michaelhmiv
 /server/supabaseClient.ts @michaelhmiv
-/server/agent/internal-auth.ts @michaelhmiv
-/server/hermes-sidecar.ts @michaelhmiv
 /server/mcp/ @michaelhmiv
 /server/routes/ @michaelhmiv
 /server/services/ @michaelhmiv

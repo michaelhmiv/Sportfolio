@@ -26,7 +26,7 @@ Sportfolio - A sports trading platform with real-time game scores, player market
 
 ## Context Orientation
 
-- Start with `docs/agent/CONTEXT_INDEX.md`, `docs/agent/REPO_MAP.md`, `docs/agent/CONTEXT_BUDGET.md`, and `docs/agent/REFACTOR_QUEUE.md`.
+- Start with `AGENTS.md`, `docs/architecture-module-ownership.md`, and the task-specific domain handbook chapter.
 - Prefer loading one task-specific vertical slice instead of broad repo-wide ingestion.
 
 ## Workflow Orchestration

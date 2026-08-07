@@ -9,7 +9,7 @@ test("special surfaces keep semantic hierarchy without overflow", async ({ page 
 
   const fixture = page.getByTestId("special-surfaces-fixture");
   await expect(fixture).toBeVisible();
-  await expect(page.getByText("Hermes structured output")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Special surfaces" })).toBeVisible();
   await expect(page.getByText("Pro market intelligence")).toBeVisible();
   await expect(page.getByText("Starting lineup confirmed")).toBeVisible();
 

@@ -6,17 +6,16 @@ This audit covers the complete frontend visual surface at baseline commit `d579b
 
 The master accounting ledger is [ui-surface-matrix.md](./ui-surface-matrix.md).
 
-| Inventory category                                     | Count | Accounting rule                                                                                                                      |
-| ------------------------------------------------------ | ----: | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Registered routes, aliases, redirects, and fallback    |    38 | Every `Route` branch in `client/src/App.tsx`, including protected aliases and `*`                                                    |
-| Visual `.tsx` files in pages, components, and features |   172 | Includes shared primitives, overlays, states, charts, tests with rendered fixtures, and currently unregistered agent/landing sources |
-| Global visual contracts                                |     5 | `App.tsx`, `index.css`, Tailwind, Capacitor, and sport context                                                                       |
-| Committed visual/native assets                         |    89 | Public assets, Android/iOS icons and splashes, and attached historical binaries                                                      |
-| Accounted matrix rows                                  |   304 | No frontend route or visual source file is intentionally omitted                                                                     |
-| CSS stylesheets under `client/src`                     |     1 | `client/src/index.css`                                                                                                               |
-| Shared UI primitive files                              |    60 | `client/src/components/ui/*.tsx`                                                                                                     |
-| Recharts consumers/helpers                             |     6 | Premium chart, shared chart primitive, Analytics, Player, Portfolio, and User Profile                                                |
-| Overlay/dialog/sheet/drawer/popover consumers          |    31 | Static source scan; usages require interaction validation                                                                            |
+| Inventory category                                  | Count | Accounting rule                                                                       |
+| --------------------------------------------------- | ----: | ------------------------------------------------------------------------------------- |
+| Registered routes, aliases, redirects, and fallback |    38 | Every `Route` branch in `client/src/App.tsx`, including protected aliases and `*`     |
+| Global visual contracts                             |     5 | `App.tsx`, `index.css`, Tailwind, Capacitor, and sport context                        |
+| Committed visual/native assets                      |    89 | Public assets, Android/iOS icons and splashes, and attached historical binaries       |
+| Accounted matrix rows                               |   304 | No frontend route or visual source file is intentionally omitted                      |
+| CSS stylesheets under `client/src`                  |     1 | `client/src/index.css`                                                                |
+| Shared UI primitive files                           |    60 | `client/src/components/ui/*.tsx`                                                      |
+| Recharts consumers/helpers                          |     6 | Premium chart, shared chart primitive, Analytics, Player, Portfolio, and User Profile |
+| Overlay/dialog/sheet/drawer/popover consumers       |    31 | Static source scan; usages require interaction validation                             |
 
 ## Baseline validation
 
@@ -75,15 +74,12 @@ The production capture does **not** claim coverage of signed-in, premium, admin,
 
 Static scans are prioritization signals; each match must be reviewed in context before replacement.
 
-| Signal                                             | Matches | Files | Highest-risk hotspots                                                                                                                       |
-| -------------------------------------------------- | ------: | ----: | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hardcoded semantic Tailwind colors                 |   1,431 |    81 | Game Command Center modal (104), agent conversation (73), Portfolio (67), Dashboard (55), agent strategies (54), Scout dashboard modal (52) |
-| Literal colors (`#…`, `rgb…`, non-variable `hsl…`) |     293 |    30 | `index.css` (87), agent strategies (61), mobile portfolio sheet (46), confetti (12), milestone ceremony (11)                                |
-| Functional/visual emoji from the targeted icon set |      29 |     6 | Bottom nav (11), marketplace scanners (5), player modal (5), sport context (4)                                                              |
-| Motion hooks/classes                               |     556 |    92 | Shared animations (61), milestone ceremony (25), collection/boost ceremonies (23 each), result podium/scout ceremony (20 each)              |
-| Decorative/glow/gradient/blur treatments           |      75 |    39 | Analytics (10), Dashboard (6), decorative primitives and Marketplace (5 each)                                                               |
-| White/dark-specific treatments                     |     565 |    37 | Unregistered agent feature dominates; Game Command Center also has 18                                                                       |
-| Arbitrary Tailwind radii                           |       7 |     4 | Scout dashboard, chart primitive, community boost selector, scroll area                                                                     |
+| Signal                                             | Matches | Files | Highest-risk hotspots                                                                                                          |
+| -------------------------------------------------- | ------: | ----: | ------------------------------------------------------------------------------------------------------------------------------ |
+| Functional/visual emoji from the targeted icon set |      29 |     6 | Bottom nav (11), marketplace scanners (5), player modal (5), sport context (4)                                                 |
+| Motion hooks/classes                               |     556 |    92 | Shared animations (61), milestone ceremony (25), collection/boost ceremonies (23 each), result podium/scout ceremony (20 each) |
+| Decorative/glow/gradient/blur treatments           |      75 |    39 | Analytics (10), Dashboard (6), decorative primitives and Marketplace (5 each)                                                  |
+| Arbitrary Tailwind radii                           |       7 |     4 | Scout dashboard, chart primitive, community boost selector, scroll area                                                        |
 
 ## Major findings
 
@@ -119,10 +115,6 @@ Motion appears in 92 source files. The bottom nav uses bounce, vertical movement
 
 ### 6. Light-mode risk is concentrated but significant
 
-The app has functional light/dark theme toggling and baseline screenshots show no theme-class mismatch. However, 565 white/dark-specific matches across 37 files indicate surfaces that bypass semantic foreground/surface tokens. The unregistered agent feature is the largest concentration; Game Command Center and several ceremony/card surfaces are active hotspots.
-
-**Required action:** do not infer compliance from global theme switching. Validate every active surface and explicitly account for the currently redirected agent source before changing or deferring it.
-
 ### 7. Shared primitives coexist with many direct component implementations
 
 There are 60 shared UI files, but direct styling remains widespread in product surfaces. Button-like links, chips, count badges, status dots, card accents, and nested panel treatments are not governed by one semantic variant contract.
@@ -148,8 +140,6 @@ Capacitor splash/status bar use `#0f1420`, status bar style is fixed to `DARK`, 
 **Required action:** coordinate native canvas/status/splash values with the final dark token and confirm light-theme/native system behavior. Do not change native routing, back handling, haptics, deep links, push behavior, or economics.
 
 ### 11. Orphan/unregistered surfaces need explicit disposition
-
-The matrix identifies files with no direct importer and records that `/agent` redirects to `/` while agent visual source remains in the repository. `landing.tsx` is also unregistered. Some components may be barrel-exported, test-only, or legacy rather than dead.
 
 **Required action:** never delete these during visual cleanup without proving reachability and receiving scope approval. Audit them for future compatibility or mark them intentionally deferred with a reason.
 
@@ -179,8 +169,6 @@ The route review found error/empty conflation on Dashboard, Pools, Leaderboards,
 
 ### 16. Auth-sensitive public declarations and blank redirects need coverage
 
-`/checkout/success`, `/sms/link`, and `/discord/link` are auth-sensitive but absent from `AUTH_BOOTSTRAP_REQUIRED_PREFIXES`. `/marketplace`, `/agent`, `/profile`, and legacy wiki redirects render `null` until a URL replacement effect runs. These behaviors can produce transient signed-out or blank frames.
-
 **Required action:** preserve the flows in the visual PR series, record them as compatibility cases, and exercise them with sanitized fixtures. Any bootstrap-prefix or redirect implementation change requires separate functional review.
 
 ### 17. Generic and sport-prefixed player routes overlap
@@ -191,13 +179,13 @@ The route review found error/empty conflation on Dashboard, Pools, Leaderboards,
 
 ## PR boundaries
 
-| PR  | Scope                                                                     | Safety rule                                                                    |
-| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| 1   | Audit, semantic tokens, shared primitives, deterministic visual harness   | No route-wide migration; compatibility variants remain                         |
-| 2   | Shell, nav map, sport SVGs, global statuses, safe-area chrome             | Preserve route subsets, preloading, haptics, auth gating, native back behavior |
-| 3   | Dashboard, market/player, portfolio, boosts, analytics, games, charts     | No server economics, API, query, WebSocket, or trading changes                 |
-| 4   | Scout/Hermes, premium, collections, milestones, ceremonies, native polish | Finite/reduced motion; no overlapping overlays; preserve entitlements          |
-| 5   | Public, auth, editorial, legal, admin, accessibility, final cleanup       | Preserve SEO, callbacks, external links, authorization, and route semantics    |
+| PR  | Scope                                                                   | Safety rule                                                                    |
+| --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 1   | Audit, semantic tokens, shared primitives, deterministic visual harness | No route-wide migration; compatibility variants remain                         |
+| 2   | Shell, nav map, sport SVGs, global statuses, safe-area chrome           | Preserve route subsets, preloading, haptics, auth gating, native back behavior |
+| 3   | Dashboard, market/player, portfolio, boosts, analytics, games, charts   | No server economics, API, query, WebSocket, or trading changes                 |
+| 4   | Premium, collections, milestones, ceremonies, and native polish         | Finite/reduced motion; no overlapping overlays; preserve entitlements          |
+| 5   | Public, auth, editorial, legal, admin, accessibility, final cleanup     | Preserve SEO, callbacks, external links, authorization, and route semantics    |
 
 Each PR must be independently buildable, testable, and reviewable. Pull requests remain unmerged.
 

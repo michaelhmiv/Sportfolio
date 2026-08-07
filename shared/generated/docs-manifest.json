@@ -1,339 +1,6 @@
 {
-  "generatedAt": "2026-07-12T21:51:51.088Z",
+  "generatedAt": "2026-08-06T18:01:52.746Z",
   "articles": [
-    {
-      "id": "agent-android-notification-audit-2026-05-28",
-      "title": "Android Notification Audit (2026-05-28)",
-      "summary": "End-to-end audit of Android push registration, token lifecycle, preference gating, provider delivery, and diagnostics with concrete remediation notes.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-28",
-      "changeTriggers": [
-        "client/src/lib/mobile-push.ts",
-        "server/routes/mobile-push-notifications.ts",
-        "server/services/push-notifications.ts"
-      ],
-      "slug": "android-notification-audit-2026-05-28",
-      "section": "agent",
-      "surface": ["agent"],
-      "searchKeywords": [
-        "android",
-        "push",
-        "notifications",
-        "fcm",
-        "token",
-        "lifecycle",
-        "diagnostics",
-        "audit"
-      ],
-      "urlPath": "/wiki/agent/android-notification-audit-2026-05-28"
-    },
-    {
-      "id": "agent-api-map",
-      "title": "API Map",
-      "summary": "Practical map of the API surface most likely to affect gameplay and economics, organized by auth mode and endpoint domain.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-02",
-      "changeTriggers": ["server/routes.ts", "server/routes/amm.ts", "server/routes/lp.ts"],
-      "slug": "api-map",
-      "section": "agent",
-      "surface": ["agent"],
-      "searchKeywords": [
-        "api",
-        "endpoints",
-        "routes",
-        "auth",
-        "amm",
-        "lp",
-        "scouts",
-        "boosts",
-        "admin",
-        "websocket"
-      ],
-      "urlPath": "/wiki/agent/api-map"
-    },
-    {
-      "id": "agent-binary-files-root-cause",
-      "title": "Binary File Commit Failures",
-      "summary": "Root cause analysis for intermittent commit/PR failures when binary files are involved in agent-generated changes.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-02",
-      "changeTriggers": [".agent/workflows/*"],
-      "slug": "binary-files-root-cause",
-      "section": "agent",
-      "surface": ["agent"],
-      "searchKeywords": ["binary", "commit", "pr", "failure", "git", "root cause"],
-      "urlPath": "/wiki/agent/binary-files-root-cause"
-    },
-    {
-      "id": "agent-current-surface",
-      "title": "Agent Current Surface",
-      "summary": "The stable Hermes contract for testing and curation: tool tiers, MCP roles, staged mutations, autonomous strategy scope.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": [
-        "server/agent/hermes-orchestrator.ts",
-        "server/agent/hermes-tools.ts",
-        "server/mcp/public-tool-registry.ts"
-      ],
-      "slug": "current-surface",
-      "section": "agent",
-      "surface": ["agent"],
-      "searchKeywords": [
-        "hermes",
-        "contract",
-        "tools",
-        "mcp",
-        "strategies",
-        "autonomous",
-        "confirmation",
-        "memory"
-      ],
-      "urlPath": "/wiki/agent/current-surface"
-    },
-    {
-      "id": "agent-data-model-economy",
-      "title": "Data Model & Economy",
-      "summary": "Core schema and economic primitives: holdings, players, users, AMM pools, LP positions, scout history, and vesting.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-02",
-      "changeTriggers": ["shared/schema.ts", "server/amm/pool.ts", "shared/vesting-utils.ts"],
-      "slug": "data-model-economy",
-      "section": "agent",
-      "surface": ["agent"],
-      "searchKeywords": [
-        "schema",
-        "holdings",
-        "players",
-        "users",
-        "pools",
-        "lp",
-        "scouts",
-        "vesting",
-        "schema"
-      ],
-      "urlPath": "/wiki/agent/data-model-economy"
-    },
-    {
-      "id": "agent-hermes-product-contract",
-      "title": "Hermes Product Contract",
-      "summary": "Canonical internal contract for how Hermes should behave inside Sportfolio: tool tiers, MCP precedence, confirmation boundaries.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": [
-        "server/agent/hermes-orchestrator.ts",
-        "server/agent/hermes-tools.ts",
-        "server/mcp/public-tool-registry.ts",
-        "docs/wiki/agent/hermes-product-contract.md"
-      ],
-      "slug": "hermes-product-contract",
-      "section": "agent",
-      "surface": ["agent"],
-      "searchKeywords": [
-        "hermes",
-        "contract",
-        "tool tiers",
-        "mcp",
-        "confirmation",
-        "memory",
-        "skills",
-        "non-goals"
-      ],
-      "urlPath": "/wiki/agent/hermes-product-contract"
-    },
-    {
-      "id": "agent-mcp-tool-reference",
-      "title": "MCP Tool Reference",
-      "summary": "Curated high-signal reference for Sportfolio public MCP behavior: naming, confirmation semantics, payload structure, and truncation handling.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": ["server/mcp/public-tool-registry.ts", "server/routes/mcp.ts"],
-      "slug": "mcp-tool-reference",
-      "section": "agent",
-      "surface": ["web", "agent"],
-      "searchKeywords": [
-        "mcp",
-        "tools",
-        "catalog",
-        "truncation",
-        "structuredContent",
-        "confirmation",
-        "mlb"
-      ],
-      "urlPath": "/wiki/agent/mcp-tool-reference"
-    },
-    {
-      "id": "agent-product-mechanics",
-      "title": "Product Mechanics",
-      "summary": "Gameplay and economic loops as implemented in code: AMM trading, LP, scouts, boosts, community boosts, and payouts.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-02",
-      "changeTriggers": [
-        "server/amm/pool.ts",
-        "server/routes/amm.ts",
-        "server/routes/lp.ts",
-        "server/routes.ts",
-        "server/jobs/scout-distribution.ts",
-        "server/jobs/settle-boosts.ts",
-        "shared/schema.ts"
-      ],
-      "slug": "product-mechanics",
-      "section": "agent",
-      "surface": ["web", "agent"],
-      "searchKeywords": [
-        "amm",
-        "lp",
-        "scouts",
-        "boosts",
-        "payouts",
-        "trading",
-        "economics",
-        "formulas"
-      ],
-      "urlPath": "/wiki/agent/product-mechanics"
-    },
-    {
-      "id": "agent-runbooks",
-      "title": "Agent Runbooks",
-      "summary": "Safe change procedures for any modification that affects formulas, balances, share supply, payouts, or job timing.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": [
-        "server/amm/pool.ts",
-        "server/routes/amm.ts",
-        "server/routes/lp.ts",
-        "server/routes.ts",
-        "server/storage.ts",
-        "server/jobs/*"
-      ],
-      "slug": "runbooks",
-      "section": "agent",
-      "surface": ["agent"],
-      "searchKeywords": [
-        "runbook",
-        "validation",
-        "checklist",
-        "amm",
-        "boost",
-        "vesting",
-        "auth",
-        "safety"
-      ],
-      "urlPath": "/wiki/agent/runbooks"
-    },
-    {
-      "id": "agent-runtime-model",
-      "title": "Agent Runtime Model",
-      "summary": "A deeper explanation of Hermes in Sportfolio: threads, continuity, staged plans, tool tiers, MCP precedence, and safety boundaries.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": [
-        "server/agent/hermes-orchestrator.ts",
-        "server/agent/hermes-tools.ts",
-        "server/agent/memory.ts",
-        "server/agent/schedules.ts",
-        "client/src/features/agent"
-      ],
-      "slug": "runtime-model",
-      "section": "agent",
-      "surface": ["web", "cli", "agent"],
-      "searchKeywords": [
-        "agent runtime",
-        "threads",
-        "memory",
-        "confirm",
-        "cancel",
-        "research",
-        "schedules",
-        "mcp",
-        "strategies"
-      ],
-      "urlPath": "/wiki/agent/runtime-model"
-    },
-    {
-      "id": "agent-strategies",
-      "title": "Saved Strategies",
-      "summary": "How saved strategies work in Sportfolio - what they can automate, how mandates and guardrails are set, and what stays outside their scope.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": [
-        "server/agent/schedules.ts",
-        "server/agent/hermes-orchestrator.ts",
-        "client/src/features/agent",
-        "shared/schema.ts"
-      ],
-      "slug": "strategies",
-      "section": "agent",
-      "surface": ["web", "agent"],
-      "searchKeywords": [
-        "strategies",
-        "saved strategies",
-        "scheduled",
-        "automation",
-        "mandate",
-        "guardrails",
-        "advisory",
-        "auto-execute"
-      ],
-      "urlPath": "/wiki/agent/strategies"
-    },
-    {
-      "id": "agent-task-definitions",
-      "title": "Agent Task Definitions",
-      "summary": "Minimal task contracts for autonomous PLAN → IMPLEMENT → BUILD → TEST → FIX loops with quality gates.",
-      "audience": "public",
-      "category": "agent",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-07-12",
-      "changeTriggers": ["AGENTS.md", "CLAUDE.md"],
-      "slug": "task-definitions",
-      "section": "agent",
-      "surface": ["agent"],
-      "searchKeywords": [
-        "tasks",
-        "plan",
-        "implement",
-        "build",
-        "test",
-        "fix",
-        "quality gates",
-        "checklist"
-      ],
-      "urlPath": "/wiki/agent/task-definitions"
-    },
     {
       "id": "changelog-2026-03-02-knowledge-hub",
       "title": "Knowledge Hub and CLI Foundation",
@@ -349,36 +16,6 @@
       "surface": ["web", "cli"],
       "searchKeywords": ["changelog", "wiki", "docs", "cli", "api tokens"],
       "urlPath": "/wiki/changelog/2026-03-02-knowledge-hub"
-    },
-    {
-      "id": "changelog-2026-05-12-interface-contract-refresh",
-      "title": "Agent, CLI, and MCP Contract Refresh",
-      "summary": "Wiki contract refresh that aligns agent autonomy language, corrects CLI helper docs, and moves MCP inventory claims to live catalog resources.",
-      "audience": "public",
-      "category": "changelog",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": [
-        "docs/wiki/agent/current-surface.md",
-        "docs/wiki/getting-started/mcp-access.md",
-        "docs/wiki/features/user-action-surface.md",
-        "packages/sportfolio-cli/src/index.mjs",
-        "server/routes/mcp.ts",
-        "server/mcp/public-tool-registry.ts"
-      ],
-      "slug": "2026-05-12-interface-contract-refresh",
-      "section": "changelog",
-      "surface": ["web", "cli", "agent"],
-      "searchKeywords": [
-        "changelog",
-        "agent contract",
-        "cli docs",
-        "mcp catalog",
-        "session lifecycle",
-        "wiki drift"
-      ],
-      "urlPath": "/wiki/changelog/2026-05-12-interface-contract-refresh"
     },
     {
       "id": "cli-command-reference",
@@ -398,7 +35,7 @@
       ],
       "slug": "command-reference",
       "section": "cli",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": [
         "cli commands",
         "quickstart",
@@ -412,12 +49,12 @@
     {
       "id": "cli-overview",
       "title": "CLI and External Access",
-      "summary": "How to use the Sportfolio CLI for documentation, shared public tool access, account actions, and its relationship to public MCP and Hermes.",
+      "summary": "How to use the Sportfolio CLI for documentation, shared public tools, and account actions.",
       "audience": "public",
       "category": "cli",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
+      "lastReviewedAt": "2026-08-06",
       "changeTriggers": [
         "packages/sportfolio-cli",
         "server/routes/cli.ts",
@@ -433,12 +70,10 @@
         "terminal",
         "auth",
         "actions",
-        "agent",
         "docs",
         "mcp",
         "external access",
-        "model context protocol",
-        "hermes"
+        "model context protocol"
       ],
       "urlPath": "/wiki/cli/overview"
     },
@@ -461,8 +96,8 @@
       ],
       "slug": "common-questions",
       "section": "faq",
-      "surface": ["web", "cli", "agent"],
-      "searchKeywords": ["faq", "questions", "trading", "stacking", "boosts", "agent", "premium"],
+      "surface": ["web", "cli"],
+      "searchKeywords": ["faq", "questions", "trading", "stacking", "boosts", "premium"],
       "urlPath": "/wiki/faq/common-questions"
     },
     {
@@ -483,7 +118,7 @@
       ],
       "slug": "glossary",
       "section": "faq",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": [
         "glossary",
         "terms",
@@ -497,36 +132,6 @@
       "urlPath": "/wiki/faq/glossary"
     },
     {
-      "id": "feature-agent-operator",
-      "title": "Sportfolio Agent",
-      "summary": "The full user-facing contract for Hermes in Sportfolio: what it reads well, what it can stage, how strategies fit, and where the safety boundaries stay.",
-      "audience": "public",
-      "category": "features",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": [
-        "server/agent",
-        "client/src/features/agent",
-        "client/src/pages/agent.tsx",
-        "server/routes.ts",
-        "server/jobs/scheduler.ts"
-      ],
-      "slug": "agent-operator",
-      "section": "features",
-      "surface": ["web", "cli", "agent"],
-      "searchKeywords": [
-        "agent",
-        "operator",
-        "confirmation",
-        "hermes",
-        "threads",
-        "strategies",
-        "mcp"
-      ],
-      "urlPath": "/wiki/features/agent-operator"
-    },
-    {
       "id": "feature-analytics",
       "title": "Analytics",
       "summary": "What the Sportfolio Analytics surface covers, how to read market health signals, and when to use analytics versus the live player view.",
@@ -538,7 +143,7 @@
       "changeTriggers": ["client/src/pages/analytics.tsx", "server/routes.ts", "shared/schema.ts"],
       "slug": "analytics",
       "section": "features",
-      "surface": ["web", "agent"],
+      "surface": ["web"],
       "searchKeywords": [
         "analytics",
         "market health",
@@ -570,7 +175,7 @@
       ],
       "slug": "platform-systems",
       "section": "features",
-      "surface": ["web", "agent"],
+      "surface": ["web"],
       "searchKeywords": [
         "dashboard",
         "analytics",
@@ -599,7 +204,7 @@
       ],
       "slug": "premium",
       "section": "features",
-      "surface": ["web", "agent"],
+      "surface": ["web"],
       "searchKeywords": [
         "premium",
         "scout capacity",
@@ -609,35 +214,6 @@
         "entitlement"
       ],
       "urlPath": "/wiki/features/premium"
-    },
-    {
-      "id": "feature-sms-agent",
-      "title": "SMS Agent (Legacy)",
-      "summary": "Legacy reference for the SMS channel: how linking worked, what text flows supported, and what remained web-only.",
-      "audience": "public",
-      "category": "features",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
-      "changeTriggers": [
-        "server/sms-service.ts",
-        "server/routes/sms.ts",
-        "server/services/telnyx-sms.ts",
-        "client/src/components/sms-access-card.tsx",
-        "client/src/pages/sms-link.tsx"
-      ],
-      "slug": "sms-agent",
-      "section": "features",
-      "surface": ["web", "agent"],
-      "searchKeywords": [
-        "sms",
-        "text",
-        "telnyx",
-        "phone link",
-        "guest concierge",
-        "linked account"
-      ],
-      "urlPath": "/wiki/features/sms-agent"
     },
     {
       "id": "feature-user-action-surface",
@@ -660,8 +236,8 @@
       ],
       "slug": "user-action-surface",
       "section": "features",
-      "surface": ["web", "cli", "agent"],
-      "searchKeywords": ["capabilities", "actions", "feature map", "web", "cli", "mcp", "agent"],
+      "surface": ["web", "cli"],
+      "searchKeywords": ["capabilities", "actions", "feature map", "web", "cli", "mcp"],
       "urlPath": "/wiki/features/user-action-surface"
     },
     {
@@ -682,7 +258,7 @@
       ],
       "slug": "watchlists-and-news",
       "section": "features",
-      "surface": ["web", "agent"],
+      "surface": ["web"],
       "searchKeywords": [
         "watchlist",
         "news",
@@ -712,7 +288,7 @@
       ],
       "slug": "leaderboards-and-progress",
       "section": "gameplay",
-      "surface": ["web", "agent"],
+      "surface": ["web"],
       "searchKeywords": [
         "leaderboards",
         "rankings",
@@ -742,7 +318,7 @@
       ],
       "slug": "liquidity-providing",
       "section": "gameplay",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": [
         "lp",
         "liquidity",
@@ -775,7 +351,7 @@
       ],
       "slug": "player-pools",
       "section": "gameplay",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": ["amm", "pools", "buy", "sell", "liquidity", "quotes", "slippage", "lp"],
       "urlPath": "/wiki/gameplay/player-pools"
     },
@@ -796,7 +372,7 @@
       ],
       "slug": "portfolio-and-holdings",
       "section": "gameplay",
-      "surface": ["web", "agent"],
+      "surface": ["web"],
       "searchKeywords": [
         "portfolio",
         "holdings",
@@ -827,7 +403,7 @@
       ],
       "slug": "scouts-and-rewards",
       "section": "gameplay",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": [
         "scouts",
         "share rewards",
@@ -855,7 +431,7 @@
       ],
       "slug": "sports-and-slates",
       "section": "gameplay",
-      "surface": ["web", "agent"],
+      "surface": ["web"],
       "searchKeywords": [
         "sports",
         "supported sports",
@@ -889,7 +465,7 @@
       ],
       "slug": "stacking-shares-and-boosts",
       "section": "gameplay",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": [
         "stack shares",
         "singles",
@@ -920,7 +496,7 @@
       ],
       "slug": "access",
       "section": "getting-started",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": [
         "access",
         "how do i access sportfolio",
@@ -928,7 +504,6 @@
         "model context protocol",
         "cli",
         "api token",
-        "agent",
         "wiki",
         "mobile"
       ],
@@ -937,12 +512,12 @@
     {
       "id": "getting-started-mcp-access",
       "title": "MCP Compatibility Endpoint",
-      "summary": "How to connect to Sportfolio's optional public authenticated MCP compatibility endpoint, including auth, session lifecycle, and capability boundaries.",
+      "summary": "How to connect to Sportfolio's authenticated MCP endpoint, including auth, session lifecycle, tools, and transaction safety.",
       "audience": "public",
       "category": "getting-started",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
+      "lastReviewedAt": "2026-08-06",
       "changeTriggers": [
         "server/routes/mcp.ts",
         "server/mcp/public-tool-registry.ts",
@@ -951,7 +526,7 @@
       ],
       "slug": "mcp-access",
       "section": "getting-started",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": [
         "mcp",
         "model context protocol",
@@ -960,7 +535,6 @@
         "api token",
         "external access",
         "endpoint",
-        "hermes",
         "session"
       ],
       "urlPath": "/wiki/getting-started/mcp-access"
@@ -984,7 +558,7 @@
       ],
       "slug": "overview",
       "section": "getting-started",
-      "surface": ["web", "cli", "agent"],
+      "surface": ["web", "cli"],
       "searchKeywords": ["onboarding", "start", "balance", "portfolio", "first steps", "overview"],
       "urlPath": "/wiki/getting-started/overview"
     },
@@ -1007,51 +581,9 @@
       ],
       "slug": "platform-tour",
       "section": "getting-started",
-      "surface": ["web", "agent"],
+      "surface": ["web"],
       "searchKeywords": ["site map", "platform tour", "navigation", "pages", "features"],
       "urlPath": "/wiki/getting-started/platform-tour"
-    },
-    {
-      "id": "internal-agent-skills",
-      "title": "Agent Skills Governance",
-      "summary": "Internal reference for Hermes runtime skills and the admin approval boundary.",
-      "audience": "internal",
-      "category": "internal",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-03",
-      "changeTriggers": [
-        "server/agent/hermes-orchestrator.ts",
-        "server/agent/skills.ts",
-        "server/routes.ts",
-        "shared/schema.ts"
-      ],
-      "slug": "agent-skills",
-      "section": "internal",
-      "surface": ["internal"],
-      "searchKeywords": ["hermes", "skills", "agent", "approval", "review"],
-      "urlPath": "/wiki/internal/agent-skills"
-    },
-    {
-      "id": "internal-telnyx-sms-setup",
-      "title": "Telnyx SMS Setup",
-      "summary": "Internal setup reference for the Sportfolio Telnyx SMS channel.",
-      "audience": "internal",
-      "category": "internal",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-02",
-      "changeTriggers": [
-        "server/routes/sms.ts",
-        "server/sms-service.ts",
-        "server/services/telnyx-sms.ts",
-        ".env.example"
-      ],
-      "slug": "telnyx-sms-setup",
-      "section": "internal",
-      "surface": ["internal"],
-      "searchKeywords": ["telnyx", "sms", "webhook", "env", "setup"],
-      "urlPath": "/wiki/internal/telnyx-sms-setup"
     }
   ]
 }

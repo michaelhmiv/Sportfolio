@@ -149,7 +149,10 @@ export default function Terms() {
           {section.id === "contact" ? (
             <p>
               Questions about these terms or Sportfolio's connected applications may be sent to{" "}
-              <a className="font-medium text-brand underline underline-offset-4" href={`mailto:${SPORTFOLIO_SUPPORT_EMAIL}`}>
+              <a
+                className="font-medium text-brand underline underline-offset-4"
+                href={`mailto:${SPORTFOLIO_SUPPORT_EMAIL}`}
+              >
                 {SPORTFOLIO_SUPPORT_EMAIL}
               </a>
               .

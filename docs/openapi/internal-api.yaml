@@ -3,7 +3,7 @@ info:
   title: Sportfolio Internal API (Core Surface)
   version: 0.1.0
   description: >-
-    Agent-focused API contract snapshot for critical endpoints. This file is intended
+    Internal API contract snapshot for critical endpoints. This file is intended
     to be expanded as routes are modularized.
 servers:
   - url: http://localhost:5000
