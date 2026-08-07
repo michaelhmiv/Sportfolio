@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
 import {
   accountDeletionRequests,
+  authIdentities,
+  authUsers,
   userApiTokens,
   userBadgePreferences,
   userFeaturedCollections,
@@ -28,67 +29,26 @@ export const ACCOUNT_DELETION_CONFIRMATION_TEXT = "DELETE";
 
 let accountDeletionProcessorTimer: NodeJS.Timeout | null = null;
 
-const supabaseUrl = process.env.SUPABASE_URL?.trim() || "";
-const supabaseServiceRoleKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || process.env.SUPABASE_KEY?.trim() || "";
-
-const supabaseAdmin =
-  supabaseUrl && supabaseServiceRoleKey
-    ? createClient(supabaseUrl, supabaseServiceRoleKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      })
-    : null;
-
-function getDeletionGraceWindowMs(): number {
-  const configuredHours = Number(process.env.ACCOUNT_DELETION_GRACE_HOURS);
-  const safeHours = Number.isFinite(configuredHours)
-    ? Math.max(MIN_DELETION_GRACE_HOURS, Math.min(MAX_DELETION_GRACE_HOURS, configuredHours))
-    : DEFAULT_DELETION_GRACE_HOURS;
-  return Math.round(safeHours * 60 * 60 * 1000);
-}
-
-function getProcessorIntervalMs(): number {
-  const configuredMs = Number(process.env.ACCOUNT_DELETION_PROCESSOR_INTERVAL_MS);
-  if (!Number.isFinite(configuredMs)) return DEFAULT_PROCESSOR_INTERVAL_MS;
-  return Math.max(15_000, Math.min(10 * 60_000, Math.round(configuredMs)));
-}
-
-function toMetadataObject(metadata: unknown): Record<string, unknown> {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return {};
-  }
-  return metadata as Record<string, unknown>;
-}
-
-function hashIdentifier(value: string): string {
-  return createHash("sha256").update(value).digest("hex").slice(0, 12);
-}
-
-function buildDeletedUsername(userId: string): string {
-  return `deleted_${userId.slice(0, 8)}_${randomUUID().slice(0, 8)}`.toLowerCase();
-}
-
-async function deleteSupabaseAuthUser(
+async function deleteBetterAuthUsersForCanonicalUser(
   userId: string,
-): Promise<{ deleted: boolean; error: string | null }> {
-  if (!supabaseAdmin) {
-    return { deleted: false, error: "supabase_admin_unconfigured" };
-  }
-
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
-  if (error) {
-    const status = "status" in error ? Number(error.status) : 0;
-    const message = error.message || "supabase_delete_failed";
-    if (status === 404 || /user\s+not\s+found/i.test(message)) {
-      return { deleted: true, error: null };
+): Promise<{ deleted: boolean; count: number; error: string | null }> {
+  try {
+    const identities = await db
+      .select({ authUserId: authIdentities.authUserId })
+      .from(authIdentities)
+      .where(eq(authIdentities.sportfolioUserId, userId));
+    const ids = [...new Set(identities.map((identity) => identity.authUserId))];
+    for (const authUserId of ids) {
+      await db.delete(authUsers).where(eq(authUsers.id, authUserId));
     }
-    return { deleted: false, error: message };
+    return { deleted: true, count: ids.length, error: null };
+  } catch (error) {
+    return {
+      deleted: false,
+      count: 0,
+      error: error instanceof Error ? error.message : "better_auth_delete_failed",
+    };
   }
-
-  return { deleted: true, error: null };
 }
 
 export async function ensureAccountDeletionSchema(): Promise<void> {
@@ -392,16 +352,11 @@ async function processSingleAccountDeletionRequest(
     return "failed";
   }
 
-  const authDeletionResults = await Promise.all(
-    lockResult.authProviderSubjects.map((subject) => deleteSupabaseAuthUser(subject)),
-  );
+  const authDeletionResult = await deleteBetterAuthUsersForCanonicalUser(lockResult.userId);
   const authDeletion = {
-    deleted: authDeletionResults.every((result) => result.deleted),
-    error:
-      authDeletionResults
-        .map((result) => result.error)
-        .filter(Boolean)
-        .join("; ") || undefined,
+    deleted: authDeletionResult.deleted,
+    error: authDeletionResult.error || undefined,
+    count: authDeletionResult.count,
   };
   const completionTime = new Date();
 
@@ -415,7 +370,7 @@ async function processSingleAccountDeletionRequest(
         ...toMetadataObject(lockResult.request.metadata),
         ...(authDeletion.deleted ? { processedAtIso: completionTime.toISOString() } : {}),
         authDeletionAttemptedAtIso: completionTime.toISOString(),
-        authDeletionSubjectCount: lockResult.authProviderSubjects.length,
+        authDeletionSubjectCount: authDeletion.count,
         authDeletionStatus: authDeletion.deleted ? "deleted" : "retry_pending",
         authDeletionError: authDeletion.error,
       },
@@ -430,7 +385,7 @@ async function processSingleAccountDeletionRequest(
       authDeletionStatus: authDeletion.deleted ? "deleted" : "not_deleted",
       deletedUsername: lockResult.deletedUsername,
     },
-    "[ACCOUNT_DELETION] Processed account deletion request",
+    "[ACCOUNT_DELETION] Processed Better Auth account deletion request",
   );
 
   return authDeletion.deleted ? "completed" : "failed";
