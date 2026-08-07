@@ -29,6 +29,35 @@ export const ACCOUNT_DELETION_CONFIRMATION_TEXT = "DELETE";
 
 let accountDeletionProcessorTimer: NodeJS.Timeout | null = null;
 
+function getDeletionGraceWindowMs(): number {
+  const configuredHours = Number(process.env.ACCOUNT_DELETION_GRACE_HOURS);
+  const safeHours = Number.isFinite(configuredHours)
+    ? Math.max(MIN_DELETION_GRACE_HOURS, Math.min(MAX_DELETION_GRACE_HOURS, configuredHours))
+    : DEFAULT_DELETION_GRACE_HOURS;
+  return Math.round(safeHours * 60 * 60 * 1000);
+}
+
+function getProcessorIntervalMs(): number {
+  const configuredMs = Number(process.env.ACCOUNT_DELETION_PROCESSOR_INTERVAL_MS);
+  if (!Number.isFinite(configuredMs)) return DEFAULT_PROCESSOR_INTERVAL_MS;
+  return Math.max(15_000, Math.min(10 * 60_000, Math.round(configuredMs)));
+}
+
+function toMetadataObject(metadata: unknown): Record<string, unknown> {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return {};
+  }
+  return metadata as Record<string, unknown>;
+}
+
+function hashIdentifier(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
+
+function buildDeletedUsername(userId: string): string {
+  return `deleted_${userId.slice(0, 8)}_${randomUUID().slice(0, 8)}`.toLowerCase();
+}
+
 async function deleteBetterAuthUsersForCanonicalUser(
   userId: string,
 ): Promise<{ deleted: boolean; count: number; error: string | null }> {

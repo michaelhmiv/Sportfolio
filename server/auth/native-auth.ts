@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import type { Express, Request, Response } from "express";
+import type { Express, Request } from "express";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -50,7 +50,7 @@ async function submitNativeMagicLink(
   email: string,
   callbackURL: string,
   config: AuthRuntimeConfig,
-): Promise<Response> {
+): Promise<globalThis.Response> {
   if (!config.BETTER_AUTH_URL) throw new Error("BETTER_AUTH_URL_REQUIRED");
   const endpoint = new URL(`${BETTER_AUTH_BASE_PATH}/sign-in/magic-link`, config.BETTER_AUTH_URL);
   return getBetterAuthServer(config).handler(
@@ -62,7 +62,7 @@ async function submitNativeMagicLink(
       },
       body: JSON.stringify({ email, name: "Sportfolio User", callbackURL }),
     }),
-  ) as unknown as Promise<Response>;
+  ) as unknown as Promise<globalThis.Response>;
 }
 
 async function createNativeContinuation(
