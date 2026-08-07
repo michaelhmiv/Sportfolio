@@ -9,7 +9,7 @@ import {
 } from "./auth-supabase-inventory";
 
 describe("Supabase exit inventory", () => {
-  it("classifies current dependency surfaces deterministically", () => {
+  it("classifies known migration and historical surfaces deterministically", () => {
     expect(classifySupabasePath("client/src/lib/supabase.ts")).toBe("client-auth");
     expect(classifySupabasePath("server/supabaseAuth.ts")).toBe("server-auth");
     expect(classifySupabasePath("server/services/account-deletion.ts")).toBe("account-lifecycle");
@@ -32,12 +32,17 @@ describe("Supabase exit inventory", () => {
     expect(result.unclassified).toEqual(["unknown/bridge.ts"]);
   });
 
-  it("renders the repository inventory with no unclassified references", () => {
+  it("renders the repository inventory with no unclassified or retired runtime files", () => {
     const result = collectSupabaseInventory();
     expect(result.unclassified).toEqual([]);
     expect(result.entries.length).toBeGreaterThan(0);
+
     const report = renderSupabaseInventory(result.entries);
-    expect(report).toContain("Railway Postgres remains authoritative");
-    expect(report).toContain("server/supabaseAuth.ts");
+    expect(report).toContain("Railway Postgres is authoritative");
+    expect(report).toContain("Better Auth with Resend passwordless delivery");
+    expect(report).toContain("scripts/auth-supabase-inventory.ts");
+    expect(report).not.toContain("`server/supabaseAuth.ts`");
+    expect(report).not.toContain("`server/supabaseClient.ts`");
+    expect(report).not.toContain("`client/src/lib/supabase.ts`");
   });
 });
