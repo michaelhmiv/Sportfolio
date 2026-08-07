@@ -24,7 +24,7 @@ function testConfig(provider: "SUPABASE" | "DUAL" = "DUAL") {
     AUTH_DATABASE_ENVIRONMENT: "production",
     AUTH_SHARED_PRODUCTION_DATABASE: "true",
     BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
-    BETTER_AUTH_URL: "https://auth.sportfolio.market",
+    BETTER_AUTH_URL: "https://beta.sportfolio.market",
     BETTER_AUTH_COOKIE_DOMAIN: ".sportfolio.market",
     BETTER_AUTH_TRUSTED_ORIGINS: "sportfolio://,capacitor://localhost",
   });
@@ -44,7 +44,7 @@ describe("Better Auth server foundation", () => {
   it("keeps password registration unavailable", async () => {
     const auth = createBetterAuthServer(testConfig(), async () => undefined);
     const response = await auth.handler(
-      new Request(`https://auth.sportfolio.market${BETTER_AUTH_BASE_PATH}/sign-up/email`, {
+      new Request(`https://beta.sportfolio.market${BETTER_AUTH_BASE_PATH}/sign-up/email`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
