@@ -47,6 +47,26 @@ describe("auth environment safety", () => {
     expect(config.AUTH_SUPABASE_FALLBACK_EXPIRES_AT).toBeUndefined();
   });
 
+  it("accepts a blank optional cookie domain in a same-origin Better Auth production runtime", () => {
+    const config = authEnvironmentSchema.parse({
+      ...base,
+      AUTH_PROVIDER: "BETTER_AUTH",
+      AUTH_SUPABASE_FALLBACK_ENABLED: "false",
+      AUTH_MAGIC_LINK_ENABLED: "true",
+      AUTH_OAUTH_PROVIDER_ENABLED: "true",
+      BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
+      BETTER_AUTH_URL: "https://www.sportfolio.market",
+      BETTER_AUTH_COOKIE_DOMAIN: "",
+      RESEND_API_KEY: "re_test",
+      RESEND_WEBHOOK_SECRET: "whsec_test",
+      AUTH_EMAIL_FROM: "Sportfolio <login@sportfolio.market>",
+      PLUGIN_OAUTH_ISSUER: "https://www.sportfolio.market/api/auth/better",
+      PLUGIN_MCP_RESOURCE: "https://www.sportfolio.market/mcp/plugin",
+    });
+    expect(config.AUTH_PROVIDER).toBe("BETTER_AUTH");
+    expect(config.BETTER_AUTH_COOKIE_DOMAIN).toBeUndefined();
+  });
+
   it("allows beta to intentionally share the production database", () => {
     const config = authEnvironmentSchema.parse(sharedBeta);
     expect(config.AUTH_ENVIRONMENT).toBe("beta");
