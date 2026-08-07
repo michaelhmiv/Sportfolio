@@ -1,0 +1,35 @@
+name: Finalization Tests Only
+
+on:
+  push:
+    branches:
+      - finalization/2026-08-07
+    paths:
+      - .github/workflows/finalization-tests-only.yml
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: finalization/2026-08-07
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Unit and integration tests
+        shell: bash
+        run: |
+          set +e
+          npm run test:run -- --reporter=default 2>&1 | tee /tmp/vitest-output.txt
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "===== COMPACT TEST FAILURE SUMMARY ====="
+            grep -E -B 3 -A 14 'FAIL |Failed Tests|AssertionError|expected .* received|Error:|Test Files|Tests ' /tmp/vitest-output.txt | tail -n 900 || true
+          fi
+          exit "$status"
