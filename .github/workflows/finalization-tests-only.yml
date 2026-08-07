@@ -53,3 +53,5 @@ jobs:
             "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/411/comments" \
             --data-binary @/tmp/comment.json
           exit "$status"
+
+# final validation trigger
