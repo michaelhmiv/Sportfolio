@@ -8,8 +8,6 @@ vite.config.ts.*
 .codex-agent-dev.log
 tmp/
 .claude/worktrees/
-vendor/mlb-mcp/
-supabase/.temp/
 .env
 .env.*
 !.env.example
