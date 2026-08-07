@@ -3,7 +3,7 @@ import express from "express";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CollectionDomainError } from "./state-engine";
 
-vi.mock("../supabaseAuth", () => ({
+vi.mock("../auth/runtime-auth", () => ({
   isAuthenticated: (req: any, res: any, next: () => void) => {
     const userId = req.header("x-user-id");
     if (!userId) {

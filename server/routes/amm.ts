@@ -10,7 +10,7 @@
 
 import { Express } from "express";
 import { getPool, getBuyQuote, getSellQuote, executeBuy, executeSell } from "../amm/pool";
-import { isAuthenticated } from "../supabaseAuth";
+import { isAuthenticated } from "../auth/runtime-auth";
 import { storage } from "../storage";
 import { logger } from "../lib/logger";
 

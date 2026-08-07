@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { verify } from "crypto";
-import { isAuthenticated } from "../supabaseAuth";
+import { isAuthenticated } from "../auth/runtime-auth";
 import { getDiscordRuntimeConfig } from "../discord-config";
 import {
   cancelDiscordTradeIntent,

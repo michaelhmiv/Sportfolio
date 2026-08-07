@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import { isAuthenticated } from "../supabaseAuth";
+import { isAuthenticated } from "../auth/runtime-auth";
 import { CollectionDomainError } from "./state-engine";
 import type { CollectionReadService } from "./read-service";
 

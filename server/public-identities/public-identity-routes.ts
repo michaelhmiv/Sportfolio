@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import { optionalAuth } from "../supabaseAuth";
+import { optionalAuth } from "../auth/runtime-auth";
 import { validateBatchRequest } from "./public-identity-service";
 import type { PublicIdentityService } from "./public-identity-service";
 

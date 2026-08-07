@@ -7,7 +7,7 @@ import {
   pushDeviceRegisterSchema,
   pushDeviceUnregisterSchema,
 } from "@shared/notifications";
-import { isAuthenticated } from "../supabaseAuth";
+import { isAuthenticated } from "../auth/runtime-auth";
 import {
   getNotificationSettings,
   getUserPushDevices,

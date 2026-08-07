@@ -153,7 +153,7 @@ export async function registerMobileRewardedScoutBoostRoutes(
   });
 
   const authMiddleware =
-    options.authMiddleware ?? (await import("../supabaseAuth")).isAuthenticated;
+    options.authMiddleware ?? (await import("../auth/runtime-auth")).isAuthenticated;
 
   app.post("/api/mobile/rewarded-scout-boost/session", authMiddleware, async (req, res) => {
     applyNoStore(res);

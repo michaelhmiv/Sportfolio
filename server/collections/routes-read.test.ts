@@ -102,7 +102,7 @@ function makeRequest(
 
 let authShouldPass = true;
 
-vi.mock("../supabaseAuth", () => ({
+vi.mock("../auth/runtime-auth", () => ({
   isAuthenticated: vi.fn(async (req: any, res: any, next: any) => {
     if (authShouldPass) {
       req.user = { claims: { sub: "test-user-id" } };

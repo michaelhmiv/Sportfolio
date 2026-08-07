@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Express, NextFunction, Request, RequestHandler, Response } from "express";
 import { z } from "zod";
 import { db } from "../../db";
-import { isAuthenticated } from "../../supabaseAuth";
+import { isAuthenticated } from "../../auth/runtime-auth";
 import { mlbCatalogAdminService } from "./catalog-admin-service";
 import { catalogConfirmationSha256, type MlbCatalogPreview } from "./catalog-preview";
 

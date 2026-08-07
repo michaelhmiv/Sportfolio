@@ -90,7 +90,7 @@ describe("supabase auth middleware", () => {
       error: null,
     });
 
-    const { isAuthenticated } = await import("./supabaseAuth");
+    const { isAuthenticated } = await import("./auth/runtime-auth");
     storageMock.getUser.mockRejectedValue(new Error("timeout exceeded when trying to connect"));
 
     const req: any = {
@@ -123,7 +123,7 @@ describe("supabase auth middleware", () => {
     storageMock.getUserByEmail.mockResolvedValue({ id: "canonical-user", username: "owner" });
     storageMock.upsertUser.mockResolvedValue({ id: "canonical-user", username: "owner" });
 
-    const { isAuthenticated } = await import("./supabaseAuth");
+    const { isAuthenticated } = await import("./auth/runtime-auth");
     const req = makeRequest();
     const res = makeResponse();
     const next = vi.fn();
@@ -146,7 +146,7 @@ describe("supabase auth middleware", () => {
       Object.assign(new Error("User account has been deleted"), { code: "USER_DELETED" }),
     );
 
-    const { isAuthenticated } = await import("./supabaseAuth");
+    const { isAuthenticated } = await import("./auth/runtime-auth");
     const req = makeRequest();
     const res = makeResponse();
     const next = vi.fn();
@@ -170,7 +170,7 @@ describe("supabase auth middleware", () => {
       Object.assign(new Error("User account has been deleted"), { code: "USER_DELETED" }),
     );
 
-    const { optionalAuth } = await import("./supabaseAuth");
+    const { optionalAuth } = await import("./auth/runtime-auth");
     const req = makeRequest();
     const res = makeResponse();
     const next = vi.fn();

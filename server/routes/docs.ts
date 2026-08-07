@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { optionalAuth } from "../supabaseAuth";
+import { optionalAuth } from "../auth/runtime-auth";
 import { answerDocsQuestion } from "../docs-qa";
 import {
   getDocsArticle,

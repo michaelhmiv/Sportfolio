@@ -58,7 +58,7 @@ import { getMarketplaceGameStatus, hasGameStartedForBoost } from "@shared/game-s
 import { sql, eq, desc, asc, and, gte, lte, inArray, lt, like, or } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
-import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
+import { setupAuth, isAuthenticated, optionalAuth } from "./auth/runtime-auth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getPerformanceEarningUnits } from "./lib/performance-earnings";
 import { buildGameStatsPayload } from "./game-stats-response";

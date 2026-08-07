@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   answerDocsQuestion: vi.fn(),
 }));
 
-vi.mock("../supabaseAuth", () => ({
+vi.mock("../auth/runtime-auth", () => ({
   optionalAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
