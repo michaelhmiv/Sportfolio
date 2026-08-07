@@ -8,12 +8,14 @@ import { logger } from "../lib/logger";
 import { BETTER_AUTH_BASE_PATH } from "./better-auth";
 import { tryAttachBetterAuthPrincipal } from "./better-auth-session";
 import { type AuthRuntimeConfig, assertSafeAuthReturnUrl, getAuthRuntimeConfig } from "./config";
+import { assertSafeMagicLinkUrl, MAGIC_LINK_GATE_PURPOSE } from "./magic-link-delivery";
 import { getAuthPrincipal } from "./principal";
 
 const requestSchema = z.object({
   email: z.string().trim().email().max(320),
   returnTo: z.string().max(2048).optional(),
 });
+const gateSchema = z.string().uuid();
 
 export const AUTH_CAPABILITIES_PATH = "/api/auth/capabilities";
 
@@ -80,6 +82,61 @@ export async function consumeWebAuthContinuation(
   return rows[0]?.destination ?? null;
 }
 
+export async function consumeMagicLinkGate(id: string, now = new Date()): Promise<string | null> {
+  const rows = await db
+    .update(authContinuations)
+    .set({ consumedAt: now })
+    .where(
+      and(
+        eq(authContinuations.id, id),
+        eq(authContinuations.purpose, MAGIC_LINK_GATE_PURPOSE),
+        isNull(authContinuations.consumedAt),
+        gt(authContinuations.expiresAt, now),
+      ),
+    )
+    .returning({ destination: authContinuations.destination });
+  return rows[0]?.destination ?? null;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[character] || character,
+  );
+}
+
+export function renderMagicLinkGatePage(
+  gate: string | null,
+  options: { expired?: boolean } = {},
+): string {
+  const validGate = gateSchema.safeParse(gate).success ? gate : null;
+  const title = options.expired ? "Sign-in link unavailable" : "Confirm your Sportfolio sign-in";
+  const message = options.expired
+    ? "This sign-in link has expired or was already used. Request a new link to continue."
+    : "To protect one-time sign-in links from email security scanners, confirm below before the link is used.";
+  const action = validGate
+    ? `<form method="post" action="/api/auth/web/verify" style="margin:28px 0 0"><input type="hidden" name="gate" value="${escapeHtml(validGate)}"><button type="submit" style="border:0;border-radius:10px;background:#111827;color:#fff;font:700 16px Arial,sans-serif;padding:14px 22px;cursor:pointer;width:100%">Continue to Sportfolio</button></form>`
+    : `<p style="margin:28px 0 0"><a href="/login" style="display:inline-block;box-sizing:border-box;width:100%;text-align:center;border-radius:10px;background:#111827;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px">Request a new link</a></p>`;
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow,noarchive"><title>${escapeHtml(title)}</title></head><body style="margin:0;background:#f5f7fa;color:#172033;font-family:Arial,sans-serif"><main style="min-height:100vh;display:grid;place-items:center;padding:24px"><section style="box-sizing:border-box;width:100%;max-width:480px;background:#fff;border-radius:16px;padding:32px;box-shadow:0 12px 36px rgba(15,23,42,.08)"><div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#667085;margin-bottom:12px">Sportfolio</div><h1 style="font-size:26px;line-height:1.2;margin:0 0 12px">${escapeHtml(title)}</h1><p style="font-size:16px;line-height:1.6;color:#475467;margin:0">${escapeHtml(message)}</p>${action}</section></main></body></html>`;
+}
+
+function setMagicLinkPageHeaders(res: Parameters<Express["get"]>[1] extends never ? never : any) {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+}
+
 async function submitMagicLink(email: string, callbackURL: string, config: AuthRuntimeConfig) {
   if (!config.BETTER_AUTH_URL) throw new Error("BETTER_AUTH_URL_REQUIRED");
   const endpoint = new URL(`${BETTER_AUTH_BASE_PATH}/sign-in/magic-link`, config.BETTER_AUTH_URL);
@@ -112,6 +169,41 @@ export function registerWebAuthRoutes(app: Express, config?: AuthRuntimeConfig):
     logger.info("Passwordless web routes remain disabled");
     return false;
   }
+
+  app.get("/auth/magic-link", (req, res) => {
+    const gate = typeof req.query.gate === "string" ? req.query.gate : null;
+    setMagicLinkPageHeaders(res);
+    if (!gateSchema.safeParse(gate).success) {
+      return res.status(400).send(renderMagicLinkGatePage(null, { expired: true }));
+    }
+    return res.status(200).send(renderMagicLinkGatePage(gate));
+  });
+
+  app.post("/api/auth/web/verify", async (req, res) => {
+    const parsed = gateSchema.safeParse(req.body?.gate);
+    if (!parsed.success) {
+      setMagicLinkPageHeaders(res);
+      return res.status(400).send(renderMagicLinkGatePage(null, { expired: true }));
+    }
+
+    try {
+      const destination = await consumeMagicLinkGate(parsed.data);
+      if (!destination) {
+        setMagicLinkPageHeaders(res);
+        return res.status(410).send(renderMagicLinkGatePage(null, { expired: true }));
+      }
+      const safeDestination = assertSafeMagicLinkUrl(destination, resolvedConfig);
+      res.setHeader("Cache-Control", "no-store");
+      return res.redirect(303, safeDestination);
+    } catch (error) {
+      logger.warn(
+        { errorName: error instanceof Error ? error.name : "unknown" },
+        "Magic-link gate verification failed",
+      );
+      setMagicLinkPageHeaders(res);
+      return res.status(410).send(renderMagicLinkGatePage(null, { expired: true }));
+    }
+  });
 
   app.post("/api/auth/web/request", async (req, res) => {
     const parsed = requestSchema.safeParse(req.body);
