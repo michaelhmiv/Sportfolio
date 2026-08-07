@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import { and, eq, isNull, lt } from "drizzle-orm";
 import { Resend } from "resend";
-import { emailSuppressions } from "@shared/schema";
+import { authContinuations, emailSuppressions } from "@shared/schema";
 import { db } from "../db";
 import { logger } from "../lib/logger";
 import { type AuthRuntimeConfig, assertSafeAuthReturnUrl, getAuthRuntimeConfig } from "./config";
@@ -11,6 +11,8 @@ const WINDOW_MS = 15 * 60 * 1000;
 const EMAIL_LIMIT = 3;
 const IP_LIMIT = 10;
 const GLOBAL_LIMIT = 300;
+const MAGIC_LINK_GATE_TTL_MS = 5 * 60 * 1000;
+export const MAGIC_LINK_GATE_PURPOSE = "email-magic-link-gate";
 
 export class FixedWindowRateLimiter {
   private readonly buckets = new Map<string, { count: number; resetAt: number }>();
@@ -55,6 +57,37 @@ export function assertSafeMagicLinkUrl(url: string, config = getAuthRuntimeConfi
   return parsed.toString();
 }
 
+export async function createMagicLinkGate(
+  safeVerificationUrl: string,
+  config: AuthRuntimeConfig = getAuthRuntimeConfig(),
+  now = new Date(),
+): Promise<string> {
+  const verificationUrl = assertSafeMagicLinkUrl(safeVerificationUrl, config);
+  const gateId = randomUUID();
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(authContinuations)
+      .where(
+        and(
+          eq(authContinuations.purpose, MAGIC_LINK_GATE_PURPOSE),
+          lt(authContinuations.expiresAt, now),
+        ),
+      );
+    await tx.insert(authContinuations).values({
+      id: gateId,
+      purpose: MAGIC_LINK_GATE_PURPOSE,
+      destination: verificationUrl,
+      stateHash: null,
+      expiresAt: new Date(now.getTime() + MAGIC_LINK_GATE_TTL_MS),
+    });
+  });
+
+  const gateUrl = new URL("/auth/magic-link", config.PUBLIC_SITE_URL);
+  gateUrl.searchParams.set("gate", gateId);
+  return gateUrl.toString();
+}
+
 function escapeHtml(value: string): string {
   return value.replace(
     /[&<>"']/g,
@@ -73,12 +106,8 @@ export function renderMagicLinkEmail(url: string) {
   const safeUrl = escapeHtml(url);
   return {
     subject: "Sign in to Sportfolio",
-    text: `Use this secure link to sign in to Sportfolio:
-
-${url}
-
-This link expires in 5 minutes and can only be used once. If you did not request it, ignore this email.`,
-    html: `<!doctype html><html><body style="margin:0;background:#f5f7fa;font-family:Arial,sans-serif;color:#172033"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;padding:32px"><tr><td><h1 style="margin:0 0 12px;font-size:26px">Sign in to Sportfolio</h1><p style="line-height:1.6">Use the secure button below to continue. The link expires in 5 minutes and can only be used once.</p><p style="margin:28px 0"><a href="${safeUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:700">Sign in securely</a></p><p style="font-size:13px;color:#667085;line-height:1.5">If you did not request this email, you can ignore it.</p></td></tr></table></td></tr></table></body></html>`,
+    text: `Use this secure link to sign in to Sportfolio:\n\n${url}\n\nAfter opening the link, confirm that you want to continue. This link expires in 5 minutes and can only be used once. If you did not request it, ignore this email.`,
+    html: `<!doctype html><html><body style="margin:0;background:#f5f7fa;font-family:Arial,sans-serif;color:#172033"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;padding:32px"><tr><td><h1 style="margin:0 0 12px;font-size:26px">Sign in to Sportfolio</h1><p style="line-height:1.6">Open the secure confirmation page below, then confirm that you want to continue. The link expires in 5 minutes and can only be used once.</p><p style="margin:28px 0"><a href="${safeUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:700">Continue to Sportfolio</a></p><p style="font-size:13px;color:#667085;line-height:1.5">If you did not request this email, you can ignore it.</p></td></tr></table></td></tr></table></body></html>`,
   };
 }
 
@@ -93,6 +122,7 @@ export type MagicLinkDeliveryDependencies = {
     idempotencyKey: string;
   }) => Promise<{ id?: string; error?: { name?: string; message?: string } | null }>;
   isSuppressed?: (emailHash: string) => Promise<boolean>;
+  createGate?: (safeVerificationUrl: string) => Promise<string>;
 };
 
 async function defaultSuppressionLookup(emailHash: string): Promise<boolean> {
@@ -131,6 +161,7 @@ export function createResendMagicLinkSender(
 ) {
   const send = dependencies.send ?? createDefaultSender(config);
   const isSuppressed = dependencies.isSuppressed ?? defaultSuppressionLookup;
+  const createGate = dependencies.createGate ?? ((url: string) => createMagicLinkGate(url, config));
 
   return async ({ email, url, token }: { email: string; url: string; token: string }) => {
     if (!config.AUTH_MAGIC_LINK_ENABLED) throw new Error("AUTH_MAGIC_LINK_DISABLED");
@@ -147,7 +178,8 @@ export function createResendMagicLinkSender(
     }
 
     const safeUrl = assertSafeMagicLinkUrl(url, config);
-    const content = renderMagicLinkEmail(safeUrl);
+    const gatedUrl = await createGate(safeUrl);
+    const content = renderMagicLinkEmail(gatedUrl);
     const idempotencyKey = `magic-link/${createHash("sha256").update(token).digest("hex")}`;
     const result = await send({
       from: config.AUTH_EMAIL_FROM,

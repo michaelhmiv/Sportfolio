@@ -1,4 +1,5 @@
-const DEFAULT_ISSUER = "https://xolfyrbtkmwgllrazcfh.supabase.co/auth/v1";
+const DEFAULT_PUBLIC_ORIGIN = "https://www.sportfolio.market";
+const DEFAULT_AUTH_PATH = "/api/auth/better";
 const DEFAULT_RESOURCE = "https://www.sportfolio.market/mcp/plugin";
 
 function parseCsv(value: string | undefined): string[] {
@@ -10,6 +11,12 @@ function parseCsv(value: string | undefined): string[] {
 
 function normalizeUrl(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function buildAuthorizationServerDiscoveryUrl(issuer: string): string {
+  const parsed = new URL(normalizeUrl(issuer));
+  const issuerPath = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "");
+  return `${parsed.origin}/.well-known/oauth-authorization-server${issuerPath}`;
 }
 
 export type PluginOAuthConfig = {
@@ -25,7 +32,10 @@ export type PluginOAuthConfig = {
 };
 
 export function getPluginOAuthConfig(env: NodeJS.ProcessEnv = process.env): PluginOAuthConfig {
-  const issuer = normalizeUrl(env.PLUGIN_OAUTH_ISSUER || DEFAULT_ISSUER);
+  const authOrigin = normalizeUrl(
+    env.BETTER_AUTH_URL || env.PUBLIC_SITE_URL || DEFAULT_PUBLIC_ORIGIN,
+  );
+  const issuer = normalizeUrl(env.PLUGIN_OAUTH_ISSUER || `${authOrigin}${DEFAULT_AUTH_PATH}`);
   const resource = normalizeUrl(env.PLUGIN_MCP_RESOURCE || DEFAULT_RESOURCE);
   const clockSkewSeconds = Number.parseInt(env.PLUGIN_OAUTH_CLOCK_SKEW_SECONDS || "60", 10);
 
@@ -34,10 +44,9 @@ export function getPluginOAuthConfig(env: NodeJS.ProcessEnv = process.env): Plug
     issuer,
     resource,
     discoveryUrl:
-      env.PLUGIN_OAUTH_DISCOVERY_URL ||
-      `${issuer.replace(/\/auth\/v1$/, "")}/.well-known/oauth-authorization-server/auth/v1`,
-    jwksUrl: env.PLUGIN_OAUTH_JWKS_URL || `${issuer}/.well-known/jwks.json`,
-    requiredScopes: parseCsv(env.PLUGIN_OAUTH_REQUIRED_SCOPES || "openid"),
+      env.PLUGIN_OAUTH_DISCOVERY_URL || buildAuthorizationServerDiscoveryUrl(issuer),
+    jwksUrl: env.PLUGIN_OAUTH_JWKS_URL || `${issuer}/jwks`,
+    requiredScopes: parseCsv(env.PLUGIN_OAUTH_REQUIRED_SCOPES || "openid sportfolio.read"),
     allowedClientIds: parseCsv(env.PLUGIN_OAUTH_ALLOWED_CLIENT_IDS),
     domainChallengeToken: env.OPENAI_APPS_CHALLENGE_TOKEN?.trim() || null,
     clockSkewSeconds: Number.isFinite(clockSkewSeconds) ? Math.max(0, clockSkewSeconds) : 60,

@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 const publicSurfaces = [
   "pages/landing.tsx",
   "pages/Login.tsx",
-  "pages/AuthCallback.tsx",
+  "pages/passwordless-web-login.tsx",
+  "pages/auth-complete.tsx",
   "pages/auth-error.tsx",
   "pages/checkout-success.tsx",
   "pages/onboarding.tsx",
@@ -53,17 +54,22 @@ describe("public-auth-editorial visual-system contract", () => {
     expect(contents).toContain("This sign-in link has expired");
   });
 
-  it("preserves the login/signup contract for email verification flow", () => {
-    const contents = source("pages/Login.tsx");
-    expect(contents).toContain('data-testid="button-signup-submit"');
-    expect(contents).toContain('data-testid="button-resend-verification"');
-    expect(contents).toContain("Verification email sent");
+  it("preserves the passwordless Better Auth login contract", () => {
+    const login = source("pages/Login.tsx");
+    const passwordless = source("pages/passwordless-web-login.tsx");
+
+    expect(login).toContain("PasswordlessWebLogin");
+    expect(passwordless).toContain('data-testid="input-passwordless-email"');
+    expect(passwordless).toContain('data-testid="button-passwordless-submit"');
+    expect(passwordless).toContain("requestMagicLink");
+    expect(passwordless).toContain("Email me a sign-in link");
   });
 
-  it("maps auth callback errors to correct deep-link error codes", () => {
-    const contents = source("pages/AuthCallback.tsx");
-    expect(contents).toContain('redirectToError("link_expired"');
-    expect(contents).toContain("pkce_code_verifier_not_found");
-    expect(contents).toContain("invalid_grant");
+  it("maps passwordless completion failures without the retired Supabase callback", () => {
+    const contents = source("pages/auth-complete.tsx");
+    expect(contents).toContain("/api/auth/web/complete?continuation=");
+    expect(contents).toContain('credentials: "include"');
+    expect(contents).toContain('response.status === 410 ? "expired" : "invalid"');
+    expect(contents).toContain('broadcastWebAuthChange("signed-in")');
   });
 });

@@ -1,5 +1,5 @@
 import { QueryClient, QueryFunction, dehydrate, hydrate } from "@tanstack/react-query";
-import { getAuthSession, getSupabase } from "./supabase";
+import { getNativeAuthToken } from "./native-auth";
 import { resolveApiUrl } from "./native-runtime";
 import { getClientPlatform } from "./native-platform";
 
@@ -27,14 +27,17 @@ function getClientMetadataHeaders(): HeadersInit {
 }
 
 export async function getAuthHeaders(): Promise<HeadersInit> {
+  if (getClientPlatform() === "web") return {};
+
   try {
-    const supabase = await getSupabase();
-    const session = await getAuthSession(supabase);
-    if (session?.access_token) {
-      return { Authorization: `Bearer ${session.access_token}` };
+    const accessToken = getNativeAuthToken();
+    if (accessToken) {
+      return { Authorization: `Bearer ${accessToken}` };
     }
   } catch (error) {
-    debugLog("AUTH_HEADERS", "Failed to get auth headers", { error: (error as Error).message });
+    debugLog("AUTH_HEADERS", "Failed to get native auth headers", {
+      error: (error as Error).message,
+    });
   }
   return {};
 }

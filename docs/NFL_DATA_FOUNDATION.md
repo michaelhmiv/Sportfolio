@@ -67,12 +67,12 @@ Regular season and postseason are gameplay-eligible.
 
 NFL uses the existing `JobScheduler`/job registry:
 
-| Job | Cadence | Purpose |
-| --- | --- | --- |
+| Job                   | Cadence         | Purpose                                                            |
+| --------------------- | --------------- | ------------------------------------------------------------------ |
 | `nfl_live_stats_sync` | every 5 minutes | current scoreboard plus summaries only for live/recent-final games |
-| `nfl_schedule_sync` | hourly | rolling schedule/status refresh |
-| `nfl_roster_sync` | daily | current eligible-player roster + ESPN/GSIS reconciliation |
-| `nflverse_stats_sync` | daily overnight | finalized/stat-correction refresh from nflverse |
+| `nfl_schedule_sync`   | hourly          | rolling schedule/status refresh                                    |
+| `nfl_roster_sync`     | daily           | current eligible-player roster + ESPN/GSIS reconciliation          |
+| `nflverse_stats_sync` | daily overnight | finalized/stat-correction refresh from nflverse                    |
 
 The live job intentionally polls no faster than five minutes. The nflverse player identity crosswalk is cached in-process for six hours to avoid downloading it on each live cycle.
 

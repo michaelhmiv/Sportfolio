@@ -35,10 +35,16 @@ function game(value: EspnNflGame, now: Date): Game {
 }
 
 let playerCache:
-  | { expiresAt: number; byEspnId: ReturnType<typeof buildNflIdentityMaps>["byEspnId"]; athletes: Athlete[] }
+  | {
+      expiresAt: number;
+      byEspnId: ReturnType<typeof buildNflIdentityMaps>["byEspnId"];
+      athletes: Athlete[];
+    }
   | undefined;
 
-async function loadAthletes(now: Date): Promise<{ athletes: Athlete[]; byEspnId: Map<string, any> }> {
+async function loadAthletes(
+  now: Date,
+): Promise<{ athletes: Athlete[]; byEspnId: Map<string, any> }> {
   if (playerCache && playerCache.expiresAt > now.getTime()) return playerCache;
   const identities = await nflverse.getPlayers();
   const maps = buildNflIdentityMaps(identities);

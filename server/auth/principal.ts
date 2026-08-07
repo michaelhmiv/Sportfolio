@@ -1,6 +1,6 @@
 import type { Request } from "express";
 
-export type AuthProvider = "supabase" | "better-auth" | "development";
+export type AuthProvider = "supabase" | "better-auth" | "native-better-auth" | "development";
 export type AuthPrincipal = {
   userId: string;
   provider: AuthProvider;

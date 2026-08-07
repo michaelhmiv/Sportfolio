@@ -10,7 +10,7 @@
  */
 
 import { Express } from "express";
-import { isAuthenticated } from "../supabaseAuth";
+import { isAuthenticated } from "../auth/runtime-auth";
 import {
   addLiquidity,
   addLiquidityOptimal,

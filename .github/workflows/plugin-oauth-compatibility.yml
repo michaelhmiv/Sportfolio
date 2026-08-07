@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - "scripts/plugin-oauth-*.ts"
-      - "docs/plugin/supabase-oauth-setup.md"
+      - "docs/plugin/**"
       - ".github/workflows/plugin-oauth-compatibility.yml"
   workflow_dispatch:
 
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PLUGIN_OAUTH_ISSUER: https://xolfyrbtkmwgllrazcfh.supabase.co/auth/v1
+      PLUGIN_OAUTH_ISSUER: ${{ github.event_name == 'pull_request' && 'https://beta.sportfolio.market/api/auth/better' || 'https://www.sportfolio.market/api/auth/better' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,13 +31,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run OAuth discovery and JWKS probe
+      - name: Run Better Auth OAuth discovery and JWKS probe
         run: npx tsx scripts/plugin-oauth-discovery-check.ts
 
       - name: Run OAuth compatibility unit tests

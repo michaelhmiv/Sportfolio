@@ -1,6 +1,6 @@
 import type { Express, Request } from "express";
 
-import { optionalAuth } from "../supabaseAuth";
+import { optionalAuth } from "../auth/runtime-auth";
 import { buildMobileMarketOverview } from "../market-mobile-overview";
 
 function setPublicDataHeaders(res: { setHeader: (name: string, value: string) => void }, ttl = 60) {

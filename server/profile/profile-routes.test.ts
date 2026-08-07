@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let mockAuthUserId: string | null = null;
 
-vi.mock("../supabaseAuth", () => ({
+vi.mock("../auth/runtime-auth", () => ({
   optionalAuth: (req: any, res: any, next: () => void) => {
     if (mockAuthUserId) {
       req.user = { claims: { sub: mockAuthUserId } };

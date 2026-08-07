@@ -1,5 +1,6 @@
 import {
   accountDeletionRequests,
+  authUsers,
   userBadgePreferences,
   userFeaturedCollections,
   userPushDevices,
@@ -12,18 +13,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   db: {} as Record<string, unknown>,
   deletedTables: [] as unknown[],
-  deleteAuthUser: vi.fn(),
-}));
-
-vi.hoisted(() => {
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
-});
-
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(() => ({
-    auth: { admin: { deleteUser: mocks.deleteAuthUser } },
-  })),
 }));
 
 vi.mock("../db", () => ({ db: mocks.db }));
@@ -57,6 +46,8 @@ function selectChain(result: unknown[]) {
     orderBy: vi.fn(() => chain),
     limit: vi.fn(() => Promise.resolve(result)),
     for: vi.fn(() => Promise.resolve(result)),
+    then: (resolve: (value: unknown[]) => unknown, reject: (reason?: unknown) => unknown) =>
+      Promise.resolve(result).then(resolve, reject),
   };
   return chain;
 }
@@ -76,22 +67,16 @@ describe("account deletion processor", () => {
     mocks.deletedTables.length = 0;
 
     const request = buildRequest();
-    const processingRequest = buildRequest({ status: "processing" });
+    const processingRequest = buildRequest({ status: "provider_cleanup_pending" });
     const completedRequest = buildRequest({ status: "completed" });
     const user = {
       id: request.userId,
-      authProviderSubject: "replacement-auth-provider-id",
-      authProviderSubjects: [
-        request.userId,
-        "original-auth-provider-id",
-        "replacement-auth-provider-id",
-      ],
+      email: "delete@example.com",
+      username: "deleteme",
+      authProviderSubject: request.userId,
+      authProviderSubjects: [request.userId],
       deletedAt: null,
     };
-
-    mocks.deleteAuthUser.mockResolvedValue({
-      error: new Error("provider unavailable"),
-    });
 
     const tx = {
       select: vi
@@ -103,34 +88,38 @@ describe("account deletion processor", () => {
       ),
       delete: vi.fn((table: unknown) => {
         mocks.deletedTables.push(table);
-        const chain: any = { where: vi.fn(() => Promise.resolve()) };
-        return chain;
+        return { where: vi.fn(() => Promise.resolve()) };
       }),
     };
 
+    let selectCall = 0;
     Object.assign(mocks.db, {
-      select: vi.fn(() => selectChain([request])),
+      select: vi.fn(() => {
+        selectCall += 1;
+        return selectCall === 1
+          ? selectChain([request])
+          : selectChain([{ authUserId: "better-auth-user-1" }]);
+      }),
       transaction: vi.fn((callback: (executor: typeof tx) => unknown) => callback(tx)),
+      delete: vi.fn((table: unknown) => {
+        mocks.deletedTables.push(table);
+        return { where: vi.fn(() => Promise.resolve()) };
+      }),
       update: vi.fn((table: unknown) =>
         updateChain(table === accountDeletionRequests ? [completedRequest] : []),
       ),
     });
   });
 
-  it("erases local data and keeps provider cleanup retryable when auth deletion fails", async () => {
+  it("erases local data and deletes the mapped Better Auth identity", async () => {
     const result = await processDueAccountDeletionRequests(new Date("2026-07-15T11:00:00.000Z"));
 
-    expect(result).toEqual({ scanned: 1, completed: 0, failed: 1 });
+    expect(result).toEqual({ scanned: 1, completed: 1, failed: 0 });
     expect(mocks.deletedTables).toContain(userBadgePreferences);
     expect(mocks.deletedTables).toContain(userFeaturedCollections);
     expect(mocks.deletedTables).toContain(userPushDevices);
     expect(mocks.deletedTables).toContain(userPushTokens);
-    expect(mocks.deletedTables).toHaveLength(4);
-    expect(mocks.deleteAuthUser.mock.calls.map(([subject]) => subject)).toEqual([
-      "user-account-delete",
-      "original-auth-provider-id",
-      "replacement-auth-provider-id",
-    ]);
+    expect(mocks.deletedTables).toContain(authUsers);
 
     const transaction = mocks.db.transaction as ReturnType<typeof vi.fn>;
     expect(transaction).toHaveBeenCalledOnce();

@@ -14,7 +14,7 @@ Supabase fallback is temporary. It may be consulted only after Better Auth sessi
 
 Beta and production intentionally share production Railway Postgres. Beta is a controlled application surface, not a disposable sandbox. Additive schema is allowed after review, but destructive rehearsals and synthetic bulk imports are prohibited. Migration execution is production-runtime-only and is protected by the runtime confirmations added in PR #382.
 
-The production authorization-server hostname is `auth.sportfolio.market`. The Resend sending domain is `mail.sportfolio.market`. The beta authorization issuer remains environment-specific during certification.
+Authorization is same-origin with each application surface: beta uses `https://beta.sportfolio.market/api/auth/better` and production uses `https://www.sportfolio.market/api/auth/better`. This removes a separate authorization subdomain, keeps cookies same-origin, and avoids an unnecessary DNS/TLS dependency. Resend sends from the verified `sportfolio.market` domain.
 
 ## Compatibility decision
 

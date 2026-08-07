@@ -107,7 +107,7 @@ export async function registerMobilePushNotificationRoutes(
   const registerNotificationDevice = options.registerNotificationDevice ?? registerPushDevice;
   const unregisterNotificationDevice = options.unregisterNotificationDevice ?? unregisterPushDevice;
   const authMiddleware =
-    options.authMiddleware ?? (await import("../supabaseAuth")).isAuthenticated;
+    options.authMiddleware ?? (await import("../auth/runtime-auth")).isAuthenticated;
 
   app.post("/api/mobile/push/register", authMiddleware, async (req: any, res) => {
     try {

@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
 }));
 
-vi.mock("../supabaseAuth", () => ({
+vi.mock("../auth/runtime-auth", () => ({
   isAuthenticated: (req: any, _res: any, next: () => void) => {
     const userId = req.header("x-user-id") || "user-1";
     req.user = { claims: { sub: userId } };

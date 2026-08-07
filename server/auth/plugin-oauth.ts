@@ -2,10 +2,13 @@ import type { NextFunction, Request, Response } from "express";
 import { buildPluginWwwAuthenticate } from "./plugin-auth-challenge";
 import { getPluginOAuthConfig } from "./plugin-oauth-config";
 import {
+  getPluginTokenClientId,
   PluginTokenError,
   verifyPluginAccessToken,
   type PluginAccessTokenClaims,
 } from "./plugin-token-verifier";
+
+const SPORTFOLIO_CANONICAL_USER_CLAIM = "https://sportfolio.market/user_id";
 
 export type PluginAuthContext = {
   userId: string;
@@ -49,11 +52,26 @@ function authFailureResponse(error: unknown): {
   return { status: 401, code: "invalid_token", description: error.message };
 }
 
+function canonicalUserId(claims: PluginAccessTokenClaims): string {
+  const canonical = claims[SPORTFOLIO_CANONICAL_USER_CLAIM];
+  if (typeof canonical === "string" && canonical.trim()) return canonical.trim();
+  // Transitional compatibility for already-issued legacy access tokens. Once
+  // Supabase is removed, every Better Auth token carries the canonical claim.
+  return claims.sub;
+}
+
 async function authenticateToken(token: string): Promise<PluginAuthContext> {
   const claims = await verifyPluginAccessToken(token, getPluginOAuthConfig());
+  const clientId = getPluginTokenClientId(claims);
+  if (!clientId) {
+    throw new PluginTokenError(
+      "missing_client_id",
+      "The access token has no OAuth client identifier.",
+    );
+  }
   return {
-    userId: claims.sub,
-    clientId: claims.client_id,
+    userId: canonicalUserId(claims),
+    clientId,
     scopes:
       typeof claims.scope === "string"
         ? claims.scope

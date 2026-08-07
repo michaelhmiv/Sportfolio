@@ -1,6 +1,6 @@
 import type { AccountDeletionRequest } from "@shared/schema";
 import type { Express, RequestHandler } from "express";
-import { isAuthenticated } from "../supabaseAuth";
+import { isAuthenticated } from "../auth/runtime-auth";
 import {
   ACCOUNT_DELETION_CONFIRMATION_TEXT,
   cancelPendingAccountDeletionRequest,

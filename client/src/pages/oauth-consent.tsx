@@ -3,45 +3,25 @@ import { ExternalLink, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { SurfaceLayout } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { getSupabase } from "@/lib/supabase";
+import { betterAuthClient } from "@/lib/better-auth-client";
 
 type OAuthClient = {
-  name?: string;
-  client_name?: string;
-  client_uri?: string;
-  logo_uri?: string;
+  name?: string | null;
+  client_name?: string | null;
+  uri?: string | null;
+  client_uri?: string | null;
+  icon?: string | null;
+  logo_uri?: string | null;
+  redirectUris?: string[] | null;
+  redirect_uris?: string[] | null;
 };
 
-type AuthorizationDetails = {
-  authorization_id?: string;
-  client?: OAuthClient;
-  redirect_uri?: string;
-  scope?: string;
-  redirect_url?: string;
-};
-
-type OAuthApi = {
-  getAuthorizationDetails: (
-    authorizationId: string,
-  ) => Promise<{ data: AuthorizationDetails | null; error: { message: string } | null }>;
-  approveAuthorization: (
-    authorizationId: string,
-  ) => Promise<{ data: { redirect_url: string } | null; error: { message: string } | null }>;
-  denyAuthorization: (
-    authorizationId: string,
-  ) => Promise<{ data: { redirect_url: string } | null; error: { message: string } | null }>;
-};
-
-function getOAuthApi(auth: unknown): OAuthApi | null {
-  return (auth as { oauth?: OAuthApi }).oauth ?? null;
-}
-
-function safeOrigin(value?: string) {
-  if (!value) return "Unknown destination";
+function safeOrigin(value?: string | null) {
+  if (!value) return "the requesting application";
   try {
     return new URL(value).origin;
   } catch {
-    return "Invalid destination";
+    return "the requesting application";
   }
 }
 
@@ -50,101 +30,89 @@ function scopeLabel(scope: string) {
     openid: "Connect to your Sportfolio account",
     email: "Read your account email",
     profile: "Read basic profile information",
-    phone: "Read your account phone number",
+    offline_access: "Stay connected until you revoke access",
+    "sportfolio.read": "Read supported Sportfolio account and market data",
+    "sportfolio.trade": "Preview and execute trades you explicitly request",
+    "sportfolio.scout": "Perform scouting actions you explicitly request",
+    "sportfolio.manage": "Manage supported account gameplay settings you explicitly request",
   };
   return labels[scope] ?? scope;
 }
 
 export default function OAuthConsentPage() {
-  const authorizationId = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    return new URLSearchParams(window.location.search).get("authorization_id");
-  }, []);
-  const [details, setDetails] = useState<AuthorizationDetails | null>(null);
+  const params = useMemo(
+    () =>
+      typeof window === "undefined"
+        ? new URLSearchParams()
+        : new URLSearchParams(window.location.search),
+    [],
+  );
+  const clientId = params.get("client_id");
+  const requestedScope = params.get("scope") || "openid";
+  const [client, setClient] = useState<OAuthClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<"approve" | "deny" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
-      if (!authorizationId) {
-        setError("This authorization request is missing its identifier.");
+      if (!clientId) {
+        setError("This authorization request is missing its client identifier.");
         setLoading(false);
         return;
       }
-
-      try {
-        const supabase = await getSupabase();
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) {
-          const returnPath = `${window.location.pathname}${window.location.search}`;
+      const { data, error: clientError } = await betterAuthClient.oauth2.publicClient({
+        query: { client_id: clientId },
+      });
+      if (cancelled) return;
+      if (clientError || !data) {
+        const returnPath = `${window.location.pathname}${window.location.search}`;
+        if (clientError?.status === 401) {
           window.location.replace(`/login?redirect=${encodeURIComponent(returnPath)}`);
           return;
         }
-
-        const oauth = getOAuthApi(supabase.auth);
-        if (!oauth) throw new Error("OAuth authorization is not available in this client build.");
-
-        const { data, error: detailsError } = await oauth.getAuthorizationDetails(authorizationId);
-        if (detailsError || !data)
-          throw new Error(
-            detailsError?.message || "The authorization request is invalid or expired.",
-          );
-        if (data.redirect_url && !data.authorization_id) {
-          window.location.replace(data.redirect_url);
-          return;
-        }
-        if (!cancelled) setDetails(data);
-      } catch (cause) {
-        if (!cancelled)
-          setError(
-            cause instanceof Error ? cause.message : "Unable to load this authorization request.",
-          );
-      } finally {
-        if (!cancelled) setLoading(false);
+        setError(clientError?.message || "The authorization request is invalid or expired.");
+        setLoading(false);
+        return;
       }
+      setClient(data as OAuthClient);
+      setLoading(false);
     }
-
     void load();
     return () => {
       cancelled = true;
     };
-  }, [authorizationId]);
+  }, [clientId]);
 
-  async function decide(decision: "approve" | "deny") {
-    if (!authorizationId) return;
-    setSubmitting(decision);
+  async function decide(accept: boolean) {
+    setSubmitting(accept ? "approve" : "deny");
     setError(null);
-
-    try {
-      const supabase = await getSupabase();
-      const oauth = getOAuthApi(supabase.auth);
-      if (!oauth) throw new Error("OAuth authorization is unavailable.");
-      const result =
-        decision === "approve"
-          ? await oauth.approveAuthorization(authorizationId)
-          : await oauth.denyAuthorization(authorizationId);
-      if (result.error || !result.data?.redirect_url) {
-        throw new Error(
-          result.error?.message || "The authorization decision could not be completed.",
-        );
-      }
-      window.location.assign(result.data.redirect_url);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Unable to complete the authorization request.",
-      );
+    const { data, error: consentError } = await betterAuthClient.oauth2.consent({
+      accept,
+      scope: accept ? requestedScope : undefined,
+    });
+    if (consentError) {
+      setError(consentError.message || "The authorization decision could not be completed.");
       setSubmitting(null);
+      return;
     }
+
+    const redirect = data as
+      | { redirectURI?: string; redirectUri?: string; redirect_url?: string; url?: string }
+      | null
+      | undefined;
+    const target =
+      redirect?.redirectURI || redirect?.redirectUri || redirect?.redirect_url || redirect?.url;
+    if (target) window.location.assign(target);
   }
 
-  const scopes = (details?.scope || "openid")
+  const scopes = requestedScope
     .split(/\s+/)
     .map((scope) => scope.trim())
     .filter(Boolean);
-  const clientName = details?.client?.name || details?.client?.client_name || "ChatGPT or Codex";
+  const clientName = client?.name || client?.client_name || "ChatGPT or Codex";
+  const redirectUri = client?.redirectUris?.[0] || client?.redirect_uris?.[0] || null;
 
   return (
     <SurfaceLayout kind="auth" showFooter={false}>
@@ -182,14 +150,14 @@ export default function OAuthConsentPage() {
                   <Loader2 className="h-7 w-7 animate-spin text-brand" aria-hidden="true" />
                   Loading authorization request…
                 </div>
-              ) : error && !details ? (
+              ) : error && !client ? (
                 <div
                   className="rounded-panel border border-destructive/30 bg-destructive-subtle p-4 text-sm text-destructive"
                   role="alert"
                 >
                   {error}
                 </div>
-              ) : details ? (
+              ) : client ? (
                 <div className="space-y-6">
                   <section>
                     <h2 className="text-sm font-bold text-content-strong">Requested access</h2>
@@ -208,29 +176,16 @@ export default function OAuthConsentPage() {
 
                   <section className="rounded-panel border border-border-subtle bg-surface-raised p-5">
                     <h2 className="font-bold text-content-strong">What the connection can do</h2>
-                    <ul className="mt-3 space-y-3 text-sm leading-6 text-content-muted">
-                      <li>
-                        Read supported account information such as virtual holdings, balance,
-                        trades, scouts, boosts, watchlists, collections, milestones, schedules,
-                        liquidity, news, and profile data.
-                      </li>
-                      <li>
-                        Perform supported account and gameplay actions you explicitly request,
-                        including staged virtual trades, scouting, share stacking, boosts, community
-                        boosts, and liquidity changes.
-                      </li>
-                      <li>
-                        Use previews and explicit confirmation before finalizing staged gameplay
-                        actions.
-                      </li>
-                    </ul>
+                    <p className="mt-3 text-sm leading-6 text-content-muted">
+                      Sportfolio only grants the scopes shown above. Gameplay mutations remain
+                      limited to supported actions and explicit requests; OAuth does not grant
+                      administrative access.
+                    </p>
                   </section>
 
                   <div className="flex items-start gap-2 text-xs leading-5 text-content-subtle">
                     <ExternalLink className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                    <span>
-                      After approval, you will return to {safeOrigin(details.redirect_uri)}.
-                    </span>
+                    <span>After approval, you will return to {safeOrigin(redirectUri)}.</span>
                   </div>
 
                   {error ? (
@@ -247,7 +202,7 @@ export default function OAuthConsentPage() {
                       type="button"
                       variant="outline"
                       disabled={submitting !== null}
-                      onClick={() => void decide("deny")}
+                      onClick={() => void decide(false)}
                       data-testid="oauth-consent-deny"
                     >
                       {submitting === "deny" ? (
@@ -259,7 +214,7 @@ export default function OAuthConsentPage() {
                     <Button
                       type="button"
                       disabled={submitting !== null}
-                      onClick={() => void decide("approve")}
+                      onClick={() => void decide(true)}
                       data-testid="oauth-consent-approve"
                     >
                       {submitting === "approve" ? (

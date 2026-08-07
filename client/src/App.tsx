@@ -36,7 +36,7 @@ import { useBoostSettleCeremony } from "@/hooks/use-boost-settle-ceremony";
 import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Capacitor } from "@capacitor/core";
-import { getAuthSession, getSupabase, updateNativeAuthRefreshState } from "@/lib/supabase";
+import { exchangeNativeAuthHandoff } from "@/lib/native-auth";
 import { initNetworkMonitor } from "@/lib/native-network";
 import { resolvePublicAppUrl } from "@/lib/native-runtime";
 import { preloadRoute } from "@/lib/route-preload";
@@ -85,7 +85,6 @@ const loadBoostsPage = () => import("@/pages/boosts");
 const loadCollectionsPage = () => import("@/pages/collections");
 const loadCollectionDetailPage = () => import("@/pages/collection-detail");
 const loadLoginPage = () => import("@/pages/Login");
-const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
 const loadAuthCompletePage = () => import("@/pages/auth-complete");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
 const loadOnboardingPage = () => import("@/pages/onboarding");
@@ -139,7 +138,6 @@ const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
 const Boosts = lazy(loadBoostsPage);
 const Login = lazy(loadLoginPage);
-const AuthCallback = lazy(loadAuthCallbackPage);
 const AuthComplete = lazy(loadAuthCompletePage);
 const CheckoutSuccess = lazy(loadCheckoutSuccessPage);
 const OnboardingPage = lazy(loadOnboardingPage);
@@ -500,38 +498,18 @@ function Router() {
       listener = await CapacitorApp.addListener("appUrlOpen", async ({ url }) => {
         if (!url) return;
 
-        // Handle auth callback — close the in-app browser first, then hand the
-        // code/tokens to the AuthCallback page so it is the single PKCE exchange
-        // point (avoids the race condition where App.tsx consumes the one-time
-        // code before AuthCallback can see it).
+        // Complete the device-bound passwordless handoff directly in the app.
         if (url.startsWith("sportfolio://auth/callback")) {
           try {
             const callbackUrl = new URL(url);
             const code = callbackUrl.searchParams.get("code");
-            const hashParams = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
-            const accessToken = hashParams.get("access_token");
-            const refreshToken = hashParams.get("refresh_token");
-
-            if (code) {
-              navigate(`/auth/callback?code=${encodeURIComponent(code)}`, { replace: true });
-            } else if (accessToken && refreshToken) {
-              // Implicit/hash flow — forward as hash fragment so AuthCallback can read it.
-              navigate(
-                `/auth/callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`,
-                { replace: true },
-              );
-            } else {
-              // No recognisable payload — let AuthCallback attempt a session lookup.
-              navigate("/auth/callback", { replace: true });
-            }
+            if (!code) throw new Error("Native sign-in callback did not include a handoff code.");
+            await exchangeNativeAuthHandoff(code);
+            navigate("/", { replace: true });
           } catch (error) {
-            // URL parsing or navigation failed; navigate to the callback page
-            // which will attempt a getSession() recovery.
-            console.error("[MOBILE_AUTH] Callback handling failed:", error);
-            navigate("/auth/callback", { replace: true });
+            console.error("[MOBILE_AUTH] Passwordless handoff failed:", error);
+            navigate("/auth/error?error=native_handoff_failed", { replace: true });
           } finally {
-            // Always close the in-app browser for auth callback deep links —
-            // even if URL parsing throws before reaching the normal close call.
             const { Browser } = await import("@capacitor/browser");
             await Browser.close().catch(() => undefined);
           }
@@ -552,52 +530,7 @@ function Router() {
     };
   }, [isNativePlatform, navigate]);
 
-  useEffect(() => {
-    if (!isNativePlatform) {
-      return;
-    }
-
-    let listener: { remove: () => Promise<void> } | null = null;
-
-    const register = async () => {
-      const { App: CapacitorApp } = await import("@capacitor/app");
-      listener = await CapacitorApp.addListener("appStateChange", async ({ isActive }) => {
-        if (!isActive) {
-          try {
-            const supabase = await getSupabase();
-            await updateNativeAuthRefreshState(false, supabase);
-          } catch (error) {
-            console.error("[MOBILE_AUTH] Failed to pause native refresh state:", error);
-          }
-          return;
-        }
-
-        // Fire mobile analytics event on resume (P3 — 7.6)
-        try {
-          const gtag = (window as any).gtag;
-          if (typeof gtag === "function") {
-            gtag("event", "app_open", { source: "resume" });
-          }
-        } catch {
-          // ignore
-        }
-
-        try {
-          const supabase = await getSupabase();
-          await getAuthSession(supabase);
-          await updateNativeAuthRefreshState(true, supabase);
-        } catch (error) {
-          console.error("[MOBILE_AUTH] Session refresh on resume failed:", error);
-        }
-      });
-    };
-
-    register();
-
-    return () => {
-      void listener?.remove();
-    };
-  }, [isNativePlatform]);
+  // Native passwordless bearer sessions do not require an app-resume token refresh loop.
 
   // P0 — 1.2: Android back button handling (prevents Play Store rejection)
   useEffect(() => {
@@ -833,7 +766,6 @@ function Router() {
             <Switch>
               {/* Auth routes */}
               <Route path="/login" component={Login} />
-              <Route path="/auth/callback" component={AuthCallback} />
               <Route path="/auth/complete" component={AuthComplete} />
               <Route path="/checkout/success" component={CheckoutSuccess} />
               {/* Native full-screen onboarding — replaces the modal on Android/iOS */}

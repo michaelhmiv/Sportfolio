@@ -2,7 +2,7 @@ import type { AddressInfo } from "node:net";
 import express from "express";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../supabaseAuth", () => ({
+vi.mock("../../auth/runtime-auth", () => ({
   isAuthenticated: (req: any, res: any, next: () => void) => {
     const userId = req.header("x-user-id");
     if (!userId) return res.status(401).json({ error: { code: "AUTHENTICATION_REQUIRED" } });

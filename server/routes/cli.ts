@@ -11,7 +11,7 @@ import {
   renderPublicPrompt,
 } from "../mcp/public-tool-registry";
 import type { UserApiToken } from "@shared/schema";
-import { isAuthenticated } from "../supabaseAuth";
+import { isAuthenticated } from "../auth/runtime-auth";
 import { storage } from "../storage";
 
 const MAX_ACTIVE_API_TOKENS = 8;

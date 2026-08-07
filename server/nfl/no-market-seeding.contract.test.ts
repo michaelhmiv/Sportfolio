@@ -24,7 +24,9 @@ describe("NFL user-created market contract", () => {
     "server/jobs/sync-nflverse-stats.ts",
   ])("does not create a market from ingestion in %s", (path) => {
     const source = read(path);
-    expect(source).not.toMatch(/createPlayerPool|initializePlayerPool|executeTrade|lastTradePrice\s*:/);
+    expect(source).not.toMatch(
+      /createPlayerPool|initializePlayerPool|executeTrade|lastTradePrice\s*:/,
+    );
   });
 
   it("verifies the production rebuild cannot leave seeded prices or pools", () => {
