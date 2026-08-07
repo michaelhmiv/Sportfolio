@@ -14,9 +14,9 @@ Required runtime configuration:
 - `AUTH_OAUTH_PROVIDER_ENABLED=true` where ChatGPT/Codex OAuth is exposed
 - `AUTH_NEW_REGISTRATIONS_ENABLED` as the operational registration switch
 - `AUTH_ENVIRONMENT` and `AUTH_DATABASE_ENVIRONMENT` for startup validation
-- `AUTH_SHARED_PRODUCTION_DATABASE=true` because beta and production intentionally share Railway PostgreSQL
+- `AUTH_SHARED_PRODUCTION_DATABASE=true` only on beta, because beta intentionally uses production Railway PostgreSQL; production leaves this false
 - `BETTER_AUTH_SECRET`
-- `BETTER_AUTH_URL`
+- `BETTER_AUTH_URL`, using the environment's own public origin (`https://beta.sportfolio.market` on beta and `https://www.sportfolio.market` on production)
 - `BETTER_AUTH_TRUSTED_ORIGINS`
 - `AUTH_EMAIL_FROM`
 - `RESEND_API_KEY`
@@ -24,6 +24,7 @@ Required runtime configuration:
 - `PUBLIC_SITE_URL`
 - `PLUGIN_MCP_ENABLED`
 - `PLUGIN_MCP_RESOURCE` when overriding the canonical MCP resource
+- `PLUGIN_OAUTH_ISSUER`, normally the same-origin Better Auth base path (`<PUBLIC_SITE_URL>/api/auth/better`)
 - `PLUGIN_OAUTH_ALLOWED_CLIENT_IDS` only when restricting OAuth to an explicit allow-list
 
 Supabase authentication variables are migration-only and must not exist after the final identity reconciliation and production cutover.
