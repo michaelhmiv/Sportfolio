@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,191 +18,588 @@ def replace_once(path: str, old: str, new: str) -> None:
     content = read(path)
     count = content.count(old)
     if count != 1:
-        raise RuntimeError(f"{path}: expected exactly one match, found {count}: {old[:120]!r}")
+        raise RuntimeError(f"{path}: expected exactly one match, found {count}: {old[:140]!r}")
     write(path, content.replace(old, new, 1))
 
 
-# Shared lifecycle helpers and contract tests.
+def regex_once(path: str, pattern: str, replacement: str) -> None:
+    content = read(path)
+    updated, count = re.subn(pattern, lambda _: replacement, content, count=1, flags=re.S)
+    if count != 1:
+        raise RuntimeError(f"{path}: expected one regex match, found {count}: {pattern[:140]!r}")
+    write(path, updated)
+
+
+# Shared lifecycle contract.
 write(
     "server/player-lifecycle.ts",
-    '''export type PlayerActivityFilter = "active" | "inactive" | "all";\n\nexport function normalizePlayerActivityFilter(value: unknown): PlayerActivityFilter | undefined {\n  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";\n  if (normalized === "active" || normalized === "inactive" || normalized === "all") {\n    return normalized;\n  }\n  return undefined;\n}\n\nexport function resolvePlayerActivityFilter(input: {\n  explicit?: PlayerActivityFilter;\n  search?: string | null;\n}): PlayerActivityFilter {\n  if (input.explicit) return input.explicit;\n  return input.search?.trim() ? "all" : "active";\n}\n\nexport function assertPlayerScoutable(\n  player: { isActive?: boolean | null } | null | undefined,\n): void {\n  if (!player) throw new Error("Player not found");\n  if (player.isActive !== true) throw new Error("Inactive players cannot be scouted");\n}\n''',
+    '''export type PlayerActivityFilter = "active" | "inactive" | "all";
+
+export function normalizePlayerActivityFilter(value: unknown): PlayerActivityFilter | undefined {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (normalized === "active" || normalized === "inactive" || normalized === "all") {
+    return normalized;
+  }
+  return undefined;
+}
+
+export function resolvePlayerActivityFilter(input: {
+  explicit?: PlayerActivityFilter;
+  search?: string | null;
+}): PlayerActivityFilter {
+  if (input.explicit) return input.explicit;
+  return input.search?.trim() ? "all" : "active";
+}
+
+export function assertPlayerScoutable(
+  player: { isActive?: boolean | null } | null | undefined,
+): void {
+  if (!player) throw new Error("Player not found");
+  if (player.isActive !== true) throw new Error("Inactive players cannot be scouted");
+}
+''',
 )
 
 write(
     "server/player-lifecycle.test.ts",
-    '''import { describe, expect, it } from "vitest";\nimport {\n  assertPlayerScoutable,\n  normalizePlayerActivityFilter,\n  resolvePlayerActivityFilter,\n} from "./player-lifecycle";\n\ndescribe("player lifecycle", () => {\n  it("defaults normal marketplace browsing to active players", () => {\n    expect(resolvePlayerActivityFilter({})).toBe("active");\n  });\n\n  it("includes admitted inactive players in explicit search", () => {\n    expect(resolvePlayerActivityFilter({ search: "Joe Burrow" })).toBe("all");\n  });\n\n  it("honors explicit activity filters", () => {\n    expect(resolvePlayerActivityFilter({ explicit: "inactive", search: "Joe" })).toBe("inactive");\n    expect(resolvePlayerActivityFilter({ explicit: "active", search: "Joe" })).toBe("active");\n  });\n\n  it("normalizes only supported activity query values", () => {\n    expect(normalizePlayerActivityFilter("ALL")).toBe("all");\n    expect(normalizePlayerActivityFilter(" inactive ")).toBe("inactive");\n    expect(normalizePlayerActivityFilter("retired")).toBeUndefined();\n  });\n\n  it("allows scouting only for currently active players", () => {\n    expect(() => assertPlayerScoutable({ isActive: true })).not.toThrow();\n    expect(() => assertPlayerScoutable({ isActive: false })).toThrow("Inactive players cannot be scouted");\n    expect(() => assertPlayerScoutable(null)).toThrow("Player not found");\n  });\n});\n''',
+    '''import { describe, expect, it } from "vitest";
+import {
+  assertPlayerScoutable,
+  normalizePlayerActivityFilter,
+  resolvePlayerActivityFilter,
+} from "./player-lifecycle";
+
+describe("player lifecycle", () => {
+  it("keeps normal marketplace browsing active-only", () => {
+    expect(resolvePlayerActivityFilter({})).toBe("active");
+  });
+
+  it("lets explicit search find previously admitted inactive assets", () => {
+    expect(resolvePlayerActivityFilter({ search: "Joe Burrow" })).toBe("all");
+  });
+
+  it("honors explicit activity filters", () => {
+    expect(resolvePlayerActivityFilter({ explicit: "inactive", search: "Joe" })).toBe("inactive");
+    expect(resolvePlayerActivityFilter({ explicit: "active", search: "Joe" })).toBe("active");
+    expect(resolvePlayerActivityFilter({ explicit: "all" })).toBe("all");
+  });
+
+  it("rejects unsupported activity query values", () => {
+    expect(normalizePlayerActivityFilter("ALL")).toBe("all");
+    expect(normalizePlayerActivityFilter(" inactive ")).toBe("inactive");
+    expect(normalizePlayerActivityFilter("retired")).toBeUndefined();
+  });
+
+  it("allows positive scouting only for currently active athletes", () => {
+    expect(() => assertPlayerScoutable({ isActive: true })).not.toThrow();
+    expect(() => assertPlayerScoutable({ isActive: false })).toThrow(
+      "Inactive players cannot be scouted",
+    );
+    expect(() => assertPlayerScoutable(null)).toThrow("Player not found");
+  });
+});
+''',
 )
 
 write(
     "docs/PLAYER_LIFECYCLE.md",
-    '''# Player lifecycle\n\nSportfolio player admission is one-way while sporting activity is reversible.\n\n- A new asset is admitted only from a current authoritative roster/feed for an eligible athlete. Historical-only, retired, or free-agent provider records are not proactively imported.\n- Once admitted, the player row and canonical Sportfolio identity are permanent. Roster syncs may set `isActive=false`, but must not delete the player or their holdings, markets, trades, watchlists, price history, scouting history, or game history.\n- `isActive=true` means the athlete is currently eligible for scouting and active-sport workflows. `isActive=false` blocks new scouting and scout distributions, but the existing asset remains directly accessible and tradeable.\n- If the athlete returns, the same canonical player is reactivated with `isActive=true`; old scout assignments are not automatically restored.\n- Normal marketplace browsing defaults to active athletes to avoid clutter. Explicit name search can return previously admitted inactive athletes, and callers may request `activity=active|inactive|all`.\n''',
+    '''# Player lifecycle
+
+Sportfolio separates permanent asset identity from reversible real-world activity.
+
+- A new player is admitted only from a current authoritative roster/feed while the athlete is active, rostered, and eligible for that sport. Historical-only, retired, and free-agent provider records are not proactively imported.
+- Once admitted, the player row and canonical Sportfolio identity are permanent. Roster synchronization may set `isActive=false`, but it must never delete the player or their holdings, market, trades, price history, watchlists, scouting history, or game history.
+- `isActive=true` means the athlete is currently eligible for scouting and active-sport workflows. `isActive=false` blocks new scouting and scout distributions, while the permanent asset remains directly accessible and tradeable.
+- A transition to inactive atomically releases current scout assignments and closes their open scout-history intervals. Previously earned shares are untouched.
+- If an athlete returns, the authoritative roster upsert reuses the same canonical player and sets `isActive=true`. Old scout assignments are not restored automatically.
+- Normal marketplace browsing defaults to active athletes to avoid clutter. Explicit name search can return inactive admitted assets, and callers may request `activity=active|inactive|all`.
+''',
 )
 
-# Storage: import lifecycle helpers.
+# Storage imports.
 replace_once(
     "server/storage.ts",
-    '''import {\n  holdingReservationDomain,\n  loadPlayerIdentityContext,\n  loadPlayerIdentityContexts,\n} from "./player-identity";\n''',
-    '''import {\n  holdingReservationDomain,\n  loadPlayerIdentityContext,\n  loadPlayerIdentityContexts,\n} from "./player-identity";\nimport {\n  assertPlayerScoutable,\n  resolvePlayerActivityFilter,\n  type PlayerActivityFilter,\n} from "./player-lifecycle";\n''',
+    '''import {
+  holdingReservationDomain,
+  loadPlayerIdentityContext,
+  loadPlayerIdentityContexts,
+} from "./player-identity";
+''',
+    '''import {
+  holdingReservationDomain,
+  loadPlayerIdentityContext,
+  loadPlayerIdentityContexts,
+} from "./player-identity";
+import {
+  assertPlayerScoutable,
+  resolvePlayerActivityFilter,
+  type PlayerActivityFilter,
+} from "./player-lifecycle";
+''',
 )
 
-# Storage interface: activity filter and scout release primitive.
+# IStorage paginated-player contract.
 replace_once(
     "server/storage.ts",
-    '''    sport?: string;\n    limit?: number;\n''',
-    '''    sport?: string;\n    activity?: PlayerActivityFilter;\n    limit?: number;\n''',
-)
-replace_once(
-    "server/storage.ts",
-    '''  assignScouts(userId: string, playerId: string, count: number): Promise<void>;\n  getUserScoutAssignments(userId: string): Promise<(ScoutAssignment & { player: Player | null })[]>;\n''',
-    '''  assignScouts(userId: string, playerId: string, count: number): Promise<void>;\n  releaseScoutsForPlayer(playerId: string): Promise<number>;\n  getUserScoutAssignments(userId: string): Promise<(ScoutAssignment & { player: Player | null })[]>;\n''',
-)
-
-# Storage implementation: marketplace activity semantics.
-replace_once(
-    "server/storage.ts",
-    '''    sport?: string;\n    limit?: number;\n    offset?: number;\n    sortBy?:\n''',
-    '''    sport?: string;\n    activity?: PlayerActivityFilter;\n    limit?: number;\n    offset?: number;\n    sortBy?:\n''',
-)
-replace_once(
-    "server/storage.ts",
-    '''      sport,\n      limit = 50,\n''',
-    '''      sport,\n      activity,\n      limit = 50,\n''',
-)
-replace_once(
-    "server/storage.ts",
-    '''    if (teamsPlayingOnDate && teamsPlayingOnDate.length > 0) {\n      conditions.push(inArray(players.team, teamsPlayingOnDate));\n    } // Always filter by is_active\n    conditions.push(eq(players.isActive, true));\n''',
-    '''    if (teamsPlayingOnDate && teamsPlayingOnDate.length > 0) {\n      conditions.push(inArray(players.team, teamsPlayingOnDate));\n    }\n\n    // Activity is sporting/scouting status, not asset existence. Keep normal browsing\n    // uncluttered, but allow explicit search/direct market flows to reach permanent\n    // inactive assets.\n    const activityFilter = resolvePlayerActivityFilter({ explicit: activity, search });\n    if (activityFilter === "active") conditions.push(eq(players.isActive, true));\n    if (activityFilter === "inactive") conditions.push(eq(players.isActive, false));\n''',
+    '''  getPlayersPaginated(filters?: {
+    search?: string;
+    team?: string;
+    position?: string;
+    sport?: string;
+    limit?: number;
+''',
+    '''  getPlayersPaginated(filters?: {
+    search?: string;
+    team?: string;
+    position?: string;
+    sport?: string;
+    activity?: PlayerActivityFilter;
+    limit?: number;
+''',
 )
 
-# Storage implementation: hard server-side scouting eligibility.
+# DatabaseStorage paginated-player signature and activity behavior.
 replace_once(
     "server/storage.ts",
-    '''  ): Promise<void> {\n    const [user] = await tx.select().from(users).where(eq(users.id, userId));\n''',
-    '''  ): Promise<void> {\n    if (count > 0) {\n      const [player] = await tx\n        .select({ isActive: players.isActive })\n        .from(players)\n        .where(eq(players.id, playerId))\n        .limit(1);\n      assertPlayerScoutable(player);\n    }\n\n    const [user] = await tx.select().from(users).where(eq(users.id, userId));\n''',
+    '''  async getPlayersPaginated(filters?: {
+    search?: string;
+    team?: string;
+    position?: string;
+    sport?: string;
+    limit?: number;
+''',
+    '''  async getPlayersPaginated(filters?: {
+    search?: string;
+    team?: string;
+    position?: string;
+    sport?: string;
+    activity?: PlayerActivityFilter;
+    limit?: number;
+''',
+)
+replace_once(
+    "server/storage.ts",
+    '''      position,
+      sport,
+      limit = 50,
+''',
+    '''      position,
+      sport,
+      activity,
+      limit = 50,
+''',
+)
+replace_once(
+    "server/storage.ts",
+    '''    if (teamsPlayingOnDate && teamsPlayingOnDate.length > 0) {
+      conditions.push(inArray(players.team, teamsPlayingOnDate));
+    } // Always filter by is_active
+    conditions.push(eq(players.isActive, true));
+''',
+    '''    if (teamsPlayingOnDate && teamsPlayingOnDate.length > 0) {
+      conditions.push(inArray(players.team, teamsPlayingOnDate));
+    }
+
+    // Activity controls current sporting/scouting eligibility, not permanent asset existence.
+    // Default browse remains active-only; an explicit search may resolve an inactive asset.
+    const activityFilter = resolvePlayerActivityFilter({ explicit: activity, search });
+    if (activityFilter === "active") conditions.push(eq(players.isActive, true));
+    if (activityFilter === "inactive") conditions.push(eq(players.isActive, false));
+''',
 )
 
-# Release all current assignments when an admitted player becomes inactive. Historical\n# scout rows are closed, never deleted.
+# A player deactivation is an atomic activity transition: keep the player asset, but
+# release current scouts and close current scout-history intervals. Reactivation is a
+# normal same-ID upsert/update and does not restore old assignments.
 replace_once(
     "server/storage.ts",
-    '''  async assignScouts(userId: string, playerId: string, count: number): Promise<void> {\n    await db.transaction(async (tx) => {\n      await this.assignScoutsInTransaction(tx, userId, playerId, count);\n    });\n  }\n\n  async applyScoutAssignments(\n''',
-    '''  async assignScouts(userId: string, playerId: string, count: number): Promise<void> {\n    await db.transaction(async (tx) => {\n      await this.assignScoutsInTransaction(tx, userId, playerId, count);\n    });\n  }\n\n  async releaseScoutsForPlayer(playerId: string): Promise<number> {\n    return db.transaction(async (tx) => {\n      const endedAt = new Date();\n      const released = await tx\n        .delete(scoutAssignments)\n        .where(eq(scoutAssignments.playerId, playerId))\n        .returning({ userId: scoutAssignments.userId });\n\n      await tx\n        .update(scoutHistory)\n        .set({ endedAt })\n        .where(\n          and(\n            eq(scoutHistory.playerId, playerId),\n            isNull(scoutHistory.endedAt),\n          ),\n        );\n\n      return released.length;\n    });\n  }\n\n  async applyScoutAssignments(\n''',
+    '''  async updatePlayer(playerId: string, updates: Partial<InsertPlayer>): Promise<void> {
+    await db
+      .update(players)
+      .set({
+        ...updates,
+        lastUpdated: new Date(),
+      })
+      .where(eq(players.id, playerId));
+  }
+''',
+    '''  async updatePlayer(playerId: string, updates: Partial<InsertPlayer>): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ isActive: players.isActive })
+        .from(players)
+        .where(eq(players.id, playerId))
+        .limit(1);
+
+      await tx
+        .update(players)
+        .set({
+          ...updates,
+          lastUpdated: new Date(),
+        })
+        .where(eq(players.id, playerId));
+
+      if (current?.isActive === true && updates.isActive === false) {
+        const endedAt = new Date();
+        await tx.delete(scoutAssignments).where(eq(scoutAssignments.playerId, playerId));
+        await tx
+          .update(scoutHistory)
+          .set({ endedAt })
+          .where(and(eq(scoutHistory.playerId, playerId), isNull(scoutHistory.endedAt)));
+      }
+    });
+  }
+''',
 )
 
-# Defense in depth: inactive players cannot remain in distribution selection or receive\n# a stale payout if activity flips during a job.
-replace_once(
+# Hard server-side scouting eligibility. Count zero remains legal so users/jobs can remove
+# an assignment even after the player becomes inactive.
+regex_once(
     "server/storage.ts",
-    '''    const results = await db\n      .selectDistinct({ playerId: scoutAssignments.playerId })\n      .from(scoutAssignments)\n      .innerJoin(users, eq(scoutAssignments.userId, users.id))\n      .where(gte(users.lastActiveAt, twentyFourHoursAgo));\n''',
-    '''    const results = await db\n      .selectDistinct({ playerId: scoutAssignments.playerId })\n      .from(scoutAssignments)\n      .innerJoin(users, eq(scoutAssignments.userId, users.id))\n      .innerJoin(players, eq(scoutAssignments.playerId, players.id))\n      .where(\n        and(gte(users.lastActiveAt, twentyFourHoursAgo), eq(players.isActive, true)),\n      );\n''',
-)
-replace_once(
-    "server/storage.ts",
-    '''      if (!player) {\n        throw new Error(`Player ${canonicalDistribution.playerId} not found`);\n      }\n\n      if (canonicalHolding) {\n''',
-    '''      if (!player) {\n        throw new Error(`Player ${canonicalDistribution.playerId} not found`);\n      }\n      assertPlayerScoutable(player);\n\n      if (canonicalHolding) {\n''',
-)
-replace_once(
-    "server/storage.ts",
-    '''      .from(scoutAssignments)\n      .innerJoin(users, eq(scoutAssignments.userId, users.id))\n      .where(\n        and(eq(scoutAssignments.playerId, playerId), gte(users.lastActiveAt, twentyFourHoursAgo)),\n      );\n''',
-    '''      .from(scoutAssignments)\n      .innerJoin(users, eq(scoutAssignments.userId, users.id))\n      .innerJoin(players, eq(scoutAssignments.playerId, players.id))\n      .where(\n        and(\n          eq(scoutAssignments.playerId, playerId),\n          gte(users.lastActiveAt, twentyFourHoursAgo),\n          eq(players.isActive, true),\n        ),\n      );\n''',
+    r'''(  private async assignScoutsInTransaction\(\n    tx: any,\n    userId: string,\n    playerId: string,\n    count: number,\n  \): Promise<void> \{\n)    const \[user\] = await tx\.select\(\)\.from\(users\)\.where\(eq\(users\.id, userId\)\);''',
+    '''  private async assignScoutsInTransaction(
+    tx: any,
+    userId: string,
+    playerId: string,
+    count: number,
+  ): Promise<void> {
+    if (count > 0) {
+      const [player] = await tx
+        .select({ isActive: players.isActive })
+        .from(players)
+        .where(eq(players.id, playerId))
+        .limit(1);
+      assertPlayerScoutable(player);
+    }
+
+    const [user] = await tx.select().from(users).where(eq(users.id, userId));''',
 )
 
-# Player route: expose validated activity query while preserving automatic search behavior.
+# Defense-in-depth for existing assignments and race conditions during distribution.
+replace_once(
+    "server/storage.ts",
+    '''    const results = await db
+      .selectDistinct({ playerId: scoutAssignments.playerId })
+      .from(scoutAssignments)
+      .innerJoin(users, eq(scoutAssignments.userId, users.id))
+      .where(gte(users.lastActiveAt, twentyFourHoursAgo));
+''',
+    '''    const results = await db
+      .selectDistinct({ playerId: scoutAssignments.playerId })
+      .from(scoutAssignments)
+      .innerJoin(users, eq(scoutAssignments.userId, users.id))
+      .innerJoin(players, eq(scoutAssignments.playerId, players.id))
+      .where(and(gte(users.lastActiveAt, twentyFourHoursAgo), eq(players.isActive, true)));
+''',
+)
+replace_once(
+    "server/storage.ts",
+    '''      if (!player) {
+        throw new Error(`Player ${canonicalDistribution.playerId} not found`);
+      }
+
+      if (canonicalHolding) {
+''',
+    '''      if (!player) {
+        throw new Error(`Player ${canonicalDistribution.playerId} not found`);
+      }
+      assertPlayerScoutable(player);
+
+      if (canonicalHolding) {
+''',
+)
+replace_once(
+    "server/storage.ts",
+    '''      .from(scoutAssignments)
+      .innerJoin(users, eq(scoutAssignments.userId, users.id))
+      .where(
+        and(eq(scoutAssignments.playerId, playerId), gte(users.lastActiveAt, twentyFourHoursAgo)),
+      );
+''',
+    '''      .from(scoutAssignments)
+      .innerJoin(users, eq(scoutAssignments.userId, users.id))
+      .innerJoin(players, eq(scoutAssignments.playerId, players.id))
+      .where(
+        and(
+          eq(scoutAssignments.playerId, playerId),
+          gte(users.lastActiveAt, twentyFourHoursAgo),
+          eq(players.isActive, true),
+        ),
+      );
+''',
+)
+
+# Marketplace route: activity=active|inactive|all is explicit; a normal name search defaults
+# to all admitted assets, while a no-search browse remains active-only in storage.
 replace_once(
     "server/routes/players.ts",
-    '''} from "./players-query";\n''',
-    '''} from "./players-query";\nimport { normalizePlayerActivityFilter } from "../player-lifecycle";\n''',
+    '''} from "./players-query";
+''',
+    '''} from "./players-query";
+import { normalizePlayerActivityFilter } from "../player-lifecycle";
+''',
 )
 replace_once(
     "server/routes/players.ts",
-    '''      const { team, position, sortBy, sortOrder, teamsPlayingOnDate, sport } = req.query;\n''',
-    '''      const { team, position, sortBy, sortOrder, teamsPlayingOnDate, sport } = req.query;\n      const activity = normalizePlayerActivityFilter(req.query.activity);\n''',
+    '''      const { team, position, sortBy, sortOrder, teamsPlayingOnDate, sport } = req.query;
+      const rawSearch = normalizePlayersSearchQuery({
+''',
+    '''      const { team, position, sortBy, sortOrder, teamsPlayingOnDate, sport } = req.query;
+      const activity = normalizePlayerActivityFilter(req.query.activity);
+      const rawSearch = normalizePlayersSearchQuery({
+''',
 )
 replace_once(
     "server/routes/players.ts",
-    '''        sport: sport as string,\n        limit: safeLimit,\n''',
-    '''        sport: sport as string,\n        activity,\n        limit: safeLimit,\n''',
+    '''        position: position as string,
+        sport: sport as string,
+        limit: safeLimit,
+''',
+    '''        position: position as string,
+        sport: sport as string,
+        activity,
+        limit: safeLimit,
+''',
 )
 
-# Roster deactivation is reversible metadata. Release scouts, but preserve the asset.
-for path in ["server/jobs/sync-mlb-roster.ts", "server/jobs/sync-nhl-roster.ts", "server/jobs/sync-nfl-roster.ts"]:
-    replace_once(
-        path,
-        '''      await storage.updatePlayer(player.id, { isActive: false, isEligibleForVesting: false });\n      result.playersDeactivated++;\n'''
-        if "nfl" in path or "nhl" in path
-        else '''          await storage.updatePlayer(existingPlayer.id, {\n            isActive: false,\n            isEligibleForVesting: false,\n          });\n          result.playersDeactivated++;\n''',
-        '''      await storage.updatePlayer(player.id, { isActive: false, isEligibleForVesting: false });\n      await storage.releaseScoutsForPlayer(player.id);\n      result.playersDeactivated++;\n'''
-        if "nfl" in path or "nhl" in path
-        else '''          await storage.updatePlayer(existingPlayer.id, {\n            isActive: false,\n            isEligibleForVesting: false,\n          });\n          await storage.releaseScoutsForPlayer(existingPlayer.id);\n          result.playersDeactivated++;\n''',
-    )
+# NASCAR full-roster sync: make activity reversible using the permanent driver ID. Only
+# deactivate against a complete authoritative union of all three non-empty series feeds.
+replace_once(
+    "server/jobs/sync-nascar-roster.ts",
+    '''): Promise<{ requestCount: number; recordsProcessed: number; errorCount: number }> {
+''',
+    '''): Promise<{
+  requestCount: number;
+  recordsProcessed: number;
+  errorCount: number;
+  activePlayerIds: string[];
+}> {
+''',
+)
+replace_once(
+    "server/jobs/sync-nascar-roster.ts",
+    '''  let requestCount = 0;
+  let recordsProcessed = 0;
+  let errorCount = 0;
 
-# NHL tests mock the new deactivation side effect and prove the permanent-row behavior.
-replace_once(
-    "server/jobs/sync-nhl-jobs.test.ts",
-    '''    updatePlayer: vi.fn(),\n    upsertPlayer: vi.fn(),\n''',
-    '''    updatePlayer: vi.fn(),\n    releaseScoutsForPlayer: vi.fn(),\n    upsertPlayer: vi.fn(),\n''',
+  try {
+''',
+    '''  let requestCount = 0;
+  let recordsProcessed = 0;
+  let errorCount = 0;
+  const activePlayerIds = new Set<string>();
+
+  try {
+''',
 )
 replace_once(
-    "server/jobs/sync-nhl-jobs.test.ts",
-    '''  it("retains last-known players for failed or empty team rosters", async () => {\n''',
-    '''  it("deactivates an authoritative roster departure without deleting the asset", async () => {\n    storage.getPlayersBySport.mockResolvedValue([{ id: "nhl_9", team: "AAA", isActive: true }]);\n    nhlApi.getStandings.mockResolvedValue({ standings: [{ abbrev: "AAA" }] });\n    nhlApi.getRoster.mockResolvedValue(completeRoster(1000));\n\n    const result = await syncNhlRoster();\n\n    expect(storage.updatePlayer).toHaveBeenCalledWith(\n      "nhl_9",\n      expect.objectContaining({ isActive: false }),\n    );\n    expect(storage.releaseScoutsForPlayer).toHaveBeenCalledWith("nhl_9");\n    expect(result.playersDeactivated).toBe(1);\n  });\n\n  it("retains last-known players for failed or empty team rosters", async () => {\n''',
+    "server/jobs/sync-nascar-roster.ts",
+    '''    console.log(`[nascar_roster_sync] Fetched ${drivers.length} drivers from ${seriesName}`);
+
+    progressCallback?.({
+''',
+    '''    console.log(`[nascar_roster_sync] Fetched ${drivers.length} drivers from ${seriesName}`);
+    if (drivers.length === 0) {
+      throw new Error(`empty ${seriesName} driver roster; refusing authoritative deactivation`);
+    }
+
+    progressCallback?.({
+''',
+)
+replace_once(
+    "server/jobs/sync-nascar-roster.ts",
+    '''        await storage.upsertPlayer({
+          id: createNascarPlayerId(driver.driver_id, seriesId),
+          sport: NASCAR_SPORT,
+''',
+    '''        const playerId = createNascarPlayerId(driver.driver_id, seriesId);
+        await storage.upsertPlayer({
+          id: playerId,
+          sport: NASCAR_SPORT,
+''',
+)
+replace_once(
+    "server/jobs/sync-nascar-roster.ts",
+    '''          isActive: true,
+          isEligibleForVesting: true,
+        });
+
+        recordsProcessed++;
+''',
+    '''          isActive: true,
+          isEligibleForVesting: true,
+        });
+        activePlayerIds.add(playerId);
+
+        recordsProcessed++;
+''',
+)
+replace_once(
+    "server/jobs/sync-nascar-roster.ts",
+    '''    return { requestCount, recordsProcessed, errorCount };
+  } catch (error: any) {
+''',
+    '''    return { requestCount, recordsProcessed, errorCount, activePlayerIds: [...activePlayerIds] };
+  } catch (error: any) {
+''',
+)
+replace_once(
+    "server/jobs/sync-nascar-roster.ts",
+    '''    return { requestCount, recordsProcessed: 0, errorCount: errorCount + 1 };
+  }
+}
+''',
+    '''    return {
+      requestCount,
+      recordsProcessed: 0,
+      errorCount: errorCount + 1,
+      activePlayerIds: [],
+    };
+  }
+}
+''',
+)
+replace_once(
+    "server/jobs/sync-nascar-roster.ts",
+    '''export async function syncNascarRoster(progressCallback?: ProgressCallback): Promise<JobResult> {
+  console.log("[nascar_roster_sync] Starting NASCAR roster sync for all series...");
+
+  let totalRequestCount = 0;
+  let totalRecordsProcessed = 0;
+  let totalErrorCount = 0;
+
+  const seriesList: NascarSeriesId[] = [
+''',
+    '''export async function syncNascarRoster(progressCallback?: ProgressCallback): Promise<JobResult> {
+  console.log("[nascar_roster_sync] Starting NASCAR roster sync for all series...");
+
+  let totalRequestCount = 0;
+  let totalRecordsProcessed = 0;
+  let totalErrorCount = 0;
+  const activePlayerIds = new Set<string>();
+  let authoritative = true;
+
+  const seriesList: NascarSeriesId[] = [
+''',
+)
+replace_once(
+    "server/jobs/sync-nascar-roster.ts",
+    '''    totalRequestCount += result.requestCount;
+    totalRecordsProcessed += result.recordsProcessed;
+    totalErrorCount += result.errorCount;
+  }
+
+  console.log(
+''',
+    '''    totalRequestCount += result.requestCount;
+    totalRecordsProcessed += result.recordsProcessed;
+    totalErrorCount += result.errorCount;
+    result.activePlayerIds.forEach((playerId) => activePlayerIds.add(playerId));
+    if (result.errorCount > 0 || result.activePlayerIds.length === 0) authoritative = false;
+  }
+
+  if (authoritative) {
+    const existingPlayers = await storage.getPlayersBySport(NASCAR_SPORT);
+    for (const player of existingPlayers) {
+      if (!player.isActive || activePlayerIds.has(player.id)) continue;
+      await storage.updatePlayer(player.id, {
+        isActive: false,
+        isEligibleForVesting: false,
+      });
+    }
+  } else {
+    console.warn(
+      "[nascar_roster_sync] Non-authoritative series response; existing activity state retained",
+    );
+  }
+
+  console.log(
+''',
 )
 
-# MLB tests mock and validate scout release on deactivation.
-replace_once(
-    "server/jobs/sync-mlb-roster.test.ts",
-    '''  updatePlayer: vi.fn(),\n  upsertPlayer: vi.fn(),\n''',
-    '''  updatePlayer: vi.fn(),\n  releaseScoutsForPlayer: vi.fn(),\n  upsertPlayer: vi.fn(),\n''',
-)
-replace_once(
-    "server/jobs/sync-mlb-roster.test.ts",
-    '''  it("does not deactivate an active provider id when the update write fails", async () => {\n''',
-    '''  it("keeps an admitted player permanent while deactivating roster eligibility", async () => {\n    storageMocks.getPlayersBySport.mockResolvedValue([\n      { id: "mlb_old", isActive: true },\n    ]);\n    mlbApiMocks.fetchAllPlayers.mockResolvedValue([]);\n\n    const { syncMLBRoster } = await import("./sync-mlb-roster");\n    const result = await syncMLBRoster();\n\n    expect(storageMocks.updatePlayer).toHaveBeenCalledWith(\n      "mlb_old",\n      expect.objectContaining({ isActive: false }),\n    );\n    expect(storageMocks.releaseScoutsForPlayer).toHaveBeenCalledWith("mlb_old");\n    expect(result.playersDeactivated).toBe(1);\n  });\n\n  it("does not deactivate an active provider id when the update write fails", async () => {\n''',
-)
+# NASCAR lifecycle regression tests.
+write(
+    "server/jobs/sync-nascar-roster.test.ts",
+    '''import { beforeEach, describe, expect, it, vi } from "vitest";
 
-# NASCAR: full current-driver sync becomes authoritative only if every series returns a\n# non-empty successful roster. Previously admitted drivers missing from that union become\n# inactive (never deleted) and can be reactivated by the same driver ID later.
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''): Promise<{ requestCount: number; recordsProcessed: number; errorCount: number }> {\n''',
-    '''): Promise<{\n  requestCount: number;\n  recordsProcessed: number;\n  errorCount: number;\n  activePlayerIds: string[];\n}> {\n''',
-)
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''  let requestCount = 0;\n  let recordsProcessed = 0;\n  let errorCount = 0;\n''',
-    '''  let requestCount = 0;\n  let recordsProcessed = 0;\n  let errorCount = 0;\n  const activePlayerIds = new Set<string>();\n''',
-)
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''    console.log(`[nascar_roster_sync] Fetched ${drivers.length} drivers from ${seriesName}`);\n''',
-    '''    console.log(`[nascar_roster_sync] Fetched ${drivers.length} drivers from ${seriesName}`);\n    if (drivers.length === 0) {\n      throw new Error(`empty ${seriesName} driver roster; refusing authoritative deactivation`);\n    }\n''',
-)
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''        await storage.upsertPlayer({\n          id: createNascarPlayerId(driver.driver_id, seriesId),\n''',
-    '''        const playerId = createNascarPlayerId(driver.driver_id, seriesId);\n        await storage.upsertPlayer({\n          id: playerId,\n''',
-)
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''          isEligibleForVesting: true,\n        });\n\n        recordsProcessed++;\n''',
-    '''          isEligibleForVesting: true,\n        });\n        activePlayerIds.add(playerId);\n\n        recordsProcessed++;\n''',
-)
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''    return { requestCount, recordsProcessed, errorCount };\n''',
-    '''    return { requestCount, recordsProcessed, errorCount, activePlayerIds: [...activePlayerIds] };\n''',
-)
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''    return { requestCount, recordsProcessed: 0, errorCount: errorCount + 1 };\n''',
-    '''    return { requestCount, recordsProcessed: 0, errorCount: errorCount + 1, activePlayerIds: [] };\n''',
-)
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''  let totalRequestCount = 0;\n  let totalRecordsProcessed = 0;\n  let totalErrorCount = 0;\n''',
-    '''  let totalRequestCount = 0;\n  let totalRecordsProcessed = 0;\n  let totalErrorCount = 0;\n  const activePlayerIds = new Set<string>();\n  let authoritative = true;\n''',
-)
-replace_once(
-    "server/jobs/sync-nascar-roster.ts",
-    '''    totalRequestCount += result.requestCount;\n    totalRecordsProcessed += result.recordsProcessed;\n    totalErrorCount += result.errorCount;\n  }\n\n  console.log(\n''',
-    '''    totalRequestCount += result.requestCount;\n    totalRecordsProcessed += result.recordsProcessed;\n    totalErrorCount += result.errorCount;\n    result.activePlayerIds.forEach((playerId) => activePlayerIds.add(playerId));\n    if (result.errorCount > 0 || result.activePlayerIds.length === 0) authoritative = false;\n  }\n\n  if (authoritative) {\n    const existingPlayers = await storage.getPlayersBySport(NASCAR_SPORT);\n    for (const player of existingPlayers) {\n      if (!player.isActive || activePlayerIds.has(player.id)) continue;\n      await storage.updatePlayer(player.id, { isActive: false, isEligibleForVesting: false });\n      await storage.releaseScoutsForPlayer(player.id);\n    }\n  } else {\n    console.warn("[nascar_roster_sync] Non-authoritative series response; existing activity state retained");\n  }\n\n  console.log(\n''',
+const storage = vi.hoisted(() => ({
+  upsertPlayer: vi.fn(),
+  getPlayersBySport: vi.fn(),
+  updatePlayer: vi.fn(),
+}));
+const api = vi.hoisted(() => ({
+  fetchDrivers: vi.fn(),
+  fetchRaceSchedule: vi.fn(),
+  fetchActiveDriversForRace: vi.fn(),
+}));
+
+vi.mock("../storage", () => ({ storage }));
+vi.mock("../nascar-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../nascar-api")>();
+  return {
+    ...actual,
+    fetchDrivers: api.fetchDrivers,
+    fetchRaceSchedule: api.fetchRaceSchedule,
+    fetchActiveDriversForRace: api.fetchActiveDriversForRace,
+  };
+});
+
+import { syncNascarRoster } from "./sync-nascar-roster";
+
+const driver = (id: number) => ({
+  driver_id: id,
+  first_name: "Driver",
+  last_name: String(id),
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  api.fetchDrivers.mockImplementation(async (seriesId: number) => [driver(seriesId * 100 + 1)]);
+  storage.getPlayersBySport.mockResolvedValue([]);
+  storage.upsertPlayer.mockResolvedValue(undefined);
+  storage.updatePlayer.mockResolvedValue(undefined);
+});
+
+describe("syncNascarRoster player lifecycle", () => {
+  it("deactivates a previously admitted missing driver without deleting the asset", async () => {
+    storage.getPlayersBySport.mockResolvedValue([
+      { id: "nascar_999", isActive: true },
+    ]);
+
+    const result = await syncNascarRoster();
+
+    expect(result.errorCount).toBe(0);
+    expect(storage.updatePlayer).toHaveBeenCalledWith(
+      "nascar_999",
+      expect.objectContaining({ isActive: false }),
+    );
+  });
+
+  it("reactivates a returning driver by the same permanent driver id", async () => {
+    api.fetchDrivers.mockImplementation(async (seriesId: number) =>
+      seriesId === 1 ? [driver(999)] : [driver(seriesId * 100 + 1)],
+    );
+
+    await syncNascarRoster();
+
+    expect(storage.upsertPlayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "nascar_999", isActive: true }),
+    );
+  });
+
+  it("refuses mass deactivation when any authoritative series feed is empty", async () => {
+    storage.getPlayersBySport.mockResolvedValue([{ id: "nascar_999", isActive: true }]);
+    api.fetchDrivers.mockImplementation(async (seriesId: number) =>
+      seriesId === 2 ? [] : [driver(seriesId * 100 + 1)],
+    );
+
+    const result = await syncNascarRoster();
+
+    expect(result.errorCount).toBeGreaterThan(0);
+    expect(storage.updatePlayer).not.toHaveBeenCalled();
+  });
+});
+''',
 )
 
 print("persistent player lifecycle patch applied")
