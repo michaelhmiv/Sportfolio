@@ -37,11 +37,18 @@ export async function syncNFLRoster(): Promise<NflRosterSyncResult> {
     const existingPlayers = await storage.getPlayersBySport("NFL");
     const existingIds = new Set(existingPlayers.map((player) => player.id));
     const seen = new Set<string>();
+    const authoritativeTeams = new Set<string>();
 
     for (const team of teams) {
+      const teamAbbreviation = normalizeNflTeamAbbreviation(team.abbreviation);
       try {
         const roster = await espnNfl.getTeamRoster(team.id);
         result.requestCount++;
+        if (roster.length === 0) {
+          throw new Error("empty eligible roster; refusing authoritative deactivation");
+        }
+        authoritativeTeams.add(teamAbbreviation);
+
         for (const athlete of roster) {
           if (!NFL_ELIGIBLE_POSITIONS.has(athlete.position)) continue;
           const identity = identityMaps.byEspnId.get(athlete.espnId);
@@ -58,7 +65,7 @@ export async function syncNFLRoster(): Promise<NflRosterSyncResult> {
             sport: "NFL",
             firstName,
             lastName,
-            team: normalizeNflTeamAbbreviation(team.abbreviation),
+            team: teamAbbreviation,
             position: athlete.position,
             jerseyNumber: athlete.jersey,
             isActive: athlete.active,
@@ -80,7 +87,15 @@ export async function syncNFLRoster(): Promise<NflRosterSyncResult> {
     }
 
     for (const player of existingPlayers) {
-      if (seen.has(player.id) || !player.isActive) continue;
+      const previousTeam = normalizeNflTeamAbbreviation(player.team);
+      if (
+        seen.has(player.id) ||
+        !player.isActive ||
+        !previousTeam ||
+        !authoritativeTeams.has(previousTeam)
+      ) {
+        continue;
+      }
       await storage.updatePlayer(player.id, { isActive: false, isEligibleForVesting: false });
       result.playersDeactivated++;
     }
