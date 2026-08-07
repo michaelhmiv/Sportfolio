@@ -8,18 +8,25 @@ describe("passwordless web surface contract", () => {
     expect(normalizePasswordlessReturnTo("//evil.example")).toBe("/");
     expect(normalizePasswordlessReturnTo("/portfolio?tab=players")).toBe("/portfolio?tab=players");
   });
-  it("routes web login through a passwordless component and completion page", () => {
+
+  it("routes web login through the Better Auth passwordless component and completion page", () => {
     const login = readFileSync("client/src/pages/Login.tsx", "utf8");
+    const passwordless = readFileSync("client/src/pages/passwordless-web-login.tsx", "utf8");
     const app = readFileSync("client/src/App.tsx", "utf8");
+
     expect(login).toContain("PasswordlessWebLogin");
-    expect(login).toContain("fetchAuthCapabilities");
-    expect(login).toContain("passwordlessWebEnabled === true");
+    expect(login).toContain("useAuth");
+    expect(passwordless).toContain("requestMagicLink");
+    expect(passwordless).toContain('data-testid="button-passwordless-submit"');
+    expect(passwordless).toContain("No password is required");
     expect(app).toContain('path="/auth/complete"');
   });
+
   it("allows cookie-authenticated web user fetches without a Supabase token", () => {
     const auth = readFileSync("client/src/hooks/useAuth.tsx", "utf8");
     expect(auth).toContain('credentials: "include"');
     expect(auth).toContain("requestMagicLink");
     expect(auth).toContain("broadcastWebAuthChange");
+    expect(auth).not.toContain("supabase");
   });
 });
