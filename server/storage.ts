@@ -1792,9 +1792,7 @@ export class DatabaseStorage implements IStorage {
 
       // Share the same transaction lock used by reservations. This serializes both
       // existing-row updates and the no-row-yet insert case across holding writers.
-      const [reservationLockKeyA, reservationLockKeyB] = advisoryLockKeyPair(
-        reservationDomain,
-      );
+      const [reservationLockKeyA, reservationLockKeyB] = advisoryLockKeyPair(reservationDomain);
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})`,
       );
@@ -2844,9 +2842,7 @@ export class DatabaseStorage implements IStorage {
         assetType === "player" ? await loadPlayerIdentityContext(tx, assetId) : undefined;
       const identityIds = identity?.allIds.length ? identity.allIds : [assetId];
       const reservationDomain = holdingReservationDomain(userId, assetType, identityIds);
-      const [reservationLockKeyA, reservationLockKeyB] = advisoryLockKeyPair(
-        reservationDomain,
-      );
+      const [reservationLockKeyA, reservationLockKeyB] = advisoryLockKeyPair(reservationDomain);
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})`,
       );

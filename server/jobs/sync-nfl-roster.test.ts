@@ -28,7 +28,9 @@ vi.mock("../nfl/identity", () => ({
     return { firstName, lastName: rest.join(" ") || "Player" };
   },
   normalizeNflTeamAbbreviation: (team: string | null | undefined) =>
-    String(team || "").trim().toUpperCase(),
+    String(team || "")
+      .trim()
+      .toUpperCase(),
 }));
 
 import { syncNFLRoster } from "./sync-nfl-roster";
@@ -55,9 +57,7 @@ beforeEach(() => {
 
 describe("syncNFLRoster player lifecycle", () => {
   it("does not deactivate an admitted player when its team roster fetch fails", async () => {
-    storage.getPlayersBySport.mockResolvedValue([
-      { id: "nfl_G1", team: "CIN", isActive: true },
-    ]);
+    storage.getPlayersBySport.mockResolvedValue([{ id: "nfl_G1", team: "CIN", isActive: true }]);
     espnNfl.getTeamRoster.mockRejectedValue(new Error("provider unavailable"));
 
     const result = await syncNFLRoster();
@@ -67,9 +67,7 @@ describe("syncNFLRoster player lifecycle", () => {
   });
 
   it("deactivates an admitted player only after an authoritative team roster omits them", async () => {
-    storage.getPlayersBySport.mockResolvedValue([
-      { id: "nfl_G1", team: "CIN", isActive: true },
-    ]);
+    storage.getPlayersBySport.mockResolvedValue([{ id: "nfl_G1", team: "CIN", isActive: true }]);
     identityMap.set("2", { gsisId: "G2", displayName: "Other Quarterback" });
     espnNfl.getTeamRoster.mockResolvedValue([qb("2", "Other Quarterback")]);
 
@@ -83,9 +81,7 @@ describe("syncNFLRoster player lifecycle", () => {
   });
 
   it("reactivates a returning player using the same permanent canonical id", async () => {
-    storage.getPlayersBySport.mockResolvedValue([
-      { id: "nfl_G1", team: "CIN", isActive: false },
-    ]);
+    storage.getPlayersBySport.mockResolvedValue([{ id: "nfl_G1", team: "CIN", isActive: false }]);
     identityMap.set("1", { gsisId: "G1", displayName: "Joe Example" });
     espnNfl.getTeamRoster.mockResolvedValue([qb("1", "Joe Example")]);
 
@@ -102,9 +98,7 @@ describe("syncNFLRoster player lifecycle", () => {
   });
 
   it("treats an empty eligible roster as non-authoritative", async () => {
-    storage.getPlayersBySport.mockResolvedValue([
-      { id: "nfl_G1", team: "CIN", isActive: true },
-    ]);
+    storage.getPlayersBySport.mockResolvedValue([{ id: "nfl_G1", team: "CIN", isActive: true }]);
     espnNfl.getTeamRoster.mockResolvedValue([]);
 
     const result = await syncNFLRoster();

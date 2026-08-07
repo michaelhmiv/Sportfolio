@@ -10,7 +10,10 @@ if (String(process.env.RUN_SCHEDULED_JOBS || "").toLowerCase() !== "false") {
 }
 const digest = createHash("sha256").update("holding-reservation:verification", "utf8").digest();
 const keys = [digest.readInt32BE(0), digest.readInt32BE(4)];
-const client = new Client({ connectionString: databaseUrl, application_name: "sportfolio-lock-check" });
+const client = new Client({
+  connectionString: databaseUrl,
+  application_name: "sportfolio-lock-check",
+});
 await client.connect();
 try {
   await client.query("BEGIN");
@@ -19,7 +22,9 @@ try {
   } finally {
     await client.query("ROLLBACK");
   }
-  console.log(JSON.stringify({ status: "ok", overload: "pg_advisory_xact_lock(integer, integer)" }));
+  console.log(
+    JSON.stringify({ status: "ok", overload: "pg_advisory_xact_lock(integer, integer)" }),
+  );
 } finally {
   await client.end();
 }

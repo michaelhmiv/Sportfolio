@@ -7,7 +7,9 @@ export const NFL_SEASON_TYPE_CODE: Record<NflSeasonType, number> = {
 };
 
 export function normalizeNflSeasonType(value: unknown): NflSeasonType {
-  const raw = String(value ?? "").trim().toLowerCase();
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (raw === "1" || raw === "pre" || raw === "preseason") return "preseason";
   if (raw === "3" || raw === "post" || raw === "postseason" || raw === "playoffs") {
     return "postseason";
@@ -28,12 +30,10 @@ export function isNflGameplayEligibleSeasonType(value: unknown): boolean {
   return normalizeNflSeasonType(value) !== "preseason";
 }
 
-export function isNflPreseasonGame(game: {
-  sport?: unknown;
-  seasonType?: unknown;
-}): boolean {
+export function isNflPreseasonGame(game: { sport?: unknown; seasonType?: unknown }): boolean {
   return (
-    String(game.sport ?? "").trim().toUpperCase() === "NFL" &&
-    normalizeNflSeasonType(game.seasonType) === "preseason"
+    String(game.sport ?? "")
+      .trim()
+      .toUpperCase() === "NFL" && normalizeNflSeasonType(game.seasonType) === "preseason"
   );
 }

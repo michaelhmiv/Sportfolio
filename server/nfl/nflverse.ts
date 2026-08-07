@@ -59,9 +59,11 @@ export function parseCsv(input: string): CsvRow[] {
   const headers = rows[0].map((value, index) =>
     index === 0 ? value.replace(/^\uFEFF/, "") : value,
   );
-  return rows.slice(1).map((values) =>
-    Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])),
-  );
+  return rows
+    .slice(1)
+    .map((values) =>
+      Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])),
+    );
 }
 
 async function fetchText(url: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<string> {
@@ -120,10 +122,17 @@ export class NflverseClient {
           row.display_name || row.full_name || row.common_first_name || row.short_name || "",
         ).trim();
         if (!gsisId || !displayName) return null;
-        const position = String(row.position || row.position_group || "").trim().toUpperCase() || null;
+        const position =
+          String(row.position || row.position_group || "")
+            .trim()
+            .toUpperCase() || null;
         const team =
-          String(row.latest_team || row.team_abbr || row.team || "").trim().toUpperCase() || null;
-        const status = String(row.status || "").trim().toUpperCase();
+          String(row.latest_team || row.team_abbr || row.team || "")
+            .trim()
+            .toUpperCase() || null;
+        const status = String(row.status || "")
+          .trim()
+          .toUpperCase();
         const active = status ? !["RET", "RETIRED", "INA", "INACTIVE"].includes(status) : true;
         return {
           gsisId,
@@ -153,7 +162,9 @@ export class NflverseClient {
 export const nflverse = new NflverseClient();
 
 export function nflverseSeasonType(row: CsvRow): NflSeasonType {
-  const value = String(row.season_type || "").trim().toUpperCase();
+  const value = String(row.season_type || "")
+    .trim()
+    .toUpperCase();
   if (value === "PRE") return "preseason";
   if (value === "POST") return "postseason";
   return normalizeNflSeasonType(value);

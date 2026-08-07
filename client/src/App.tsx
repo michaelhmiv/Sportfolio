@@ -768,7 +768,7 @@ function Router() {
             <Switch>
               {/* Auth routes */}
               <Route path="/login" component={Login} />
-                    <Route path="/auth/complete" component={AuthComplete} />
+              <Route path="/auth/complete" component={AuthComplete} />
               <Route path="/checkout/success" component={CheckoutSuccess} />
               {/* Native full-screen onboarding — replaces the modal on Android/iOS */}
               <Route path="/onboarding" component={OnboardingPage} />

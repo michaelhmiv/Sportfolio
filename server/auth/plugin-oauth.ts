@@ -64,7 +64,10 @@ async function authenticateToken(token: string): Promise<PluginAuthContext> {
   const claims = await verifyPluginAccessToken(token, getPluginOAuthConfig());
   const clientId = getPluginTokenClientId(claims);
   if (!clientId) {
-    throw new PluginTokenError("missing_client_id", "The access token has no OAuth client identifier.");
+    throw new PluginTokenError(
+      "missing_client_id",
+      "The access token has no OAuth client identifier.",
+    );
   }
   return {
     userId: canonicalUserId(claims),

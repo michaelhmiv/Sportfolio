@@ -37,7 +37,9 @@ describe("NFL conventional fantasy scoring", () => {
   });
 
   it("applies interception and lost-fumble negatives", () => {
-    expect(calculateNflFantasyPoints({ passingYards: 100, interceptions: 2, fumblesLost: 1 })).toBe(-2);
+    expect(calculateNflFantasyPoints({ passingYards: 100, interceptions: 2, fumblesLost: 1 })).toBe(
+      -2,
+    );
   });
 
   it("uses 3/4/5 point field-goal tiers", () => {

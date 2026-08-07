@@ -9,7 +9,9 @@ const NFL_TEAM_ALIASES: Record<string, string> = {
 };
 
 export function normalizeNflTeamAbbreviation(value: string | null | undefined): string {
-  const normalized = String(value || "").trim().toUpperCase();
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase();
   return NFL_TEAM_ALIASES[normalized] || normalized;
 }
 
@@ -42,7 +44,10 @@ export function buildNflIdentityMaps(players: NflversePlayerIdentity[]): NflIden
 }
 
 export function splitNflDisplayName(displayName: string): { firstName: string; lastName: string } {
-  const parts = String(displayName || "").trim().split(/\s+/).filter(Boolean);
+  const parts = String(displayName || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (parts.length <= 1) return { firstName: parts[0] || "Unknown", lastName: "Player" };
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }

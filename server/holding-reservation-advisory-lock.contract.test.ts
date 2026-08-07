@@ -16,9 +16,7 @@ function expectReservationLock(method: string): void {
   expect(method).toContain("sport");
   expect(method).toContain("advisoryLockKeyPair(");
   expect(method).toContain("reservationDomain");
-  expect(method).toContain(
-    "pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})",
-  );
+  expect(method).toContain("pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})");
   expect(method).not.toContain("hashtextextended");
 }
 
@@ -38,8 +36,6 @@ describe("holding reservation advisory-lock wiring", () => {
 
   it("leaves the unrelated rewarded-scout lock unchanged", () => {
     const source = readFileSync("server/storage.ts", "utf8");
-    expect(source).toContain(
-      "pg_advisory_xact_lock(hashtextextended(${grant.userId}, 0))",
-    );
+    expect(source).toContain("pg_advisory_xact_lock(hashtextextended(${grant.userId}, 0))");
   });
 });

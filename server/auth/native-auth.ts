@@ -97,7 +97,10 @@ async function consumeNativeContinuation(
         gt(authContinuations.expiresAt, now),
       ),
     )
-    .returning({ platform: authContinuations.destination, bindingHash: authContinuations.stateHash });
+    .returning({
+      platform: authContinuations.destination,
+      bindingHash: authContinuations.stateHash,
+    });
 
   const row = rows[0];
   if (!row?.bindingHash || (row.platform !== "ios" && row.platform !== "android")) return null;
@@ -227,7 +230,8 @@ export function registerNativeAuthRoutes(
 
     try {
       const response = await submitNativeMagicLink(parsed.data.email, callback.toString(), config);
-      if (!response.ok) logger.warn({ status: response.status }, "Native magic-link provider rejected request");
+      if (!response.ok)
+        logger.warn({ status: response.status }, "Native magic-link provider rejected request");
     } catch (error) {
       logger.warn(
         { errorName: error instanceof Error ? error.name : "unknown" },
@@ -250,7 +254,8 @@ export function registerNativeAuthRoutes(
         return res.status(401).send("The sign-in session could not be verified.");
       }
       const consumed = await consumeNativeContinuation(continuation, principal.userId);
-      if (!consumed) return res.status(410).send("This native sign-in request has expired or was used.");
+      if (!consumed)
+        return res.status(410).send("This native sign-in request has expired or was used.");
 
       const code = await createNativeHandoff(
         principal.providerSubject,

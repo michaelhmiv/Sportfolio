@@ -35,7 +35,8 @@ export function getPluginOAuthConfig(env: NodeJS.ProcessEnv = process.env): Plug
     enabled: env.PLUGIN_MCP_ENABLED === "true",
     issuer,
     resource,
-    discoveryUrl: env.PLUGIN_OAUTH_DISCOVERY_URL || `${issuer}/.well-known/oauth-authorization-server`,
+    discoveryUrl:
+      env.PLUGIN_OAUTH_DISCOVERY_URL || `${issuer}/.well-known/oauth-authorization-server`,
     jwksUrl: env.PLUGIN_OAUTH_JWKS_URL || `${issuer}/jwks`,
     requiredScopes: parseCsv(env.PLUGIN_OAUTH_REQUIRED_SCOPES || "openid sportfolio.read"),
     allowedClientIds: parseCsv(env.PLUGIN_OAUTH_ALLOWED_CLIENT_IDS),

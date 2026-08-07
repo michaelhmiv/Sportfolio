@@ -41,7 +41,10 @@ function scopeLabel(scope: string) {
 
 export default function OAuthConsentPage() {
   const params = useMemo(
-    () => (typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search)),
+    () =>
+      typeof window === "undefined"
+        ? new URLSearchParams()
+        : new URLSearchParams(window.location.search),
     [],
   );
   const clientId = params.get("client_id");
@@ -99,7 +102,8 @@ export default function OAuthConsentPage() {
       | { redirectURI?: string; redirectUri?: string; redirect_url?: string; url?: string }
       | null
       | undefined;
-    const target = redirect?.redirectURI || redirect?.redirectUri || redirect?.redirect_url || redirect?.url;
+    const target =
+      redirect?.redirectURI || redirect?.redirectUri || redirect?.redirect_url || redirect?.url;
     if (target) window.location.assign(target);
   }
 
@@ -113,7 +117,10 @@ export default function OAuthConsentPage() {
   return (
     <SurfaceLayout kind="auth" showFooter={false}>
       <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-5xl items-center justify-center px-4 py-10 sm:px-6">
-        <Card variant="default" className="w-full max-w-2xl overflow-hidden border-border-strong shadow-medium">
+        <Card
+          variant="default"
+          className="w-full max-w-2xl overflow-hidden border-border-strong shadow-medium"
+        >
           <CardContent className="p-0">
             <header className="border-b border-border-subtle bg-surface-raised px-6 py-6 sm:px-8">
               <div className="flex items-start gap-4">
@@ -136,12 +143,18 @@ export default function OAuthConsentPage() {
 
             <div className="p-6 sm:p-8">
               {loading ? (
-                <div className="flex min-h-52 flex-col items-center justify-center gap-3 text-content-muted" data-testid="oauth-consent-loading">
+                <div
+                  className="flex min-h-52 flex-col items-center justify-center gap-3 text-content-muted"
+                  data-testid="oauth-consent-loading"
+                >
                   <Loader2 className="h-7 w-7 animate-spin text-brand" aria-hidden="true" />
                   Loading authorization request…
                 </div>
               ) : error && !client ? (
-                <div className="rounded-panel border border-destructive/30 bg-destructive-subtle p-4 text-sm text-destructive" role="alert">
+                <div
+                  className="rounded-panel border border-destructive/30 bg-destructive-subtle p-4 text-sm text-destructive"
+                  role="alert"
+                >
                   {error}
                 </div>
               ) : client ? (
@@ -150,7 +163,10 @@ export default function OAuthConsentPage() {
                     <h2 className="text-sm font-bold text-content-strong">Requested access</h2>
                     <ul className="mt-3 divide-y divide-border-subtle overflow-hidden rounded-panel border border-border-subtle bg-surface">
                       {scopes.map((scope) => (
-                        <li key={scope} className="flex items-center gap-3 px-4 py-3 text-sm text-content-muted">
+                        <li
+                          key={scope}
+                          className="flex items-center gap-3 px-4 py-3 text-sm text-content-muted"
+                        >
                           <LockKeyhole className="h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
                           {scopeLabel(scope)}
                         </li>
@@ -161,7 +177,9 @@ export default function OAuthConsentPage() {
                   <section className="rounded-panel border border-border-subtle bg-surface-raised p-5">
                     <h2 className="font-bold text-content-strong">What the connection can do</h2>
                     <p className="mt-3 text-sm leading-6 text-content-muted">
-                      Sportfolio only grants the scopes shown above. Gameplay mutations remain limited to supported actions and explicit requests; OAuth does not grant administrative access.
+                      Sportfolio only grants the scopes shown above. Gameplay mutations remain
+                      limited to supported actions and explicit requests; OAuth does not grant
+                      administrative access.
                     </p>
                   </section>
 
@@ -171,17 +189,39 @@ export default function OAuthConsentPage() {
                   </div>
 
                   {error ? (
-                    <div className="rounded-panel border border-destructive/30 bg-destructive-subtle p-4 text-sm text-destructive" role="alert">
+                    <div
+                      className="rounded-panel border border-destructive/30 bg-destructive-subtle p-4 text-sm text-destructive"
+                      role="alert"
+                    >
                       {error}
                     </div>
                   ) : null}
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Button type="button" variant="outline" disabled={submitting !== null} onClick={() => void decide(false)} data-testid="oauth-consent-deny">
-                      {submitting === "deny" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Deny"}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={submitting !== null}
+                      onClick={() => void decide(false)}
+                      data-testid="oauth-consent-deny"
+                    >
+                      {submitting === "deny" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Deny"
+                      )}
                     </Button>
-                    <Button type="button" disabled={submitting !== null} onClick={() => void decide(true)} data-testid="oauth-consent-approve">
-                      {submitting === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Allow access"}
+                    <Button
+                      type="button"
+                      disabled={submitting !== null}
+                      onClick={() => void decide(true)}
+                      data-testid="oauth-consent-approve"
+                    >
+                      {submitting === "approve" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Allow access"
+                      )}
                     </Button>
                   </div>
                 </div>

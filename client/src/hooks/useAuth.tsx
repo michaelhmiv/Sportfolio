@@ -1,12 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import type { User } from "@shared/schema";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-input";
@@ -149,7 +142,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 function mapPasswordlessError(error: unknown): AuthFailureResult {
-  const message = error instanceof Error ? error.message : String(error || "Authentication failed.");
+  const message =
+    error instanceof Error ? error.message : String(error || "Authentication failed.");
   const normalized = message.toLowerCase();
   if (normalized.includes("valid email")) {
     return { success: false, code: "invalid_email", error: "Please enter a valid email address." };
@@ -223,22 +217,29 @@ export function useAuth() {
     }
   }, [user?.whopSync?.credited, toast]);
 
-  const requestMagicLink = useCallback(async (email: string, returnTo = "/"): Promise<AuthResult> => {
-    const normalizedEmail = normalizeEmail(email);
-    if (!isValidEmail(normalizedEmail)) {
-      return { success: false, code: "invalid_email", error: "Please enter a valid email address." };
-    }
-    try {
-      if (Capacitor.isNativePlatform()) await requestNativeMagicLink(normalizedEmail);
-      else await requestPasswordlessEmail(normalizedEmail, returnTo);
-      trackAuthEvent("magic_link_requested");
-      return { success: true };
-    } catch (error) {
-      const mapped = mapPasswordlessError(error);
-      trackAuthEvent("magic_link_request_failure", { code: mapped.code });
-      return mapped;
-    }
-  }, []);
+  const requestMagicLink = useCallback(
+    async (email: string, returnTo = "/"): Promise<AuthResult> => {
+      const normalizedEmail = normalizeEmail(email);
+      if (!isValidEmail(normalizedEmail)) {
+        return {
+          success: false,
+          code: "invalid_email",
+          error: "Please enter a valid email address.",
+        };
+      }
+      try {
+        if (Capacitor.isNativePlatform()) await requestNativeMagicLink(normalizedEmail);
+        else await requestPasswordlessEmail(normalizedEmail, returnTo);
+        trackAuthEvent("magic_link_requested");
+        return { success: true };
+      } catch (error) {
+        const mapped = mapPasswordlessError(error);
+        trackAuthEvent("magic_link_request_failure", { code: mapped.code });
+        return mapped;
+      }
+    },
+    [],
+  );
 
   // Compatibility aliases while old callers are removed. Passwords are intentionally ignored:
   // passwordless email is the only public authentication method.
@@ -255,11 +256,14 @@ export function useAuth() {
     [requestMagicLink],
   );
 
-  const passwordlessOnly = useCallback(async (): Promise<AuthResult> => ({
-    success: false,
-    code: "unknown",
-    error: "Sportfolio uses passwordless email sign-in.",
-  }), []);
+  const passwordlessOnly = useCallback(
+    async (): Promise<AuthResult> => ({
+      success: false,
+      code: "unknown",
+      error: "Sportfolio uses passwordless email sign-in.",
+    }),
+    [],
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -278,17 +282,20 @@ export function useAuth() {
       queryClient.removeQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
-          return typeof key === "string" && [
-            "/api/auth",
-            "/api/dashboard",
-            "/api/holdings",
-            "/api/portfolio",
-            "/api/admin",
-            "/api/whop",
-            "/api/me/collections",
-            "/api/me/trophy-case",
-            "/api/user",
-          ].some((path) => key.startsWith(path));
+          return (
+            typeof key === "string" &&
+            [
+              "/api/auth",
+              "/api/dashboard",
+              "/api/holdings",
+              "/api/portfolio",
+              "/api/admin",
+              "/api/whop",
+              "/api/me/collections",
+              "/api/me/trophy-case",
+              "/api/user",
+            ].some((path) => key.startsWith(path))
+          );
         },
       });
       queryClient.setQueryData(["/api/auth/user"], null);
