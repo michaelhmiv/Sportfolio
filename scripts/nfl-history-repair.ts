@@ -60,6 +60,7 @@ async function main() {
       `,
       [[...HISTORICAL_SEASONS]],
     );
+    console.log(`[nfl_history_repair] coverage ${JSON.stringify(coverageRows.rows)}`);
     const coverage = new Map<CoverageKey, number>(
       coverageRows.rows.map((row) => [
         `${Number(row.season)}:${String(row.season_type)}` as CoverageKey,
@@ -75,7 +76,6 @@ async function main() {
         );
       }
     }
-    console.log(`[nfl_history_repair] coverage ${JSON.stringify(coverageRows.rows)}`);
 
     const result = await syncNflverseStats({ years: [...HISTORICAL_SEASONS] });
     console.log(`[nfl_history_repair] stats ${JSON.stringify(result)}`);
@@ -95,10 +95,10 @@ async function main() {
       LEFT JOIN daily_games g ON g.game_id = s.game_id
     `);
     const verificationRow = verification.rows[0] || { stats: 0, orphan_stats: 0 };
+    console.log(`[nfl_history_repair] verification ${JSON.stringify(verificationRow)}`);
     if (Number(verificationRow.stats) === 0 || Number(verificationRow.orphan_stats) !== 0) {
       throw new Error(`NFL history DB verification failed: ${JSON.stringify(verificationRow)}`);
     }
-    console.log(`[nfl_history_repair] verification ${JSON.stringify(verificationRow)}`);
 
     await client.query(
       "INSERT INTO sportfolio_operational_migrations(id, details) VALUES ($1, $2::jsonb)",
