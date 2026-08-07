@@ -1,0 +1,34 @@
+name: Finalization Apply Patch
+
+on:
+  push:
+    branches:
+      - finalization/2026-08-07
+    paths:
+      - scripts/deterministic-task-patch.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: finalization/2026-08-07
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: python scripts/deterministic-task-patch.py
+      - run: rm scripts/deterministic-task-patch.py
+      - name: Commit generated implementation
+        run: |
+          git config user.name "sportfolio-finalization[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: apply portable holding advisory locks"
+          git push origin HEAD:finalization/2026-08-07
