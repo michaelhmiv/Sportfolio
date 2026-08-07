@@ -8,6 +8,7 @@ import {
   normalizePlayersSortOrder,
   resolvePlayersWatchlistScope,
 } from "./players-query";
+import { normalizePlayerActivityFilter } from "../player-lifecycle";
 
 type MarketplaceGameStatus = "none" | "upcoming" | "live" | "ended";
 
@@ -115,6 +116,7 @@ export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesD
   app.get("/api/players", optionalAuth, async (req: any, res) => {
     try {
       const { team, position, sortBy, sortOrder, teamsPlayingOnDate, sport } = req.query;
+      const activity = normalizePlayerActivityFilter(req.query.activity);
       const rawSearch = normalizePlayersSearchQuery({
         q: req.query.q,
         search: req.query.search,
@@ -157,6 +159,7 @@ export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesD
         team: team as string,
         position: position as string,
         sport: sport as string,
+        activity,
         limit: safeLimit,
         offset: safeOffset,
         sortBy: safeSortBy,
