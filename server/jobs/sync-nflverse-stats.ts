@@ -22,6 +22,8 @@ export interface NflverseStatsSyncResult {
   recordsProcessed: number;
   playersRecovered: number;
   gamesMissing: number;
+  gamesMissingByWeek: Record<string, number>;
+  gamesMissingExamples: string[];
   errorCount: number;
   errors: string[];
 }
@@ -143,6 +145,8 @@ export async function syncNflverseStats(
     recordsProcessed: 0,
     playersRecovered: 0,
     gamesMissing: 0,
+    gamesMissingByWeek: {},
+    gamesMissingExamples: [],
     errorCount: 0,
     errors: [],
   };
@@ -191,6 +195,11 @@ export async function syncNflverseStats(
             }
             if (!game) {
               result.gamesMissing++;
+              const bucket = `${year}|${seasonType}|${week}`;
+              result.gamesMissingByWeek[bucket] = (result.gamesMissingByWeek[bucket] || 0) + 1;
+              if (result.gamesMissingExamples.length < 40) {
+                result.gamesMissingExamples.push(`${bucket}|${team}|${opponent}|${gsisId}`);
+              }
               continue;
             }
 
