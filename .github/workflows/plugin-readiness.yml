@@ -132,7 +132,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PLUGIN_OAUTH_ISSUER: https://auth.sportfolio.market/api/auth/better
+      PLUGIN_OAUTH_ISSUER: ${{ github.event_name == 'pull_request' && 'https://beta.sportfolio.market/api/auth/better' || 'https://www.sportfolio.market/api/auth/better' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
