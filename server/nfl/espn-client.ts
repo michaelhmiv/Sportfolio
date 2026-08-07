@@ -253,16 +253,19 @@ function canonicalEspnStat(categoryName: string, statName: string): string {
   };
   if (alreadyCanonical[stat]) return alreadyCanonical[stat];
   if (category.includes("passing")) {
+    if (stat === "catt" || stat === "cmpatt") return "passingCompletionsAttempts";
     if (stat === "yds" || stat === "yards") return "passingYards";
     if (stat === "td" || stat === "tds") return "passingTouchdowns";
     if (stat === "int") return "interceptions";
   }
   if (category.includes("rushing")) {
+    if (stat === "car" || stat === "att" || stat === "attempts") return "rushingAttempts";
     if (stat === "yds" || stat === "yards") return "rushingYards";
     if (stat === "td" || stat === "tds") return "rushingTouchdowns";
   }
   if (category.includes("receiving")) {
     if (stat === "rec") return "receptions";
+    if (stat === "tgts" || stat === "tgt" || stat === "targets") return "receivingTargets";
     if (stat === "yds" || stat === "yards") return "receivingYards";
     if (stat === "td" || stat === "tds") return "receivingTouchdowns";
   }
@@ -283,6 +286,25 @@ function canonicalEspnStatValue(categoryName: string, statName: string, value: u
   return statValue(value);
 }
 
+function relevantEspnBoxscoreCategory(categoryName: string): boolean {
+  const category = normalizeKey(categoryName);
+  return ["passing", "rushing", "receiving", "fumble", "kicking"].some((token) =>
+    category.includes(token),
+  );
+}
+
+function inferPositionFromCategory(categoryName: string): string {
+  const category = normalizeKey(categoryName);
+  if (category.includes("passing")) return "QB";
+  if (category.includes("kicking")) return "K";
+  return "";
+}
+
+function splitAttempts(value: unknown): [number, number] | null {
+  const match = text(value).match(/^(\d+)\s*\/\s*(\d+)/);
+  return match ? [Number(match[1]), Number(match[2])] : null;
+}
+
 export function extractEspnPlayerStats(payload: unknown): EspnNflPlayerStatLine[] {
   const summary = record(payload);
   if (!summary) return [];
@@ -293,14 +315,17 @@ export function extractEspnPlayerStats(payload: unknown): EspnNflPlayerStatLine[
     const team = text(teamBlock?.team?.abbreviation).toUpperCase() || null;
     for (const category of array(teamBlock?.statistics)) {
       const categoryName = text(category?.name || category?.displayName || category?.label);
+      if (!relevantEspnBoxscoreCategory(categoryName)) continue;
       const names = array(category?.names).map((name) => text(name));
       for (const entry of array(category?.athletes)) {
         const athlete = record(entry?.athlete);
         if (!athlete) continue;
         const espnId = text(athlete.id);
         const displayName = text(athlete.displayName || athlete.fullName);
-        const position = text(athlete.position?.abbreviation).toUpperCase();
-        if (!espnId || !displayName || !NFL_ELIGIBLE_POSITIONS.has(position)) continue;
+        const explicitPosition = text(athlete.position?.abbreviation).toUpperCase();
+        if (explicitPosition && !NFL_ELIGIBLE_POSITIONS.has(explicitPosition)) continue;
+        const position = explicitPosition || inferPositionFromCategory(categoryName);
+        if (!espnId || !displayName) continue;
         const existing = merged.get(espnId) || {
           espnId,
           displayName,
@@ -309,15 +334,37 @@ export function extractEspnPlayerStats(payload: unknown): EspnNflPlayerStatLine[
           stats: {},
           fieldGoalDistances: distances.get(espnId) || [],
         };
+        if (!existing.position && position) existing.position = position;
+        if (!existing.team && team) existing.team = team;
         const values = array(entry?.stats);
         names.forEach((name, index) => {
           if (!name) return;
+          const rawValue = values[index];
           const canonicalName = canonicalEspnStat(categoryName, name);
           existing.stats[normalizeKey(canonicalName)] = canonicalEspnStatValue(
             categoryName,
             name,
-            values[index],
+            rawValue,
           );
+          const categoryKey = normalizeKey(categoryName);
+          const statKey = normalizeKey(name);
+          const attempts = splitAttempts(rawValue);
+          if (
+            categoryKey.includes("passing") &&
+            (statKey === "catt" || statKey === "cmpatt") &&
+            attempts
+          ) {
+            existing.stats.passingcompletions = attempts[0];
+            existing.stats.passingattempts = attempts[1];
+          }
+          if (categoryKey.includes("kicking") && statKey === "fg" && attempts) {
+            existing.stats.fieldgoalsmade = attempts[0];
+            existing.stats.fieldgoalsattempted = attempts[1];
+          }
+          if (categoryKey.includes("kicking") && statKey === "xp" && attempts) {
+            existing.stats.extrapointsmade = attempts[0];
+            existing.stats.extrapointsattempted = attempts[1];
+          }
         });
         merged.set(espnId, existing);
       }

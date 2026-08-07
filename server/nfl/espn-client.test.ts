@@ -151,4 +151,84 @@ describe("ESPN NFL provider", () => {
     const client = new EspnNflClient(fetchImpl as typeof fetch, 1000, 0);
     await expect(client.getGames()).rejects.toThrow("invalid JSON");
   });
+
+  it("keeps preseason offensive box-score rows when ESPN omits athlete position", () => {
+    const rows = extractEspnPlayerStats({
+      boxscore: {
+        players: [
+          {
+            team: { abbreviation: "CAR" },
+            statistics: [
+              {
+                name: "passing",
+                names: ["C/ATT", "YDS", "TD", "INT"],
+                athletes: [
+                  {
+                    athlete: { id: "101", displayName: "Preseason QB" },
+                    stats: ["12/18", "141", "1", "0"],
+                  },
+                ],
+              },
+              {
+                name: "rushing",
+                names: ["CAR", "YDS", "TD"],
+                athletes: [
+                  {
+                    athlete: { id: "102", displayName: "Preseason Runner" },
+                    stats: ["7", "44", "1"],
+                  },
+                ],
+              },
+              {
+                name: "receiving",
+                names: ["REC", "TGTS", "YDS", "TD"],
+                athletes: [
+                  {
+                    athlete: { id: "103", displayName: "Preseason Receiver" },
+                    stats: ["4", "6", "65", "1"],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toMatchObject({ espnId: "101", position: "QB" });
+    expect(rows[0].stats).toMatchObject({
+      passingcompletions: 12,
+      passingattempts: 18,
+      passingyards: 141,
+      passingtouchdowns: 1,
+    });
+    expect(rows[1].stats).toMatchObject({ rushingattempts: 7, rushingyards: 44 });
+    expect(rows[2].stats).toMatchObject({ receptions: 4, receivingtargets: 6, receivingyards: 65 });
+  });
+
+  it("preserves made and attempted kicking values", () => {
+    const [row] = extractEspnPlayerStats({
+      boxscore: {
+        players: [
+          {
+            team: { abbreviation: "ARI" },
+            statistics: [
+              {
+                name: "kicking",
+                names: ["FG", "XP"],
+                athletes: [{ athlete: { id: "9", displayName: "Kicker" }, stats: ["2/3", "3/3"] }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(row.position).toBe("K");
+    expect(row.stats).toMatchObject({
+      fieldgoalsmade: 2,
+      fieldgoalsattempted: 3,
+      extrapointsmade: 3,
+      extrapointsattempted: 3,
+    });
+  });
 });
