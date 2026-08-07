@@ -113,6 +113,7 @@ import {
   type UserActivityItem,
 } from "@shared/activity-feed";
 import { getUserActivitySourceFetchWindow } from "./activity-feed";
+import { advisoryLockKeyPair } from "./utils/advisory-lock-key";
 import { db } from "./db";
 import {
   eq,
@@ -1791,8 +1792,11 @@ export class DatabaseStorage implements IStorage {
 
       // Share the same transaction lock used by reservations. This serializes both
       // existing-row updates and the no-row-yet insert case across holding writers.
+      const [reservationLockKeyA, reservationLockKeyB] = advisoryLockKeyPair(
+        reservationDomain,
+      );
       await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+        sql`SELECT pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})`,
       );
 
       // Lock every equivalent holding in deterministic order before choosing the
@@ -2840,8 +2844,11 @@ export class DatabaseStorage implements IStorage {
         assetType === "player" ? await loadPlayerIdentityContext(tx, assetId) : undefined;
       const identityIds = identity?.allIds.length ? identity.allIds : [assetId];
       const reservationDomain = holdingReservationDomain(userId, assetType, identityIds);
+      const [reservationLockKeyA, reservationLockKeyB] = advisoryLockKeyPair(
+        reservationDomain,
+      );
       await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))`,
+        sql`SELECT pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})`,
       );
       const holdingRows = await tx
         .select({ id: holdings.id })
