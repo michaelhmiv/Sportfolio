@@ -2,9 +2,7 @@ import { storage } from "../storage";
 import { NFL_ELIGIBLE_POSITIONS } from "../nfl/espn-client";
 import {
   buildNflIdentityMaps,
-  createNflEspnAlias,
   createNflPlayerId,
-  splitNflDisplayName,
   normalizeNflTeamAbbreviation,
 } from "../nfl/identity";
 import {
@@ -44,16 +42,10 @@ function gameLookupKey(input: {
 
 export function nflverseGameWeekCandidates(seasonType: string, week: number): number[] {
   if (seasonType !== "postseason") return [week];
-  // nflverse continues NFL week numbering into the postseason (19-22), while
-  // ESPN's postseason scoreboard numbers rounds independently. Preserve the
-  // nflverse week first for compatibility, then try ESPN round numbers.
   const espnRoundByNflverseWeek: Record<number, number[]> = {
     19: [1],
     20: [2],
     21: [3],
-    // ESPN commonly places the Pro Bowl in postseason week 4 and the Super Bowl
-    // in week 5. Include both as defensive fallbacks; team/opponent matching
-    // prevents the wrong event from being selected.
     22: [5, 4],
   };
   return [...new Set([week, ...(espnRoundByNflverseWeek[week] || [])])];
@@ -176,6 +168,7 @@ export async function syncNflverseStats(
               .toUpperCase();
             if (!week || !gsisId || !team || !opponent || !NFL_ELIGIBLE_POSITIONS.has(position))
               continue;
+
             let game: any = null;
             for (const candidateWeek of nflverseGameWeekCandidates(seasonType, week)) {
               game = gamesByKey.get(
@@ -195,31 +188,11 @@ export async function syncNflverseStats(
             }
 
             const playerId = createNflPlayerId(gsisId);
-            let player = await storage.getPlayer(playerId);
+            const player = await storage.getPlayer(playerId);
             if (!player) {
-              const { firstName, lastName } = splitNflDisplayName(
-                identity?.displayName || row.player_display_name || row.player_name || gsisId,
-              );
-              await storage.upsertPlayer({
-                id: playerId,
-                sport: "NFL",
-                firstName,
-                lastName,
-                team: identity?.team || team || "FA",
-                position,
-                isActive: identity?.active ?? false,
-                isEligibleForVesting: identity?.active ?? false,
-              });
-              if (identity?.espnId) {
-                await storage.upsertPlayerIdAlias({
-                  aliasPlayerId: createNflEspnAlias(identity.espnId),
-                  canonicalPlayerId: playerId,
-                  sport: "NFL",
-                  reason: "espn_gsis_crosswalk",
-                });
-              }
-              player = await storage.getPlayer(playerId);
-              result.playersRecovered++;
+              // Historical reconciliation enriches only assets already admitted from the
+              // active/current NFL feed. It must never create historical/free-agent assets.
+              continue;
             }
 
             const fantasyInput = historicalFantasyInput(row);

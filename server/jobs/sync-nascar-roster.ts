@@ -36,7 +36,12 @@ function createNascarPlayerId(driverId: number, _seriesId: NascarSeriesId): stri
 export async function syncNascarRosterForSeries(
   seriesId: NascarSeriesId,
   progressCallback?: ProgressCallback,
-): Promise<{ requestCount: number; recordsProcessed: number; errorCount: number }> {
+): Promise<{
+  requestCount: number;
+  recordsProcessed: number;
+  errorCount: number;
+  activePlayerIds: string[];
+}> {
   const seriesName = NASCAR_SERIES_NAMES[seriesId];
   console.log(`[nascar_roster_sync] Starting ${seriesName} roster sync...`);
 
@@ -49,6 +54,7 @@ export async function syncNascarRosterForSeries(
   let requestCount = 0;
   let recordsProcessed = 0;
   let errorCount = 0;
+  const activePlayerIds = new Set<string>();
 
   try {
     progressCallback?.({
@@ -62,6 +68,9 @@ export async function syncNascarRosterForSeries(
     const drivers = await fetchDrivers(seriesId);
 
     console.log(`[nascar_roster_sync] Fetched ${drivers.length} drivers from ${seriesName}`);
+    if (drivers.length === 0) {
+      throw new Error(`empty ${seriesName} driver roster; refusing authoritative deactivation`);
+    }
 
     progressCallback?.({
       type: "info",
@@ -78,8 +87,9 @@ export async function syncNascarRosterForSeries(
         // Use codes: NCS (Cup), NXS (Xfinity), NTS (Trucks)
         const team = NASCAR_SERIES_CODES[seriesId]; // e.g., "NCS", "NXS", "NTS"
 
+        const playerId = createNascarPlayerId(driver.driver_id, seriesId);
         await storage.upsertPlayer({
-          id: createNascarPlayerId(driver.driver_id, seriesId),
+          id: playerId,
           sport: NASCAR_SPORT,
           firstName: driver.first_name,
           lastName: driver.last_name,
@@ -89,6 +99,7 @@ export async function syncNascarRosterForSeries(
           isActive: true,
           isEligibleForVesting: true,
         });
+        activePlayerIds.add(playerId);
 
         recordsProcessed++;
 
@@ -119,7 +130,7 @@ export async function syncNascarRosterForSeries(
       `[nascar_roster_sync] Completed ${seriesName} sync: ${recordsProcessed} drivers updated, ${errorCount} errors`,
     );
 
-    return { requestCount, recordsProcessed, errorCount };
+    return { requestCount, recordsProcessed, errorCount, activePlayerIds: [...activePlayerIds] };
   } catch (error: any) {
     console.error(`[nascar_roster_sync] Error syncing ${seriesName} roster:`, error.message);
     progressCallback?.({
@@ -127,7 +138,12 @@ export async function syncNascarRosterForSeries(
       timestamp: new Date().toISOString(),
       message: `Error syncing ${seriesName} roster: ${error.message}`,
     });
-    return { requestCount, recordsProcessed: 0, errorCount: errorCount + 1 };
+    return {
+      requestCount,
+      recordsProcessed: 0,
+      errorCount: errorCount + 1,
+      activePlayerIds: [],
+    };
   }
 }
 
@@ -140,6 +156,8 @@ export async function syncNascarRoster(progressCallback?: ProgressCallback): Pro
   let totalRequestCount = 0;
   let totalRecordsProcessed = 0;
   let totalErrorCount = 0;
+  const activePlayerIds = new Set<string>();
+  let authoritative = true;
 
   const seriesList: NascarSeriesId[] = [
     NASCAR_SERIES.CUP,
@@ -152,6 +170,23 @@ export async function syncNascarRoster(progressCallback?: ProgressCallback): Pro
     totalRequestCount += result.requestCount;
     totalRecordsProcessed += result.recordsProcessed;
     totalErrorCount += result.errorCount;
+    result.activePlayerIds.forEach((playerId) => activePlayerIds.add(playerId));
+    if (result.errorCount > 0 || result.activePlayerIds.length === 0) authoritative = false;
+  }
+
+  if (authoritative) {
+    const existingPlayers = await storage.getPlayersBySport(NASCAR_SPORT);
+    for (const player of existingPlayers) {
+      if (!player.isActive || activePlayerIds.has(player.id)) continue;
+      await storage.updatePlayer(player.id, {
+        isActive: false,
+        isEligibleForVesting: false,
+      });
+    }
+  } else {
+    console.warn(
+      "[nascar_roster_sync] Non-authoritative series response; existing activity state retained",
+    );
   }
 
   console.log(

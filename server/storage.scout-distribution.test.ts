@@ -5,7 +5,7 @@ const state = vi.hoisted(() => ({
   claimCreated: true,
   canonicalId: "player-1",
   allIds: ["player-1"],
-  player: { id: "player-1" } as { id: string } | undefined,
+  player: { id: "player-1", isActive: true } as { id: string; isActive: boolean } | undefined,
   holding: undefined as
     | { id: string; assetId: string; quantity: string; totalCostBasis: string | null }
     | undefined,
@@ -92,7 +92,7 @@ describe("DatabaseStorage.creditScoutDistribution", () => {
     state.claimCreated = true;
     state.canonicalId = "player-1";
     state.allIds = ["player-1"];
-    state.player = { id: "player-1" };
+    state.player = { id: "player-1", isActive: true };
     state.holding = undefined;
     state.inserts = [];
     state.updates = [];
@@ -136,7 +136,7 @@ describe("DatabaseStorage.creditScoutDistribution", () => {
   it("canonicalizes the event identity before claiming and crediting every side effect", async () => {
     state.canonicalId = "canonical-player";
     state.allIds = ["alias-player", "canonical-player"];
-    state.player = { id: "canonical-player" };
+    state.player = { id: "canonical-player", isActive: true };
     const { DatabaseStorage } = await import("./storage");
 
     await expect(
@@ -168,5 +168,14 @@ describe("DatabaseStorage.creditScoutDistribution", () => {
 
     expect(state.executions).toHaveLength(2);
     expect(state.holdingRowsLocked).toBe(true);
+  });
+
+  it("refuses to credit a stale distribution after the player becomes inactive", async () => {
+    state.player = { id: "player-1", isActive: false };
+    const { DatabaseStorage } = await import("./storage");
+
+    await expect(new DatabaseStorage().creditScoutDistribution(distribution)).rejects.toThrow(
+      "Inactive players cannot be scouted",
+    );
   });
 });

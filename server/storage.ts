@@ -145,6 +145,11 @@ import {
   loadPlayerIdentityContext,
   loadPlayerIdentityContexts,
 } from "./player-identity";
+import {
+  assertPlayerScoutable,
+  resolvePlayerActivityFilter,
+  type PlayerActivityFilter,
+} from "./player-lifecycle";
 
 export interface PlayerFinancialMetrics {
   peRatio: number;
@@ -271,6 +276,7 @@ export interface IStorage {
     team?: string;
     position?: string;
     sport?: string;
+    activity?: PlayerActivityFilter;
     limit?: number;
     offset?: number;
     sortBy?:
@@ -1544,6 +1550,15 @@ export class DatabaseStorage implements IStorage {
     playerId: string,
     count: number,
   ): Promise<void> {
+    if (count > 0) {
+      const [player] = await tx
+        .select({ isActive: players.isActive })
+        .from(players)
+        .where(eq(players.id, playerId))
+        .limit(1);
+      assertPlayerScoutable(player);
+    }
+
     const [user] = await tx.select().from(users).where(eq(users.id, userId));
     if (!user) {
       throw new Error("User not found");
@@ -1700,8 +1715,13 @@ export class DatabaseStorage implements IStorage {
       })
       .from(scoutAssignments)
       .innerJoin(users, eq(scoutAssignments.userId, users.id))
+      .innerJoin(players, eq(scoutAssignments.playerId, players.id))
       .where(
-        and(eq(scoutAssignments.playerId, playerId), gte(users.lastActiveAt, twentyFourHoursAgo)),
+        and(
+          eq(scoutAssignments.playerId, playerId),
+          gte(users.lastActiveAt, twentyFourHoursAgo),
+          eq(players.isActive, true),
+        ),
       );
 
     return results.map((r) => ({ userId: r.userId, scoutCount: r.scoutCount }));
@@ -1720,7 +1740,8 @@ export class DatabaseStorage implements IStorage {
       .selectDistinct({ playerId: scoutAssignments.playerId })
       .from(scoutAssignments)
       .innerJoin(users, eq(scoutAssignments.userId, users.id))
-      .where(gte(users.lastActiveAt, twentyFourHoursAgo));
+      .innerJoin(players, eq(scoutAssignments.playerId, players.id))
+      .where(and(gte(users.lastActiveAt, twentyFourHoursAgo), eq(players.isActive, true)));
 
     return results.map((r) => r.playerId);
   }
@@ -1802,6 +1823,7 @@ export class DatabaseStorage implements IStorage {
       if (!player) {
         throw new Error(`Player ${canonicalDistribution.playerId} not found`);
       }
+      assertPlayerScoutable(player);
 
       if (canonicalHolding) {
         // Compute from the locked row in SQL so no stale application-side quantity
@@ -2048,6 +2070,7 @@ export class DatabaseStorage implements IStorage {
     team?: string;
     position?: string;
     sport?: string;
+    activity?: PlayerActivityFilter;
     limit?: number;
     offset?: number;
     sortBy?:
@@ -2071,6 +2094,7 @@ export class DatabaseStorage implements IStorage {
       team,
       position,
       sport,
+      activity,
       limit = 50,
       offset = 0,
       sortBy = "volume",
@@ -2111,8 +2135,13 @@ export class DatabaseStorage implements IStorage {
 
     if (teamsPlayingOnDate && teamsPlayingOnDate.length > 0) {
       conditions.push(inArray(players.team, teamsPlayingOnDate));
-    } // Always filter by is_active
-    conditions.push(eq(players.isActive, true));
+    }
+
+    // Activity controls current sporting/scouting eligibility, not permanent asset existence.
+    // Default browse remains active-only; an explicit search may resolve an inactive asset.
+    const activityFilter = resolvePlayerActivityFilter({ explicit: activity, search });
+    if (activityFilter === "active") conditions.push(eq(players.isActive, true));
+    if (activityFilter === "inactive") conditions.push(eq(players.isActive, false));
 
     const isComplexSort = ["sentiment", "undervalued", "fantasyPoints"].includes(sortBySafe);
     const needsPoolJoin = ["price", "change", "tvl"].includes(sortBySafe);
@@ -2548,13 +2577,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updatePlayer(playerId: string, updates: Partial<InsertPlayer>): Promise<void> {
-    await db
-      .update(players)
-      .set({
-        ...updates,
-        lastUpdated: new Date(),
-      })
-      .where(eq(players.id, playerId));
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ isActive: players.isActive })
+        .from(players)
+        .where(eq(players.id, playerId))
+        .limit(1);
+
+      await tx
+        .update(players)
+        .set({
+          ...updates,
+          lastUpdated: new Date(),
+        })
+        .where(eq(players.id, playerId));
+
+      if (current?.isActive === true && updates.isActive === false) {
+        const endedAt = new Date();
+        await tx.delete(scoutAssignments).where(eq(scoutAssignments.playerId, playerId));
+        await tx
+          .update(scoutHistory)
+          .set({ endedAt })
+          .where(and(eq(scoutHistory.playerId, playerId), isNull(scoutHistory.endedAt)));
+      }
+    });
   }
 
   async getPlayerPoolsByPlayerIds(playerIds: string[]): Promise<any[]> {
