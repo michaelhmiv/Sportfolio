@@ -1,5 +1,18 @@
 import type { NflversePlayerIdentity } from "./nflverse";
 
+const NFL_TEAM_ALIASES: Record<string, string> = {
+  WAS: "WSH",
+  LA: "LAR",
+  STL: "LAR",
+  SD: "LAC",
+  OAK: "LV",
+};
+
+export function normalizeNflTeamAbbreviation(value: string | null | undefined): string {
+  const normalized = String(value || "").trim().toUpperCase();
+  return NFL_TEAM_ALIASES[normalized] || normalized;
+}
+
 export function createNflPlayerId(gsisId: string): string {
   const normalized = String(gsisId || "").trim();
   if (!normalized) throw new Error("NFL GSIS id is required");
