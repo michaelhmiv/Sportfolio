@@ -6,6 +6,7 @@ export const nflverseWeeklyStatsUrl = (season: number) =>
   `https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_${season}.csv`;
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+const PLAYER_CACHE_MS = 6 * 60 * 60 * 1000;
 
 export type CsvRow = Record<string, string>;
 
@@ -55,7 +56,9 @@ export function parseCsv(input: string): CsvRow[] {
   if (field.length > 0 || row.length > 0) pushRow();
   if (rows.length < 2) return [];
 
-  const headers = rows[0].map((value, index) => (index === 0 ? value.replace(/^\uFEFF/, "") : value));
+  const headers = rows[0].map((value, index) =>
+    index === 0 ? value.replace(/^\uFEFF/, "") : value,
+  );
   return rows.slice(1).map((values) =>
     Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])),
   );
@@ -69,9 +72,7 @@ async function fetchText(url: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<s
       signal: controller.signal,
       headers: { Accept: "text/csv,*/*;q=0.8", "User-Agent": "Sportfolio/1.0" },
     });
-    if (!response.ok) {
-      throw new Error(`nflverse request failed (${response.status})`);
-    }
+    if (!response.ok) throw new Error(`nflverse request failed (${response.status})`);
     return await response.text();
   } finally {
     clearTimeout(timeout);
@@ -103,11 +104,16 @@ export interface NflverseWeeklyStat extends CsvRow {
 }
 
 export class NflverseClient {
+  private playerCache: { expiresAt: number; value: NflversePlayerIdentity[] } | null = null;
+
   constructor(private readonly timeoutMs = DEFAULT_TIMEOUT_MS) {}
 
-  async getPlayers(): Promise<NflversePlayerIdentity[]> {
+  async getPlayers(options: { force?: boolean } = {}): Promise<NflversePlayerIdentity[]> {
+    if (!options.force && this.playerCache && this.playerCache.expiresAt > Date.now()) {
+      return this.playerCache.value;
+    }
     const rows = parseCsv(await fetchText(NFLVERSE_PLAYERS_URL, this.timeoutMs));
-    return rows
+    const players = rows
       .map((row) => {
         const gsisId = String(row.gsis_id || "").trim();
         const displayName = String(
@@ -115,7 +121,8 @@ export class NflverseClient {
         ).trim();
         if (!gsisId || !displayName) return null;
         const position = String(row.position || row.position_group || "").trim().toUpperCase() || null;
-        const team = String(row.latest_team || row.team_abbr || row.team || "").trim().toUpperCase() || null;
+        const team =
+          String(row.latest_team || row.team_abbr || row.team || "").trim().toUpperCase() || null;
         const status = String(row.status || "").trim().toUpperCase();
         const active = status ? !["RET", "RETIRED", "INA", "INACTIVE"].includes(status) : true;
         return {
@@ -128,6 +135,8 @@ export class NflverseClient {
         } satisfies NflversePlayerIdentity;
       })
       .filter((value): value is NflversePlayerIdentity => Boolean(value));
+    this.playerCache = { expiresAt: Date.now() + PLAYER_CACHE_MS, value: players };
+    return players;
   }
 
   async getWeeklyStats(season: number): Promise<NflverseWeeklyStat[]> {
@@ -135,9 +144,9 @@ export class NflverseClient {
       throw new Error(`Invalid NFL season ${season}`);
     }
     const rows = parseCsv(await fetchText(nflverseWeeklyStatsUrl(season), this.timeoutMs));
-    return rows.filter((row): row is NflverseWeeklyStat => {
-      return Boolean(row.player_id && row.season && row.week && row.season_type);
-    });
+    return rows.filter((row): row is NflverseWeeklyStat =>
+      Boolean(row.player_id && row.season && row.week && row.season_type),
+    );
   }
 }
 
