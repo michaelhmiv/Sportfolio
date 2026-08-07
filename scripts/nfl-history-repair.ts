@@ -50,6 +50,24 @@ async function main() {
       }
     }
 
+    // ESPN categorizes the Pro Bowl Games as postseason. Sportfolio's historical
+    // postseason is the competitive playoff bracket, so remove only AFC/NFC
+    // all-star exhibition rows that may have been persisted by an older sync.
+    const exhibitionCleanup = await client.query(
+      `
+        DELETE FROM daily_games
+        WHERE sport = 'NFL'
+          AND season = ANY($1::int[])
+          AND season_type = 'postseason'
+          AND (home_team IN ('AFC', 'NFC') OR away_team IN ('AFC', 'NFC'))
+        RETURNING game_id
+      `,
+      [[...HISTORICAL_SEASONS]],
+    );
+    console.log(
+      `[nfl_history_repair] removed all-star exhibitions ${JSON.stringify(exhibitionCleanup.rows)}`,
+    );
+
     const coverageRows = await client.query<{ season: number; season_type: string; games: number }>(
       `
         SELECT season, season_type, count(*)::int AS games
@@ -106,6 +124,7 @@ async function main() {
         REPAIR_ID,
         JSON.stringify({
           schedules,
+          exhibitionCleanup: exhibitionCleanup.rows,
           coverage: coverageRows.rows,
           stats: result,
           verification: verificationRow,
