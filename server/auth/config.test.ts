@@ -31,6 +31,17 @@ describe("auth environment safety", () => {
     expect(getAuthDiagnostics(config).betterAuthConfigured).toBe(false);
   });
 
+  it("defaults the retired Supabase fallback off when the variable is absent", () => {
+    const config = authEnvironmentSchema.parse({
+      ...base,
+      AUTH_PROVIDER: "BETTER_AUTH",
+      AUTH_SUPABASE_FALLBACK_ENABLED: undefined,
+      BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
+      BETTER_AUTH_URL: "https://www.sportfolio.market",
+    });
+    expect(config.AUTH_SUPABASE_FALLBACK_ENABLED).toBe(false);
+  });
+
   it("normalizes blank optional Railway variables to undefined", () => {
     const config = authEnvironmentSchema.parse({
       ...base,
