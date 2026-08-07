@@ -1,10 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { authIdentities, authUsers, users } from "@shared/schema";
 import { db, pool } from "../server/db";
-import {
-  hashAuthEmailIdentity,
-  normalizeAuthEmail,
-} from "../server/auth/identity-policy";
+import { hashAuthEmailIdentity, normalizeAuthEmail } from "../server/auth/identity-policy";
 
 const apply = process.argv.includes("--apply");
 
@@ -44,9 +41,7 @@ const existingLinks = await db
   })
   .from(authIdentities);
 
-const linked = new Map(
-  existingLinks.map((row) => [row.authUserId, row.sportfolioUserId]),
-);
+const linked = new Map(existingLinks.map((row) => [row.authUserId, row.sportfolioUserId]));
 const canonicalByEmail = new Map<string, typeof canonicalRows>();
 for (const row of canonicalRows) {
   if (!row.email) continue;
