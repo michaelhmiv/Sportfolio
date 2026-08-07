@@ -428,6 +428,32 @@ export const nativeAuthHandoffs = pgTable(
   }),
 );
 
+export const nativeAuthSessions = pgTable(
+  "native_auth_sessions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    authUserId: varchar("auth_user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    sportfolioUserId: varchar("sportfolio_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex("native_auth_sessions_token_idx").on(table.tokenHash),
+    userIdx: index("native_auth_sessions_user_idx").on(table.sportfolioUserId),
+    expiryIdx: index("native_auth_sessions_expiry_idx").on(table.expiresAt),
+  }),
+);
+
 export const authSecurityEvents = pgTable(
   "auth_security_events",
   {

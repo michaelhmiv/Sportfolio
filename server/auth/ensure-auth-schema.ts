@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 const AUTH_SCHEMA_MIGRATIONS = [
   "migrations/0064_passwordless_auth_identity_boundary.sql",
   "migrations/0065_better_auth_oauth_provider.sql",
+  "migrations/0066_native_passwordless_sessions.sql",
 ] as const;
 const AUTH_SCHEMA_LOCK = "sportfolio-passwordless-auth-schema-v1";
 
