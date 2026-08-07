@@ -14,7 +14,8 @@ export type PluginAccessTokenClaims = {
   exp: number;
   nbf?: number;
   iat?: number;
-  client_id: string;
+  client_id?: string;
+  azp?: string;
   scope?: string;
   role?: string;
   [key: string]: unknown;
@@ -81,6 +82,11 @@ function parseScopes(scope: unknown): Set<string> {
           .filter(Boolean)
       : [],
   );
+}
+
+export function getPluginTokenClientId(claims: PluginAccessTokenClaims): string | null {
+  const candidate = claims.client_id ?? claims.azp;
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
 }
 
 async function loadJwks(config: PluginOAuthConfig, forceRefresh = false): Promise<JwkSet> {
@@ -170,14 +176,15 @@ function validateClaims(claims: PluginAccessTokenClaims, config: PluginOAuthConf
     throw new PluginTokenError("missing_subject", "The access token has no user subject.");
   }
 
-  if (typeof claims.client_id !== "string" || !claims.client_id.trim()) {
+  const clientId = getPluginTokenClientId(claims);
+  if (!clientId) {
     throw new PluginTokenError(
       "missing_client_id",
       "The access token has no OAuth client identifier.",
     );
   }
 
-  if (config.allowedClientIds.length > 0 && !config.allowedClientIds.includes(claims.client_id)) {
+  if (config.allowedClientIds.length > 0 && !config.allowedClientIds.includes(clientId)) {
     throw new PluginTokenError(
       "unapproved_client",
       "This OAuth client is not approved for Sportfolio.",
