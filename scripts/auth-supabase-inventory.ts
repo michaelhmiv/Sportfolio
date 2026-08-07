@@ -144,7 +144,7 @@ ${rows}
 
 ## Interpretation
 
-This is a source-dependency inventory, not proof that Supabase owns application data. Railway Postgres remains authoritative for Sportfolio game records. Supabase Auth currently owns authentication identities, sessions, provider subjects, and the active OAuth issuer until cutover.
+This is a historical source-dependency inventory used to verify the completed authentication migration. Railway Postgres is authoritative for Sportfolio application and authentication data. Active runtime authentication is Better Auth with Resend passwordless delivery; remaining Supabase references are migration, audit, documentation, or historical artifacts and must not be imported by active runtime code.
 `;
 }
 
