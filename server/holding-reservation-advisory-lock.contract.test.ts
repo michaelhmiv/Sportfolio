@@ -11,25 +11,32 @@ function methodSource(source: string, startMarker: string, endMarker: string): s
 
 function expectReservationLock(method: string): void {
   expect(method).toContain("holdingReservationDomain(");
-  expect(method).toContain("userId");
-  expect(method).toContain("playerId");
-  expect(method).toContain("sport");
   expect(method).toContain("advisoryLockKeyPair(");
   expect(method).toContain("reservationDomain");
   expect(method).toContain("pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})");
-  expect(method).not.toContain("hashtextextended");
+  expect(method).not.toContain("hashtextextended(${reservationDomain}");
 }
 
 describe("holding reservation advisory-lock wiring", () => {
   it("coordinates reserveShares on the canonical reservation identity", () => {
     const source = readFileSync("server/storage.ts", "utf8");
-    expectReservationLock(methodSource(source, "async reserveShares", "async releaseShares"));
+    const method = methodSource(source, "async reserveShares", "async releaseShares");
+
+    expectReservationLock(method);
+    expect(method).toContain("loadPlayerIdentityContext(tx, assetId)");
+    expect(method).toContain("identity?.allIds");
+    expect(method).toContain("holdingReservationDomain(userId, assetType, identityIds)");
   });
 
   it("coordinates creditScoutDistribution on the same reservation identity", () => {
     const source = readFileSync("server/storage.ts", "utf8");
     const method = methodSource(source, "async creditScoutDistribution", "async getScoutRoster");
+
     expectReservationLock(method);
+    expect(method).toContain("loadPlayerIdentityContext(tx, distribution.playerId)");
+    expect(method).toContain("canonicalDistribution.userId");
+    expect(method).toContain('"player"');
+    expect(method).toContain("identityIds");
     expect(method).toContain("insert(scoutDistributionClaims)");
     expect(method).toContain("onConflictDoNothing()");
   });
