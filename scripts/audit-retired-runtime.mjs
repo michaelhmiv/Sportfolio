@@ -4,7 +4,10 @@ import path from "node:path";
 
 const roots = ["client/src", "server", "shared", "scripts"];
 const extensions = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
-const ignoredFiles = new Set(["scripts/audit-retired-runtime.mjs", "scripts/audit-retired-surfaces.mjs"]);
+const ignoredFiles = new Set([
+  "scripts/audit-retired-runtime.mjs",
+  "scripts/audit-retired-surfaces.mjs",
+]);
 const forbidden = [
   /@supabase\/supabase-js/,
   /SUPABASE_(?:URL|ANON_KEY|SERVICE_ROLE_KEY)/,
@@ -20,7 +23,6 @@ const allowedFiles = new Set([
   "scripts/auth-supabase-inventory.test.ts",
   "scripts/verify-auth-cutover.ts",
   "scripts/verify-auth-cutover.test.ts",
-  "scripts/audit-retired-runtime.mjs",
 ]);
 
 async function walk(directory) {
@@ -38,7 +40,7 @@ const findings = [];
 for (const root of roots) {
   for (const file of await walk(root)) {
     const normalized = file.replaceAll("\\", "/");
-    if (allowedFiles.has(normalized)) continue;
+    if (ignoredFiles.has(normalized) || allowedFiles.has(normalized)) continue;
     const source = await readFile(file, "utf8");
     const lines = source.split(/\r?\n/);
     for (let index = 0; index < lines.length; index += 1) {
