@@ -36,13 +36,19 @@ describe("Postgres collection repository contract", () => {
     expect(source).toContain("const identityIds = identity.allIds");
   });
 
-  it("shares a stable reservation-domain lock with ordinary holdings reservations", () => {
+  it("shares the exact portable reservation-domain lock with ordinary holdings reservations", () => {
     expect(source).toContain('holdingReservationDomain(input.userId, "player", identityIds)');
     expect(storageSource).toContain("holdingReservationDomain(userId, assetType, identityIds)");
-    expect(source).toContain("pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))");
-    expect(storageSource).toContain(
-      "pg_advisory_xact_lock(hashtextextended(${reservationDomain}, 0))",
+    expect(source).toContain("advisoryLockKeyPair(reservationDomain)");
+    expect(storageSource).toContain("advisoryLockKeyPair(reservationDomain)");
+    expect(source).toContain(
+      "pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})",
     );
+    expect(storageSource).toContain(
+      "pg_advisory_xact_lock(${reservationLockKeyA}, ${reservationLockKeyB})",
+    );
+    expect(source).not.toContain("hashtextextended(${reservationDomain}");
+    expect(storageSource).not.toContain("hashtextextended(${reservationDomain}");
   });
 
   it("resolves only explicitly preferred, currently active badges in preference order", () => {
