@@ -72,11 +72,28 @@ function buildGameLookup(games: any[]) {
   return lookup;
 }
 
-function historicalFantasyInput(row: NflverseWeeklyStat) {
+function repeatDistance(distance: number, count: number): number[] {
+  return Array.from({ length: Math.max(0, Math.trunc(count)) }, () => distance);
+}
+
+export function historicalFantasyInput(row: NflverseWeeklyStat) {
+  const fg0To39 =
+    nflverseNumber(row, "fg_made_0_19") +
+    nflverseNumber(row, "fg_made_20_29") +
+    nflverseNumber(row, "fg_made_30_39");
+  const fg40To49 = nflverseNumber(row, "fg_made_40_49");
+  const fg50Plus =
+    nflverseNumber(row, "fg_made_50_59") + nflverseNumber(row, "fg_made_60_");
+  const fieldGoalDistances = [
+    ...repeatDistance(35, fg0To39),
+    ...repeatDistance(45, fg40To49),
+    ...repeatDistance(55, fg50Plus),
+  ];
+
   return {
     passingYards: nflverseNumber(row, "passing_yards"),
     passingTouchdowns: nflverseNumber(row, "passing_tds"),
-    interceptions: nflverseNumber(row, "interceptions"),
+    interceptions: nflverseNumber(row, "passing_interceptions", "interceptions"),
     rushingYards: nflverseNumber(row, "rushing_yards"),
     rushingTouchdowns: nflverseNumber(row, "rushing_tds"),
     receptions: nflverseNumber(row, "receptions"),
@@ -87,9 +104,9 @@ function historicalFantasyInput(row: NflverseWeeklyStat) {
       nflverseNumber(row, "sack_fumbles_lost") +
         nflverseNumber(row, "rushing_fumbles_lost") +
         nflverseNumber(row, "receiving_fumbles_lost"),
-    extraPointsMade: nflverseNumber(row, "extra_points_made", "pat_made"),
-    fieldGoalsMade: nflverseNumber(row, "field_goals_made", "fg_made"),
-    fieldGoalDistances: [] as number[],
+    extraPointsMade: nflverseNumber(row, "pat_made", "extra_points_made"),
+    fieldGoalsMade: nflverseNumber(row, "fg_made", "field_goals_made"),
+    fieldGoalDistances,
   };
 }
 
@@ -135,7 +152,7 @@ export async function syncNflverseStats(
             if (seasonType === "preseason") continue;
             const week = nflverseWeek(row);
             const gsisId = String(row.player_id || "").trim();
-            const team = normalizeNflTeamAbbreviation(row.recent_team);
+            const team = normalizeNflTeamAbbreviation(row.team || row.recent_team);
             const opponent = normalizeNflTeamAbbreviation(row.opponent_team);
             const identity = identities.byGsisId.get(gsisId);
             const position = String(row.position || identity?.position || "")
@@ -197,6 +214,14 @@ export async function syncNflverseStats(
                 seasonType,
                 gameplayEligible: isNflGameplayEligibleSeasonType(seasonType),
                 ...fantasyInput,
+                fieldGoalBuckets: {
+                  made0To19: nflverseNumber(row, "fg_made_0_19"),
+                  made20To29: nflverseNumber(row, "fg_made_20_29"),
+                  made30To39: nflverseNumber(row, "fg_made_30_39"),
+                  made40To49: nflverseNumber(row, "fg_made_40_49"),
+                  made50To59: nflverseNumber(row, "fg_made_50_59"),
+                  made60Plus: nflverseNumber(row, "fg_made_60_"),
+                },
                 advanced: {
                   passingEpa: nflverseNumber(row, "passing_epa"),
                   rushingEpa: nflverseNumber(row, "rushing_epa"),
@@ -213,8 +238,8 @@ export async function syncNflverseStats(
               },
               minutes: 0,
               points: 0,
-              fieldGoalsMade: 0,
-              fieldGoalsAttempted: 0,
+              fieldGoalsMade: Math.trunc(fantasyInput.fieldGoalsMade),
+              fieldGoalsAttempted: Math.trunc(nflverseNumber(row, "fg_att", "field_goals_attempted")),
               threePointersMade: 0,
               threePointersAttempted: 0,
               freeThrowsMade: 0,
