@@ -1,1 +1,0 @@
-{"task":"Fix NFL historical full-season schedule loading across the calendar-year boundary, make nfl:repair-history rebuild 2024-2025 schedules before stats, require 272 regular + 13 postseason games per season, require gamesMissing=0, and verify no orphan NFL historical stats."}
