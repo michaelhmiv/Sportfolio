@@ -17,6 +17,7 @@ const forbidden = [
   /\bSMS_LINK_/,
   /\bUSER_AGENT_MANAGED_PROVIDER\b/,
   /\bUSER_AGENT_SECRET_KEY\b/,
+  /\bMLB_MCP_(?:ENABLED|URL|TIMEOUT_MS|HEALTH_CACHE_MS|AUTH_BEARER|MAX_RESPONSE_CHARS|CIRCUIT_FAILURE_THRESHOLD|CIRCUIT_RESET_MS)\b/,
 ];
 const allowedFiles = new Set([
   "scripts/auth-supabase-inventory.ts",
