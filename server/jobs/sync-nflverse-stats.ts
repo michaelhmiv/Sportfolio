@@ -42,6 +42,23 @@ function gameLookupKey(input: {
   ].join("|");
 }
 
+export function nflverseGameWeekCandidates(seasonType: string, week: number): number[] {
+  if (seasonType !== "postseason") return [week];
+  // nflverse continues NFL week numbering into the postseason (19-22), while
+  // ESPN's postseason scoreboard numbers rounds independently. Preserve the
+  // nflverse week first for compatibility, then try ESPN round numbers.
+  const espnRoundByNflverseWeek: Record<number, number[]> = {
+    19: [1],
+    20: [2],
+    21: [3],
+    // ESPN commonly places the Pro Bowl in postseason week 4 and the Super Bowl
+    // in week 5. Include both as defensive fallbacks; team/opponent matching
+    // prevents the wrong event from being selected.
+    22: [5, 4],
+  };
+  return [...new Set([week, ...(espnRoundByNflverseWeek[week] || [])])];
+}
+
 function buildGameLookup(games: any[]) {
   const lookup = new Map<string, any>();
   for (const game of games) {
@@ -82,8 +99,7 @@ export function historicalFantasyInput(row: NflverseWeeklyStat) {
     nflverseNumber(row, "fg_made_20_29") +
     nflverseNumber(row, "fg_made_30_39");
   const fg40To49 = nflverseNumber(row, "fg_made_40_49");
-  const fg50Plus =
-    nflverseNumber(row, "fg_made_50_59") + nflverseNumber(row, "fg_made_60_");
+  const fg50Plus = nflverseNumber(row, "fg_made_50_59") + nflverseNumber(row, "fg_made_60_");
   const fieldGoalDistances = [
     ...repeatDistance(35, fg0To39),
     ...repeatDistance(45, fg40To49),
@@ -160,9 +176,19 @@ export async function syncNflverseStats(
               .toUpperCase();
             if (!week || !gsisId || !team || !opponent || !NFL_ELIGIBLE_POSITIONS.has(position))
               continue;
-            const game = gamesByKey.get(
-              gameLookupKey({ season: year, seasonType, week, team, opponent }),
-            );
+            let game: any = null;
+            for (const candidateWeek of nflverseGameWeekCandidates(seasonType, week)) {
+              game = gamesByKey.get(
+                gameLookupKey({
+                  season: year,
+                  seasonType,
+                  week: candidateWeek,
+                  team,
+                  opponent,
+                }),
+              );
+              if (game) break;
+            }
             if (!game) {
               result.gamesMissing++;
               continue;
@@ -239,7 +265,9 @@ export async function syncNflverseStats(
               minutes: 0,
               points: 0,
               fieldGoalsMade: Math.trunc(fantasyInput.fieldGoalsMade),
-              fieldGoalsAttempted: Math.trunc(nflverseNumber(row, "fg_att", "field_goals_attempted")),
+              fieldGoalsAttempted: Math.trunc(
+                nflverseNumber(row, "fg_att", "field_goals_attempted"),
+              ),
               threePointersMade: 0,
               threePointersAttempted: 0,
               freeThrowsMade: 0,
