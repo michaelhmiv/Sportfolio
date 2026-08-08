@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-input";
-import { normalizePasswordlessReturnTo } from "@/lib/passwordless-auth";
+import { resolveOAuthLoginReturnTo } from "@/lib/oauth-flow";
 
 export default function PasswordlessWebLogin() {
   const { requestMagicLink } = useAuth();
@@ -19,9 +19,7 @@ export default function PasswordlessWebLogin() {
   const isNative = Capacitor.isNativePlatform();
   const returnTo = useMemo(() => {
     if (typeof window === "undefined") return "/";
-    return normalizePasswordlessReturnTo(
-      new URLSearchParams(window.location.search).get("redirect"),
-    );
+    return resolveOAuthLoginReturnTo(window.location.search);
   }, []);
 
   const submit = async (event: React.FormEvent) => {
