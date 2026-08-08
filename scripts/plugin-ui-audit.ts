@@ -48,11 +48,13 @@ const widgetEntryMatch = buildScript.match(
 if (!widgetEntryMatch) {
   errors.push("Unable to resolve the ChatGPT widget source entrypoint from build-plugin-ui.mjs.");
 }
-const widgetSource = widgetEntryMatch
-  ? readFileSync(widgetEntryMatch[0], "utf8")
-  : "";
-const hostSource = readFileSync("client/src/plugin-ui/openai-host.ts", "utf8");
-const bridgeSource = `${widgetSource}\n${hostSource}`;
+
+const widgetSources = [
+  widgetEntryMatch ? readFileSync(widgetEntryMatch[0], "utf8") : "",
+  readFileSync("client/src/plugin-ui/sportfolio-widget-v2.tsx", "utf8"),
+  readFileSync("client/src/plugin-ui/sportfolio-sports-widget.tsx", "utf8"),
+  readFileSync("client/src/plugin-ui/openai-host.ts", "utf8"),
+].join("\n");
 
 for (const required of [
   "tools/call",
@@ -68,13 +70,19 @@ for (const required of [
   "confirm_pending_action",
   "cancel_pending_action",
   "transactionId",
+  "render_score_slate",
+  "render_live_event",
+  "requestDisplayMode(\"pip\")",
 ]) {
-  if (!bridgeSource.includes(required)) {
+  if (!widgetSources.includes(required)) {
     errors.push(`Widget source is missing required bridge or action contract: ${required}.`);
   }
 }
 
-const surfaceSource = readFileSync("server/mcp/plugin/ui/surface.ts", "utf8");
+const surfaceSource = [
+  readFileSync("server/mcp/plugin/ui/surface.ts", "utf8"),
+  readFileSync("server/mcp/plugin/ui/sports-surface.ts", "utf8"),
+].join("\n");
 for (const required of [
   "text/html;profile=mcp-app",
   "openai/outputTemplate",
