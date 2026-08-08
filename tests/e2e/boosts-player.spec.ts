@@ -1,29 +1,6 @@
 import { expect, test, type Page, devices } from "@playwright/test";
 
 async function mockAuth(page: Page) {
-  await page.route("**/api/auth/config", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        url: "http://127.0.0.1:5000/mock-supabase",
-        anonKey: "test-anon-key-placeholder",
-        configVersion: "boosts-player-e2e",
-      }),
-    });
-  });
-
-  await page.route("**/mock-supabase/auth/v1/**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        user: null,
-        session: null,
-      }),
-    });
-  });
-
   const authUser = {
     id: "user_e2e_boosts",
     email: "boosts@example.com",
