@@ -40,7 +40,7 @@ test("passwordless login normalizes email and requests a magic link", async ({ p
   await expect(page.getByText(/expires after five minutes/i)).toBeVisible();
 });
 
-test("passwordless login rejects malformed email without calling the server", async ({ page }) => {
+test("passwordless login rejects an address without a public suffix", async ({ page }) => {
   let requests = 0;
   await page.route(/.*\/api\/auth\/user(\?.*)?$/, async (route) => {
     await route.fulfill({ status: 401, contentType: "application/json", body: "{}" });
@@ -55,7 +55,7 @@ test("passwordless login rejects malformed email without calling the server", as
   });
 
   await page.goto("/login");
-  await page.getByTestId("input-passwordless-email").fill("not-an-email");
+  await page.getByTestId("input-passwordless-email").fill("user@example");
   await page.getByTestId("button-passwordless-submit").click();
 
   await expect(page.getByRole("alert")).toContainText("Enter a valid email address.");
