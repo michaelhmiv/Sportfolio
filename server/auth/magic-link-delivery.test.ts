@@ -11,9 +11,8 @@ function config() {
   return getAuthRuntimeConfig({
     NODE_ENV: "test",
     PUBLIC_SITE_URL: "https://beta.sportfolio.market",
-    AUTH_PROVIDER: "DUAL",
+    AUTH_PROVIDER: "BETTER_AUTH",
     AUTH_MAGIC_LINK_ENABLED: "true",
-    AUTH_SUPABASE_FALLBACK_ENABLED: "true",
     AUTH_NEW_REGISTRATIONS_ENABLED: "true",
     AUTH_OAUTH_PROVIDER_ENABLED: "false",
     AUTH_NATIVE_HANDOFF_ENABLED: "false",
@@ -22,11 +21,10 @@ function config() {
     AUTH_DATABASE_ENVIRONMENT: "production",
     AUTH_SHARED_PRODUCTION_DATABASE: "true",
     BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
-    BETTER_AUTH_URL: "https://auth.sportfolio.market",
-    BETTER_AUTH_COOKIE_DOMAIN: ".sportfolio.market",
+    BETTER_AUTH_URL: "https://beta.sportfolio.market",
     RESEND_API_KEY: "re_test",
     RESEND_WEBHOOK_SECRET: "whsec_test",
-    AUTH_EMAIL_FROM: "Sportfolio <login@auth.sportfolio.market>",
+    AUTH_EMAIL_FROM: "Sportfolio <login@sportfolio.market>",
   });
 }
 
@@ -44,7 +42,7 @@ describe("magic-link delivery", () => {
     );
     expect(() =>
       assertSafeMagicLinkUrl(
-        "https://auth.sportfolio.market/token?callbackURL=https://evil.example",
+        "https://beta.sportfolio.market/token?callbackURL=https://evil.example",
         config(),
       ),
     ).toThrow("RETURN_ORIGIN_REJECTED");
@@ -69,7 +67,7 @@ describe("magic-link delivery", () => {
       isSuppressed: async () => false,
     });
     const verificationUrl =
-      "https://auth.sportfolio.market/callback?token=secret-token&callbackURL=https%3A%2F%2Fbeta.sportfolio.market%2Fportfolio";
+      "https://beta.sportfolio.market/callback?token=secret-token&callbackURL=https%3A%2F%2Fbeta.sportfolio.market%2Fportfolio";
     await sender({
       email: "USER@example.com",
       url: verificationUrl,
@@ -94,7 +92,7 @@ describe("magic-link delivery", () => {
     });
     await sender({
       email: "blocked@example.com",
-      url: "https://auth.sportfolio.market/callback",
+      url: "https://beta.sportfolio.market/callback",
       token: "token",
     });
     expect(send).not.toHaveBeenCalled();

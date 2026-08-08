@@ -1,6 +1,6 @@
 import type { Request } from "express";
 import { fromNodeHeaders } from "better-auth/node";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { authIdentities, users } from "@shared/schema";
 import { db } from "../db";
 import { logger } from "../lib/logger";
@@ -167,7 +167,6 @@ export async function tryAttachBetterAuthPrincipal(
   config: AuthRuntimeConfig = getAuthRuntimeConfig(),
   dependencies: BetterAuthSessionDependencies = {},
 ): Promise<boolean> {
-  if (config.AUTH_PROVIDER === "SUPABASE") return false;
   const getSession = dependencies.getSession ?? defaultGetSession;
   const resolveIdentity = dependencies.resolveIdentity ?? resolveCanonicalBetterAuthIdentity;
   const session = await getSession(req);
