@@ -1,8 +1,8 @@
 # Sportfolio
 
-Sportfolio is a multi-sport player-share market with AMM trading, LP participation, scouts, power/boost mechanics, and authenticated automation across web, CLI, and MCP.
+Sportfolio is a multi-sport player-share market with AMM trading, LP participation, scouts, boosts, collections, and authenticated web/mobile/CLI/ChatGPT capabilities.
 
-## Quick Start
+## Quick start
 
 ```bash
 npm install
@@ -12,45 +12,69 @@ npm run dev
 
 Default development URL: `http://127.0.0.1:5000`
 
-## Worktree + GitHub Flow
+Local development uses `DEV_DATABASE_URL`. Production uses Railway PostgreSQL through `DATABASE_URL`.
 
-Use this loop for isolated feature work and fast PR feedback:
+## Architecture at a glance
+
+- React + TanStack Query + Wouter
+- Express + TypeScript
+- Railway PostgreSQL + Drizzle ORM
+- Better Auth + Resend passwordless authentication
+- WebSocket real-time updates
+- Unified sports adapters for MLB, NHL, NASCAR, and NFL
+
+Sports data sources:
+
+- MLB StatsAPI, plus Baseball Savant expected-stat enrichment
+- NHL credential-free web API integration
+- NASCAR schedule/live-feed integration
+- ESPN for current/live NFL data and nflverse for NFL identity/history
+
+Sportfolio does not require Supabase, a standalone MLB MCP service, BallDontLie, Hermes/agent infrastructure, or SMS/Telnyx infrastructure.
+
+## Worktree + GitHub flow
 
 ```bash
-# Create a branch worktree at .claude/worktrees/<name>
 npm run worktree:new -- market-card-refresh
-
-# Jump into that worktree and develop
 cd .claude/worktrees/market-card-refresh
 npm run dev
-
-# Check PR + CI status from any branch
 npm run gh:pr:status
 ```
 
-Helper scripts:
+Helpers:
 
-- `npm run worktree:new -- <name>`: create a new worktree + branch (`codex/<name>`) from `origin/main`
-- `npm run worktree:list`: list active worktrees
-- `npm run worktree:close -- <name>`: remove a worktree under `.claude/worktrees` safely (supports `--force` and `--delete-branch`)
-- `npm run worktree:prune`: prune stale worktree metadata
-- `npm run gh:pr:status`: show current branch PR and check status
-- `npm run gh:pr:create -- --base main --head <branch>`: create PR from current branch
-- `npm run gh:pr:checks -- <pr-number> --watch`: stream check updates
+- `npm run worktree:new -- <name>` — create an isolated worktree/branch from `origin/main`
+- `npm run worktree:list` — list active worktrees
+- `npm run worktree:close -- <name>` — safely remove a worktree
+- `npm run worktree:prune` — prune stale worktree metadata
+- `npm run gh:pr:status` — show current branch PR/check status
+- `npm run gh:pr:create -- --base main --head <branch>` — create a PR
+- `npm run gh:pr:checks -- <pr-number> --watch` — stream PR checks
 
-## Validation Commands
+## Validation
 
 ```bash
 npm run check
 npm run lint
 npm run test:run
 npm run format:check
+npm run build
 ```
 
-## CLI Quickstart
+For public capability/auth/plugin changes also run the applicable governance and MCP checks:
+
+```bash
+npm run public-tools:audit
+npm run governance:capabilities
+npm run retired-runtime:audit
+npm run mcp:audit
+npm run mcp:smoke
+```
+
+## CLI quickstart
 
 1. Open your profile in the web app and create a token in **CLI Access**.
-2. Authenticate from this repo:
+2. Authenticate:
 
 ```bash
 npm run cli -- auth login --token <your-token> --base-url https://www.sportfolio.market
@@ -65,40 +89,30 @@ npm run cli -- portfolio summary
 npm run cli -- resources read sportfolio://capabilities
 ```
 
-For full syntax and troubleshooting:
+See `/wiki/cli/command-reference` and `/wiki/features/user-action-surface` for additional guidance.
 
-- `/wiki/cli/command-reference`
-- `/wiki/features/user-action-surface`
+## Common scripts
 
-## Common Scripts
+- `npm run dev` — start the development app server
+- `npm run build` — build client and server
+- `npm run start` — run the production build
+- `npm run cli -- <args>` — run the Sportfolio CLI
+- `npm run docs:build` — regenerate docs manifest
+- `npm run docs:check` — validate docs metadata
+- `npm run cli:smoke` — run CLI smoke harness
+- `npm run e2e` — run Playwright end-to-end tests
+- `npm run mobile:sync` — build/sync native projects
 
-- `npm run dev` - start development server and auto-start local MLB MCP sidecar if the vendored venv is available
-- `npm run dev:app` - start only the development app server
-- `npm run dev:mcp` - start only the local MLB MCP sidecar
-- `npm run build` - build client + server
-- `npm run start` - run production build
-- `npm run cli -- <args>` - run Sportfolio CLI from repo
-- `npm run docs:build` - regenerate docs manifest
-- `npm run docs:check` - validate docs metadata
-- `npm run cli:smoke` - run CLI smoke harness
-- `npm run e2e` - run Playwright tests
+There is no local or Railway MLB MCP sidecar. MLB provider access is implemented inside the Sportfolio application process.
 
-## Project Structure
+## Project structure
 
-- `client/` - React frontend
-- `server/` - Express API + jobs
-- `shared/` - shared types and schema
-- `packages/sportfolio-cli/` - CLI package
-- `docs/wiki/` - canonical user/internal docs
-- `tests/e2e/` - Playwright end-to-end tests
-
-## Tech Stack
-
-- React + TanStack Query + Wouter
-- Express + TypeScript
-- PostgreSQL + Drizzle ORM
-- Supabase auth
-- WebSocket real-time updates
+- `client/` — React frontend
+- `server/` — Express API, auth, sports adapters, and jobs
+- `shared/` — shared types and schema
+- `packages/sportfolio-cli/` — CLI package
+- `docs/wiki/` — canonical user/internal docs
+- `tests/e2e/` — Playwright end-to-end tests
 
 ## Mobile
 
@@ -112,7 +126,11 @@ npm run mobile:ios
 npm run mobile:android
 ```
 
-See [`mobile/README.md`](mobile/README.md) for the full iOS/Android runbook, environment routing presets, and Xcode build steps.
+See [`mobile/README.md`](mobile/README.md) for the iOS/Android runbook, environment routing presets, and build steps.
+
+## Production and beta
+
+`main` is the production code source of truth. Railway production tracks `main`; beta is kept on the same tested commit and uses environment-specific URLs/configuration. Beta intentionally shares the production database and keeps scheduled jobs disabled.
 
 ## License
 
