@@ -1,16 +1,19 @@
 import { readFileSync } from "node:fs";
 import {
-  buildPluginPresentationCatalog,
-  SPORTFOLIO_UI_RESOURCE_URIS,
-} from "../server/mcp/plugin/ui/surface";
+  buildAllPluginPresentationCatalog,
+  getAllPluginUiResourceUris,
+} from "../server/mcp/plugin/ui/catalog";
 
 const errors: string[] = [];
-const catalog = buildPluginPresentationCatalog();
+const catalog = buildAllPluginPresentationCatalog();
 const names = catalog.map((entry) => entry.name);
 const resources = catalog.map((entry) => entry.resourceUri);
+const expectedResources = getAllPluginUiResourceUris().sort();
 
-if (catalog.length !== 5) {
-  errors.push(`Expected 5 Sportfolio presentation tools, found ${catalog.length}.`);
+if (catalog.length !== expectedResources.length) {
+  errors.push(
+    `Expected one Sportfolio presentation tool per UI resource, found ${catalog.length} tools and ${expectedResources.length} resources.`,
+  );
 }
 if (new Set(names).size !== names.length) {
   errors.push("Sportfolio presentation tool names must be unique.");
@@ -34,25 +37,39 @@ for (const entry of catalog) {
   }
 }
 
-const expectedResources = Object.values(SPORTFOLIO_UI_RESOURCE_URIS).sort();
 if (JSON.stringify([...resources].sort()) !== JSON.stringify(expectedResources)) {
-  errors.push("Presentation catalog resources do not match SPORTFOLIO_UI_RESOURCE_URIS.");
+  errors.push("Presentation catalog resources do not match the registered Sportfolio UI resources.");
 }
 
-const widgetSource = readFileSync("client/src/plugin-ui/sportfolio-widget.tsx", "utf8");
+const buildScript = readFileSync("scripts/build-plugin-ui.mjs", "utf8");
+const widgetEntryMatch = buildScript.match(
+  /client\/src\/plugin-ui\/[A-Za-z0-9._/-]+\.(?:tsx|ts|jsx|js)/,
+);
+if (!widgetEntryMatch) {
+  errors.push("Unable to resolve the ChatGPT widget source entrypoint from build-plugin-ui.mjs.");
+}
+const widgetSource = widgetEntryMatch
+  ? readFileSync(widgetEntryMatch[0], "utf8")
+  : "";
+const hostSource = readFileSync("client/src/plugin-ui/openai-host.ts", "utf8");
+const bridgeSource = `${widgetSource}\n${hostSource}`;
+
 for (const required of [
   "tools/call",
   "ui/notifications/tool-result",
   "openai:set_globals",
   "requestDisplayMode",
+  "ui/update-model-context",
+  "setWidgetState",
   "stage_market_buy",
   "stage_market_sell",
   "stage_lp_add",
   "stage_lp_remove",
   "confirm_pending_action",
   "cancel_pending_action",
+  "transactionId",
 ]) {
-  if (!widgetSource.includes(required)) {
+  if (!bridgeSource.includes(required)) {
     errors.push(`Widget source is missing required bridge or action contract: ${required}.`);
   }
 }
