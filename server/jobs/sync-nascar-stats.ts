@@ -22,6 +22,7 @@ import type { ProgressCallback } from "../lib/admin-stream";
 
 const NASCAR_SPORT = "NASCAR";
 const NASCAR_RESULTS_LOOKBACK_DAYS = 30;
+const NASCAR_ACTIVE_PARTICIPATION_DAYS = 7;
 
 /**
  * Create a NASCAR player ID from driver ID
@@ -38,6 +39,57 @@ function createNascarPlayerId(driverId: number, _seriesId: NascarSeriesId): stri
 function createNascarGameId(raceId: number, seriesId: NascarSeriesId): string {
   const seriesCode = NASCAR_SERIES_CODES[seriesId];
   return `nascar_${seriesCode}_${raceId}`;
+}
+
+function splitNascarDriverName(driverName: string, driverId: number): {
+  firstName: string;
+  lastName: string;
+} {
+  const normalized = driverName.trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return { firstName: "NASCAR", lastName: String(driverId) };
+  }
+
+  const [firstName, ...lastNameParts] = normalized.split(" ");
+  return {
+    firstName,
+    lastName: lastNameParts.join(" "),
+  };
+}
+
+function isRecentNascarParticipation(raceDate: Date): boolean {
+  const activeCutoff = new Date();
+  activeCutoff.setDate(activeCutoff.getDate() - NASCAR_ACTIVE_PARTICIPATION_DAYS);
+  return raceDate >= activeCutoff;
+}
+
+/**
+ * Race participation is an authoritative player-discovery surface. A driver may be
+ * omitted from a current roster after a one-off/part-time appearance, but once the
+ * NASCAR API exposes that stable driver ID Sportfolio keeps the asset permanently.
+ */
+async function admitNascarRaceParticipant(
+  result: NascarRaceResult,
+  seriesId: NascarSeriesId,
+  raceDate: Date,
+): Promise<string> {
+  const playerId = createNascarPlayerId(result.driverId, seriesId);
+  const { firstName, lastName } = splitNascarDriverName(result.driverName, result.driverId);
+  const isActive = isRecentNascarParticipation(raceDate);
+
+  await storage.upsertPlayer({
+    id: playerId,
+    sport: NASCAR_SPORT,
+    firstName,
+    lastName,
+    team: NASCAR_SERIES_CODES[seriesId],
+    position: "DRV",
+    jerseyNumber: "",
+    isActive,
+    isEligibleForVesting: isActive,
+  });
+
+  return playerId;
 }
 
 /**
@@ -93,9 +145,8 @@ async function convertToPlayerGameStats(
 /**
  * Sync NASCAR race results for a specific race.
  *
- * Results reconciliation never creates a Sportfolio asset. New drivers must first be
- * admitted by a current authoritative roster/current-participation feed; this bounded
- * historical lookback may then attach results only to those permanent assets.
+ * Authoritative race participation may admit a previously unseen stable NASCAR driver
+ * ID before reconciliation writes stats. Existing assets are never deleted here.
  */
 export async function syncNascarRaceResults(
   year: number,
@@ -149,11 +200,11 @@ export async function syncNascarRaceResults(
         );
 
         if (!knownPlayerIds.has(statsData.playerId)) {
-          console.warn(
-            `[nascar_stats_sync] Missing admitted player ${statsData.playerId}; skipping stat write for race ${raceId}`,
+          await admitNascarRaceParticipant(result, seriesId, raceDate);
+          knownPlayerIds.add(statsData.playerId);
+          console.log(
+            `[nascar_stats_sync] Admitted authoritative race participant ${statsData.playerId} from race ${raceId}`,
           );
-          errorCount++;
-          continue;
         }
 
         await storage.upsertPlayerGameStats({
