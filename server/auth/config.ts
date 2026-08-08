@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-export const authProviderSchema = z.enum(["SUPABASE", "DUAL", "BETTER_AUTH"]);
 export const authMigrationModeSchema = z.enum(["off", "dry-run", "execute"]);
 
 const booleanFlag = z.enum(["true", "false"]).transform((value) => value === "true");
@@ -9,16 +8,14 @@ const blankToUndefined = (value: unknown) =>
 const optionalString = z.preprocess(blankToUndefined, z.string().optional());
 const optionalNonEmptyString = z.preprocess(blankToUndefined, z.string().min(1).optional());
 const optionalEmail = z.preprocess(blankToUndefined, z.string().email().optional());
-const optionalDateTime = z.preprocess(blankToUndefined, z.string().datetime().optional());
 const optionalUrl = z.preprocess(blankToUndefined, z.string().url().optional());
 
 export const authEnvironmentSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PUBLIC_SITE_URL: z.string().url(),
-    AUTH_PROVIDER: authProviderSchema.default("SUPABASE"),
+    AUTH_PROVIDER: z.literal("BETTER_AUTH").default("BETTER_AUTH"),
     AUTH_MAGIC_LINK_ENABLED: booleanFlag.default(false),
-    AUTH_SUPABASE_FALLBACK_ENABLED: booleanFlag.default(false),
     AUTH_NEW_REGISTRATIONS_ENABLED: booleanFlag.default(true),
     AUTH_OAUTH_PROVIDER_ENABLED: booleanFlag.default(false),
     AUTH_NATIVE_HANDOFF_ENABLED: booleanFlag.default(false),
@@ -38,11 +35,9 @@ export const authEnvironmentSchema = z
     AUTH_EMAIL_REPLY_TO: optionalEmail,
     PLUGIN_OAUTH_ISSUER: optionalUrl,
     PLUGIN_MCP_RESOURCE: optionalUrl,
-    AUTH_SUPABASE_FALLBACK_EXPIRES_AT: optionalDateTime,
     RAILWAY_SERVICE_NAME: optionalString,
   })
   .superRefine((value, ctx) => {
-    const betterAuthEnabled = value.AUTH_PROVIDER !== "SUPABASE";
     const publicHost = new URL(value.PUBLIC_SITE_URL).hostname.toLowerCase();
     const authHost = value.BETTER_AUTH_URL
       ? new URL(value.BETTER_AUTH_URL).hostname.toLowerCase()
@@ -53,21 +48,21 @@ export const authEnvironmentSchema = z
     const sharedProductionDatabase =
       value.AUTH_ENVIRONMENT === "beta" && value.AUTH_DATABASE_ENVIRONMENT === "production";
 
-    if (betterAuthEnabled && !value.BETTER_AUTH_SECRET) {
+    if (!value.BETTER_AUTH_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["BETTER_AUTH_SECRET"],
-        message: "required when Better Auth is active",
+        message: "required for Better Auth",
       });
     }
-    if (betterAuthEnabled && !value.BETTER_AUTH_URL) {
+    if (!value.BETTER_AUTH_URL) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["BETTER_AUTH_URL"],
-        message: "required when Better Auth is active",
+        message: "required for Better Auth",
       });
     }
-    if (betterAuthEnabled && authHost && authHost !== publicHost && !cookieDomain) {
+    if (authHost && authHost !== publicHost && !cookieDomain) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["BETTER_AUTH_COOKIE_DOMAIN"],
@@ -107,14 +102,6 @@ export const authEnvironmentSchema = z
           });
         }
       }
-    }
-
-    if (value.AUTH_PROVIDER === "BETTER_AUTH" && value.AUTH_SUPABASE_FALLBACK_ENABLED) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["AUTH_SUPABASE_FALLBACK_ENABLED"],
-        message: "must be false when provider is BETTER_AUTH",
-      });
     }
 
     if (sharedProductionDatabase && !value.AUTH_SHARED_PRODUCTION_DATABASE) {
@@ -208,7 +195,6 @@ export function getAuthDiagnostics(config = getAuthRuntimeConfig()) {
     provider: config.AUTH_PROVIDER,
     capabilities: {
       magicLink: config.AUTH_MAGIC_LINK_ENABLED,
-      supabaseFallback: config.AUTH_SUPABASE_FALLBACK_ENABLED,
       newRegistrations: config.AUTH_NEW_REGISTRATIONS_ENABLED,
       oauthProvider: config.AUTH_OAUTH_PROVIDER_ENABLED,
       nativeHandoff: config.AUTH_NATIVE_HANDOFF_ENABLED,
@@ -220,7 +206,6 @@ export function getAuthDiagnostics(config = getAuthRuntimeConfig()) {
     ),
     oauthIssuer: config.PLUGIN_OAUTH_ISSUER ?? null,
     mcpResource: config.PLUGIN_MCP_RESOURCE ?? null,
-    fallbackExpiresAt: config.AUTH_SUPABASE_FALLBACK_EXPIRES_AT ?? null,
     service: config.RAILWAY_SERVICE_NAME ?? null,
   };
 }
