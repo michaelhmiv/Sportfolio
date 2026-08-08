@@ -4,11 +4,10 @@ This document is the operational source of truth for application-defined runtime
 
 ## Authentication
 
-Sportfolio uses Better Auth backed by Railway PostgreSQL and Resend passwordless email. Public password login and social login are intentionally unsupported. Supabase is not an active runtime or authentication dependency.
+Sportfolio uses Better Auth backed by Railway PostgreSQL and Resend passwordless email. Better Auth is the only authentication provider; there is no runtime provider selector. Public password login and social login are intentionally unsupported. Supabase is not an active runtime or authentication dependency.
 
 Required runtime configuration:
 
-- `AUTH_PROVIDER=BETTER_AUTH`
 - `AUTH_MAGIC_LINK_ENABLED=true`
 - `AUTH_NATIVE_HANDOFF_ENABLED=true` for native applications
 - `AUTH_OAUTH_PROVIDER_ENABLED=true` where ChatGPT/Codex OAuth is exposed
@@ -45,6 +44,7 @@ Variables for Whop, mobile stores, ads, Discord, social posting, search/data pro
 
 The following prefixes/names must not be reintroduced:
 
+- `AUTH_PROVIDER`
 - `HERMES_*`
 - `HERMES_INTERNAL_*`
 - `TELNYX_*`
