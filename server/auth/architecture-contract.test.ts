@@ -14,12 +14,17 @@ describe("passwordless authentication architecture contract", () => {
   it("separates web sessions, MCP bearer tokens, and email infrastructure", () => {
     expect(adr).toContain("HttpOnly");
     expect(adr).toContain("MCP bearer");
-    expect(adr).toContain("auth.sportfolio.market");
-    expect(adr).toContain("mail.sportfolio.market");
+    expect(adr).toContain("There is no dedicated authorization hostname");
+    expect(adr).toContain("verified `sportfolio.market` domain");
   });
 
   it("records the shared-database execution boundary", () => {
     expect(adr).toContain("Beta and production intentionally share");
     expect(adr).toContain("Migration execution is production-runtime-only");
+  });
+
+  it("records Better Auth as the sole authentication provider", () => {
+    expect(adr).toContain("Better Auth is the sole authentication provider");
+    expect(adr).toContain("Supabase authentication, OAuth, fallback token acceptance");
   });
 });
