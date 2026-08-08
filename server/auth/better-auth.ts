@@ -170,10 +170,6 @@ export function mountBetterAuthHandler(
   app: Express,
   config: AuthRuntimeConfig = getAuthRuntimeConfig(),
 ): boolean {
-  if (config.AUTH_PROVIDER === "SUPABASE") {
-    logger.info("Better Auth handler remains disabled while AUTH_PROVIDER=SUPABASE");
-    return false;
-  }
   app.set("trust proxy", 1);
   const auth = getBetterAuthServer(config);
   app.use(`${BETTER_AUTH_BASE_PATH}/sign-in/magic-link`, (req, res, next) => {
