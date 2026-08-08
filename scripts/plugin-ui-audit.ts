@@ -56,6 +56,7 @@ const widgetSources = [
   readFileSync("client/src/plugin-ui/sportfolio-widget-v2.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-sports-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-action-widget.tsx", "utf8"),
+  readFileSync("client/src/plugin-ui/sportfolio-gameplay-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/action-review-panel.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/openai-host.ts", "utf8"),
 ].join("\n");
@@ -77,6 +78,9 @@ for (const required of [
   "render_score_slate",
   "render_live_event",
   "render_action_review",
+  "render_scouting",
+  "render_boosts",
+  "render_watchlist",
   'requestDisplayMode("pip")',
 ]) {
   if (!widgetSources.includes(required)) {
@@ -88,6 +92,7 @@ const surfaceSource = [
   readFileSync("server/mcp/plugin/ui/surface.ts", "utf8"),
   readFileSync("server/mcp/plugin/ui/sports-surface.ts", "utf8"),
   readFileSync("server/mcp/plugin/ui/action-surface.ts", "utf8"),
+  readFileSync("server/mcp/plugin/ui/gameplay-surface.ts", "utf8"),
 ].join("\n");
 for (const required of [
   "text/html;profile=mcp-app",
