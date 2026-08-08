@@ -4,11 +4,11 @@ Sportfolio uses PostgreSQL with strict environment-based connection selection so
 
 ## Quick reference
 
-| Environment | Variable            | Database                                  |
-| ----------- | ------------------- | ----------------------------------------- |
-| Development | `DEV_DATABASE_URL`  | local development PostgreSQL              |
-| Test        | `TEST_DATABASE_URL` | isolated test PostgreSQL when configured  |
-| Production  | `DATABASE_URL`      | canonical Railway production PostgreSQL   |
+| Environment | Variable | Database |
+| --- | --- | --- |
+| Development | `DEV_DATABASE_URL` | local development PostgreSQL |
+| Test | `TEST_DATABASE_URL` | isolated test PostgreSQL when configured |
+| Production | `DATABASE_URL` | canonical Railway production PostgreSQL |
 
 Beta is an application environment, not a separate database environment: it intentionally connects to the production Railway PostgreSQL database and is protected by auth/runtime safety flags. Beta must not run scheduled jobs.
 
@@ -30,11 +30,7 @@ Non-production application startup does not fall back to the production `DATABAS
 docker-compose -f docker-compose.dev.yml up -d
 ```
 
-2. Configure `.env`:
-
-```text
-DEV_DATABASE_URL=postgresql://postgres:devpassword@localhost:5433/sportfolio_dev
-```
+2. Configure `DEV_DATABASE_URL` in `.env` to point at the local development database created by the Docker Compose stack. Keep credentials local and out of documentation and commits.
 
 3. Run the appropriate Drizzle/migration command for the task. Do not point local or automated destructive workflows at production.
 
