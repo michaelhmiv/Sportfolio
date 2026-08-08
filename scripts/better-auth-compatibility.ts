@@ -6,8 +6,8 @@ export const BETTER_AUTH_VERSION = "1.6.25";
 export const OAUTH_PROVIDER_VERSION = "1.6.25";
 export const ZOD_VERSION = "4.4.3";
 export const DRIZZLE_ZOD_VERSION = "0.8.3";
-export const SPORTFOLIO_AUTH_BASE_URL = "https://auth.sportfolio.market";
-export const SPORTFOLIO_MCP_RESOURCE = "https://www.sportfolio.market/mcp";
+export const SPORTFOLIO_AUTH_BASE_URL = "https://www.sportfolio.market";
+export const SPORTFOLIO_MCP_RESOURCE = "https://www.sportfolio.market/mcp/plugin";
 export const SPORTFOLIO_OAUTH_SCOPES = [
   "openid",
   "profile",
