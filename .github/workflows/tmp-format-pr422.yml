@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   format:
@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -21,16 +23,14 @@ jobs:
       - run: npm ci
       - name: Format target files
         run: npx prettier client/src/plugin-ui/sportfolio-sports-widget.tsx scripts/plugin-ui-audit.ts server/mcp/plugin/ui/catalog.ts server/mcp/plugin/ui/sports-surface.ts --write
-      - name: Emit formatted files
+      - name: Commit formatted sources
         shell: bash
         run: |
-          for file in \
-            client/src/plugin-ui/sportfolio-sports-widget.tsx \
-            scripts/plugin-ui-audit.ts \
-            server/mcp/plugin/ui/catalog.ts \
-            server/mcp/plugin/ui/sports-surface.ts; do
-            echo "=====BEGIN:${file}====="
-            gzip -c "$file" | base64 -w 0
-            echo
-            echo "=====END:${file}====="
-          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/src/plugin-ui/sportfolio-sports-widget.tsx scripts/plugin-ui-audit.ts server/mcp/plugin/ui/catalog.ts server/mcp/plugin/ui/sports-surface.ts
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore: format ChatGPT sports UI sources"
+          git push origin HEAD:${{ github.head_ref }}
