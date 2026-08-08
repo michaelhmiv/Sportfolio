@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const storageMocks = vi.hoisted(() => ({
   getPlayersByIds: vi.fn(),
+  upsertPlayer: vi.fn(),
   upsertPlayerGameStats: vi.fn(),
   updateDailyGameStatus: vi.fn(),
 }));
@@ -16,6 +17,7 @@ const nascarApiMocks = vi.hoisted(() => ({
 vi.mock("../storage", () => ({
   storage: {
     getPlayersByIds: storageMocks.getPlayersByIds,
+    upsertPlayer: storageMocks.upsertPlayer,
     upsertPlayerGameStats: storageMocks.upsertPlayerGameStats,
     updateDailyGameStatus: storageMocks.updateDailyGameStatus,
   },
@@ -73,11 +75,16 @@ describe("syncNascarRaceResults", () => {
     storageMocks.getPlayersByIds.mockImplementation(async (ids: string[]) =>
       ids.map((id) => ({ id })),
     );
+    storageMocks.upsertPlayer.mockResolvedValue(undefined);
     storageMocks.upsertPlayerGameStats.mockResolvedValue(undefined);
     storageMocks.updateDailyGameStatus.mockResolvedValue(undefined);
   });
 
-  it("writes race stats only for an already admitted permanent driver asset", async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("writes race stats for an already admitted permanent driver asset", async () => {
     const { syncNascarRaceResults } = await import("./sync-nascar-stats");
     const result = await syncNascarRaceResults(
       2026,
@@ -86,6 +93,7 @@ describe("syncNascarRaceResults", () => {
       new Date("2026-05-10T22:00:00.000Z"),
     );
 
+    expect(storageMocks.upsertPlayer).not.toHaveBeenCalled();
     expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledTimes(1);
     expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -101,7 +109,9 @@ describe("syncNascarRaceResults", () => {
     });
   });
 
-  it("never creates an asset from historical race reconciliation", async () => {
+  it("admits an unseen historical race participant as a permanent inactive asset", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T12:00:00.000Z"));
     storageMocks.getPlayersByIds.mockResolvedValue([]);
 
     const { syncNascarRaceResults } = await import("./sync-nascar-stats");
@@ -112,9 +122,40 @@ describe("syncNascarRaceResults", () => {
       new Date("2026-05-10T22:00:00.000Z"),
     );
 
-    expect(storageMocks.upsertPlayerGameStats).not.toHaveBeenCalled();
-    expect(storageMocks.updateDailyGameStatus).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ recordsProcessed: 0, errorCount: 1 });
+    expect(storageMocks.upsertPlayer).toHaveBeenCalledWith({
+      id: "nascar_4469",
+      sport: "NASCAR",
+      firstName: "Shane",
+      lastName: "van Gisbergen",
+      team: "NCS",
+      position: "DRV",
+      jerseyNumber: "",
+      isActive: false,
+      isEligibleForVesting: false,
+    });
+    expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledWith(
+      expect.objectContaining({ playerId: "nascar_4469", gameId: "nascar_NCS_5621" }),
+    );
+    expect(storageMocks.updateDailyGameStatus).toHaveBeenCalledWith("nascar_NCS_5621", "completed");
+    expect(result).toMatchObject({ recordsProcessed: 1, errorCount: 0 });
+  });
+
+  it("admits a late-entry current participant as active", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-12T12:00:00.000Z"));
+    storageMocks.getPlayersByIds.mockResolvedValue([]);
+
+    const { syncNascarRaceResults } = await import("./sync-nascar-stats");
+    await syncNascarRaceResults(2026, 2 as any, 5625, new Date("2026-05-10T22:00:00.000Z"));
+
+    expect(storageMocks.upsertPlayer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "nascar_4469",
+        team: "NXS",
+        isActive: true,
+        isEligibleForVesting: true,
+      }),
+    );
   });
 
   it("does not mark race completed when a driver stat write fails", async () => {
@@ -166,6 +207,7 @@ describe("syncNascarStats", () => {
     storageMocks.getPlayersByIds.mockImplementation(async (ids: string[]) =>
       ids.map((id) => ({ id })),
     );
+    storageMocks.upsertPlayer.mockResolvedValue(undefined);
     storageMocks.upsertPlayerGameStats.mockResolvedValue(undefined);
     storageMocks.updateDailyGameStatus.mockResolvedValue(undefined);
   });
