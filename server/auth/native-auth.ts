@@ -211,7 +211,6 @@ export function registerNativeAuthRoutes(
   config: AuthRuntimeConfig = getAuthRuntimeConfig(),
 ): boolean {
   if (
-    config.AUTH_PROVIDER === "SUPABASE" ||
     !config.AUTH_MAGIC_LINK_ENABLED ||
     !config.AUTH_NATIVE_HANDOFF_ENABLED ||
     !config.BETTER_AUTH_URL
