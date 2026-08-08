@@ -42,8 +42,7 @@ function scopeLabel(scope: string) {
 
 export default function OAuthConsentPage() {
   const oauthRequest = useMemo(
-    () =>
-      resolveOAuthConsentRequest(typeof window === "undefined" ? "" : window.location.search),
+    () => resolveOAuthConsentRequest(typeof window === "undefined" ? "" : window.location.search),
     [],
   );
   const clientId = oauthRequest.clientId;
@@ -57,7 +56,9 @@ export default function OAuthConsentPage() {
     let cancelled = false;
     async function load() {
       if (!clientId) {
-        setError("This authorization request is invalid or expired. Please restart the connection.");
+        setError(
+          "This authorization request is invalid or expired. Please restart the connection.",
+        );
         setLoading(false);
         return;
       }
