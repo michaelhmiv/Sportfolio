@@ -9,7 +9,7 @@ on:
     paths:
       - "server/mcp/plugin/**"
       - "server/mcp/public-**"
-      - "server/auth/plugin-**"
+      - "server/auth/**"
       - "server/routes/plugin-**"
       - "server/routes/mcp.ts"
       - "server/jobs/**"

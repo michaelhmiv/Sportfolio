@@ -4,7 +4,6 @@ import { assertSafeAuthReturnUrl, authEnvironmentSchema, getAuthDiagnostics } fr
 const base = {
   NODE_ENV: "production",
   PUBLIC_SITE_URL: "https://www.sportfolio.market",
-  AUTH_PROVIDER: "BETTER_AUTH",
   AUTH_MAGIC_LINK_ENABLED: "false",
   AUTH_NEW_REGISTRATIONS_ENABLED: "true",
   AUTH_OAUTH_PROVIDER_ENABLED: "false",
@@ -29,13 +28,12 @@ const sharedBeta = {
 describe("auth environment safety", () => {
   it("accepts the Better Auth production baseline", () => {
     const config = authEnvironmentSchema.parse(base);
-    expect(config.AUTH_PROVIDER).toBe("BETTER_AUTH");
     expect(getAuthDiagnostics(config).betterAuthConfigured).toBe(true);
   });
 
-  it("rejects retired auth provider modes", () => {
-    expect(() => authEnvironmentSchema.parse({ ...base, AUTH_PROVIDER: "SUPABASE" })).toThrow();
-    expect(() => authEnvironmentSchema.parse({ ...base, AUTH_PROVIDER: "DUAL" })).toThrow();
+  it("ignores the retired auth provider selector", () => {
+    const config = authEnvironmentSchema.parse({ ...base, AUTH_PROVIDER: "SUPABASE" });
+    expect("AUTH_PROVIDER" in config).toBe(false);
   });
 
   it("ignores retired Supabase fallback variables", () => {
@@ -72,7 +70,6 @@ describe("auth environment safety", () => {
       PLUGIN_OAUTH_ISSUER: "https://www.sportfolio.market/api/auth/better",
       PLUGIN_MCP_RESOURCE: "https://www.sportfolio.market/mcp/plugin",
     });
-    expect(config.AUTH_PROVIDER).toBe("BETTER_AUTH");
     expect(config.BETTER_AUTH_COOKIE_DOMAIN).toBeUndefined();
   });
 

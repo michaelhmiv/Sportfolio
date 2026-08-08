@@ -2,7 +2,7 @@
 
 ## Runtime model
 
-Sportfolio deploys the same reviewed commit to two Railway application services. Better Auth is the only supported authentication provider. Environment variables control feature availability and environment safety, not provider selection.
+Sportfolio deploys the same reviewed commit to two Railway application services. Better Auth is the only supported authentication provider. Environment variables control feature availability and environment safety; there is no provider-selection variable.
 
 Both services intentionally use the production Railway Postgres database. The beta service is therefore a controlled alternate application surface, not a disposable data sandbox.
 
@@ -38,7 +38,6 @@ Both services intentionally use the production Railway Postgres database. The be
 ## Production authentication settings
 
 ```text
-AUTH_PROVIDER=BETTER_AUTH
 AUTH_MAGIC_LINK_ENABLED=true
 AUTH_NEW_REGISTRATIONS_ENABLED=true
 AUTH_OAUTH_PROVIDER_ENABLED=true
@@ -57,7 +56,6 @@ RUN_SCHEDULED_JOBS=true
 ## Beta authentication settings
 
 ```text
-AUTH_PROVIDER=BETTER_AUTH
 AUTH_MAGIC_LINK_ENABLED=true
 AUTH_NEW_REGISTRATIONS_ENABLED=true
 AUTH_OAUTH_PROVIDER_ENABLED=true

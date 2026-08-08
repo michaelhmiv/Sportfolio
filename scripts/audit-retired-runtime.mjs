@@ -11,6 +11,7 @@ const ignoredFiles = new Set([
 const forbidden = [
   /@supabase\/supabase-js/,
   /SUPABASE_(?:URL|ANON_KEY|SERVICE_ROLE_KEY)/,
+  /\bAUTH_PROVIDER\b/,
   /HERMES_INTERNAL_/,
   /\bHERMES_/,
   /\bTELNYX_/,

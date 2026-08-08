@@ -11,7 +11,6 @@ function config() {
   return getAuthRuntimeConfig({
     NODE_ENV: "test",
     PUBLIC_SITE_URL: "https://beta.sportfolio.market",
-    AUTH_PROVIDER: "BETTER_AUTH",
     AUTH_MAGIC_LINK_ENABLED: "true",
     AUTH_NEW_REGISTRATIONS_ENABLED: "true",
     AUTH_OAUTH_PROVIDER_ENABLED: "false",
