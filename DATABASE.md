@@ -1,52 +1,58 @@
-# Database Configuration
+# Database configuration
 
-This project uses strict environment-based database switching to avoid local sessions
-accidentally pointing at production.
+Sportfolio uses PostgreSQL with strict environment-based connection selection so local development cannot silently fall back to production.
 
-## Quick Reference
+## Quick reference
 
-| Environment | Variable Used      | Description                                         |
-| ----------- | ------------------ | --------------------------------------------------- |
-| Development | `DEV_DATABASE_URL` | Local Docker PostgreSQL (port 5433)                 |
-| Production  | `DATABASE_URL`     | Supabase Cloud (Railway sets `NODE_ENV=production`) |
+| Environment | Variable            | Database                                  |
+| ----------- | ------------------- | ----------------------------------------- |
+| Development | `DEV_DATABASE_URL`  | local development PostgreSQL              |
+| Test        | `TEST_DATABASE_URL` | isolated test PostgreSQL when configured  |
+| Production  | `DATABASE_URL`      | canonical Railway production PostgreSQL   |
 
-## How It Works
+Beta is an application environment, not a separate database environment: it intentionally connects to the production Railway PostgreSQL database and is protected by auth/runtime safety flags. Beta must not run scheduled jobs.
+
+## Runtime selection
 
 ```text
-NODE_ENV === 'production' -> DATABASE_URL (Supabase)
-NODE_ENV !== 'production' -> DEV_DATABASE_URL (no fallback to DATABASE_URL)
+NODE_ENV=production -> DATABASE_URL
+NODE_ENV=test       -> TEST_DATABASE_URL, then DEV_DATABASE_URL, then isolated local test default
+other               -> DEV_DATABASE_URL
 ```
 
-## Local Development Setup
+Non-production application startup does not fall back to the production `DATABASE_URL`.
 
-1. Start Docker PostgreSQL:
+## Local development
+
+1. Start local PostgreSQL:
 
 ```bash
 docker-compose -f docker-compose.dev.yml up -d
 ```
 
-2. Add to `.env`:
+2. Configure `.env`:
 
 ```text
-DEV_DATABASE_URL=postgresql://localhost:5433/sportfolio_dev
+DEV_DATABASE_URL=postgresql://postgres:devpassword@localhost:5433/sportfolio_dev
 ```
 
-3. Run migrations:
+3. Run the appropriate Drizzle/migration command for the task. Do not point local or automated destructive workflows at production.
 
-```bash
-npm run db:push
-```
+## Source-of-truth files
 
-Use `DEV_DATABASE_URL` for local test databases and the approved migration scripts under `scripts/` for controlled changes.
+- `server/db.ts` — runtime connection selection and pools
+- `drizzle.config.ts` — Drizzle configuration
+- `shared/schema.ts` — current application schema
+- `migrations/` — historical schema lineage
+- `scripts/` — controlled migration/backfill utilities
 
-## Files That Control Database Selection
+Historical migrations may mention previously used infrastructure. Those files document actual database history and must not be interpreted as current runtime configuration.
 
-- `server/db.ts` - Runtime connection
-- `drizzle.config.ts` - Drizzle migrations
+## Production safety
 
-## Verification
-
-When running `npm run db:push`, look for:
-
-- `[Drizzle] Using DEVELOPMENT database`
-- `[Drizzle] Using PRODUCTION database`
+- Railway PostgreSQL is the canonical production database.
+- Production and beta application services intentionally share it.
+- Beta must set the shared-production-database safety flag and keep scheduled jobs disabled.
+- Destructive migration rehearsals, resets, or synthetic bulk imports must not run against the shared production database.
+- Migration/backfill scripts that mutate production must be idempotent, guarded, and verified before being used as deployment steps.
+- Never reintroduce Supabase runtime/database configuration as a fallback path.
