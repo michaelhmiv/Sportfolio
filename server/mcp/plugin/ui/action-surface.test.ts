@@ -38,18 +38,11 @@ function fakeServer() {
 
   return {
     server: {
-      registerTool: vi.fn(
-        (name: string, config: Record<string, unknown>, handler: ToolHandler) => {
-          tools.set(name, { config, handler });
-        },
-      ),
+      registerTool: vi.fn((name: string, config: Record<string, unknown>, handler: ToolHandler) => {
+        tools.set(name, { config, handler });
+      }),
       registerResource: vi.fn(
-        (
-          name: string,
-          uri: string,
-          config: Record<string, unknown>,
-          handler: ResourceHandler,
-        ) => {
+        (name: string, uri: string, config: Record<string, unknown>, handler: ResourceHandler) => {
           resources.set(name, { uri, config, handler });
         },
       ),
