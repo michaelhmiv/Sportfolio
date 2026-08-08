@@ -2,43 +2,57 @@
 
 Use these constraints when generating code or suggestions for this repository.
 
-## Product Mechanics (Do Not Break)
+## Current architecture
 
-- AMM uses constant-product logic (`x * y = k`) with fee split behavior.
+- React/TanStack Query/Wouter frontend; Express/TypeScript server.
+- Railway PostgreSQL + Drizzle ORM.
+- Better Auth is the only authentication provider; Resend delivers passwordless magic links.
+- Sports integrations are behind the neutral adapter/provider layers under `server/sports/` and related ingestion modules.
+- MLB uses MLB StatsAPI plus Baseball Savant enrichment; NHL uses the existing NHL web API client; NASCAR uses the current schedule/live integration; NFL uses ESPN plus nflverse.
+- Do not reintroduce Supabase runtime/auth, BallDontLie, Hermes/agent runtime, SMS/Telnyx auth, a standalone MLB MCP service, or retired provider-selection/fallback variables.
+
+## Product mechanics that must remain reconciled
+
+- AMM uses constant-product logic (`x * y = k`) with current fee/burn behavior.
 - Scout rewards are time-weighted by scout-minutes.
 - Vesting accrual depends on elapsed time plus residual milliseconds with caps.
-- Daily boosts lock or burn shares at game start and settle post-game.
-- `holdings.powerLevel` must remain `quantity * power` on all write paths.
-- Boost slots burn exactly one share per slot, using the selected holding row.
+- Boosts preserve their sport-specific eligibility, locking/burn, snapshot, and settlement semantics.
+- Regular holdings and stacked-share multiplier state are separate. `holdings` does not contain a `power` or `powerLevel` column; stacked multiplier state lives in `player_multipliers` and its event ledger.
+- Locked regular shares must not be consumed by stacking or boost flows.
 
-## Data and API Touchpoints
+## Source-of-truth code
 
-- Primary route files: `server/routes.ts`, `server/routes/amm.ts`, `server/routes/lp.ts`
-- Core domain model: `shared/schema.ts`
+- Sports contracts/registry: `server/sports/`
+- API routes: `server/routes.ts`, `server/routes/`
+- Auth: `server/auth/`
+- Public MCP/capability policy: `server/mcp/`
+- Domain schema: `shared/schema.ts`
 - AMM internals: `server/amm/pool.ts`
-- Jobs: `server/jobs/`
+- Background jobs: `server/jobs/`
 
-If adding or changing sports-provider integration behavior, confirm contract details with:
+## Auth and security
 
-- `https://www.balldontlie.io/openapi.yml`
+- Preserve Better Auth web/native/OAuth validation and canonical identity mapping.
+- Keep existing protected-route, ownership, scope, admin, and staged-write confirmation checks intact.
+- `DEV_BYPASS_AUTH` is local-development only.
+- Never expose secrets, tokens, private user data, or credentials in code, logs, tests, or output.
 
-## Auth and Security
+## Workflow expectations
 
-- Keep `isAuthenticated`, `optionalAuth`, and `adminAuth` protections intact.
-- Do not loosen auth checks on existing protected endpoints.
-- Never expose secrets or tokens in code, logs, or output.
+Prefer minimal targeted changes using existing patterns. Remove obsolete paths rather than adding compatibility shims around retired architecture.
 
-## Workflow Expectations
+Before shipping, run the relevant checks:
 
-- Prefer minimal, targeted edits using existing patterns.
-- Before shipping a change, run:
-  - `npm run check`
-  - `npm run lint`
-  - `npm run test:run`
-  - `npm run format:check` (when formatting-sensitive files change)
+```bash
+npm run check
+npm run lint
+npm run test:run
+npm run format:check
+npm run retired-runtime:audit
+```
 
-## Useful Local Commands
+For auth/MCP/public-capability changes, also run the applicable Plugin Readiness/governance/MCP checks and require Security Audit to pass.
 
-- Start app: `npm run dev`
-- Worktree bootstrap: `npm run worktree:new -- <name>`
-- PR and check status: `npm run gh:pr:status`
+## Deployment
+
+GitHub `main` is the code source of truth. Let Railway deploy from GitHub. Production and beta should run the same tested commit; beta intentionally shares the production database and must keep scheduled jobs disabled.
