@@ -20,10 +20,7 @@ vi.mock("../../../auth/plugin-auth-challenge", () => ({
   })),
 }));
 
-import {
-  createDefaultPublicMcpDependencies,
-  executePublicTool,
-} from "../../public-tool-registry";
+import { createDefaultPublicMcpDependencies, executePublicTool } from "../../public-tool-registry";
 import {
   buildGameplayPluginPresentationCatalog,
   registerGameplayPluginUiSurface,
@@ -275,16 +272,15 @@ describe("Sportfolio gameplay presentation surfaces", () => {
         },
       },
     });
-    expect(executePublicTool).toHaveBeenCalledWith(
-      expect.any(Object),
-      "list_daily_boosts",
-      { sport: "nhl", date: "2026-08-08" },
-    );
-    expect(executePublicTool).toHaveBeenCalledWith(
-      expect.any(Object),
-      "list_daily_boost_history",
-      { sport: "nhl", date: "2026-08-08", limit: 8 },
-    );
+    expect(executePublicTool).toHaveBeenCalledWith(expect.any(Object), "list_daily_boosts", {
+      sport: "nhl",
+      date: "2026-08-08",
+    });
+    expect(executePublicTool).toHaveBeenCalledWith(expect.any(Object), "list_daily_boost_history", {
+      sport: "nhl",
+      date: "2026-08-08",
+      limit: 8,
+    });
   });
 
   it("selects an explicit watchlist and loads its items", async () => {
@@ -317,11 +313,10 @@ describe("Sportfolio gameplay presentation surfaces", () => {
         },
       },
     });
-    expect(executePublicTool).toHaveBeenCalledWith(
-      expect.any(Object),
-      "get_watchlist_items",
-      { watchlistId: "second", limit: 50 },
-    );
+    expect(executePublicTool).toHaveBeenCalledWith(expect.any(Object), "get_watchlist_items", {
+      watchlistId: "second",
+      limit: 50,
+    });
   });
 
   it("infers the first watchlist id from direct and nested list shapes", async () => {
@@ -333,7 +328,10 @@ describe("Sportfolio gameplay presentation surfaces", () => {
     );
     const tool = fixture.tools.get("render_watchlist");
 
-    mockPublicTools({ list_watchlists: { watchlistId: "direct" }, get_watchlist_items: { items: [] } });
+    mockPublicTools({
+      list_watchlists: { watchlistId: "direct" },
+      get_watchlist_items: { items: [] },
+    });
     const direct = await tool?.handler({});
     expect(direct?.structuredContent).toMatchObject({ data: { watchlistId: "direct" } });
 
@@ -361,6 +359,8 @@ describe("Sportfolio gameplay presentation surfaces", () => {
       view: "watchlist",
       data: { watchlistId: null, limit: 4, items: { items: [] } },
     });
-    expect(vi.mocked(executePublicTool).mock.calls.map((call) => call[1])).toEqual(["list_watchlists"]);
+    expect(vi.mocked(executePublicTool).mock.calls.map((call) => call[1])).toEqual([
+      "list_watchlists",
+    ]);
   });
 });
