@@ -4,9 +4,8 @@ import { assertSafeAuthReturnUrl, authEnvironmentSchema, getAuthDiagnostics } fr
 const base = {
   NODE_ENV: "production",
   PUBLIC_SITE_URL: "https://www.sportfolio.market",
-  AUTH_PROVIDER: "SUPABASE",
+  AUTH_PROVIDER: "BETTER_AUTH",
   AUTH_MAGIC_LINK_ENABLED: "false",
-  AUTH_SUPABASE_FALLBACK_ENABLED: "true",
   AUTH_NEW_REGISTRATIONS_ENABLED: "true",
   AUTH_OAUTH_PROVIDER_ENABLED: "false",
   AUTH_NATIVE_HANDOFF_ENABLED: "false",
@@ -14,59 +13,58 @@ const base = {
   AUTH_ENVIRONMENT: "production",
   AUTH_DATABASE_ENVIRONMENT: "production",
   AUTH_SHARED_PRODUCTION_DATABASE: "false",
+  BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
+  BETTER_AUTH_URL: "https://www.sportfolio.market",
 };
 
 const sharedBeta = {
   ...base,
   PUBLIC_SITE_URL: "https://beta.sportfolio.market",
+  BETTER_AUTH_URL: "https://beta.sportfolio.market",
   AUTH_ENVIRONMENT: "beta",
   AUTH_DATABASE_ENVIRONMENT: "production",
   AUTH_SHARED_PRODUCTION_DATABASE: "true",
 };
 
 describe("auth environment safety", () => {
-  it("preserves the legacy production baseline without Better Auth secrets", () => {
+  it("accepts the Better Auth production baseline", () => {
     const config = authEnvironmentSchema.parse(base);
-    expect(config.AUTH_PROVIDER).toBe("SUPABASE");
-    expect(getAuthDiagnostics(config).betterAuthConfigured).toBe(false);
+    expect(config.AUTH_PROVIDER).toBe("BETTER_AUTH");
+    expect(getAuthDiagnostics(config).betterAuthConfigured).toBe(true);
   });
 
-  it("defaults the retired Supabase fallback off when the variable is absent", () => {
+  it("rejects retired auth provider modes", () => {
+    expect(() => authEnvironmentSchema.parse({ ...base, AUTH_PROVIDER: "SUPABASE" })).toThrow();
+    expect(() => authEnvironmentSchema.parse({ ...base, AUTH_PROVIDER: "DUAL" })).toThrow();
+  });
+
+  it("ignores retired Supabase fallback variables", () => {
     const config = authEnvironmentSchema.parse({
       ...base,
-      AUTH_PROVIDER: "BETTER_AUTH",
-      AUTH_SUPABASE_FALLBACK_ENABLED: undefined,
-      BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
-      BETTER_AUTH_URL: "https://www.sportfolio.market",
+      AUTH_SUPABASE_FALLBACK_ENABLED: "true",
+      AUTH_SUPABASE_FALLBACK_EXPIRES_AT: "2099-01-01T00:00:00.000Z",
     });
-    expect(config.AUTH_SUPABASE_FALLBACK_ENABLED).toBe(false);
+    expect("AUTH_SUPABASE_FALLBACK_ENABLED" in config).toBe(false);
+    expect("AUTH_SUPABASE_FALLBACK_EXPIRES_AT" in config).toBe(false);
   });
 
   it("normalizes blank optional Railway variables to undefined", () => {
     const config = authEnvironmentSchema.parse({
       ...base,
       BETTER_AUTH_COOKIE_DOMAIN: "",
-      BETTER_AUTH_URL: "   ",
       BETTER_AUTH_TRUSTED_ORIGINS: "",
       AUTH_EMAIL_REPLY_TO: "",
-      AUTH_SUPABASE_FALLBACK_EXPIRES_AT: "",
     });
     expect(config.BETTER_AUTH_COOKIE_DOMAIN).toBeUndefined();
-    expect(config.BETTER_AUTH_URL).toBeUndefined();
     expect(config.BETTER_AUTH_TRUSTED_ORIGINS).toBeUndefined();
     expect(config.AUTH_EMAIL_REPLY_TO).toBeUndefined();
-    expect(config.AUTH_SUPABASE_FALLBACK_EXPIRES_AT).toBeUndefined();
   });
 
-  it("accepts a blank optional cookie domain in a same-origin Better Auth production runtime", () => {
+  it("accepts a blank optional cookie domain in a same-origin production runtime", () => {
     const config = authEnvironmentSchema.parse({
       ...base,
-      AUTH_PROVIDER: "BETTER_AUTH",
-      AUTH_SUPABASE_FALLBACK_ENABLED: "false",
       AUTH_MAGIC_LINK_ENABLED: "true",
       AUTH_OAUTH_PROVIDER_ENABLED: "true",
-      BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
-      BETTER_AUTH_URL: "https://www.sportfolio.market",
       BETTER_AUTH_COOKIE_DOMAIN: "",
       RESEND_API_KEY: "re_test",
       RESEND_WEBHOOK_SECRET: "whsec_test",
@@ -103,29 +101,32 @@ describe("auth environment safety", () => {
     ).toThrow("is only valid for a beta runtime using the production database");
   });
 
-  it("requires Better Auth secrets when Better Auth is active", () => {
-    expect(() => authEnvironmentSchema.parse({ ...base, AUTH_PROVIDER: "DUAL" })).toThrow();
+  it("requires Better Auth secrets", () => {
+    expect(() => authEnvironmentSchema.parse({ ...base, BETTER_AUTH_SECRET: undefined })).toThrow(
+      "required for Better Auth",
+    );
+    expect(() => authEnvironmentSchema.parse({ ...base, BETTER_AUTH_URL: undefined })).toThrow(
+      "required for Better Auth",
+    );
   });
 
-  it("requires and validates a shared cookie domain for the dedicated auth host", () => {
-    const dual = {
+  it("requires and validates a shared cookie domain for a separate auth host", () => {
+    const separateHost = {
       ...base,
-      AUTH_PROVIDER: "DUAL",
-      BETTER_AUTH_SECRET: "test-only-better-auth-secret-at-least-32-characters",
-      BETTER_AUTH_URL: "https://auth.sportfolio.market",
+      BETTER_AUTH_URL: "https://login.sportfolio.market",
     };
-    expect(() => authEnvironmentSchema.parse(dual)).toThrow(
+    expect(() => authEnvironmentSchema.parse(separateHost)).toThrow(
       "required when Better Auth and the application use separate subdomains",
     );
     expect(() =>
       authEnvironmentSchema.parse({
-        ...dual,
+        ...separateHost,
         BETTER_AUTH_COOKIE_DOMAIN: ".sportfolio.market",
       }),
     ).not.toThrow();
     expect(() =>
       authEnvironmentSchema.parse({
-        ...dual,
+        ...separateHost,
         BETTER_AUTH_COOKIE_DOMAIN: ".example.com",
       }),
     ).toThrow("must be a shared parent domain");
