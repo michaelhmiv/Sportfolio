@@ -41,7 +41,10 @@ function createNascarGameId(raceId: number, seriesId: NascarSeriesId): string {
   return `nascar_${seriesCode}_${raceId}`;
 }
 
-function splitNascarDriverName(driverName: string, driverId: number): {
+function splitNascarDriverName(
+  driverName: string,
+  driverId: number,
+): {
   firstName: string;
   lastName: string;
 } {

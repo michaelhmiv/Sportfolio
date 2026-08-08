@@ -146,12 +146,7 @@ describe("syncNascarRaceResults", () => {
     storageMocks.getPlayersByIds.mockResolvedValue([]);
 
     const { syncNascarRaceResults } = await import("./sync-nascar-stats");
-    await syncNascarRaceResults(
-      2026,
-      2 as any,
-      5625,
-      new Date("2026-05-10T22:00:00.000Z"),
-    );
+    await syncNascarRaceResults(2026, 2 as any, 5625, new Date("2026-05-10T22:00:00.000Z"));
 
     expect(storageMocks.upsertPlayer).toHaveBeenCalledWith(
       expect.objectContaining({
