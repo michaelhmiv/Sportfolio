@@ -56,6 +56,7 @@ const widgetSources = [
   readFileSync("client/src/plugin-ui/sportfolio-widget-v2.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-sports-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-action-widget.tsx", "utf8"),
+  readFileSync("client/src/plugin-ui/sportfolio-market-portfolio-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/action-review-panel.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/openai-host.ts", "utf8"),
 ].join("\n");
@@ -77,6 +78,8 @@ for (const required of [
   "render_score_slate",
   "render_live_event",
   "render_action_review",
+  "get_portfolio_history",
+  "requestModal",
   'requestDisplayMode("pip")',
 ]) {
   if (!widgetSources.includes(required)) {
