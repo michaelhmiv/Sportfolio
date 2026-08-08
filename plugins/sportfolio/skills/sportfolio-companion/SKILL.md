@@ -28,9 +28,9 @@ Use the dedicated `render_*` presentation tools when a visual, interactive surfa
 - Use `render_portfolio` when the user asks to see, inspect, sort, or explore their connected portfolio visually.
 - Use `render_market_movers` for gainers, decliners, volume leaders, most-traded players, or authenticated watchlist movers.
 - Use `render_liquidity_position` when the user asks to inspect or manage their virtual AMM liquidity position for a player.
-- Use `render_trade_preview` only after a `stage_*` tool returns the exact `threadId` and `pendingBundleId` for an active staged action.
+- Use `render_trade_preview` only after a `stage_*` tool returns the exact `transactionId` for an active staged gameplay transaction.
 
-Do not invent identifiers for render tools. Resolve the player or pending bundle with ordinary Sportfolio tools first. Do not use a render tool when a plain factual answer is sufficient or when the user explicitly asks for text only.
+Do not invent identifiers for render tools. Resolve the player or staged transaction with ordinary Sportfolio tools first. Do not use a render tool when a plain factual answer is sufficient or when the user explicitly asks for text only.
 
 ## Public research
 
@@ -54,10 +54,11 @@ Market, scouting, boost, liquidity, share-stacking, and community-boost operatio
 
 1. Resolve the relevant player, amount, quantity, sport, slot, or other required input.
 2. Call the appropriate `stage_*` tool to obtain the current preview and pending gameplay transaction.
-3. Summarize the preview, including the virtual cost, shares, expected balance or holdings impact, and any warnings.
-4. Obtain explicit confirmation from the user. Do not infer confirmation from silence or from an earlier general request.
-5. Call `confirm_pending_action` with the exact thread and pending-bundle identifiers returned by the staged action.
-6. Use `cancel_pending_action` when the user declines or asks to abandon the pending action.
+3. Preserve the exact server-issued `transactionId`. Never invent or substitute an identifier.
+4. Summarize the preview, including the virtual cost, shares, expected balance or holdings impact, and any warnings.
+5. Obtain explicit confirmation from the user. Do not infer confirmation from silence or from an earlier general request.
+6. Call `confirm_pending_action` with the exact `transactionId` returned by the staged action.
+7. Use `cancel_pending_action` with that same `transactionId` when the user declines or asks to abandon the pending action.
 
 Core examples:
 
@@ -69,9 +70,9 @@ Core examples:
 - Add, optimally add, zap, or remove liquidity: use the matching `stage_lp_*` tool, then `confirm_pending_action`
 - Create a community boost: `stage_community_boost_create`, then `confirm_pending_action`
 
-When an interactive view is already open, the widget may request quotes or call a `stage_*` tool. A staged result still requires review and exact-bundle confirmation. The widget must call `confirm_pending_action` or `cancel_pending_action` only with the server-issued identifiers for the bundle the user reviewed.
+When an interactive view is already open, the widget may request quotes or call a `stage_*` tool. A staged result still requires review and exact-transaction confirmation. The widget must call `confirm_pending_action` or `cancel_pending_action` only with the server-issued `transactionId` for the transaction the user reviewed.
 
-Never skip the staged preview for an operation that has a `stage_*` tool. Never call `confirm_pending_action` for a different bundle than the one the user reviewed.
+Never skip the staged preview for an operation that has a `stage_*` tool. Never call `confirm_pending_action` for a different transaction than the one the user reviewed.
 
 ## Immediate account actions
 
