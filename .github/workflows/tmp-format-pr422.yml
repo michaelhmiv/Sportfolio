@@ -1,0 +1,36 @@
+name: Temporary PR 422 Formatter
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    if: github.head_ref == 'feat/chatgpt-ui-presentation-framework'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Format target files
+        run: npx prettier client/src/plugin-ui/sportfolio-sports-widget.tsx scripts/plugin-ui-audit.ts server/mcp/plugin/ui/catalog.ts server/mcp/plugin/ui/sports-surface.ts --write
+      - name: Emit formatted files
+        shell: bash
+        run: |
+          for file in \
+            client/src/plugin-ui/sportfolio-sports-widget.tsx \
+            scripts/plugin-ui-audit.ts \
+            server/mcp/plugin/ui/catalog.ts \
+            server/mcp/plugin/ui/sports-surface.ts; do
+            echo "=====BEGIN:${file}====="
+            gzip -c "$file" | base64 -w 0
+            echo
+            echo "=====END:${file}====="
+          done
