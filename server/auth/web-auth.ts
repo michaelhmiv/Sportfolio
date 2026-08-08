@@ -20,14 +20,10 @@ const gateSchema = z.string().uuid();
 export const AUTH_CAPABILITIES_PATH = "/api/auth/capabilities";
 
 export function getPublicAuthCapabilities(env: NodeJS.ProcessEnv = process.env) {
-  const rawProvider = (env.AUTH_PROVIDER ?? "SUPABASE").trim().toUpperCase();
-  const provider =
-    rawProvider === "DUAL" || rawProvider === "BETTER_AUTH" ? rawProvider : "SUPABASE";
   const magicLinkEnabled = env.AUTH_MAGIC_LINK_ENABLED === "true";
   return {
-    passwordlessWeb: provider !== "SUPABASE" && magicLinkEnabled,
-    nativeHandoff:
-      provider !== "SUPABASE" && magicLinkEnabled && env.AUTH_NATIVE_HANDOFF_ENABLED === "true",
+    passwordlessWeb: magicLinkEnabled,
+    nativeHandoff: magicLinkEnabled && env.AUTH_NATIVE_HANDOFF_ENABLED === "true",
   };
 }
 
@@ -158,17 +154,8 @@ async function submitMagicLink(email: string, callbackURL: string, config: AuthR
 
 export function registerWebAuthRoutes(app: Express, config?: AuthRuntimeConfig): boolean {
   registerAuthCapabilitiesRoute(app);
-  const rawProvider = (process.env.AUTH_PROVIDER ?? "SUPABASE").trim().toUpperCase();
-  if (!config && rawProvider === "SUPABASE") {
-    logger.info("Passwordless web routes remain disabled");
-    return false;
-  }
   const resolvedConfig = config ?? getAuthRuntimeConfig();
-  if (
-    resolvedConfig.AUTH_PROVIDER === "SUPABASE" ||
-    !resolvedConfig.AUTH_MAGIC_LINK_ENABLED ||
-    !resolvedConfig.BETTER_AUTH_URL
-  ) {
+  if (!resolvedConfig.AUTH_MAGIC_LINK_ENABLED || !resolvedConfig.BETTER_AUTH_URL) {
     logger.info("Passwordless web routes remain disabled");
     return false;
   }
