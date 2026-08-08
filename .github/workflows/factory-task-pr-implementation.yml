@@ -28,7 +28,7 @@ jobs:
       DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_codex_ci
     steps:
       - name: Check out task branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
