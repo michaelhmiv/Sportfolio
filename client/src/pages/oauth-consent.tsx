@@ -4,6 +4,7 @@ import { SurfaceLayout } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { betterAuthClient } from "@/lib/better-auth-client";
+import { resolveOAuthConsentRequest } from "@/lib/oauth-flow";
 
 type OAuthClient = {
   name?: string | null;
@@ -40,15 +41,15 @@ function scopeLabel(scope: string) {
 }
 
 export default function OAuthConsentPage() {
-  const params = useMemo(
+  const oauthRequest = useMemo(
     () =>
-      typeof window === "undefined"
-        ? new URLSearchParams()
-        : new URLSearchParams(window.location.search),
+      resolveOAuthConsentRequest(
+        typeof window === "undefined" ? "" : window.location.search,
+      ),
     [],
   );
-  const clientId = params.get("client_id");
-  const requestedScope = params.get("scope") || "openid";
+  const clientId = oauthRequest.clientId;
+  const requestedScope = oauthRequest.scope;
   const [client, setClient] = useState<OAuthClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,7 +59,7 @@ export default function OAuthConsentPage() {
     let cancelled = false;
     async function load() {
       if (!clientId) {
-        setError("This authorization request is missing its client identifier.");
+        setError("This authorization request is invalid or expired. Please restart the connection.");
         setLoading(false);
         return;
       }
@@ -91,6 +92,7 @@ export default function OAuthConsentPage() {
     const { data, error: consentError } = await betterAuthClient.oauth2.consent({
       accept,
       scope: accept ? requestedScope : undefined,
+      ...(oauthRequest.oauthQuery ? { oauth_query: oauthRequest.oauthQuery } : {}),
     });
     if (consentError) {
       setError(consentError.message || "The authorization decision could not be completed.");
