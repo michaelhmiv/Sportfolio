@@ -79,9 +79,6 @@ for (const required of [
   "render_score_slate",
   "render_live_event",
   "render_action_review",
-  "render_scouting",
-  "render_boosts",
-  "render_watchlist",
   "get_portfolio_history",
   "requestModal",
   'requestDisplayMode("pip")',
@@ -103,9 +100,12 @@ for (const required of [
   "ui: { resourceUri",
   "connectDomains: []",
   "resourceDomains: []",
+  "render_scouting",
+  "render_boosts",
+  "render_watchlist",
 ]) {
   if (!surfaceSource.includes(required)) {
-    errors.push(`UI surface is missing required metadata: ${required}.`);
+    errors.push(`UI surface is missing required metadata or presentation contract: ${required}.`);
   }
 }
 
