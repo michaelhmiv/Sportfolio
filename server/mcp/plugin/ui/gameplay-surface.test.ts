@@ -341,7 +341,7 @@ describe("Sportfolio gameplay presentation surfaces", () => {
     });
     const nested = await tool?.handler({ limit: -3 });
     expect(nested?.structuredContent).toMatchObject({
-      data: { watchlistId: "nested", limit: 12 },
+      data: { watchlistId: "nested", limit: 1 },
     });
   });
 
