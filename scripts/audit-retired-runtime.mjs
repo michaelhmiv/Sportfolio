@@ -12,6 +12,7 @@ const forbidden = [
   /@supabase\/supabase-js/,
   /SUPABASE_(?:URL|ANON_KEY|SERVICE_ROLE_KEY)/,
   /\bAUTH_PROVIDER\b/,
+  /\bAUTH_SUPABASE_FALLBACK_(?:ENABLED|EXPIRES_AT)\b/,
   /HERMES_INTERNAL_/,
   /\bHERMES_/,
   /\bTELNYX_/,
