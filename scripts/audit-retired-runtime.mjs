@@ -2,7 +2,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-const roots = ["client/src", "server", "shared", "scripts"];
+const roots = ["client/src", "server", "shared", "scripts", "tests/e2e", "tests/visual"];
 const extensions = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
 const ignoredFiles = new Set([
   "scripts/audit-retired-runtime.mjs",
@@ -12,6 +12,7 @@ const forbidden = [
   /@supabase\/supabase-js/,
   /SUPABASE_(?:URL|ANON_KEY|SERVICE_ROLE_KEY)/,
   /\bAUTH_PROVIDER\b/,
+  /\bAUTH_SUPABASE_FALLBACK_(?:ENABLED|EXPIRES_AT)\b/,
   /HERMES_INTERNAL_/,
   /\bHERMES_/,
   /\bTELNYX_/,
@@ -20,12 +21,6 @@ const forbidden = [
   /\bUSER_AGENT_SECRET_KEY\b/,
   /\bMLB_MCP_(?:ENABLED|URL|TIMEOUT_MS|HEALTH_CACHE_MS|AUTH_BEARER|MAX_RESPONSE_CHARS|CIRCUIT_FAILURE_THRESHOLD|CIRCUIT_RESET_MS)\b/,
 ];
-const allowedFiles = new Set([
-  "scripts/auth-supabase-inventory.ts",
-  "scripts/auth-supabase-inventory.test.ts",
-  "scripts/verify-auth-cutover.ts",
-  "scripts/verify-auth-cutover.test.ts",
-]);
 
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -42,7 +37,7 @@ const findings = [];
 for (const root of roots) {
   for (const file of await walk(root)) {
     const normalized = file.replaceAll("\\", "/");
-    if (ignoredFiles.has(normalized) || allowedFiles.has(normalized)) continue;
+    if (ignoredFiles.has(normalized)) continue;
     const source = await readFile(file, "utf8");
     const lines = source.split(/\r?\n/);
     for (let index = 0; index < lines.length; index += 1) {

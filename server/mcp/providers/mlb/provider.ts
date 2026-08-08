@@ -111,7 +111,11 @@ function recordSuccess() {
   lastErrorCode = null;
 }
 
-function recordFailure(error: MlbProviderError, config: MlbProviderConfig, runtime: ProviderRuntime) {
+function recordFailure(
+  error: MlbProviderError,
+  config: MlbProviderConfig,
+  runtime: ProviderRuntime,
+) {
   lastErrorCode = error.code;
   if (!error.retryable) return;
   consecutiveTransientFailures += 1;
@@ -129,7 +133,11 @@ function normalizeError(error: unknown): MlbProviderError {
   if (/required|must be|unsupported|invalid/i.test(message)) {
     return new MlbProviderError("provider_invalid_request", message, false);
   }
-  return new MlbProviderError("provider_upstream_error", `MLB data provider failed: ${message}`, true);
+  return new MlbProviderError(
+    "provider_upstream_error",
+    `MLB data provider failed: ${message}`,
+    true,
+  );
 }
 
 function assertResponseSize(payload: unknown, config: MlbProviderConfig) {
@@ -159,7 +167,11 @@ export async function callMlbPublicTool(
     throw new MlbProviderError("provider_disabled", "MLB data provider is disabled.", false);
   }
   if (!config.endpoint) {
-    throw new MlbProviderError("provider_unavailable", "MLB data provider is not configured.", true);
+    throw new MlbProviderError(
+      "provider_unavailable",
+      "MLB data provider is not configured.",
+      true,
+    );
   }
   if (isCircuitOpen(config, runtime)) {
     throw new MlbProviderError(
@@ -202,7 +214,8 @@ export async function callMlbPublicTool(
   }
 
   const error =
-    lastError ?? new MlbProviderError("provider_unavailable", "MLB data provider is unavailable.", true);
+    lastError ??
+    new MlbProviderError("provider_unavailable", "MLB data provider is unavailable.", true);
   console.warn("[mlb-native] invocation", {
     requestId,
     publicTool,

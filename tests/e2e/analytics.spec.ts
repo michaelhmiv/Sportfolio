@@ -1,7 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const MOCK_SUPABASE_URL = "http://127.0.0.1:5000/mock-supabase";
-
 const players = [
   {
     id: "p-nba-1",
@@ -335,18 +333,6 @@ const correlationsPayload = [
 ];
 
 async function mockAnalyticsRoutes(page: Page) {
-  await page.route("**/api/auth/config", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        url: MOCK_SUPABASE_URL,
-        anonKey: "e2e-anon-key",
-        configVersion: "e2e",
-      }),
-    });
-  });
-
   await page.route(/.*\/api\/auth\/user(\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 401,

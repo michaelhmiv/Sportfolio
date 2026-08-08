@@ -59,7 +59,8 @@ function intValue(
   max: number,
   fallback?: number,
 ): number {
-  if ((value === undefined || value === null || value === "") && fallback !== undefined) return fallback;
+  if ((value === undefined || value === null || value === "") && fallback !== undefined)
+    return fallback;
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
     throw new Error(`${name} must be an integer between ${min} and ${max}.`);
@@ -156,7 +157,8 @@ function parseCsv(text: string): { data: UnknownRecord[]; columns: string[] } {
         return;
       }
       const numeric = Number(raw);
-      item[column] = Number.isFinite(numeric) && /^-?(?:\d+\.?\d*|\.\d+)$/.test(raw) ? numeric : raw;
+      item[column] =
+        Number.isFinite(numeric) && /^-?(?:\d+\.?\d*|\.\d+)$/.test(raw) ? numeric : raw;
     });
     return item;
   });
@@ -242,7 +244,12 @@ async function getLeaderSplits(
   const leagueId = LEAGUE_IDS[league];
   let filtered = splits;
   if (leagueId) {
-    const teamResponse = await fetchJson<any>(MLB_API_BASE, "/teams", { sportIds: 1, season }, 12_000);
+    const teamResponse = await fetchJson<any>(
+      MLB_API_BASE,
+      "/teams",
+      { sportIds: 1, season },
+      12_000,
+    );
     const allowed = new Set<number>(
       (teamResponse?.teams ?? [])
         .filter((team: any) => team?.league?.id === leagueId)
@@ -266,8 +273,18 @@ function parseMlbam(value: unknown): number {
   return intValue(raw, "playerId", 1, 99_999_999);
 }
 
-async function getExpectedStats(role: "batter" | "pitcher", args: Record<string, unknown>, timeoutMs: number) {
-  const year = intValue(args.season ?? args.year, "season", 2008, currentSeason() + 1, currentSeason());
+async function getExpectedStats(
+  role: "batter" | "pitcher",
+  args: Record<string, unknown>,
+  timeoutMs: number,
+) {
+  const year = intValue(
+    args.season ?? args.year,
+    "season",
+    2008,
+    currentSeason() + 1,
+    currentSeason(),
+  );
   const minimum = intValue(args.minimum ?? args.minPA, "minimum", 0, 1000, 50);
   const url = new URL(`${SAVANT_BASE}/leaderboard/expected_statistics`);
   url.searchParams.set("type", role);
@@ -320,7 +337,13 @@ export async function callNativeMlbTool(
     }
     case "get_mlb_player_splits": {
       const playerId = parseMlbam(args.playerId ?? args.playerid);
-      const season = intValue(args.season ?? args.year, "season", 1876, currentSeason() + 1, currentSeason());
+      const season = intValue(
+        args.season ?? args.year,
+        "season",
+        1876,
+        currentSeason() + 1,
+        currentSeason(),
+      );
       return fetchJson<any>(
         MLB_API_BASE,
         `/people/${playerId}/stats`,
@@ -357,7 +380,11 @@ export async function callNativeMlbTool(
       return getSchedule(stringValue(args.date, "date"), options.timeoutMs);
     case "get_mlb_standings": {
       const season = intValue(args.season, "season", 1876, currentSeason() + 1, currentSeason());
-      const standingsTypes = stringValue(args.type ?? args.standings_types, "type", "regularSeason");
+      const standingsTypes = stringValue(
+        args.type ?? args.standings_types,
+        "type",
+        "regularSeason",
+      );
       return fetchJson<any>(
         MLB_API_BASE,
         "/standings",
@@ -374,7 +401,8 @@ export async function callNativeMlbTool(
     }
     case "get_mlb_statcast_profile": {
       const role = stringValue(args.role, "role", "batter") as "batter" | "pitcher";
-      if (role !== "batter" && role !== "pitcher") throw new Error("role must be batter or pitcher.");
+      if (role !== "batter" && role !== "pitcher")
+        throw new Error("role must be batter or pitcher.");
       return getExpectedStats(role, args, options.timeoutMs);
     }
   }

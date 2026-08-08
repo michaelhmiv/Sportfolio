@@ -1,4 +1,4 @@
-name: Pull Request CI
+name: Pull Request Validation
 
 on:
   pull_request:
@@ -19,12 +19,13 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
 
 jobs:
   validate:
     name: Validate Code
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -49,17 +50,20 @@ jobs:
       - name: Format check
         run: npm run format:check
 
+      - name: Retired runtime governance
+        run: npm run retired-runtime:audit
+
       - name: Run tests
         run: npm run test:run
 
       - name: Run tests with coverage thresholds
         run: npm run test:coverage
 
-      - name: Install Playwright browsers (report-only)
+      - name: Install Playwright browsers
         run: npm run e2e:install
         continue-on-error: true
 
-      - name: Integration tests (Playwright, report-only)
+      - name: Integration tests (report-only)
         run: npm run e2e
         continue-on-error: true
 

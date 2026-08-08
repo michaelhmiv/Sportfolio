@@ -1,89 +1,94 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with this codebase.
+Repository guidance for coding assistants working on Sportfolio.
 
-## Agent Guidelines
+## Project overview
 
-### GitHub Issues Check
+Sportfolio is a multi-sport player-share market with live sports data, AMM trading, LP participation, scouts, boosts, collections, web/mobile clients, CLI access, and ChatGPT/MCP capabilities.
 
-At the start of each session, check open GitHub issues:
+Current core stack:
+
+- React + TanStack Query + Wouter
+- Express + TypeScript
+- Railway PostgreSQL + Drizzle ORM
+- Better Auth + Resend passwordless authentication
+- Neutral sports adapters under `server/sports/`
+
+Current sports sources are MLB StatsAPI/Baseball Savant, the NHL web API integration, NASCAR schedule/live feeds, and ESPN+nflverse for NFL. Do not use BallDontLie, Supabase, a standalone MLB MCP service, Hermes/agent infrastructure, SMS, or Telnyx as active Sportfolio architecture.
+
+## Start with current state
+
+At the beginning of a task:
+
+1. Check current `main`, relevant open issues, and recent deployment state when the task affects production.
+2. Read `AGENTS.md`, `docs/architecture-module-ownership.md`, and the task-specific domain/runbook documentation.
+3. Prefer a narrow vertical slice over broad repository-wide rewrites.
+4. Treat historical migrations and archived implementation notes as history, not current runtime guidance.
+
+## Execution principles
+
+- For non-trivial work, define the implementation and validation sequence before editing.
+- Do not create unnecessary approval checkpoints when the requested scope is already clear.
+- Find root causes instead of stacking temporary compatibility shims.
+- Use existing abstractions and provider adapters before adding new services, tools, dependencies, or infrastructure.
+- Keep public MCP capabilities compact and governed; do not expose raw provider endpoints.
+- Preserve authentication, authorization, account ownership, staged-write confirmation, and economic invariants.
+- Never log or commit secrets, tokens, private user data, or raw credentials.
+
+## Authentication architecture
+
+Better Auth is the only supported authentication provider. Resend sends one-time magic links. Web sessions are secure same-origin HttpOnly sessions; native sessions use the Better Auth-backed native handoff; ChatGPT/MCP uses the Better Auth OAuth Provider/JWKS flow.
+
+Production:
+
+- site: `https://www.sportfolio.market`
+- OAuth issuer: `https://www.sportfolio.market/api/auth/better`
+- MCP resource: `https://www.sportfolio.market/mcp/plugin`
+
+Beta uses `https://beta.sportfolio.market` as its same-origin site/auth origin and intentionally shares the production database. Beta must not run scheduled jobs.
+
+Do not reintroduce Supabase auth/runtime configuration, provider selection, Supabase fallback, a dedicated auth hostname, or password/social login.
+
+## Sports architecture
+
+Use `server/sports/` contracts and the default adapter registry. Preserve provider-specific details behind adapters and ingestion modules.
+
+- MLB: MLB StatsAPI; Baseball Savant for expected-stat enrichment.
+- NHL: existing credential-free NHL web API client.
+- NASCAR: existing schedule/live-feed integration.
+- NFL: ESPN current/live data + nflverse canonical identity/history.
+
+Do not create separate per-sport Railway services or provider-native public MCP tool families. Do not silently coerce unknown provider states into valid data.
+
+## Verification before done
+
+Never mark work complete without proof. Use the relevant checks and expand to the full gate for cross-cutting work:
 
 ```bash
-gh issue list --repo michaelhmiv/Sportfolio
+npm run check
+npm run lint
+npm run test:run
+npm run format:check
+npm run build
+npm run public-tools:audit
+npm run governance:capabilities
+npm run retired-runtime:audit
 ```
 
-Review issues before making changes to understand what needs fixing. Reference issue numbers in commits and code comments.
+Auth, MCP, plugin, or public-capability changes must pass Plugin Readiness and Security Audit. Compare intended GitHub SHA with Railway deployment SHA and startup logs for production changes.
 
-## Project Overview
+## Deployment rules
 
-Sportfolio - A sports trading platform with real-time game scores, player markets, scouts, boosts, and leaderboards.
+- GitHub `main` is the production code source of truth.
+- Let Railway deploy from GitHub; do not ship local-only snapshots directly.
+- Keep beta on the same tested commit as production unless a short-lived test branch is explicitly required.
+- Never run destructive migration rehearsals against the shared production database.
+- If a deploy fails, inspect Railway build/runtime logs, fix the root cause in code/config, and re-certify the resulting SHA.
 
-## Key Patterns
+## Code quality
 
-- Primary sports data provider: BallDontLie across active sports surfaces
-- Database: PostgreSQL with Drizzle ORM
-- Frontend: React with TanStack Query
-
-## Context Orientation
-
-- Start with `AGENTS.md`, `docs/architecture-module-ownership.md`, and the task-specific domain handbook chapter.
-- Prefer loading one task-specific vertical slice instead of broad repo-wide ingestion.
-
-## Workflow Orchestration
-
-### 1. Plan Mode Default
-
-- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
-- If something goes sideways, STOP and re-plan immediately - don't keep pushing
-- Use plan mode for verification steps, not just building
-- Write detailed specs upfront to reduce ambiguity
-
-### 2. Subagent Strategy to keep main context window clean
-
-- Offload research, exploration, and parallel analysis to subagents
-- For complex problems, throw more compute at it via subagents
-- One task per subagent for focused execution
-
-### 3. Self-Improvement Loop
-
-- After ANY correction from the user: update 'tasks/lessons.md' with the pattern
-- Write rules for yourself that prevent the same mistake
-- Ruthlessly iterate on these lessons until mistake rate drops
-- Review lessons at session start for relevant project
-
-### 4. Verification Before Done
-
-- Never mark a task complete without proving it works
-- Diff behavior between main and your changes when relevant
-- Ask yourself: "Would a staff engineer approve this?"
-- Run tests, check logs, demonstrate correctness
-- Treat GitHub as the deployment source of truth: push changes to GitHub first and let Railway deploy from the tracked branch rather than shipping local-only deploys
-
-### 5. Demand Elegance (Balanced)
-
-- For non-trivial changes: pause and ask "is there a more elegant way?"
-- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
-- Skip this for simple, obvious fixes - don't over-engineer
-- Challenge your own work before presenting it
-
-### 6. Autonomous Bug Fixing
-
-- When given a bug report: just fix it. Don't ask for hand-holding
-- Point at logs, errors, failing tests -> then resolve them
-- Zero context switching required from the user
-- Go fix failing CI tests without being told how
-
-## Task Management
-
-1. **Plan First**: Write plan to 'tasks/todo.md' with checkable items
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review to 'tasks/todo.md'
-6. **Capture Lessons**: Update 'tasks/lessons.md' after corrections
-
-## Core Principles
-
-- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
-- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+- Prefer simple, targeted changes.
+- Avoid unrelated dependency/version drift.
+- Remove obsolete code and instructions when a migration is complete.
+- Keep tests aligned with current product behavior; delete or rewrite tests that simulate retired architecture.
+- Treat CI governance failures as defects, not obstacles to bypass.

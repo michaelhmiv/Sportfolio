@@ -31,21 +31,6 @@ describe("auth environment safety", () => {
     expect(getAuthDiagnostics(config).betterAuthConfigured).toBe(true);
   });
 
-  it("ignores the retired auth provider selector", () => {
-    const config = authEnvironmentSchema.parse({ ...base, AUTH_PROVIDER: "SUPABASE" });
-    expect("AUTH_PROVIDER" in config).toBe(false);
-  });
-
-  it("ignores retired Supabase fallback variables", () => {
-    const config = authEnvironmentSchema.parse({
-      ...base,
-      AUTH_SUPABASE_FALLBACK_ENABLED: "true",
-      AUTH_SUPABASE_FALLBACK_EXPIRES_AT: "2099-01-01T00:00:00.000Z",
-    });
-    expect("AUTH_SUPABASE_FALLBACK_ENABLED" in config).toBe(false);
-    expect("AUTH_SUPABASE_FALLBACK_EXPIRES_AT" in config).toBe(false);
-  });
-
   it("normalizes blank optional Railway variables to undefined", () => {
     const config = authEnvironmentSchema.parse({
       ...base,

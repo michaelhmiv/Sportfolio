@@ -5,19 +5,6 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });
-  await page.route("**/api/auth/config", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        url: "https://visual-fixture.supabase.co",
-        anonKey: "visual-fixture-anon-key",
-        configVersion: "visual-shell-v1",
-      }),
-    });
-  });
-  await page.route("https://visual-fixture.supabase.co/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-  });
 });
 
 test("application shell navigation is stable and emoji-free", async ({ page }, testInfo) => {
