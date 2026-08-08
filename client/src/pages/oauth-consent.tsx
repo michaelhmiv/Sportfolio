@@ -48,6 +48,7 @@ export default function OAuthConsentPage() {
     [],
   );
   const clientId = params.get("client_id");
+  const retiredAuthorizationId = params.get("authorization_id");
   const requestedScope = params.get("scope") || "openid";
   const [client, setClient] = useState<OAuthClient | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +59,11 @@ export default function OAuthConsentPage() {
     let cancelled = false;
     async function load() {
       if (!clientId) {
-        setError("This authorization request is missing its client identifier.");
+        setError(
+          retiredAuthorizationId
+            ? "This ChatGPT connection was created against Sportfolio's retired authentication provider. Refresh or recreate the Sportfolio connection in ChatGPT, then connect again."
+            : "This authorization request is invalid or expired. Refresh the Sportfolio connection in ChatGPT and try again.",
+        );
         setLoading(false);
         return;
       }
@@ -83,7 +88,7 @@ export default function OAuthConsentPage() {
     return () => {
       cancelled = true;
     };
-  }, [clientId]);
+  }, [clientId, retiredAuthorizationId]);
 
   async function decide(accept: boolean) {
     setSubmitting(accept ? "approve" : "deny");
