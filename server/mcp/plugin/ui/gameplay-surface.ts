@@ -69,9 +69,7 @@ function flagEnabled(name: string, defaultValue = true): boolean {
 }
 
 function record(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as JsonRecord)
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
 function stringValue(value: unknown): string {
@@ -347,7 +345,8 @@ export async function registerGameplayPluginUiSurface(
             structuredContent,
           } as any;
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Sportfolio could not render this view.";
+          const message =
+            error instanceof Error ? error.message : "Sportfolio could not render this view.";
           return {
             isError: true,
             content: [{ type: "text" as const, text: message }],

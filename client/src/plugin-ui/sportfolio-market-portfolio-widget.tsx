@@ -48,10 +48,16 @@ function num(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 function money(value: unknown): string {
-  return new Intl.NumberFormat(getOpenAIHost()?.locale, { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(num(value));
+  return new Intl.NumberFormat(getOpenAIHost()?.locale, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(num(value));
 }
 function quantity(value: unknown, digits = 2): string {
-  return new Intl.NumberFormat(getOpenAIHost()?.locale, { maximumFractionDigits: digits }).format(num(value));
+  return new Intl.NumberFormat(getOpenAIHost()?.locale, { maximumFractionDigits: digits }).format(
+    num(value),
+  );
 }
 function pct(value: unknown): string {
   const n = num(value);
@@ -59,15 +65,26 @@ function pct(value: unknown): string {
 }
 function when(value: unknown): string {
   const date = new Date(text(value));
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(getOpenAIHost()?.locale, { month: "short", day: "numeric" });
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString(getOpenAIHost()?.locale, { month: "short", day: "numeric" });
 }
 function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 function normalize(value: unknown): Payload | null {
   const root = asRecord(value);
   const structured = asRecord(root.structuredContent);
-  const candidate = text(structured.view) ? structured : text(root.view) ? root : asRecord(root.data);
+  const candidate = text(structured.view)
+    ? structured
+    : text(root.view)
+      ? root
+      : asRecord(root.data);
   const view = text(candidate.view) as MarketPortfolioView;
   if (view !== "player_market" && view !== "portfolio") return null;
   return {
@@ -79,13 +96,21 @@ function normalize(value: unknown): Payload | null {
 }
 function unwrap(value: unknown): JsonRecord {
   const root = asRecord(value);
-  const structured = Object.keys(asRecord(root.structuredContent)).length ? asRecord(root.structuredContent) : root;
-  return Object.prototype.hasOwnProperty.call(structured, "data") ? asRecord(structured.data) : structured;
+  const structured = Object.keys(asRecord(root.structuredContent)).length
+    ? asRecord(root.structuredContent)
+    : root;
+  return Object.prototype.hasOwnProperty.call(structured, "data")
+    ? asRecord(structured.data)
+    : structured;
 }
 
 function usePresentation() {
-  const [payload, setPayload] = useState<Payload | null>(() => normalize(getHostSnapshot().toolOutput));
-  const [state, setState] = useState<LocalState>(() => asRecord(getHostSnapshot().widgetState) as LocalState);
+  const [payload, setPayload] = useState<Payload | null>(() =>
+    normalize(getHostSnapshot().toolOutput),
+  );
+  const [state, setState] = useState<LocalState>(
+    () => asRecord(getHostSnapshot().widgetState) as LocalState,
+  );
   const [displayMode, setDisplayMode] = useState(text(getHostSnapshot().displayMode, "inline"));
 
   useEffect(() => {
@@ -93,11 +118,18 @@ function usePresentation() {
       if (message.method === "openai:set_globals") {
         const params = asRecord(message.params);
         const globals = asRecord(params.globals);
-        const next = normalize(globals.toolOutput ?? params.toolOutput ?? getHostSnapshot().toolOutput);
+        const next = normalize(
+          globals.toolOutput ?? params.toolOutput ?? getHostSnapshot().toolOutput,
+        );
         if (next) setPayload(next);
         const nextState = asRecord(globals.widgetState ?? params.widgetState);
         if (Object.keys(nextState).length) setState(nextState as LocalState);
-        setDisplayMode(text(globals.displayMode ?? params.displayMode ?? getHostSnapshot().displayMode, "inline"));
+        setDisplayMode(
+          text(
+            globals.displayMode ?? params.displayMode ?? getHostSnapshot().displayMode,
+            "inline",
+          ),
+        );
         return;
       }
       if (message.method === "ui/notifications/tool-result") {
@@ -112,7 +144,10 @@ function usePresentation() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => notifyIntrinsicHeight());
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => notifyIntrinsicHeight()) : null;
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => notifyIntrinsicHeight())
+        : null;
     observer?.observe(document.body);
     return () => {
       window.cancelAnimationFrame(frame);
@@ -129,14 +164,17 @@ function usePresentation() {
     });
   }, []);
 
-  const patchState = useCallback((patch: Partial<LocalState>, modelContext?: JsonRecord, summary?: string) => {
-    setState((previous) => {
-      const merged = { ...previous, ...patch };
-      persistWidgetState(merged);
-      return merged;
-    });
-    if (modelContext) void updateModelContext(modelContext, summary);
-  }, []);
+  const patchState = useCallback(
+    (patch: Partial<LocalState>, modelContext?: JsonRecord, summary?: string) => {
+      setState((previous) => {
+        const merged = { ...previous, ...patch };
+        persistWidgetState(merged);
+        return merged;
+      });
+      if (modelContext) void updateModelContext(modelContext, summary);
+    },
+    [],
+  );
 
   return { payload, update, state, patchState, displayMode };
 }
@@ -144,34 +182,91 @@ function usePresentation() {
 function Notice({ children }: { children: ReactNode }) {
   return <div className="notice">{children}</div>;
 }
-function Stat({ label, value, className = "" }: { label: string; value: ReactNode; className?: string }) {
-  return <div className="stat"><div className="label">{label}</div><div className={`value ${className}`}>{value}</div></div>;
+function Stat({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className="stat">
+      <div className="label">{label}</div>
+      <div className={`value ${className}`}>{value}</div>
+    </div>
+  );
 }
 function Identity({ player }: { player: JsonRecord }) {
   const name = text(player.displayName, "Unknown player");
   const image = text(player.imageUrl);
-  return <div className="row">{image ? <img className="avatar" src={image} alt="" /> : <div className="avatar avatar-fallback">{initials(name)}</div>}<div><div className="title">{name}</div><div className="sub">{[text(player.team), text(player.position), text(player.sport)].filter(Boolean).join(" · ")}</div></div></div>;
+  return (
+    <div className="row">
+      {image ? (
+        <img className="avatar" src={image} alt="" />
+      ) : (
+        <div className="avatar avatar-fallback">{initials(name)}</div>
+      )}
+      <div>
+        <div className="title">{name}</div>
+        <div className="sub">
+          {[text(player.team), text(player.position), text(player.sport)]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      </div>
+    </div>
+  );
 }
 function LineChart({ points, valueKey }: { points: unknown[]; valueKey: string }) {
-  const values = points.map(asRecord).map((point) => num(point[valueKey], Number.NaN)).filter(Number.isFinite);
+  const values = points
+    .map(asRecord)
+    .map((point) => num(point[valueKey], Number.NaN))
+    .filter(Number.isFinite);
   const line = useMemo(() => {
     if (values.length < 2) return "";
     const min = Math.min(...values);
     const max = Math.max(...values);
     const span = Math.max(max - min, Number.EPSILON);
-    return values.map((value, index) => `${10 + (index / (values.length - 1)) * 620},${175 - ((value - min) / span) * 155}`).join(" ");
+    return values
+      .map(
+        (value, index) =>
+          `${10 + (index / (values.length - 1)) * 620},${175 - ((value - min) / span) * 155}`,
+      )
+      .join(" ");
   }, [values]);
   if (!line) return <div className="chart chart-empty">History is not available yet.</div>;
-  return <div className="chart" role="img" aria-label={`${values.length}-point performance history`}><svg viewBox="0 0 640 190" preserveAspectRatio="none"><polyline fill="none" stroke="var(--a)" strokeWidth="3" points={line} /></svg></div>;
+  return (
+    <div className="chart" role="img" aria-label={`${values.length}-point performance history`}>
+      <svg viewBox="0 0 640 190" preserveAspectRatio="none">
+        <polyline fill="none" stroke="var(--a)" strokeWidth="3" points={line} />
+      </svg>
+    </div>
+  );
 }
 
 function friendlyKey(key: string): string {
-  return key.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ")
+    .replace(/^./, (c) => c.toUpperCase());
 }
 function MetricGrid({ data, max = 8 }: { data: JsonRecord; max?: number }) {
-  const entries = Object.entries(data).filter(([, value]) => typeof value === "number" || typeof value === "string").slice(0, max);
+  const entries = Object.entries(data)
+    .filter(([, value]) => typeof value === "number" || typeof value === "string")
+    .slice(0, max);
   if (!entries.length) return null;
-  return <div className="metrics">{entries.map(([key, value]) => <div className="metric" key={key}><div className="label">{friendlyKey(key)}</div><div className="value">{typeof value === "number" ? quantity(value) : String(value)}</div></div>)}</div>;
+  return (
+    <div className="metrics">
+      {entries.map(([key, value]) => (
+        <div className="metric" key={key}>
+          <div className="label">{friendlyKey(key)}</div>
+          <div className="value">{typeof value === "number" ? quantity(value) : String(value)}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Payload }) {
@@ -205,13 +300,21 @@ function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Pay
     );
   }, [playerId, range]);
 
-  const load = useCallback(async (nextRange = range) => {
-    const next = normalize(await callTool("render_player_market", { playerId, range: nextRange }));
-    if (next) {
-      patchState({ playerId, marketRange: nextRange }, { selectedPlayerId: playerId, selectedMarketRange: nextRange });
-      update(next);
-    }
-  }, [playerId, range, patchState, update]);
+  const load = useCallback(
+    async (nextRange = range) => {
+      const next = normalize(
+        await callTool("render_player_market", { playerId, range: nextRange }),
+      );
+      if (next) {
+        patchState(
+          { playerId, marketRange: nextRange },
+          { selectedPlayerId: playerId, selectedMarketRange: nextRange },
+        );
+        update(next);
+      }
+    },
+    [playerId, range, patchState, update],
+  );
 
   useEffect(() => {
     const value = Number(amount);
@@ -223,10 +326,14 @@ function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Pay
     const sequence = ++quoteSequence.current;
     const timer = window.setTimeout(async () => {
       try {
-        const result = unwrap(await callTool("get_amm_trade_quote", { playerId, type: side, amount: value }));
-        if (sequence === quoteSequence.current) setQuote(Object.keys(asRecord(result.quote)).length ? asRecord(result.quote) : result);
+        const result = unwrap(
+          await callTool("get_amm_trade_quote", { playerId, type: side, amount: value }),
+        );
+        if (sequence === quoteSequence.current)
+          setQuote(Object.keys(asRecord(result.quote)).length ? asRecord(result.quote) : result);
       } catch (error) {
-        if (sequence === quoteSequence.current) setMessage(error instanceof Error ? error.message : "Quote unavailable.");
+        if (sequence === quoteSequence.current)
+          setMessage(error instanceof Error ? error.message : "Quote unavailable.");
       }
     }, 400);
     return () => window.clearTimeout(timer);
@@ -238,11 +345,15 @@ function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Pay
     setBusy(true);
     setMessage("");
     try {
-      const staged = unwrap(await callTool(side === "buy" ? "stage_market_buy" : "stage_market_sell", {
-        playerId,
-        ...(side === "buy" ? { amount: value } : { shares: value }),
-      }));
-      const transactionId = text(staged.transactionId || asRecord(staged.transaction).transactionId);
+      const staged = unwrap(
+        await callTool(side === "buy" ? "stage_market_buy" : "stage_market_sell", {
+          playerId,
+          ...(side === "buy" ? { amount: value } : { shares: value }),
+        }),
+      );
+      const transactionId = text(
+        staged.transactionId || asRecord(staged.transaction).transactionId,
+      );
       if (!transactionId) throw new Error("The staged trade did not return a transaction id.");
       try {
         await requestModal({ transactionId }, ACTION_REVIEW_URI);
@@ -258,22 +369,176 @@ function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Pay
     }
   };
 
-  return <div className="panel">
-    <header className="head"><Identity player={player} /><div style={{ textAlign: "right" }}><div className="label">Virtual price</div><div className="value">{money(market.currentPrice)}</div><div className={change > 0 ? "positive" : change < 0 ? "negative" : "muted"}>{pct(change)}</div></div></header>
-    <div className="content">
-      {text(market.status) !== "active" ? <Notice>{text(market.statusMessage, "This market is not active yet.")}</Notice> : null}
-      <div className="between"><div className="segments">{RANGES.map((item) => <button key={item} aria-pressed={range === item} disabled={busy} onClick={() => void load(item)}>{item}</button>)}</div><div className="row">{!fullscreen ? <button className="btn primary" onClick={() => void requestDisplayMode("fullscreen")}>Open market</button> : null}<button className="btn" onClick={() => void sendFollowUpMessage(`Analyze ${text(player.displayName, "this player")}'s Sportfolio market, recent performance, and virtual price movement.`)}>Analyze</button></div></div>
-      <div className="section"><LineChart points={arr(history.points)} valueKey="price" /></div>
-      <div className="grid section"><Stat label="Owned shares" value={quantity(holding.quantity)} /><Stat label="Available shares" value={quantity(holding.availableShares ?? holding.quantity)} /><Stat label="Pool liquidity" value={money(market.liquidity)} /><Stat label="Market volume" value={money(market.volume)} /><Stat label="Trades" value={quantity(market.totalTrades, 0)} /><Stat label="Available balance" value={money(data.availableBalance)} /></div>
-      {fullscreen ? <>
-        {Object.keys(financial).length ? <section className="section"><div className="between"><h3>Virtual market metrics</h3><span className="muted">Server-calculated</span></div><MetricGrid data={financial} /></section> : null}
-        {Object.keys(stats).length ? <section className="section"><h3>Season performance</h3><MetricGrid data={stats} max={10} /></section> : null}
-        {recentGames.length ? <section className="section"><h3>Recent games</h3><div className="games">{recentGames.slice(0, 6).map((game, index) => <div className="game" key={`${text(game.gameId)}:${index}`}><strong>{when(game.date || game.gameDate) || text(game.opponent, "Recent game")}</strong><span className="muted">{[text(game.opponent), text(game.result)].filter(Boolean).join(" · ")}</span><span>{game.fantasyPoints != null ? `${quantity(game.fantasyPoints)} FP` : text(game.summary, "")}</span></div>)}</div></section> : null}
-        {capabilities.canTrade === true ? <section className="section"><div className="between"><h3>Trade virtual shares</h3><div className="segments"><button aria-pressed={side === "buy"} onClick={() => setSide("buy")}>Buy</button><button aria-pressed={side === "sell"} onClick={() => setSide("sell")}>Sell</button></div></div><div className="trade-grid"><label className="field"><span className="muted">{side === "buy" ? "SB to spend" : "Shares to sell"}</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><Stat label="Available" value={side === "buy" ? money(data.availableBalance) : quantity(holding.availableShares ?? holding.quantity)} /></div>{Object.keys(quote).length ? <div className="grid section"><Stat label="Estimated output" value={side === "buy" ? `${quantity(quote.sharesOut)} shares` : money(quote.sbOut)} /><Stat label="Effective price" value={money(quote.effectivePrice)} /><Stat label="Price impact" value={pct(quote.slippagePercent)} /><Stat label="Projected price" value={money(quote.newPoolPrice)} /></div> : null}<button className="btn primary section" disabled={busy || !Object.keys(quote).length} onClick={() => void stageTrade()}>Review trade</button>{message ? <Notice>{message}</Notice> : null}{Object.keys(inlineReview).length ? <div className="section"><ActionReviewPanel review={inlineReview} onFinalized={() => load()} /></div> : null}</section> : null}
-      </> : null}
+  return (
+    <div className="panel">
+      <header className="head">
+        <Identity player={player} />
+        <div style={{ textAlign: "right" }}>
+          <div className="label">Virtual price</div>
+          <div className="value">{money(market.currentPrice)}</div>
+          <div className={change > 0 ? "positive" : change < 0 ? "negative" : "muted"}>
+            {pct(change)}
+          </div>
+        </div>
+      </header>
+      <div className="content">
+        {text(market.status) !== "active" ? (
+          <Notice>{text(market.statusMessage, "This market is not active yet.")}</Notice>
+        ) : null}
+        <div className="between">
+          <div className="segments">
+            {RANGES.map((item) => (
+              <button
+                key={item}
+                aria-pressed={range === item}
+                disabled={busy}
+                onClick={() => void load(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+          <div className="row">
+            {!fullscreen ? (
+              <button className="btn primary" onClick={() => void requestDisplayMode("fullscreen")}>
+                Open market
+              </button>
+            ) : null}
+            <button
+              className="btn"
+              onClick={() =>
+                void sendFollowUpMessage(
+                  `Analyze ${text(player.displayName, "this player")}'s Sportfolio market, recent performance, and virtual price movement.`,
+                )
+              }
+            >
+              Analyze
+            </button>
+          </div>
+        </div>
+        <div className="section">
+          <LineChart points={arr(history.points)} valueKey="price" />
+        </div>
+        <div className="grid section">
+          <Stat label="Owned shares" value={quantity(holding.quantity)} />
+          <Stat
+            label="Available shares"
+            value={quantity(holding.availableShares ?? holding.quantity)}
+          />
+          <Stat label="Pool liquidity" value={money(market.liquidity)} />
+          <Stat label="Market volume" value={money(market.volume)} />
+          <Stat label="Trades" value={quantity(market.totalTrades, 0)} />
+          <Stat label="Available balance" value={money(data.availableBalance)} />
+        </div>
+        {fullscreen ? (
+          <>
+            {Object.keys(financial).length ? (
+              <section className="section">
+                <div className="between">
+                  <h3>Virtual market metrics</h3>
+                  <span className="muted">Server-calculated</span>
+                </div>
+                <MetricGrid data={financial} />
+              </section>
+            ) : null}
+            {Object.keys(stats).length ? (
+              <section className="section">
+                <h3>Season performance</h3>
+                <MetricGrid data={stats} max={10} />
+              </section>
+            ) : null}
+            {recentGames.length ? (
+              <section className="section">
+                <h3>Recent games</h3>
+                <div className="games">
+                  {recentGames.slice(0, 6).map((game, index) => (
+                    <div className="game" key={`${text(game.gameId)}:${index}`}>
+                      <strong>
+                        {when(game.date || game.gameDate) || text(game.opponent, "Recent game")}
+                      </strong>
+                      <span className="muted">
+                        {[text(game.opponent), text(game.result)].filter(Boolean).join(" · ")}
+                      </span>
+                      <span>
+                        {game.fantasyPoints != null
+                          ? `${quantity(game.fantasyPoints)} FP`
+                          : text(game.summary, "")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+            {capabilities.canTrade === true ? (
+              <section className="section">
+                <div className="between">
+                  <h3>Trade virtual shares</h3>
+                  <div className="segments">
+                    <button aria-pressed={side === "buy"} onClick={() => setSide("buy")}>
+                      Buy
+                    </button>
+                    <button aria-pressed={side === "sell"} onClick={() => setSide("sell")}>
+                      Sell
+                    </button>
+                  </div>
+                </div>
+                <div className="trade-grid">
+                  <label className="field">
+                    <span className="muted">
+                      {side === "buy" ? "SB to spend" : "Shares to sell"}
+                    </span>
+                    <input
+                      inputMode="decimal"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                    />
+                  </label>
+                  <Stat
+                    label="Available"
+                    value={
+                      side === "buy"
+                        ? money(data.availableBalance)
+                        : quantity(holding.availableShares ?? holding.quantity)
+                    }
+                  />
+                </div>
+                {Object.keys(quote).length ? (
+                  <div className="grid section">
+                    <Stat
+                      label="Estimated output"
+                      value={
+                        side === "buy" ? `${quantity(quote.sharesOut)} shares` : money(quote.sbOut)
+                      }
+                    />
+                    <Stat label="Effective price" value={money(quote.effectivePrice)} />
+                    <Stat label="Price impact" value={pct(quote.slippagePercent)} />
+                    <Stat label="Projected price" value={money(quote.newPoolPrice)} />
+                  </div>
+                ) : null}
+                <button
+                  className="btn primary section"
+                  disabled={busy || !Object.keys(quote).length}
+                  onClick={() => void stageTrade()}
+                >
+                  Review trade
+                </button>
+                {message ? <Notice>{message}</Notice> : null}
+                {Object.keys(inlineReview).length ? (
+                  <div className="section">
+                    <ActionReviewPanel review={inlineReview} onFinalized={() => load()} />
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+      <footer className="footer">
+        Virtual Sportfolio gameplay values. Updated{" "}
+        {new Date(payload.asOf).toLocaleTimeString(getOpenAIHost()?.locale)}.
+      </footer>
     </div>
-    <footer className="footer">Virtual Sportfolio gameplay values. Updated {new Date(payload.asOf).toLocaleTimeString(getOpenAIHost()?.locale)}.</footer>
-  </div>;
+  );
 }
 
 function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payload }) {
@@ -290,21 +555,26 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
   const unrealized = num(summary.unrealizedChange);
   const unrealizedPct = num(summary.unrealizedChangePercent);
 
-  const loadHistory = useCallback(async (nextRange: string) => {
-    setHistoryMessage("");
-    try {
-      const result = unwrap(await callTool("get_portfolio_history", { timeRange: nextRange }));
-      setHistory(arr(result.history));
-      setRange(nextRange);
-      patchState(
-        { portfolioRange: nextRange },
-        { selectedPortfolioRange: nextRange },
-        `Sportfolio portfolio performance range selected: ${nextRange}.`,
-      );
-    } catch (error) {
-      setHistoryMessage(error instanceof Error ? error.message : "Portfolio history is unavailable.");
-    }
-  }, [patchState]);
+  const loadHistory = useCallback(
+    async (nextRange: string) => {
+      setHistoryMessage("");
+      try {
+        const result = unwrap(await callTool("get_portfolio_history", { timeRange: nextRange }));
+        setHistory(arr(result.history));
+        setRange(nextRange);
+        patchState(
+          { portfolioRange: nextRange },
+          { selectedPortfolioRange: nextRange },
+          `Sportfolio portfolio performance range selected: ${nextRange}.`,
+        );
+      } catch (error) {
+        setHistoryMessage(
+          error instanceof Error ? error.message : "Portfolio history is unavailable.",
+        );
+      }
+    },
+    [patchState],
+  );
 
   useEffect(() => {
     if (fullscreen && !history.length) void loadHistory(range);
@@ -315,7 +585,10 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
       if (sort === "gain") return num(b.unrealizedChange) - num(a.unrealizedChange);
       if (sort === "loss") return num(a.unrealizedChange) - num(b.unrealizedChange);
       if (sort === "quantity") return num(b.quantity) - num(a.quantity);
-      if (sort === "name") return text(asRecord(a.player).displayName).localeCompare(text(asRecord(b.player).displayName));
+      if (sort === "name")
+        return text(asRecord(a.player).displayName).localeCompare(
+          text(asRecord(b.player).displayName),
+        );
       return num(b.positionValue) - num(a.positionValue);
     });
   }, [holdings, sort]);
@@ -324,29 +597,198 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
     const player = asRecord(holding.player);
     const playerId = text(player.playerId);
     if (!playerId) return;
-    patchState({ playerId }, { selectedPlayerId: playerId }, `Sportfolio holding selected: ${text(player.displayName, playerId)}.`);
+    patchState(
+      { playerId },
+      { selectedPlayerId: playerId },
+      `Sportfolio holding selected: ${text(player.displayName, playerId)}.`,
+    );
     const next = normalize(await callTool("render_player_market", { playerId, range: "1D" }));
     if (next) update(next);
   };
 
-  return <div className="panel">
-    <header className="head"><div><div className="title">Your Sportfolio portfolio</div><div className="sub">Virtual holdings, exposure, and performance</div></div><div className="row">{!fullscreen ? <button className="btn primary" onClick={() => void requestDisplayMode("fullscreen")}>Open portfolio</button> : null}<button className="btn" onClick={() => void sendFollowUpMessage("Analyze my Sportfolio portfolio, including concentration, strongest and weakest virtual holdings, and any live-game context available.")}>Analyze</button></div></header>
-    <div className="content">
-      <div className="summary-hero"><div className="card"><div className="label">Virtual portfolio value</div><div className="hero-value">{money(summary.totalValue)}</div><div className={unrealized > 0 ? "positive" : unrealized < 0 ? "negative" : "muted"}>{unrealized >= 0 ? "+" : ""}{money(unrealized)} · {pct(unrealizedPct)} unrealized</div></div><div className="grid"><Stat label="Available balance" value={money(summary.availableBalance)} /><Stat label="Cost basis" value={money(summary.costBasis)} /><Stat label="Holdings" value={quantity(summary.holdingCount, 0)} /></div></div>
-      {fullscreen ? <>
-        <section className="section"><div className="between"><h3>Performance</h3><div className="segments">{RANGES.map((item) => <button key={item} aria-pressed={range === item} onClick={() => void loadHistory(item)}>{item}</button>)}</div></div><LineChart points={history} valueKey="netWorth" />{historyMessage ? <Notice>{historyMessage}</Notice> : null}</section>
-        {allocations.length ? <section className="section"><h3>Allocation by sport</h3><div className="allocation">{allocations.map((allocation) => { const percentage = Math.max(0, Math.min(100, num(allocation.percentage))); return <div className="allocation-row" key={text(allocation.key, text(allocation.label))}><strong>{text(allocation.label, text(allocation.key, "Other"))}</strong><div className="allocation-track"><div className="allocation-fill" style={{ width: `${percentage}%` }} /></div><span>{percentage.toFixed(1)}%</span></div>; })}</div></section> : null}
-      </> : null}
-      <section className="section"><div className="between"><h3>Holdings</h3>{fullscreen ? <label className="field"><span className="muted">Sort</span><select value={sort} onChange={(event) => { setSort(event.target.value); patchState({ portfolioSort: event.target.value }); }}><option value="value">Value</option><option value="gain">Best gain</option><option value="loss">Largest loss</option><option value="quantity">Quantity</option><option value="name">Name</option></select></label> : null}</div><div className="table-wrap"><table className="table"><thead><tr><th>Player</th><th>Shares</th><th>Value</th><th>Avg cost</th><th>Unrealized</th><th /></tr></thead><tbody>{ordered.slice(0, fullscreen ? 50 : 6).map((holding) => { const player = asRecord(holding.player); const change = num(holding.unrealizedChange); return <tr key={text(player.playerId)}><td><strong>{text(player.displayName)}</strong><div className="muted">{[text(player.team), text(player.sport)].filter(Boolean).join(" · ")}</div></td><td>{quantity(holding.quantity)}</td><td>{money(holding.positionValue)}</td><td>{money(holding.averageCostBasis)}</td><td className={change > 0 ? "positive" : change < 0 ? "negative" : ""}>{change >= 0 ? "+" : ""}{money(change)}<div className="muted">{pct(holding.unrealizedChangePercent)}</div></td><td><button className="btn" onClick={() => void openMarket(holding)}>Market</button></td></tr>; })}</tbody></table></div>{!holdings.length ? <Notice>No virtual holdings are currently available.</Notice> : null}</section>
+  return (
+    <div className="panel">
+      <header className="head">
+        <div>
+          <div className="title">Your Sportfolio portfolio</div>
+          <div className="sub">Virtual holdings, exposure, and performance</div>
+        </div>
+        <div className="row">
+          {!fullscreen ? (
+            <button className="btn primary" onClick={() => void requestDisplayMode("fullscreen")}>
+              Open portfolio
+            </button>
+          ) : null}
+          <button
+            className="btn"
+            onClick={() =>
+              void sendFollowUpMessage(
+                "Analyze my Sportfolio portfolio, including concentration, strongest and weakest virtual holdings, and any live-game context available.",
+              )
+            }
+          >
+            Analyze
+          </button>
+        </div>
+      </header>
+      <div className="content">
+        <div className="summary-hero">
+          <div className="card">
+            <div className="label">Virtual portfolio value</div>
+            <div className="hero-value">{money(summary.totalValue)}</div>
+            <div className={unrealized > 0 ? "positive" : unrealized < 0 ? "negative" : "muted"}>
+              {unrealized >= 0 ? "+" : ""}
+              {money(unrealized)} · {pct(unrealizedPct)} unrealized
+            </div>
+          </div>
+          <div className="grid">
+            <Stat label="Available balance" value={money(summary.availableBalance)} />
+            <Stat label="Cost basis" value={money(summary.costBasis)} />
+            <Stat label="Holdings" value={quantity(summary.holdingCount, 0)} />
+          </div>
+        </div>
+        {fullscreen ? (
+          <>
+            <section className="section">
+              <div className="between">
+                <h3>Performance</h3>
+                <div className="segments">
+                  {RANGES.map((item) => (
+                    <button
+                      key={item}
+                      aria-pressed={range === item}
+                      onClick={() => void loadHistory(item)}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <LineChart points={history} valueKey="netWorth" />
+              {historyMessage ? <Notice>{historyMessage}</Notice> : null}
+            </section>
+            {allocations.length ? (
+              <section className="section">
+                <h3>Allocation by sport</h3>
+                <div className="allocation">
+                  {allocations.map((allocation) => {
+                    const percentage = Math.max(0, Math.min(100, num(allocation.percentage)));
+                    return (
+                      <div
+                        className="allocation-row"
+                        key={text(allocation.key, text(allocation.label))}
+                      >
+                        <strong>{text(allocation.label, text(allocation.key, "Other"))}</strong>
+                        <div className="allocation-track">
+                          <div className="allocation-fill" style={{ width: `${percentage}%` }} />
+                        </div>
+                        <span>{percentage.toFixed(1)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+          </>
+        ) : null}
+        <section className="section">
+          <div className="between">
+            <h3>Holdings</h3>
+            {fullscreen ? (
+              <label className="field">
+                <span className="muted">Sort</span>
+                <select
+                  value={sort}
+                  onChange={(event) => {
+                    setSort(event.target.value);
+                    patchState({ portfolioSort: event.target.value });
+                  }}
+                >
+                  <option value="value">Value</option>
+                  <option value="gain">Best gain</option>
+                  <option value="loss">Largest loss</option>
+                  <option value="quantity">Quantity</option>
+                  <option value="name">Name</option>
+                </select>
+              </label>
+            ) : null}
+          </div>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Shares</th>
+                  <th>Value</th>
+                  <th>Avg cost</th>
+                  <th>Unrealized</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {ordered.slice(0, fullscreen ? 50 : 6).map((holding) => {
+                  const player = asRecord(holding.player);
+                  const change = num(holding.unrealizedChange);
+                  return (
+                    <tr key={text(player.playerId)}>
+                      <td>
+                        <strong>{text(player.displayName)}</strong>
+                        <div className="muted">
+                          {[text(player.team), text(player.sport)].filter(Boolean).join(" · ")}
+                        </div>
+                      </td>
+                      <td>{quantity(holding.quantity)}</td>
+                      <td>{money(holding.positionValue)}</td>
+                      <td>{money(holding.averageCostBasis)}</td>
+                      <td className={change > 0 ? "positive" : change < 0 ? "negative" : ""}>
+                        {change >= 0 ? "+" : ""}
+                        {money(change)}
+                        <div className="muted">{pct(holding.unrealizedChangePercent)}</div>
+                      </td>
+                      <td>
+                        <button className="btn" onClick={() => void openMarket(holding)}>
+                          Market
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {!holdings.length ? <Notice>No virtual holdings are currently available.</Notice> : null}
+        </section>
+      </div>
+      <footer className="footer">
+        Virtual Sportfolio gameplay values. Updated{" "}
+        {new Date(payload.asOf).toLocaleTimeString(getOpenAIHost()?.locale)}.
+      </footer>
     </div>
-    <footer className="footer">Virtual Sportfolio gameplay values. Updated {new Date(payload.asOf).toLocaleTimeString(getOpenAIHost()?.locale)}.</footer>
-  </div>;
+  );
 }
 
 function App() {
   const presentation = usePresentation();
   const payload = presentation.payload;
-  return <><style>{CSS}</style><main className="shell">{payload?.warnings.map((warning) => <Notice key={warning}>{warning}</Notice>)}{payload ? payload.view === "player_market" ? <PlayerMarket {...presentation} payload={payload} /> : <Portfolio {...presentation} payload={payload} /> : <div className="panel loading">Loading Sportfolio…</div>}</main></>;
+  return (
+    <>
+      <style>{CSS}</style>
+      <main className="shell">
+        {payload?.warnings.map((warning) => (
+          <Notice key={warning}>{warning}</Notice>
+        ))}
+        {payload ? (
+          payload.view === "player_market" ? (
+            <PlayerMarket {...presentation} payload={payload} />
+          ) : (
+            <Portfolio {...presentation} payload={payload} />
+          )
+        ) : (
+          <div className="panel loading">Loading Sportfolio…</div>
+        )}
+      </main>
+    </>
+  );
 }
 
 const root = document.getElementById("root");
