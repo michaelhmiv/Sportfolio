@@ -127,7 +127,7 @@ export async function registerActionPluginUiSurface(
         fixtureArgs: { transactionId: "00000000-0000-4000-8000-000000000001" },
       },
     } as any,
-    async (args: { transactionId?: string }) => {
+    async (args: any) => {
       if (!context.auth?.userId) {
         return pluginMcpAuthError(getPluginOAuthConfig(), {
           error: "invalid_token",
