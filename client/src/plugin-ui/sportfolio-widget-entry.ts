@@ -11,7 +11,10 @@ function initialView(): string {
   return typeof data.view === "string" ? data.view : "";
 }
 
-if (SPORTS_VIEWS.has(initialView())) {
+const view = initialView();
+if (view === "action_review") {
+  void import("./sportfolio-action-widget");
+} else if (SPORTS_VIEWS.has(view)) {
   void import("./sportfolio-sports-widget");
 } else {
   void import("./sportfolio-widget-v2");
