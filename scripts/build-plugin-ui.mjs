@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const root = process.cwd();
-const entryPoint = resolve(root, "client/src/plugin-ui/sportfolio-widget-v2.tsx");
+const entryPoint = resolve(root, "client/src/plugin-ui/sportfolio-widget-entry.ts");
 const outputPath = resolve(root, "server/mcp/plugin/ui/generated-widget.ts");
 
 const result = await build({

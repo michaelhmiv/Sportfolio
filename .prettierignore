@@ -15,4 +15,3 @@ test-results
 playwright-report
 vendor
 server/mcp/plugin/ui/generated-widget.ts
-client/src/plugin-ui/sportfolio-widget-v2.tsx
