@@ -188,7 +188,6 @@ export function mountBetterAuthHandler(
   app.all(`${BETTER_AUTH_BASE_PATH}/*`, toNodeHandler(auth));
   logger.info(
     {
-      provider: config.AUTH_PROVIDER,
       basePath: BETTER_AUTH_BASE_PATH,
       oauthProvider: config.AUTH_OAUTH_PROVIDER_ENABLED,
       trustedOriginCount: trustedOrigins(config).length,
