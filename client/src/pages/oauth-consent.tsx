@@ -43,9 +43,7 @@ function scopeLabel(scope: string) {
 export default function OAuthConsentPage() {
   const oauthRequest = useMemo(
     () =>
-      resolveOAuthConsentRequest(
-        typeof window === "undefined" ? "" : window.location.search,
-      ),
+      resolveOAuthConsentRequest(typeof window === "undefined" ? "" : window.location.search),
     [],
   );
   const clientId = oauthRequest.clientId;
