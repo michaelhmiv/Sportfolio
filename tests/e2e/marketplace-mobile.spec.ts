@@ -70,7 +70,6 @@ async function mockAuth(page: Page) {
       }),
     });
   });
-
 }
 
 async function mockMarketplace(page: Page) {

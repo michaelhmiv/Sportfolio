@@ -1,6 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
 
-
 const players = [
   {
     id: "p-nba-1",

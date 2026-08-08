@@ -272,7 +272,6 @@ async function mockAuth(page: Page) {
       }),
     });
   });
-
 }
 
 async function mockDashboardScenario(
