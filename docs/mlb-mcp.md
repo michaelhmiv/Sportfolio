@@ -1,6 +1,6 @@
-# MLB MCP Provider
+# MLB data provider
 
-Sportfolio exposes a stable semantic MLB tool catalog through its authenticated MCP endpoint while using a separate MLB MCP service as an internal data provider.
+Sportfolio exposes a stable semantic MLB tool catalog through its authenticated MCP endpoint. MLB data now runs in-process inside the Sportfolio service; there is no separate MLB MCP service and no MLB-provider Railway service to configure.
 
 ## Public tools
 
@@ -19,23 +19,17 @@ The public catalog is static and contains these tools:
 - `get_mlb_roster`
 - `get_mlb_statcast_profile`
 
-Provider discovery validates internal compatibility only. It never adds or removes public tools.
+The catalog is intentionally stable. Internal provider implementation changes do not add or remove public tools.
 
-## Configuration
+## Data sources
 
-```dotenv
-MLB_MCP_ENABLED=true
-MLB_MCP_URL=http://mlb-mcp.railway.internal:8080/mcp
-MLB_MCP_TIMEOUT_MS=12000
-MLB_MCP_HEALTH_CACHE_MS=60000
-MLB_MCP_AUTH_BEARER=
-```
+Core MLB roster, schedule, game, standings, and statistics data comes directly from MLB StatsAPI. Expected-stat profiles used by `get_mlb_statcast_profile` come directly from Baseball Savant's CSV leaderboard endpoint.
 
-Local development can use `http://127.0.0.1:8081/mcp`.
+Both sources are called from the Sportfolio application process. No `MLB_MCP_*` environment variables, internal Railway hostname, bearer token, or sidecar service is required.
 
 ## Failure behavior
 
-The tools remain discoverable when the provider is unavailable. Calls return a structured, retryable provider error instead of a missing-tool response. The provider adapter applies bounded timeouts, a response-size limit, one transient retry, health caching, circuit breaking, and credential redaction.
+The native adapter applies bounded timeouts, a response-size limit, one transient retry, and circuit breaking. Public tool names remain stable during upstream outages and calls return structured provider errors rather than disappearing from discovery.
 
 ## Validation
 
@@ -44,5 +38,5 @@ Run:
 ```bash
 npm run mcp:smoke
 npm run public-tools:audit
-npm run retired-surfaces:audit
+npm run retired-runtime:audit
 ```

@@ -80,9 +80,9 @@ export const CURATED_MLB_TOOLS: CuratedMlbToolDefinition[] = [
   {
     name: "get_mlb_player_splits",
     description:
-      "Load a player’s batting or pitching splits for a season. Use after resolving the provider-specific player id.",
-    inputSchema: { playerId: z.string().trim().min(1), season },
-    fixtureArgs: { playerId: "troutmi01", season: 2026 },
+      "Load a player’s batting splits for a season using the canonical MLBAM player id returned by player search.",
+    inputSchema: { playerId: z.number().int().positive(), season },
+    fixtureArgs: { playerId: 545361, season: 2026 },
   },
   {
     name: "get_mlb_team_leaders",

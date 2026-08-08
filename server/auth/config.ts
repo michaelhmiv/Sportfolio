@@ -18,7 +18,7 @@ export const authEnvironmentSchema = z
     PUBLIC_SITE_URL: z.string().url(),
     AUTH_PROVIDER: authProviderSchema.default("SUPABASE"),
     AUTH_MAGIC_LINK_ENABLED: booleanFlag.default(false),
-    AUTH_SUPABASE_FALLBACK_ENABLED: booleanFlag.default(true),
+    AUTH_SUPABASE_FALLBACK_ENABLED: booleanFlag.default(false),
     AUTH_NEW_REGISTRATIONS_ENABLED: booleanFlag.default(true),
     AUTH_OAUTH_PROVIDER_ENABLED: booleanFlag.default(false),
     AUTH_NATIVE_HANDOFF_ENABLED: booleanFlag.default(false),
