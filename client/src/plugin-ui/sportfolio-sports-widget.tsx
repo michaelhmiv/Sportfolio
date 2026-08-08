@@ -103,12 +103,10 @@ function useSportsPresentation() {
   const [payload, setPayload] = useState<SportsPayload | null>(() =>
     normalize(getHostSnapshot().toolOutput),
   );
-  const [widgetState, setWidgetState] = useState<SportsWidgetState>(() =>
-    asRecord(getHostSnapshot().widgetState) as SportsWidgetState,
+  const [widgetState, setWidgetState] = useState<SportsWidgetState>(
+    () => asRecord(getHostSnapshot().widgetState) as SportsWidgetState,
   );
-  const [displayMode, setDisplayMode] = useState(
-    text(getHostSnapshot().displayMode, "inline"),
-  );
+  const [displayMode, setDisplayMode] = useState(text(getHostSnapshot().displayMode, "inline"));
 
   useEffect(() => {
     const syncDisplayMode = (mode: unknown) => {
@@ -380,7 +378,11 @@ function ScoreSlate({ payload, update, widgetState, updateState, displayMode }: 
         {fullscreen ? (
           <div className="between pip-hide" style={{ marginBottom: 12 }}>
             <div className="row">
-              <button className="btn" disabled={busy} onClick={() => void load(shiftDate(date, -1))}>
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => void load(shiftDate(date, -1))}
+              >
                 Previous
               </button>
               <button className="btn" disabled={busy} onClick={() => void load(shiftDate(date, 1))}>
@@ -419,7 +421,8 @@ function ScoreSlate({ payload, update, widgetState, updateState, displayMode }: 
         ) : null}
       </div>
       <footer className="footer">
-        Scores remain unknown when the source does not provide them. Updated {new Date(payload.asOf).toLocaleTimeString(getOpenAIHost()?.locale)}.
+        Scores remain unknown when the source does not provide them. Updated{" "}
+        {new Date(payload.asOf).toLocaleTimeString(getOpenAIHost()?.locale)}.
       </footer>
     </div>
   );
@@ -539,7 +542,8 @@ function LiveEvent({ payload, update, updateState, displayMode }: SportsViewProp
         </div>
       </div>
       <footer className="footer">
-        Live state refreshes only while the event is in progress. Updated {new Date(payload.asOf).toLocaleTimeString(getOpenAIHost()?.locale)}.
+        Live state refreshes only while the event is in progress. Updated{" "}
+        {new Date(payload.asOf).toLocaleTimeString(getOpenAIHost()?.locale)}.
       </footer>
     </div>
   );

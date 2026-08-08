@@ -88,9 +88,7 @@ function flagEnabled(name: string, defaultValue = true): boolean {
 }
 
 function record(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as JsonRecord)
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
 function array(value: unknown): unknown[] {
@@ -491,11 +489,7 @@ export async function registerSportsPluginUiSurface(
           }) as any;
         }
         try {
-          const structuredContent = await definition.render(
-            context,
-            publicContext,
-            args || {},
-          );
+          const structuredContent = await definition.render(context, publicContext, args || {});
           return {
             content: [
               {
@@ -507,7 +501,9 @@ export async function registerSportsPluginUiSurface(
           } as any;
         } catch (error) {
           const message =
-            error instanceof Error ? error.message : "Sportfolio could not render this sports view.";
+            error instanceof Error
+              ? error.message
+              : "Sportfolio could not render this sports view.";
           return {
             isError: true,
             content: [{ type: "text" as const, text: message }],

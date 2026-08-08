@@ -38,7 +38,9 @@ for (const entry of catalog) {
 }
 
 if (JSON.stringify([...resources].sort()) !== JSON.stringify(expectedResources)) {
-  errors.push("Presentation catalog resources do not match the registered Sportfolio UI resources.");
+  errors.push(
+    "Presentation catalog resources do not match the registered Sportfolio UI resources.",
+  );
 }
 
 const buildScript = readFileSync("scripts/build-plugin-ui.mjs", "utf8");
@@ -72,7 +74,7 @@ for (const required of [
   "transactionId",
   "render_score_slate",
   "render_live_event",
-  "requestDisplayMode(\"pip\")",
+  'requestDisplayMode("pip")',
 ]) {
   if (!widgetSources.includes(required)) {
     errors.push(`Widget source is missing required bridge or action contract: ${required}.`);
