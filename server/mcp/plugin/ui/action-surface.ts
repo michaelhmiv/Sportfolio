@@ -159,7 +159,8 @@ export async function registerActionPluginUiSurface(
           structuredContent,
         } as any;
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Sportfolio could not load this action.";
+        const message =
+          error instanceof Error ? error.message : "Sportfolio could not load this action.";
         return {
           isError: true,
           content: [{ type: "text" as const, text: message }],

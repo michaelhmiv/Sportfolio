@@ -97,13 +97,17 @@ export function ActionReviewPanel({
       setMessage(
         text(
           result.summary,
-          tool === "confirm_pending_action" ? "Sportfolio action confirmed." : "Sportfolio action canceled.",
+          tool === "confirm_pending_action"
+            ? "Sportfolio action confirmed."
+            : "Sportfolio action canceled.",
         ),
       );
       await onFinalized?.(result);
       if (closeOnFinalized) await requestClose();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The Sportfolio action could not be finalized.");
+      setMessage(
+        error instanceof Error ? error.message : "The Sportfolio action could not be finalized.",
+      );
     } finally {
       setBusy(false);
     }

@@ -50,7 +50,9 @@ function App() {
       if (event.method === "openai:set_globals") {
         const params = asRecord(event.params);
         const globals = asRecord(params.globals);
-        const next = normalize(globals.toolOutput ?? params.toolOutput ?? getHostSnapshot().toolOutput);
+        const next = normalize(
+          globals.toolOutput ?? params.toolOutput ?? getHostSnapshot().toolOutput,
+        );
         if (next) setPayload(next);
       }
       if (event.method === "ui/notifications/tool-result") {
@@ -77,7 +79,11 @@ function App() {
         else setMessage("The staged Sportfolio action could not be loaded.");
       })
       .catch((error) =>
-        setMessage(error instanceof Error ? error.message : "The staged Sportfolio action could not be loaded."),
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "The staged Sportfolio action could not be loaded.",
+        ),
       );
   }, [payload]);
 
