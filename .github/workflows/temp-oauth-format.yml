@@ -6,13 +6,16 @@ on:
       - fix/plugin-oauth-consent-state
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   format:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: fix/plugin-oauth-consent-state
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -20,9 +23,14 @@ jobs:
       - run: npm ci
       - name: Format consent page
         run: npx prettier client/src/pages/oauth-consent.tsx --write
-      - name: Emit formatted file
+      - name: Commit canonical formatting
         run: |
-          echo 'FORMATTED_FILE_BEGIN'
-          base64 -w0 client/src/pages/oauth-consent.tsx
-          echo
-          echo 'FORMATTED_FILE_END'
+          if git diff --quiet -- client/src/pages/oauth-consent.tsx; then
+            echo 'Consent page already formatted.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add client/src/pages/oauth-consent.tsx
+          git commit -m 'style(auth): apply canonical consent formatting'
+          git push origin HEAD:fix/plugin-oauth-consent-state
