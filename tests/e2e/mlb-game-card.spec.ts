@@ -273,28 +273,6 @@ async function mockAuth(page: Page) {
     });
   });
 
-  await page.route("**/api/auth/config", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        url: "http://127.0.0.1:5000/mock-supabase",
-        anonKey: "mlb-e2e",
-        configVersion: "mlb-e2e",
-      }),
-    });
-  });
-
-  await page.route("**/mock-supabase/auth/v1/**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        user: null,
-        session: null,
-      }),
-    });
-  });
 }
 
 async function mockDashboardScenario(
