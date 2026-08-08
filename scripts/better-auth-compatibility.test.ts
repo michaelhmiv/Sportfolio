@@ -20,11 +20,11 @@ describe("Better Auth package compatibility", () => {
     expect(packageJson.dependencies["drizzle-zod"]).toBe(DRIZZLE_ZOD_VERSION);
   });
 
-  it("constructs a passwordless OAuth provider without Railway access", () => {
+  it("constructs a passwordless OAuth provider against the current production contract", () => {
     expect(compatibilityAuth).toBeDefined();
     expect(typeof compatibilityAuth.handler).toBe("function");
-    expect(SPORTFOLIO_AUTH_BASE_URL).toBe("https://auth.sportfolio.market");
-    expect(SPORTFOLIO_MCP_RESOURCE).toBe("https://www.sportfolio.market/mcp");
+    expect(SPORTFOLIO_AUTH_BASE_URL).toBe("https://www.sportfolio.market");
+    expect(SPORTFOLIO_MCP_RESOURCE).toBe("https://www.sportfolio.market/mcp/plugin");
     expect(SPORTFOLIO_OAUTH_SCOPES).toContain("offline_access");
     expect(SPORTFOLIO_OAUTH_SCOPES).toContain("sportfolio.read");
   });
