@@ -1,0 +1,85 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".vscode/**"
+      - ".github/workflows/ios-*"
+      - ".github/workflows/play-*"
+      - ".github/workflows/firebase-*"
+      - "mobile/ios/**"
+      - "mobile/android/**"
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  validate:
+    name: Validate Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "${{ env.NODE_VERSION }}"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Retired runtime governance
+        run: npm run retired-runtime:audit
+
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Run tests with coverage thresholds
+        run: npm run test:coverage
+
+      - name: Install Playwright browsers
+        run: npm run e2e:install
+        continue-on-error: true
+
+      - name: Integration tests (report-only)
+        run: npm run e2e
+        continue-on-error: true
+
+      - name: Dead code and unused exports (report-only)
+        run: npm run code:dead
+        continue-on-error: true
+
+      - name: Duplicate code (report-only)
+        run: npm run code:dup
+        continue-on-error: true
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v6
+        with:
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          files: ./coverage/coverage-final.json
+          flags: pr
+          name: codecov-umbrella
+          fail_ci_if_error: false
