@@ -185,8 +185,8 @@ if (app.get("env") !== "production") {
 // and internal mutation routes are intentionally not all mounted under /api.
 app.use(maintenanceWriteGuard());
 
-// Better Auth must be mounted before Express body parsing. It remains a no-op
-// while AUTH_PROVIDER=SUPABASE.
+// Better Auth must be mounted before Express body parsing so its handler can
+// consume the original request stream safely.
 mountBetterAuthHandler(app, authRuntimeConfig);
 
 declare module "http" {
