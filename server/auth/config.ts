@@ -14,7 +14,6 @@ export const authEnvironmentSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PUBLIC_SITE_URL: z.string().url(),
-    AUTH_PROVIDER: z.literal("BETTER_AUTH").default("BETTER_AUTH"),
     AUTH_MAGIC_LINK_ENABLED: booleanFlag.default(false),
     AUTH_NEW_REGISTRATIONS_ENABLED: booleanFlag.default(true),
     AUTH_OAUTH_PROVIDER_ENABLED: booleanFlag.default(false),
@@ -192,7 +191,6 @@ export function getAuthDiagnostics(config = getAuthRuntimeConfig()) {
     databaseEnvironment: config.AUTH_DATABASE_ENVIRONMENT ?? "unclassified",
     sharedProductionDatabase: config.AUTH_SHARED_PRODUCTION_DATABASE,
     publicSiteUrl: config.PUBLIC_SITE_URL,
-    provider: config.AUTH_PROVIDER,
     capabilities: {
       magicLink: config.AUTH_MAGIC_LINK_ENABLED,
       newRegistrations: config.AUTH_NEW_REGISTRATIONS_ENABLED,
