@@ -1,0 +1,28 @@
+name: Temporary OAuth Format
+
+on:
+  push:
+    branches:
+      - fix/plugin-oauth-consent-state
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Format consent page
+        run: npx prettier client/src/pages/oauth-consent.tsx --write
+      - name: Emit formatted file
+        run: |
+          echo 'FORMATTED_FILE_BEGIN'
+          base64 -w0 client/src/pages/oauth-consent.tsx
+          echo
+          echo 'FORMATTED_FILE_END'
