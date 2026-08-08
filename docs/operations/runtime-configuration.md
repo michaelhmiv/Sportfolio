@@ -54,13 +54,13 @@ The following prefixes/names must not be reintroduced:
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `AUTH_SUPABASE_FALLBACK_ENABLED`
+- `AUTH_SUPABASE_FALLBACK_EXPIRES_AT`
 - `MLB_MCP_ENABLED`
 - `MLB_MCP_URL`
 - `MLB_MCP_TIMEOUT_MS`
 - `MLB_MCP_HEALTH_CACHE_MS`
 - `MLB_MCP_AUTH_BEARER`
-
-`AUTH_SUPABASE_FALLBACK_ENABLED` is retained only as a compatibility field in the auth schema. Its code default is `false`, so it may be omitted from Railway. Setting it to `true` with `AUTH_PROVIDER=BETTER_AUTH` is rejected at startup.
 
 ## Environment parity rule
 
