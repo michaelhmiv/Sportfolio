@@ -3139,6 +3139,7 @@ const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
   "get_amm_pool_state",
   "get_trade_quote",
   "get_dashboard_overview",
+  "get_leaderboard",
   "search_players",
   "get_market_scanners",
   "get_games_today",

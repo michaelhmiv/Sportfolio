@@ -56,7 +56,8 @@ function mockPublicTools(results: Record<string, unknown>) {
   vi.mocked(executePublicTool).mockImplementation(async (_context, name, args) => {
     const value = results[name];
     if (value instanceof Error) throw value;
-    if (typeof value === "function") return (value as (args: Record<string, unknown>) => unknown)(args) as any;
+    if (typeof value === "function")
+      return (value as (args: Record<string, unknown>) => unknown)(args) as any;
     return value as any;
   });
 }
@@ -171,7 +172,9 @@ describe("Sportfolio overview presentation surfaces", () => {
       const result = await fixture.tools.get(name)?.handler({});
       expect(result).toMatchObject({
         isError: true,
-        content: [{ type: "text", text: "Connect your Sportfolio account to use this interactive view." }],
+        content: [
+          { type: "text", text: "Connect your Sportfolio account to use this interactive view." },
+        ],
       });
     }
     expect(executePublicTool).not.toHaveBeenCalled();
@@ -181,7 +184,11 @@ describe("Sportfolio overview presentation surfaces", () => {
     mockPublicTools({ get_dashboard_overview: { overview: { netWorth: 1250 } } });
     const fixture = fakeServer();
     const deps = { marker: "provided" } as any;
-    await registerOverviewPluginUiSurface(fixture.server, { auth: { userId: "user_1" } } as any, deps);
+    await registerOverviewPluginUiSurface(
+      fixture.server,
+      { auth: { userId: "user_1" } } as any,
+      deps,
+    );
     const result = await fixture.tools.get("render_dashboard")?.handler({ recentLotsLimit: 99 });
     expect(result?.structuredContent).toMatchObject({
       view: "dashboard",
@@ -201,11 +208,20 @@ describe("Sportfolio overview presentation surfaces", () => {
   it("lists collections and loads selected detail through the canonical detail tool", async () => {
     mockPublicTools({
       list_collections: { collections: [{ collectionType: "team", targetId: "BOS" }] },
-      get_collection_detail: { collection: { collectionType: "team", targetId: "BOS" }, ownedPlayers: [] },
+      get_collection_detail: {
+        collection: { collectionType: "team", targetId: "BOS" },
+        ownedPlayers: [],
+      },
     });
     const fixture = fakeServer();
-    await registerOverviewPluginUiSurface(fixture.server, { auth: { userId: "user_2" } } as any, {} as any);
-    const result = await fixture.tools.get("render_collections")?.handler({ type: "team", targetId: "BOS" });
+    await registerOverviewPluginUiSurface(
+      fixture.server,
+      { auth: { userId: "user_2" } } as any,
+      {} as any,
+    );
+    const result = await fixture.tools
+      .get("render_collections")
+      ?.handler({ type: "team", targetId: "BOS" });
     expect(result?.structuredContent).toMatchObject({
       view: "collections",
       data: {
@@ -232,8 +248,14 @@ describe("Sportfolio overview presentation surfaces", () => {
       },
     });
     const fixture = fakeServer();
-    await registerOverviewPluginUiSurface(fixture.server, { auth: { userId: "user_3" } } as any, {} as any);
-    const result = await fixture.tools.get("render_rankings")?.handler({ category: "portfolioValue", limit: 100 });
+    await registerOverviewPluginUiSurface(
+      fixture.server,
+      { auth: { userId: "user_3" } } as any,
+      {} as any,
+    );
+    const result = await fixture.tools
+      .get("render_rankings")
+      ?.handler({ category: "portfolioValue", limit: 100 });
     expect(result?.structuredContent).toMatchObject({
       view: "rankings",
       data: {
@@ -252,7 +274,11 @@ describe("Sportfolio overview presentation surfaces", () => {
   it("degrades a failed canonical read into a warning without failing the view", async () => {
     mockPublicTools({ get_dashboard_overview: new Error("dashboard unavailable") });
     const fixture = fakeServer();
-    await registerOverviewPluginUiSurface(fixture.server, { auth: { userId: "user_4" } } as any, {} as any);
+    await registerOverviewPluginUiSurface(
+      fixture.server,
+      { auth: { userId: "user_4" } } as any,
+      {} as any,
+    );
     const result = await fixture.tools.get("render_dashboard")?.handler({});
     expect(result?.isError).not.toBe(true);
     expect(result?.structuredContent).toMatchObject({
