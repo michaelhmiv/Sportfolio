@@ -106,14 +106,7 @@ import {
   toApiHealthJobResult,
 } from "./health/api-health-check";
 import { ensureUserApiTokenSchema } from "./api-token-auth";
-import {
-  buildLeaderboardWindow,
-  getLeaderboardMeta,
-  getLeaderboardRankChange,
-  normalizeLeaderboardCategory,
-  type LeaderboardCategory,
-  type LeaderboardEntry,
-} from "./leaderboards";
+import { getLeaderboardReadResponse } from "./leaderboards-read-service";
 import { getBotRuntimeStatus, getBotStats, runBotEngineTick } from "./bot/bot-engine";
 import { buildStackSharesResponsePayload } from "./lib/stack-shares-response";
 
@@ -5784,123 +5777,10 @@ ${items}
   // Global leaderboards (public) - cached and enriched with current-user context when available
   app.get("/api/leaderboards", optionalAuth, async (req, res) => {
     try {
-      const category = normalizeLeaderboardCategory(
-        typeof req.query.category === "string" ? req.query.category : null,
-      );
-      if (!category) {
-        return res.status(400).json({ error: "Invalid category" });
-      }
-
+      const category = typeof req.query.category === "string" ? req.query.category : null;
       const currentUserId =
         typeof (req as any).user?.claims?.sub === "string" ? (req as any).user.claims.sub : null;
-      const cacheKey = `leaderboard:v2:${category}`;
-
-      const result = await getOrCompute(
-        cacheKey,
-        async () => {
-          const meta = getLeaderboardMeta(category);
-          const allUsers = await storage.getUsers();
-          const rankEntries = (
-            entries: Array<Omit<LeaderboardEntry, "rank">>,
-          ): LeaderboardEntry[] =>
-            entries
-              .sort((a, b) => b.value - a.value || a.username.localeCompare(b.username))
-              .map((entry, index) => ({
-                ...entry,
-                rank: index + 1,
-                value: roundToTwo(entry.value),
-              }));
-
-          let leaderboard: LeaderboardEntry[] = [];
-
-          if (category === "marketOrders") {
-            leaderboard = rankEntries(
-              allUsers.map((user) => ({
-                userId: user.id,
-                username: user.username || "Unknown",
-                profileImageUrl: user.profileImageUrl || null,
-                value: user.totalMarketOrders,
-                rankChange: null,
-              })),
-            );
-          } else if (category === "tradingVolume24h") {
-            const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-            const volumeByUser = await storage.getUserTradingVolumeSince(since);
-
-            leaderboard = rankEntries(
-              allUsers.map((user) => ({
-                userId: user.id,
-                username: user.username || "Unknown",
-                profileImageUrl: user.profileImageUrl || null,
-                value: volumeByUser.get(user.id) || 0,
-                rankChange: null,
-              })),
-            );
-          } else {
-            const [usersForRanking, latestSnapshotRanks] = await Promise.all([
-              storage.getAllUsersForRanking(),
-              storage.getLatestSnapshotRanks(),
-            ]);
-            const userMap = new Map(allUsers.map((user) => [user.id, user]));
-
-            leaderboard = rankEntries(
-              usersForRanking.map((userData) => {
-                const user = userMap.get(userData.userId);
-                const snapshotRank = latestSnapshotRanks.get(userData.userId);
-                const cashValue = toNumber(userData.balance);
-                const portfolioValue = userData.portfolioValue;
-                const netWorthValue = cashValue + portfolioValue;
-
-                let value = netWorthValue;
-                let previousRank = snapshotRank?.netWorthRank;
-
-                if (category === "cashBalance") {
-                  value = cashValue;
-                  previousRank = snapshotRank?.cashRank;
-                } else if (category === "portfolioValue") {
-                  value = portfolioValue;
-                  previousRank = snapshotRank?.portfolioRank;
-                }
-
-                return {
-                  userId: userData.userId,
-                  username: user?.username || "Unknown",
-                  profileImageUrl: user?.profileImageUrl || null,
-                  value,
-                  rankChange: previousRank ?? null,
-                };
-              }),
-            ).map((entry) => ({
-              ...entry,
-              rankChange: getLeaderboardRankChange(entry.rankChange, entry.rank),
-            }));
-          }
-
-          return {
-            category,
-            categoryLabel: meta.label,
-            description: meta.description,
-            unit: meta.unit,
-            updatedAt: new Date().toISOString(),
-            totalEntries: leaderboard.length,
-            leaderboard,
-          };
-        },
-        30_000,
-      );
-
-      const currentUser =
-        currentUserId !== null
-          ? result.leaderboard.find((entry: LeaderboardEntry) => entry.userId === currentUserId) ||
-            null
-          : null;
-      const currentUserWindow = buildLeaderboardWindow(result.leaderboard, currentUserId, 2);
-
-      const payload = {
-        ...result,
-        currentUser,
-        currentUserWindow,
-      };
+      const payload = await getLeaderboardReadResponse(category, currentUserId);
 
       if (!currentUserId) {
         return res.json(
@@ -5913,6 +5793,9 @@ ${items}
 
       res.json(payload);
     } catch (error: any) {
+      if (error?.code === "invalid_category") {
+        return res.status(400).json({ error: "Invalid category" });
+      }
       console.error("[leaderboards] Error:", error);
       res.status(500).json({ error: error.message });
     }

@@ -42,7 +42,8 @@ function money(value: unknown): string {
   }).format(parsed);
 }
 function display(value: unknown): string {
-  if (typeof value === "number") return new Intl.NumberFormat(getOpenAIHost()?.locale).format(value);
+  if (typeof value === "number")
+    return new Intl.NumberFormat(getOpenAIHost()?.locale).format(value);
   if (typeof value === "string") return value;
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return "—";
@@ -89,7 +90,10 @@ function collectionIdentity(row: JsonRecord) {
   return { type, targetId, key: `${type}:${targetId}` };
 }
 function collectionTitle(row: JsonRecord): string {
-  return text(row.name || row.title || row.displayName || row.targetName || row.targetId, "Collection");
+  return text(
+    row.name || row.title || row.displayName || row.targetName || row.targetId,
+    "Collection",
+  );
 }
 function completion(row: JsonRecord): string {
   if (typeof row.completed === "boolean") return row.completed ? "Complete" : "In progress";
@@ -100,7 +104,9 @@ function completion(row: JsonRecord): string {
 }
 
 function usePresentation() {
-  const [payload, setPayload] = useState<Payload | null>(() => normalize(getHostSnapshot().toolOutput));
+  const [payload, setPayload] = useState<Payload | null>(() =>
+    normalize(getHostSnapshot().toolOutput),
+  );
   const [state, setState] = useState<LocalState>(
     () => asRecord(getHostSnapshot().widgetState) as LocalState,
   );
@@ -111,7 +117,9 @@ function usePresentation() {
       if (message.method === "openai:set_globals") {
         const params = asRecord(message.params);
         const globals = asRecord(params.globals);
-        const next = normalize(globals.toolOutput ?? params.toolOutput ?? getHostSnapshot().toolOutput);
+        const next = normalize(
+          globals.toolOutput ?? params.toolOutput ?? getHostSnapshot().toolOutput,
+        );
         if (next) setPayload(next);
         const nextState = asRecord(globals.widgetState ?? params.widgetState);
         if (Object.keys(nextState).length) setState(nextState as LocalState);
@@ -127,7 +135,10 @@ function usePresentation() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => notifyIntrinsicHeight());
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => notifyIntrinsicHeight()) : null;
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => notifyIntrinsicHeight())
+        : null;
     observer?.observe(document.body);
     return () => {
       window.cancelAnimationFrame(frame);
@@ -200,7 +211,10 @@ function Dashboard({ payload }: { payload: Payload }) {
 
   return (
     <div className="panel">
-      <Header title="Sportfolio dashboard" subtitle="Account snapshot, recent positions, and progress" />
+      <Header
+        title="Sportfolio dashboard"
+        subtitle="Account snapshot, recent positions, and progress"
+      />
       <div className="content">
         <div className="grid">
           <Stat label="Net worth" value={money(netWorth)} />
@@ -212,39 +226,60 @@ function Dashboard({ payload }: { payload: Payload }) {
           <section className="section">
             <div className="label">Progress</div>
             <div className="grid section">
-              {primitiveMetrics(asRecord(overview.level || overview.progress), 4).map(([key, value]) => (
-                <Stat key={key} label={key} value={value} />
-              ))}
+              {primitiveMetrics(asRecord(overview.level || overview.progress), 4).map(
+                ([key, value]) => (
+                  <Stat key={key} label={key} value={value} />
+                ),
+              )}
             </div>
           </section>
         ) : null}
         <section className="section">
-          <div className="between"><strong>Recent positions</strong><span className="muted">{recentLots.length}</span></div>
+          <div className="between">
+            <strong>Recent positions</strong>
+            <span className="muted">{recentLots.length}</span>
+          </div>
           {recentLots.length ? (
             <div className="carousel section">
               {recentLots.slice(0, 8).map((row, index) => {
                 const player = asRecord(row.player);
-                const name = text(row.playerName || row.name || player.name || player.displayName, "Player position");
+                const name = text(
+                  row.playerName || row.name || player.name || player.displayName,
+                  "Player position",
+                );
                 return (
                   <article className="card" key={`${text(row.id || row.playerId)}:${index}`}>
                     <div className="card-title">{name}</div>
-                    <div className="sub">{[text(row.team || player.team), text(row.sport || player.sport)].filter(Boolean).join(" · ")}</div>
+                    <div className="sub">
+                      {[text(row.team || player.team), text(row.sport || player.sport)]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
                     <div className="stack section">
                       {primitiveMetrics(row, 4).map(([key, value]) => (
-                        <div className="between" key={key}><span className="muted">{key}</span><strong>{value}</strong></div>
+                        <div className="between" key={key}>
+                          <span className="muted">{key}</span>
+                          <strong>{value}</strong>
+                        </div>
                       ))}
                     </div>
                   </article>
                 );
               })}
             </div>
-          ) : <Notice>No recent player lots are available.</Notice>}
+          ) : (
+            <Notice>No recent player lots are available.</Notice>
+          )}
         </section>
         {achievements.length ? (
           <section className="section">
             <div className="label">Achievements</div>
             <div className="chips section">
-              {achievements.slice(0, 10).map((row, index) => <span className="pill" key={`${text(row.id)}:${index}`}>{text(row.name || row.title, "Achievement")}</span>)}
+              {achievements.slice(0, 10).map((row, index) => (
+                <span className="pill" key={`${text(row.id)}:${index}`}>
+                  {text(row.name || row.title, "Achievement")}
+                </span>
+              ))}
             </div>
           </section>
         ) : null}
@@ -281,20 +316,37 @@ function Collections({
 
   return (
     <div className="panel">
-      <Header title="Sportfolio collections" subtitle="Completion progress across your collection sets" />
+      <Header
+        title="Sportfolio collections"
+        subtitle="Completion progress across your collection sets"
+      />
       <div className="content">
         {selected && Object.keys(selected).length ? (
           <section>
-            <div className="between"><div><div className="label">Selected collection</div><div className="value">{collectionTitle(selected)}</div></div><span className="pill">{completion(selected)}</span></div>
+            <div className="between">
+              <div>
+                <div className="label">Selected collection</div>
+                <div className="value">{collectionTitle(selected)}</div>
+              </div>
+              <span className="pill">{completion(selected)}</span>
+            </div>
             {ownedPlayers.length ? (
               <div className="chips section">
-                {ownedPlayers.slice(0, 12).map((row, index) => <span className="pill" key={`${text(row.playerId || row.id)}:${index}`}>{`${text(row.firstName)} ${text(row.lastName)}`.trim() || text(row.name, "Owned player")}</span>)}
+                {ownedPlayers.slice(0, 12).map((row, index) => (
+                  <span className="pill" key={`${text(row.playerId || row.id)}:${index}`}>
+                    {`${text(row.firstName)} ${text(row.lastName)}`.trim() ||
+                      text(row.name, "Owned player")}
+                  </span>
+                ))}
               </div>
             ) : null}
           </section>
         ) : null}
         <section className="section">
-          <div className="between"><strong>Your collections</strong><span className="muted">{rows.length}</span></div>
+          <div className="between">
+            <strong>Your collections</strong>
+            <span className="muted">{rows.length}</span>
+          </div>
           {rows.length ? (
             <div className="carousel section">
               {rows.map((row, index) => {
@@ -304,12 +356,21 @@ function Collections({
                     <div className="card-title">{collectionTitle(row)}</div>
                     <div className="sub">{text(row.collectionType || row.type, "Collection")}</div>
                     <div className="value section">{completion(row)}</div>
-                    <button className="btn primary section" style={{ width: "100%" }} disabled={busy || !identity.type || !identity.targetId} onClick={() => openCollection(row)}>Open collection</button>
+                    <button
+                      className="btn primary section"
+                      style={{ width: "100%" }}
+                      disabled={busy || !identity.type || !identity.targetId}
+                      onClick={() => openCollection(row)}
+                    >
+                      Open collection
+                    </button>
                   </article>
                 );
               })}
             </div>
-          ) : <Notice>No collection progress is available yet.</Notice>}
+          ) : (
+            <Notice>No collection progress is available yet.</Notice>
+          )}
         </section>
       </div>
       <footer className="footer">Collection browsing is read-only in this ChatGPT view.</footer>
@@ -340,7 +401,8 @@ function Rankings({
   const currentUser = asRecord(rankings.currentUser);
   const around = firstArray(rankings, ["currentUserWindow"]);
   const unit = text(rankings.unit, "currency");
-  const formatValue = (value: unknown) => unit === "count" ? Math.round(num(value)).toLocaleString() : money(value);
+  const formatValue = (value: unknown) =>
+    unit === "count" ? Math.round(num(value)).toLocaleString() : money(value);
 
   const setCategory = (next: string) => {
     void invoke("render_rankings", { category: next, limit: 10 }, { rankingCategory: next });
@@ -348,28 +410,48 @@ function Rankings({
 
   return (
     <div className="panel">
-      <Header title="Sportfolio rankings" subtitle={text(rankings.categoryLabel, "Live trader leaderboard")} />
+      <Header
+        title="Sportfolio rankings"
+        subtitle={text(rankings.categoryLabel, "Live trader leaderboard")}
+      />
       <div className="content">
         <div className="chips">
           {RANKING_CATEGORIES.map(([value, label]) => (
-            <button key={value} className={`btn ${category === value ? "active" : ""}`} disabled={busy} onClick={() => setCategory(value)}>{label}</button>
+            <button
+              key={value}
+              className={`btn ${category === value ? "active" : ""}`}
+              disabled={busy}
+              onClick={() => setCategory(value)}
+            >
+              {label}
+            </button>
           ))}
         </div>
         {Object.keys(currentUser).length ? (
           <section className="section grid">
             <Stat label="Your rank" value={`#${display(currentUser.rank)}`} />
-            <Stat label={text(rankings.categoryLabel, "Value")} value={formatValue(currentUser.value)} />
+            <Stat
+              label={text(rankings.categoryLabel, "Value")}
+              value={formatValue(currentUser.value)}
+            />
             <Stat label="Competitors" value={display(rankings.totalEntries)} />
           </section>
         ) : null}
         <section className="section">
-          <div className="between"><strong>Top board</strong><span className="muted">{text(rankings.description)}</span></div>
+          <div className="between">
+            <strong>Top board</strong>
+            <span className="muted">{text(rankings.description)}</span>
+          </div>
           {rows.length ? (
             <div className="card section">
               {rows.slice(0, 10).map((row, index) => {
-                const isCurrent = Boolean(row.isCurrentUser) || text(row.userId) === text(currentUser.userId);
+                const isCurrent =
+                  Boolean(row.isCurrentUser) || text(row.userId) === text(currentUser.userId);
                 return (
-                  <div className={`rank ${isCurrent ? "rank-me" : ""}`} key={`${text(row.userId)}:${index}`}>
+                  <div
+                    className={`rank ${isCurrent ? "rank-me" : ""}`}
+                    key={`${text(row.userId)}:${index}`}
+                  >
                     <strong>#{display(row.rank)}</strong>
                     <div className="rank-name">@{text(row.username, "trader")}</div>
                     <strong>{formatValue(row.value)}</strong>
@@ -377,13 +459,26 @@ function Rankings({
                 );
               })}
             </div>
-          ) : <Notice>No ranking entries are available.</Notice>}
+          ) : (
+            <Notice>No ranking entries are available.</Notice>
+          )}
         </section>
         {around.length ? (
-          <section className="section"><div className="label">Around you</div><div className="chips section">{around.map((row, index) => <span className="pill" key={`${text(row.userId)}:${index}`}>#{display(row.rank)} @{text(row.username, "trader")}</span>)}</div></section>
+          <section className="section">
+            <div className="label">Around you</div>
+            <div className="chips section">
+              {around.map((row, index) => (
+                <span className="pill" key={`${text(row.userId)}:${index}`}>
+                  #{display(row.rank)} @{text(row.username, "trader")}
+                </span>
+              ))}
+            </div>
+          </section>
         ) : null}
       </div>
-      <footer className="footer">Rankings use the same live metrics as the Sportfolio website.</footer>
+      <footer className="footer">
+        Rankings use the same live metrics as the Sportfolio website.
+      </footer>
     </div>
   );
 }
@@ -394,10 +489,18 @@ function App() {
   if (!payload) return <div className="loading">Loading Sportfolio…</div>;
   return (
     <main className="shell">
-      {warningText ? <div className="notice" style={{ marginBottom: 8 }}>{warningText}</div> : null}
+      {warningText ? (
+        <div className="notice" style={{ marginBottom: 8 }}>
+          {warningText}
+        </div>
+      ) : null}
       {payload.view === "dashboard" ? <Dashboard payload={payload} /> : null}
-      {payload.view === "collections" ? <Collections payload={payload} busy={busy} invoke={invoke} /> : null}
-      {payload.view === "rankings" ? <Rankings payload={payload} busy={busy} invoke={invoke} /> : null}
+      {payload.view === "collections" ? (
+        <Collections payload={payload} busy={busy} invoke={invoke} />
+      ) : null}
+      {payload.view === "rankings" ? (
+        <Rankings payload={payload} busy={busy} invoke={invoke} />
+      ) : null}
     </main>
   );
 }
@@ -411,3 +514,7 @@ export function mountOverviewWidget(root: HTMLElement) {
   }
   createRoot(root).render(<App />);
 }
+
+const root = document.getElementById("root");
+if (!root) throw new Error("Sportfolio overview widget root was not found.");
+mountOverviewWidget(root);

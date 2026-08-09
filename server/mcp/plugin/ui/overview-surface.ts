@@ -79,7 +79,11 @@ function clamp(value: unknown, fallback: number, min: number, max: number): numb
   return Math.min(max, Math.max(min, Math.trunc(parsed)));
 }
 
-function sanitizePresentation(view: OverviewView, data: JsonRecord, warnings: string[] = []): JsonRecord {
+function sanitizePresentation(
+  view: OverviewView,
+  data: JsonRecord,
+  warnings: string[] = [],
+): JsonRecord {
   const payload = sanitizePluginValue({
     view,
     asOf: new Date().toISOString(),
@@ -136,8 +140,8 @@ async function renderCollections(
   if (type && targetId) {
     selected = await safeTool(publicContext, "get_collection", { type, targetId });
   }
-  const warnings = [collectionList.warning, selected?.warning].filter(
-    (value): value is string => Boolean(value),
+  const warnings = [collectionList.warning, selected?.warning].filter((value): value is string =>
+    Boolean(value),
   );
   return sanitizePresentation(
     "collections",

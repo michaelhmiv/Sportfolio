@@ -42,6 +42,7 @@ import {
 import { CURATED_MLB_TOOLS } from "./providers/mlb/tool-definitions";
 import { redeemPremiumShare } from "../services/premium-redemption";
 import { loadUserEntitlements } from "../services/user-entitlements";
+import { getLeaderboardReadResponse } from "../leaderboards-read-service";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 
@@ -1212,6 +1213,17 @@ async function completeOnboarding(context: PublicMcpServerContext) {
   };
 }
 
+async function getLeaderboard(context: PublicMcpServerContext, args: Record<string, unknown>) {
+  const category = toStringValue(args.category) || "netWorth";
+  const limit = Math.min(50, Math.max(3, toPositiveInteger(args.limit) || 10));
+  const result = await getLeaderboardReadResponse(category, context.userId);
+  return {
+    summary: `Loaded ${result.categoryLabel} rankings.`,
+    ...result,
+    leaderboard: result.leaderboard.slice(0, limit),
+  };
+}
+
 async function listCollections(context: PublicMcpServerContext) {
   const collections = await context.deps.listCollections(context.userId);
   return {
@@ -1566,6 +1578,12 @@ const activityFeedSchema: RawSchema = {
 const collectionDetailSchema: RawSchema = {
   type: z.string().min(1),
   targetId: z.string().min(1),
+};
+const leaderboardSchema: RawSchema = {
+  category: z
+    .enum(["netWorth", "cashBalance", "portfolioValue", "tradingVolume24h", "marketOrders"])
+    .optional(),
+  limit: z.number().int().min(3).max(50).optional(),
 };
 const publicSportSchema: RawSchema = {
   sport: sportSchema,
@@ -2138,6 +2156,17 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     },
     fixtureArgs: { sport: "NBA" },
     execute: getGameInsights,
+  }),
+  defineTool({
+    name: "get_leaderboard",
+    description:
+      "Load the live Sportfolio trader leaderboard using the same ranking metrics as the website.",
+    domain: "rankings",
+    readOnly: true,
+    inputSchema: leaderboardSchema,
+    fixtureArgs: { category: "netWorth", limit: 10 },
+    routeRefs: ["GET /api/leaderboards"],
+    execute: getLeaderboard,
   }),
   defineTool({
     name: "list_collections",
