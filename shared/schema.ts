@@ -852,7 +852,7 @@ export const players = pgTable(
       .notNull()
       .default("0.00"),
     marketCap: decimal("market_cap", { precision: 20, scale: 2 }).notNull().default("0.00"), // Total shares * price, updated on each trade
-    totalShares: integer("total_shares").notNull().default(0), // Total shares held by all users, updated on each trade
+    totalShares: decimal("total_shares", { precision: 12, scale: 4 }).notNull().default("0.0000"), // Total shares held by all users, including fractional shares
     lastUpdated: timestamp("last_updated").notNull().defaultNow(),
     // Injury tracking fields
     injuryStatus: text("injury_status"), // "Out", "Doubtful", "Questionable", "Probable", "Day-To-Day", null = healthy
