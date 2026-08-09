@@ -9,6 +9,13 @@ function parseCsv(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function parseScopes(value: string | undefined): string[] {
+  return (value || "")
+    .split(/[\s,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function normalizeUrl(value: string): string {
   return value.replace(/\/+$/, "");
 }
@@ -45,7 +52,7 @@ export function getPluginOAuthConfig(env: NodeJS.ProcessEnv = process.env): Plug
     resource,
     discoveryUrl: env.PLUGIN_OAUTH_DISCOVERY_URL || buildAuthorizationServerDiscoveryUrl(issuer),
     jwksUrl: env.PLUGIN_OAUTH_JWKS_URL || `${issuer}/jwks`,
-    requiredScopes: parseCsv(env.PLUGIN_OAUTH_REQUIRED_SCOPES || "openid sportfolio.read"),
+    requiredScopes: parseScopes(env.PLUGIN_OAUTH_REQUIRED_SCOPES || "openid sportfolio.read"),
     allowedClientIds: parseCsv(env.PLUGIN_OAUTH_ALLOWED_CLIENT_IDS),
     domainChallengeToken: env.OPENAI_APPS_CHALLENGE_TOKEN?.trim() || null,
     clockSkewSeconds: Number.isFinite(clockSkewSeconds) ? Math.max(0, clockSkewSeconds) : 60,
