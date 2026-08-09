@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync, sign } from "crypto";
-import { resetPluginJwksCacheForTests, verifyPluginAccessToken } from "./plugin-token-verifier";
+import {
+  getPluginTokenScopes,
+  resetPluginJwksCacheForTests,
+  verifyPluginAccessToken,
+} from "./plugin-token-verifier";
 import type { PluginOAuthConfig } from "./plugin-oauth-config";
 
 const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
 const publicJwk = publicKey.export({ format: "jwk" });
 const kid = "plugin-test-key";
+const mirroredScopesClaim = "https://sportfolio.market/scopes";
 
 const config: PluginOAuthConfig = {
   enabled: true,
@@ -63,10 +68,27 @@ afterEach(() => {
 });
 
 describe("verifyPluginAccessToken", () => {
-  it("accepts a valid ES256 Supabase-style OAuth token", async () => {
+  it("accepts a valid ES256 OAuth token", async () => {
     const claims = await verifyPluginAccessToken(createToken(), config);
     expect(claims.sub).toBe("user-123");
     expect(claims.client_id).toBe("chatgpt-client");
+    expect(getPluginTokenScopes(claims)).toEqual(["openid"]);
+  });
+
+  it("accepts an array-valued standard scope claim", async () => {
+    const claims = await verifyPluginAccessToken(
+      createToken({ scope: ["openid", "sportfolio.read"] }),
+      config,
+    );
+    expect(getPluginTokenScopes(claims)).toEqual(["openid", "sportfolio.read"]);
+  });
+
+  it("accepts the signed Sportfolio scope mirror when the standard claim is absent", async () => {
+    const claims = await verifyPluginAccessToken(
+      createToken({ scope: undefined, [mirroredScopesClaim]: ["openid", "sportfolio.read"] }),
+      config,
+    );
+    expect(getPluginTokenScopes(claims)).toEqual(["openid", "sportfolio.read"]);
   });
 
   it("rejects a token issued by another issuer", async () => {
@@ -87,9 +109,12 @@ describe("verifyPluginAccessToken", () => {
     ).rejects.toMatchObject({ code: "expired_token" });
   });
 
-  it("rejects a token without the required scope", async () => {
+  it("rejects a token without the required scope in either signed scope claim", async () => {
     await expect(
-      verifyPluginAccessToken(createToken({ scope: "profile" }), config),
+      verifyPluginAccessToken(
+        createToken({ scope: "profile", [mirroredScopesClaim]: ["sportfolio.read"] }),
+        config,
+      ),
     ).rejects.toMatchObject({ code: "insufficient_scope" });
   });
 
