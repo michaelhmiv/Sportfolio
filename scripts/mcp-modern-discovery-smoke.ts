@@ -14,6 +14,19 @@ function requestMeta() {
   };
 }
 
+function parseJsonRpcBody(bodyText: string, contentType: string): any {
+  if (contentType.includes("text/event-stream")) {
+    const dataLine = bodyText
+      .split(/\r?\n/)
+      .find((line) => line.startsWith("data:"));
+    if (!dataLine) {
+      throw new Error(`SSE response did not contain a data event: ${bodyText.slice(0, 500)}`);
+    }
+    return JSON.parse(dataLine.slice(5).trim());
+  }
+  return JSON.parse(bodyText);
+}
+
 async function callModernMcp(method: string, id: number) {
   const server = await createPluginMcpServer({
     auth: null,
@@ -46,9 +59,12 @@ async function callModernMcp(method: string, id: number) {
 
     let body: any;
     try {
-      body = JSON.parse(bodyText);
-    } catch {
-      throw new Error(`${method} returned non-JSON content: ${bodyText.slice(0, 500)}`);
+      body = parseJsonRpcBody(bodyText, response.headers.get("content-type") ?? "");
+    } catch (error) {
+      throw new Error(
+        `${method} returned an unreadable response: ${bodyText.slice(0, 500)}`,
+        { cause: error },
+      );
     }
 
     if (body?.error) {
@@ -63,6 +79,8 @@ async function callModernMcp(method: string, id: number) {
     await handler.close();
   }
 }
+
+console.log(`[MCP_MODERN_SMOKE] Running protocol=${PROTOCOL_VERSION}`);
 
 const discover = await callModernMcp("server/discover", 1);
 if (!Array.isArray(discover.supportedVersions) || !discover.supportedVersions.includes(PROTOCOL_VERSION)) {
