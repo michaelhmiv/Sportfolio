@@ -1,0 +1,42 @@
+name: Temporary capability baseline
+on:
+  push:
+    branches:
+      - feat/chatgpt-ui-dashboard-collections-rankings
+jobs:
+  update:
+    if: ${{ !contains(github.event.head_commit.message, '[capability-baseline]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      NODE_ENV: test
+      DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_plugin_ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/chatgpt-ui-dashboard-collections-rankings
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Update reviewed public capability baseline
+        run: npm run governance:capabilities:update
+      - name: Validate governance and overview contracts
+        run: |
+          npm run governance:capabilities
+          npm run mcp:audit
+          npm run mcp:smoke
+          npm run plugin:ui:audit
+      - name: Commit baseline
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config/public-capability-snapshot.json
+          if git diff --cached --quiet; then
+            echo "No baseline changes required"
+            exit 0
+          fi
+          git commit -m "Review leaderboard public capability baseline [capability-baseline]"
+          git push origin HEAD:feat/chatgpt-ui-dashboard-collections-rankings
