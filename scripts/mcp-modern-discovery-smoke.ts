@@ -1,4 +1,7 @@
+import { desc } from "drizzle-orm";
 import { createMcpHandler } from "@modelcontextprotocol/server";
+import { authOauthRefreshTokens } from "../shared/schema";
+import { db } from "../server/db";
 import { createPluginMcpServer } from "../server/mcp/plugin/server";
 
 const PROTOCOL_VERSION = "2026-07-28";
@@ -100,4 +103,30 @@ if (!Array.isArray(toolList.tools) || toolList.tools.length === 0) {
 
 console.log(
   `[MCP_MODERN_SMOKE] PASS protocol=${PROTOCOL_VERSION} tools=${toolList.tools.length}`,
+);
+
+// Diagnostic only: scopes are authorization metadata, not credentials. Read the
+// most recent persisted refresh grants so deployments can prove whether Better
+// Auth retained the scopes from the OAuth authorization request without logging
+// user IDs, refresh tokens, access tokens, authorization codes, or secrets.
+const recentScopeGrants = await db
+  .select({
+    clientId: authOauthRefreshTokens.clientId,
+    scopes: authOauthRefreshTokens.scopes,
+    createdAt: authOauthRefreshTokens.createdAt,
+    revoked: authOauthRefreshTokens.revoked,
+  })
+  .from(authOauthRefreshTokens)
+  .orderBy(desc(authOauthRefreshTokens.createdAt))
+  .limit(3);
+
+console.log(
+  `[OAUTH_SCOPE_DIAGNOSTIC] ${JSON.stringify(
+    recentScopeGrants.map((grant) => ({
+      clientId: grant.clientId,
+      scopes: grant.scopes,
+      createdAt: grant.createdAt,
+      revoked: Boolean(grant.revoked),
+    })),
+  )}`,
 );
