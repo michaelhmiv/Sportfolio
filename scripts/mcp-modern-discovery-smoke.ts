@@ -42,6 +42,7 @@ async function callModernMcp(method: string, id: number) {
           accept: "application/json, text/event-stream",
           "content-type": "application/json",
           "mcp-protocol-version": PROTOCOL_VERSION,
+          "mcp-method": method,
         },
         body: JSON.stringify({
           jsonrpc: "2.0",
