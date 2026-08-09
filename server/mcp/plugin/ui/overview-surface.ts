@@ -138,7 +138,7 @@ async function renderCollections(
   const collectionList = await safeTool(publicContext, "list_collections", {});
   let selected: { value: JsonRecord; warning?: string } | null = null;
   if (type && targetId) {
-    selected = await safeTool(publicContext, "get_collection", { type, targetId });
+    selected = await safeTool(publicContext, "get_collection_detail", { type, targetId });
   }
   const warnings = [collectionList.warning, selected?.warning].filter((value): value is string =>
     Boolean(value),
