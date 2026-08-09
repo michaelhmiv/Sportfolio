@@ -57,6 +57,24 @@ function passPersonalApiTokenToLegacyRoute(
   next();
 }
 
+/**
+ * MCP 2026-07-28 carries the JSON-RPC method in both the body and Mcp-Method
+ * header. Some connector discovery clients send the body method before they
+ * have fully adopted the companion header. The v2 SDK deliberately rejects
+ * that mismatch, so normalize a missing header from the already-parsed body.
+ * Never overwrite a client-supplied header; the SDK should continue rejecting
+ * genuine header/body disagreements.
+ */
+function normalizeMcpMethodHeader(req: Request): void {
+  if (req.header("mcp-method")) return;
+  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) return;
+
+  const method = (req.body as { method?: unknown }).method;
+  if (typeof method !== "string" || method.trim().length === 0) return;
+
+  req.headers["mcp-method"] = method.trim();
+}
+
 async function handlePluginRequest(
   req: PluginAuthenticatedRequest,
   res: Response,
@@ -74,6 +92,7 @@ async function handlePluginRequest(
   const requestId = req.header("x-request-id")?.trim() || randomUUID();
   res.setHeader("x-request-id", requestId);
   res.setHeader("Cache-Control", "no-store");
+  normalizeMcpMethodHeader(req);
 
   try {
     // createMcpHandler is the MCP v2 HTTP entry point. It serves the finalized
