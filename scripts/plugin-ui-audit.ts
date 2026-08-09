@@ -58,6 +58,7 @@ const widgetSources = [
   readFileSync("client/src/plugin-ui/sportfolio-action-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-market-portfolio-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-gameplay-widget.tsx", "utf8"),
+  readFileSync("client/src/plugin-ui/sportfolio-overview-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/action-review-panel.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/openai-host.ts", "utf8"),
 ].join("\n");
@@ -82,6 +83,9 @@ for (const required of [
   "get_portfolio_history",
   "requestModal",
   'requestDisplayMode("pip")',
+  '"dashboard"',
+  '"collections"',
+  '"rankings"',
 ]) {
   if (!widgetSources.includes(required)) {
     errors.push(`Widget source is missing required bridge or action contract: ${required}.`);
@@ -93,6 +97,7 @@ const surfaceSource = [
   readFileSync("server/mcp/plugin/ui/sports-surface.ts", "utf8"),
   readFileSync("server/mcp/plugin/ui/action-surface.ts", "utf8"),
   readFileSync("server/mcp/plugin/ui/gameplay-surface.ts", "utf8"),
+  readFileSync("server/mcp/plugin/ui/overview-surface.ts", "utf8"),
 ].join("\n");
 for (const required of [
   "text/html;profile=mcp-app",
@@ -103,6 +108,13 @@ for (const required of [
   "render_scouting",
   "render_boosts",
   "render_watchlist",
+  "render_dashboard",
+  "render_collections",
+  "render_rankings",
+  "get_dashboard_overview",
+  "list_collections",
+  "get_collection_detail",
+  "get_leaderboard",
 ]) {
   if (!surfaceSource.includes(required)) {
     errors.push(`UI surface is missing required metadata or presentation contract: ${required}.`);
