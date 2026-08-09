@@ -377,6 +377,36 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
       premiumExpiresAt: "2026-09-06T16:00:00.000Z",
       remainingShares: 1,
     }),
+    getLeaderboardReadResponse: async (category: any, currentUserId?: string | null) => ({
+      category,
+      categoryLabel: "Net Worth",
+      description: "Total virtual account value.",
+      unit: "currency",
+      updatedAt: MOCK_NOW,
+      totalEntries: 1,
+      leaderboard: [
+        {
+          rank: 1,
+          userId: MOCK_USER_ID,
+          username: state.user.username,
+          profileImageUrl: null,
+          value: 12500,
+          rankChange: 0,
+        },
+      ],
+      currentUser:
+        currentUserId === MOCK_USER_ID
+          ? {
+              rank: 1,
+              userId: MOCK_USER_ID,
+              username: state.user.username,
+              profileImageUrl: null,
+              value: 12500,
+              rankChange: 0,
+            }
+          : null,
+      currentUserWindow: [],
+    }),
     listCollections: async () => state.collections,
     getCollectionDetail: async (_userId, type, targetId) => {
       const collection = state.collections.find(

@@ -220,6 +220,7 @@ export type PublicMcpDependencies = {
   searchDocsArticles: typeof searchDocsArticles;
   getDocsArticle: typeof getDocsArticle;
   redeemPremiumShare: typeof redeemPremiumShare;
+  getLeaderboardReadResponse: typeof getLeaderboardReadResponse;
   listCollections: (userId: string) => Promise<unknown[]>;
   getCollectionDetail: (
     userId: string,
@@ -1216,7 +1217,7 @@ async function completeOnboarding(context: PublicMcpServerContext) {
 async function getLeaderboard(context: PublicMcpServerContext, args: Record<string, unknown>) {
   const category = toStringValue(args.category) || "netWorth";
   const limit = Math.min(50, Math.max(3, toPositiveInteger(args.limit) || 10));
-  const result = await getLeaderboardReadResponse(category, context.userId);
+  const result = await context.deps.getLeaderboardReadResponse(category, context.userId);
   return {
     summary: `Loaded ${result.categoryLabel} rankings.`,
     ...result,
@@ -2750,6 +2751,7 @@ export function createDefaultPublicMcpDependencies(): PublicMcpDependencies {
     searchDocsArticles,
     getDocsArticle,
     redeemPremiumShare,
+    getLeaderboardReadResponse,
     listCollections: defaultListCollections,
     getCollectionDetail: defaultGetCollectionDetail,
     listMilestones: defaultListMilestones,

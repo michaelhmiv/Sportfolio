@@ -57,7 +57,7 @@ function mockPublicTools(results: Record<string, unknown>) {
     const value = results[name];
     if (value instanceof Error) throw value;
     if (typeof value === "function")
-      return (value as (args: Record<string, unknown>) => unknown)(args) as any;
+      return (value as (args: Record<string, unknown>) => unknown)(args || {}) as any;
     return value as any;
   });
 }
