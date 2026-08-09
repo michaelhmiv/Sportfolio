@@ -4,6 +4,7 @@ import type { PluginMcpContext } from "./context";
 import { registerPluginMarketplaceSurface } from "./registry";
 import { registerActionPluginUiSurface } from "./ui/action-surface";
 import { registerGameplayPluginUiSurface } from "./ui/gameplay-surface";
+import { registerOverviewPluginUiSurface } from "./ui/overview-surface";
 import { registerSportsPluginUiSurface } from "./ui/sports-surface";
 import { registerPluginUiSurface } from "./ui/surface";
 
@@ -27,5 +28,6 @@ export async function createPluginMcpServer(
   await registerSportsPluginUiSurface(server, context, deps);
   await registerActionPluginUiSurface(server, context);
   await registerGameplayPluginUiSurface(server, context, deps);
+  await registerOverviewPluginUiSurface(server, context, deps);
   return server;
 }

@@ -34,10 +34,13 @@ Use the dedicated `render_*` presentation tools when a visual, interactive surfa
 - Use `render_scouting` when a connected user asks who they are scouting, how many scout slots they have, wants to browse scouting assignments, or asks for scouting candidates/opportunities visually.
 - Use `render_boosts` when a connected user asks about active daily boosts, eligible boost players, boost candidates, boost history, or community boost state.
 - Use `render_watchlist` when a connected user asks to see or browse their Sportfolio watchlists and tracked players.
+- Use `render_dashboard` when a connected user asks for their Sportfolio dashboard, account snapshot, recent positions, achievements, or high-level portfolio progress.
+- Use `render_collections` when a connected user asks to browse collection progress or inspect one resolved collection. Collection browsing through this presentation is read-only.
+- Use `render_rankings` when a connected user asks for Sportfolio rankings, leaderboards, their current rank, or nearby traders. This view uses the same live leaderboard metrics as the Sportfolio website.
 - Use `render_action_review` after any `stage_*` tool returns the exact `transactionId` and a visual confirmation surface would improve the workflow. It is the preferred generic review surface for market, scouting, boost, share-stacking, liquidity, and community-boost actions.
 - Treat `render_trade_preview` as a compatibility presentation for previously staged actions; prefer `render_action_review` for new staged workflows.
 
-Do not invent identifiers for render tools. Resolve the player, event, or staged transaction with ordinary Sportfolio tools first. Do not use a render tool when a plain factual answer is sufficient or when the user explicitly asks for text only.
+Do not invent identifiers for render tools. Resolve the player, event, collection, or staged transaction with ordinary Sportfolio tools first. Do not use a render tool when a plain factual answer is sufficient or when the user explicitly asks for text only.
 
 ## Public research and sports data
 
@@ -51,11 +54,13 @@ For a visual player-market request, resolve the player with `search_players` whe
 
 ## Connected account reads
 
-Use the narrowest available account tool for holdings, portfolio history, balances, trades, boosts, scouts, watchlists, collections, milestones, schedules, news, liquidity, activity, or profile state. Clearly distinguish public player data from the connected user's virtual holdings.
+Use the narrowest available account tool for holdings, portfolio history, balances, trades, boosts, scouts, watchlists, collections, milestones, schedules, news, liquidity, activity, profile state, dashboard state, or rankings. Clearly distinguish public player data from the connected user's virtual holdings.
 
 If an account tool returns an authentication challenge, ask the user to connect Sportfolio through the displayed account-linking control.
 
-Use `render_portfolio`, `render_game_insights`, `render_liquidity_position`, `render_scouting`, `render_boosts`, or `render_watchlist` when the user explicitly wants to browse or interact with those account views. Do not expose private account state through a public or unauthenticated response.
+Use `render_portfolio`, `render_game_insights`, `render_liquidity_position`, `render_scouting`, `render_boosts`, `render_watchlist`, `render_dashboard`, `render_collections`, or `render_rankings` when the user explicitly wants to browse or interact with those account views. Do not expose private account state through a public or unauthenticated response.
+
+The rankings presentation must use the canonical `get_leaderboard` read path, which shares the website's ranking computation. Do not independently calculate trader ranks in the widget. Collection detail must use `get_collection_detail`; do not infer missing collection identifiers.
 
 ## Staged gameplay and market actions
 
