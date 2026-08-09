@@ -3,6 +3,7 @@ import { buildPluginWwwAuthenticate } from "./plugin-auth-challenge";
 import { getPluginOAuthConfig } from "./plugin-oauth-config";
 import {
   getPluginTokenClientId,
+  getPluginTokenScopes,
   PluginTokenError,
   verifyPluginAccessToken,
   type PluginAccessTokenClaims,
@@ -72,13 +73,7 @@ async function authenticateToken(token: string): Promise<PluginAuthContext> {
   return {
     userId: canonicalUserId(claims),
     clientId,
-    scopes:
-      typeof claims.scope === "string"
-        ? claims.scope
-            .split(/\s+/)
-            .map((scope) => scope.trim())
-            .filter(Boolean)
-        : [],
+    scopes: getPluginTokenScopes(claims),
     claims,
   };
 }
