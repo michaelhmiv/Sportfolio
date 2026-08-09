@@ -3,6 +3,7 @@ import { asRecord, getHostSnapshot } from "./openai-host";
 const SPORTS_VIEWS = new Set(["score_slate", "live_event", "game_insights"]);
 const MARKET_PORTFOLIO_VIEWS = new Set(["player_market", "portfolio"]);
 const GAMEPLAY_VIEWS = new Set(["scouting", "boosts", "watchlist"]);
+const OVERVIEW_VIEWS = new Set(["dashboard", "collections", "rankings"]);
 
 function initialView(): string {
   const root = asRecord(getHostSnapshot().toolOutput);
@@ -22,6 +23,8 @@ if (view === "action_review") {
   void import("./sportfolio-market-portfolio-widget");
 } else if (GAMEPLAY_VIEWS.has(view)) {
   void import("./sportfolio-gameplay-widget");
+} else if (OVERVIEW_VIEWS.has(view)) {
+  void import("./sportfolio-overview-widget");
 } else {
   void import("./sportfolio-widget-v2");
 }
