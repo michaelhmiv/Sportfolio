@@ -49,6 +49,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Surface legacy formatting diff
+        run: |
+          npx prettier scripts/mcp-modern-discovery-smoke.ts server/routes/plugin-mcp.ts --write
+          git diff -- scripts/mcp-modern-discovery-smoke.ts server/routes/plugin-mcp.ts
+
       - name: Format check
         run: npm run format:check
 
