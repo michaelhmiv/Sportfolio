@@ -1,0 +1,49 @@
+name: Temporary overview CI fix
+on:
+  push:
+    branches:
+      - feat/chatgpt-ui-dashboard-collections-rankings
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[overview-ci-fix]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/chatgpt-ui-dashboard-collections-rankings
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Register leaderboard capability
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('server/mcp/public-tool-registry.ts')
+          text = path.read_text()
+          marker = '  "get_dashboard_overview",\n'
+          if '  "get_leaderboard",\n' not in text:
+              text = text.replace(marker, marker + '  "get_leaderboard",\n', 1)
+          path.write_text(text)
+          PY
+      - name: Format changed files
+        run: npx prettier --write server/mcp/public-tool-registry.ts server/mcp/plugin/ui/overview-surface.test.ts scripts/plugin-ui-audit.ts plugins/sportfolio/skills/sportfolio-companion/SKILL.md
+      - name: Validate focused contracts
+        run: |
+          npm run mcp:audit
+          npx vitest run server/mcp/plugin/ui/overview-surface.test.ts
+          npm run plugin:ui:audit
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/mcp/public-tool-registry.ts server/mcp/plugin/ui/overview-surface.test.ts scripts/plugin-ui-audit.ts plugins/sportfolio/skills/sportfolio-companion/SKILL.md
+          if git diff --cached --quiet; then
+            echo "No fixes required"
+            exit 0
+          fi
+          git commit -m "Align overview capability governance [overview-ci-fix]"
+          git push origin HEAD:feat/chatgpt-ui-dashboard-collections-rankings
