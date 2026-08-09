@@ -83,7 +83,7 @@ const distribution = {
   userId: "user-1",
   userScoutMinutes: 45,
   globalScoutMinutes: 90,
-  sharesEarned: "30.00",
+  sharesEarned: "30.25",
 };
 
 describe("DatabaseStorage.creditScoutDistribution", () => {

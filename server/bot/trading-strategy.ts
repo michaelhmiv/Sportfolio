@@ -33,7 +33,7 @@ async function getAllActivePlayers(): Promise<
     lastName: string;
     currentPrice: string | null;
     lastTradePrice: string | null;
-    totalShares: number;
+    totalShares: string;
   }[]
 > {
   const allPlayers = await db

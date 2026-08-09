@@ -1674,7 +1674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         avgFantasyPointsPerGame: parseFloat(
           seasonStatsMap.get(player.id)?.avgFantasyPointsPerGame || "0",
         ),
-        totalShares: player.totalShares || 0,
+        totalShares: Number(player.totalShares || 0),
         scoutCount: scoutCountsMap.get(player.id) || 0,
       }));
     };
@@ -3685,7 +3685,7 @@ ${items}
         avgFantasyPointsPerGame: parseFloat(
           seasonStatsMap.get(player.id)?.avgFantasyPointsPerGame || "0",
         ),
-        totalShares: player.totalShares || 0,
+        totalShares: Number(player.totalShares || 0),
         scoutCount: scoutCountsMap.get(player.id) || 0,
       }));
 

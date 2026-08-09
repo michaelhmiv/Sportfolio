@@ -472,7 +472,7 @@ function buildPlayerStub(
     isActive: true,
     isEligibleForVesting: false,
     status: "active",
-    totalShares: 0,
+    totalShares: "0.0000",
     totalHolders: 0,
     lastUpdated: new Date(0),
     teamId: null,
