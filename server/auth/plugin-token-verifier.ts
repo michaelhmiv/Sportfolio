@@ -1,5 +1,8 @@
 import { createPublicKey, verify as verifySignature, type JsonWebKey } from "crypto";
+import { logger } from "../lib/logger";
 import { getPluginOAuthConfig, type PluginOAuthConfig } from "./plugin-oauth-config";
+
+const SPORTFOLIO_OAUTH_SCOPES_CLAIM = "https://sportfolio.market/scopes";
 
 type JwtHeader = {
   alg?: string;
@@ -16,7 +19,7 @@ export type PluginAccessTokenClaims = {
   iat?: number;
   client_id?: string;
   azp?: string;
-  scope?: string;
+  scope?: string | string[];
   role?: string;
   [key: string]: unknown;
 };
@@ -73,15 +76,29 @@ function tokenAudienceIncludes(audience: string | string[], expected: string): b
   return Array.isArray(audience) ? audience.includes(expected) : audience === expected;
 }
 
-function parseScopes(scope: unknown): Set<string> {
-  return new Set(
-    typeof scope === "string"
-      ? scope
-          .split(/\s+/)
-          .map((item) => item.trim())
-          .filter(Boolean)
-      : [],
-  );
+function parseScopes(scope: unknown): string[] {
+  if (typeof scope === "string") {
+    return scope
+      .split(/[\s,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  if (Array.isArray(scope)) {
+    return scope
+      .filter((item): item is string => typeof item === "string")
+      .flatMap((item) => item.split(/[\s,]+/))
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+export function getPluginTokenScopes(claims: PluginAccessTokenClaims): string[] {
+  const scopes = new Set<string>([
+    ...parseScopes(claims.scope),
+    ...parseScopes(claims[SPORTFOLIO_OAUTH_SCOPES_CLAIM]),
+  ]);
+  return [...scopes];
 }
 
 export function getPluginTokenClientId(claims: PluginAccessTokenClaims): string | null {
@@ -191,9 +208,21 @@ function validateClaims(claims: PluginAccessTokenClaims, config: PluginOAuthConf
     );
   }
 
-  const tokenScopes = parseScopes(claims.scope);
+  const tokenScopes = new Set(getPluginTokenScopes(claims));
   const missingScopes = config.requiredScopes.filter((scope) => !tokenScopes.has(scope));
   if (missingScopes.length > 0) {
+    logger.warn(
+      {
+        clientId,
+        requiredScopes: config.requiredScopes,
+        resolvedScopes: [...tokenScopes],
+        standardScopeClaimType: Array.isArray(claims.scope) ? "array" : typeof claims.scope,
+        mirroredScopeClaimType: Array.isArray(claims[SPORTFOLIO_OAUTH_SCOPES_CLAIM])
+          ? "array"
+          : typeof claims[SPORTFOLIO_OAUTH_SCOPES_CLAIM],
+      },
+      "Rejected Sportfolio OAuth token with insufficient scopes",
+    );
     throw new PluginTokenError(
       "insufficient_scope",
       `Missing required scope: ${missingScopes.join(", ")}`,
