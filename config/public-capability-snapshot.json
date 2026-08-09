@@ -419,6 +419,19 @@
     },
     {
       "kind": "tool",
+      "name": "get_leaderboard",
+      "auth": "oauth",
+      "readOnly": true,
+      "destructive": false,
+      "openWorld": false,
+      "outputSchema": "plugin-envelope-v1",
+      "resourceUri": null,
+      "domain": "rankings",
+      "sportClassification": "none",
+      "source": "public_registry:tool"
+    },
+    {
+      "kind": "tool",
       "name": "get_lp_position",
       "auth": "oauth",
       "readOnly": true,
