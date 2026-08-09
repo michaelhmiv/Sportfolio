@@ -1,0 +1,54 @@
+name: Temporary scout fractional schema patch
+
+on:
+  push:
+    branches:
+      - fix/scout-fractional-total-shares
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[scout-schema-patched]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/scout-fractional-total-shares
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Patch schema and fractional regression fixture
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          schema = Path('shared/schema.ts')
+          text = schema.read_text()
+          old = 'totalShares: integer("total_shares").notNull().default(0), // Total shares held by all users, updated on each trade'
+          new = 'totalShares: decimal("total_shares", { precision: 12, scale: 4 })\n      .notNull()\n      .default("0.0000"), // Total shares held by all users, including fractional shares'
+          if old not in text:
+              raise SystemExit('players.totalShares schema line not found')
+          schema.write_text(text.replace(old, new, 1))
+
+          test = Path('server/storage.scout-distribution.test.ts')
+          text = test.read_text()
+          old = 'sharesEarned: "30.00",'
+          new = 'sharesEarned: "30.25",'
+          if old not in text:
+              raise SystemExit('scout distribution fixture not found')
+          test.write_text(text.replace(old, new, 1))
+          PY
+      - run: npx prettier --write shared/schema.ts server/storage.scout-distribution.test.ts server/player-total-shares-decimal.contract.test.ts
+      - run: npm run check
+      - run: npx vitest run server/storage.scout-distribution.test.ts server/player-total-shares-decimal.contract.test.ts
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add shared/schema.ts server/storage.scout-distribution.test.ts server/player-total-shares-decimal.contract.test.ts
+          git commit -m 'Align player totals with fractional shares [scout-schema-patched]'
+          git push origin HEAD:fix/scout-fractional-total-shares
