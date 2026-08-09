@@ -25,6 +25,7 @@ export const BETTER_AUTH_BASE_PATH = "/api/auth/better";
 export const BETTER_AUTH_SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 30;
 export const BETTER_AUTH_SESSION_UPDATE_AGE_SECONDS = 60 * 60 * 24;
 export const SPORTFOLIO_CANONICAL_USER_CLAIM = "https://sportfolio.market/user_id";
+export const SPORTFOLIO_OAUTH_SCOPES_CLAIM = "https://sportfolio.market/scopes";
 export const SPORTFOLIO_OAUTH_SCOPES = [
   "openid",
   "profile",
@@ -89,8 +90,18 @@ export function createBetterAuthServer(
             refreshToken: "sprt_",
             clientSecret: "spcs_",
           },
-          customAccessTokenClaims: async ({ user }) => {
-            if (!user) return {};
+          customAccessTokenClaims: async ({ user, scopes }) => {
+            // Better Auth also emits the standard OAuth `scope` claim. Mirror the
+            // granted scopes into a Sportfolio-owned signed claim so the resource
+            // server has a deterministic compatibility path if a client/runtime
+            // serializes the standard claim differently. Never infer or expand
+            // scopes here: this is the exact grant Better Auth provides.
+            const scopeClaims = { [SPORTFOLIO_OAUTH_SCOPES_CLAIM]: scopes };
+            logger.info(
+              { scopeCount: scopes.length, scopes },
+              "Minting Sportfolio OAuth access token with granted scopes",
+            );
+            if (!user) return scopeClaims;
             const identity = await resolveCanonicalBetterAuthIdentity(
               {
                 id: user.id,
@@ -100,7 +111,10 @@ export function createBetterAuthServer(
               },
               config,
             );
-            return { [SPORTFOLIO_CANONICAL_USER_CLAIM]: identity.userId };
+            return {
+              ...scopeClaims,
+              [SPORTFOLIO_CANONICAL_USER_CLAIM]: identity.userId,
+            };
           },
         }),
       ]
