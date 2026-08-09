@@ -49,18 +49,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Surface legacy formatting diff
-        run: |
-          npx prettier scripts/mcp-modern-discovery-smoke.ts server/routes/plugin-mcp.ts --write
-          git diff -- scripts/mcp-modern-discovery-smoke.ts server/routes/plugin-mcp.ts | tee legacy-formatting.patch
-
-      - name: Upload legacy formatting patch
-        uses: actions/upload-artifact@v4
-        with:
-          name: legacy-formatting-patch
-          path: legacy-formatting.patch
-          retention-days: 1
-
       - name: Format check
         run: npm run format:check
 
