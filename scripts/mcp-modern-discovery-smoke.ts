@@ -35,7 +35,7 @@ async function callModernMcp(method: string, id: number) {
   const handler = createMcpHandler(() => server);
 
   try {
-    const response = await handler(
+    const response = await handler.fetch(
       new Request("http://localhost/mcp", {
         method: "POST",
         headers: {
