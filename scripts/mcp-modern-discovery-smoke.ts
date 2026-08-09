@@ -19,9 +19,7 @@ function requestMeta() {
 
 function parseJsonRpcBody(bodyText: string, contentType: string): any {
   if (contentType.includes("text/event-stream")) {
-    const dataLine = bodyText
-      .split(/\r?\n/)
-      .find((line) => line.startsWith("data:"));
+    const dataLine = bodyText.split(/\r?\n/).find((line) => line.startsWith("data:"));
     if (!dataLine) {
       throw new Error(`SSE response did not contain a data event: ${bodyText.slice(0, 500)}`);
     }
@@ -65,10 +63,9 @@ async function callModernMcp(method: string, id: number) {
     try {
       body = parseJsonRpcBody(bodyText, response.headers.get("content-type") ?? "");
     } catch (error) {
-      throw new Error(
-        `${method} returned an unreadable response: ${bodyText.slice(0, 500)}`,
-        { cause: error },
-      );
+      throw new Error(`${method} returned an unreadable response: ${bodyText.slice(0, 500)}`, {
+        cause: error,
+      });
     }
 
     if (body?.error) {
@@ -87,13 +84,18 @@ async function callModernMcp(method: string, id: number) {
 console.log(`[MCP_MODERN_SMOKE] Running protocol=${PROTOCOL_VERSION}`);
 
 const discover = await callModernMcp("server/discover", 1);
-if (!Array.isArray(discover.supportedVersions) || !discover.supportedVersions.includes(PROTOCOL_VERSION)) {
+if (
+  !Array.isArray(discover.supportedVersions) ||
+  !discover.supportedVersions.includes(PROTOCOL_VERSION)
+) {
   throw new Error(
     `server/discover did not advertise ${PROTOCOL_VERSION}: ${JSON.stringify(discover.supportedVersions)}`,
   );
 }
 if (!discover.capabilities?.tools) {
-  throw new Error(`server/discover did not advertise tools capability: ${JSON.stringify(discover.capabilities)}`);
+  throw new Error(
+    `server/discover did not advertise tools capability: ${JSON.stringify(discover.capabilities)}`,
+  );
 }
 
 const toolList = await callModernMcp("tools/list", 2);
@@ -101,9 +103,7 @@ if (!Array.isArray(toolList.tools) || toolList.tools.length === 0) {
   throw new Error(`tools/list returned no tools: ${JSON.stringify(toolList)}`);
 }
 
-console.log(
-  `[MCP_MODERN_SMOKE] PASS protocol=${PROTOCOL_VERSION} tools=${toolList.tools.length}`,
-);
+console.log(`[MCP_MODERN_SMOKE] PASS protocol=${PROTOCOL_VERSION} tools=${toolList.tools.length}`);
 
 // Diagnostic only: scopes are authorization metadata, not credentials. Read the
 // most recent persisted refresh grants so deployments can prove whether Better
