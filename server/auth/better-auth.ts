@@ -161,6 +161,8 @@ export function createBetterAuthServer(
 }
 
 let runtimeAuth: ReturnType<typeof createBetterAuthServer> | undefined;
+let jwksRecoveryAttempted = false;
+
 export function getBetterAuthServer(config: AuthRuntimeConfig = getAuthRuntimeConfig()) {
   runtimeAuth ??= createBetterAuthServer(config);
   return runtimeAuth;
@@ -172,6 +174,31 @@ export function mountBetterAuthHandler(
 ): boolean {
   app.set("trust proxy", 1);
   const auth = getBetterAuthServer(config);
+
+  // Emergency recovery for a BETTER_AUTH_SECRET rotation that left encrypted JWKS
+  // records unreadable. This is deliberately opt-in and process-once. Enable
+  // BETTER_AUTH_RECOVER_JWKS_ONCE=true, hit /jwks once, verify fresh keys, then
+  // remove the flag. No user/session/OAuth client data is touched.
+  if (process.env.BETTER_AUTH_RECOVER_JWKS_ONCE === "true") {
+    const recoverJwksOnce = async (_req: unknown, _res: unknown, next: (err?: unknown) => void) => {
+      if (jwksRecoveryAttempted) return next();
+      jwksRecoveryAttempted = true;
+      try {
+        const deleted = await db.delete(authJwks).returning({ id: authJwks.id });
+        logger.warn(
+          { deletedKeyCount: deleted.length },
+          "Cleared Better Auth JWKS for one-time signing-key recovery",
+        );
+        next();
+      } catch (error) {
+        jwksRecoveryAttempted = false;
+        next(error);
+      }
+    };
+    app.use(`${BETTER_AUTH_BASE_PATH}/jwks`, recoverJwksOnce);
+    app.use(`${BETTER_AUTH_BASE_PATH}/oauth2/token`, recoverJwksOnce);
+  }
+
   app.use(`${BETTER_AUTH_BASE_PATH}/sign-in/magic-link`, (req, res, next) => {
     if (!consumeMagicLinkRequestQuota(req.ip)) return res.status(202).json({ accepted: true });
     next();
