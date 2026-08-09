@@ -45,11 +45,7 @@ function isPersonalApiToken(req: Request): boolean {
  * legacy route registered later while routing every other request to the
  * stateless ChatGPT/plugin surface.
  */
-function passPersonalApiTokenToLegacyRoute(
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-): void {
+function passPersonalApiTokenToLegacyRoute(req: Request, _res: Response, next: NextFunction): void {
   if (isPersonalApiToken(req)) {
     next("route");
     return;

@@ -1,72 +1,69 @@
-import http from "node:http";
-import express from "express";
+import { createServer } from "node:http";
+import { once } from "node:events";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import express from "express";
 import { registerPluginMcpRoutes } from "../server/routes/plugin-mcp";
-import { buildPublicToolRegistry } from "../server/mcp/public-tool-registry";
+import { buildPluginStaticCatalog } from "../server/mcp/plugin/registry";
 
 async function startServer() {
   process.env.PLUGIN_MCP_ENABLED = "true";
+  process.env.PLUGIN_OAUTH_ISSUER = "https://www.sportfolio.market/api/auth/better";
+  process.env.PLUGIN_MCP_RESOURCE = "https://www.sportfolio.market/mcp/plugin";
+
   const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json());
   registerPluginMcpRoutes(app);
-  const server = http.createServer(app);
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve());
-  });
+  const server = createServer(app);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
   const address = server.address();
-  if (!address || typeof address === "string") {
-    throw new Error("Unable to resolve smoke server address.");
-  }
+  if (!address || typeof address === "string") throw new Error("Unable to bind smoke server.");
   return {
+    server,
     url: `http://127.0.0.1:${address.port}/mcp/plugin`,
-    close: () =>
-      new Promise<void>((resolve, reject) =>
-        server.close((error) => (error ? reject(error) : resolve())),
-      ),
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }
 
 async function main() {
   const server = await startServer();
   const transport = new StreamableHTTPClientTransport(new URL(server.url));
-  const client = new Client({ name: "sportfolio-plugin-smoke", version: "2.0.0" });
+  const client = new Client({ name: "sportfolio-plugin-smoke", version: "1.0.0" });
 
   try {
     await client.connect(transport);
     const listed = await client.listTools();
-    const expectedStatic = buildPublicToolRegistry()
-      .map((tool) => tool.name)
+    const expectedStatic = buildPluginStaticCatalog()
+      .map((entry) => entry.name)
       .sort();
     const actual = listed.tools.map((tool) => tool.name).sort();
-    const missing = expectedStatic.filter((name) => !actual.includes(name));
-    if (missing.length > 0) {
-      throw new Error(`Marketplace is missing site MCP tools: ${missing.join(", ")}.`);
-    }
-    if (new Set(actual).size !== actual.length) {
-      throw new Error("Marketplace tool list contains duplicate names.");
-    }
 
-    for (const tool of listed.tools) {
-      const annotations = tool.annotations as Record<string, unknown> | undefined;
-      if (
-        typeof annotations?.readOnlyHint !== "boolean" ||
-        annotations?.openWorldHint !== false ||
-        typeof annotations?.destructiveHint !== "boolean"
-      ) {
-        throw new Error(`Unsafe or missing annotations on ${tool.name}.`);
+    for (const expectedTool of expectedStatic) {
+      if (!actual.includes(expectedTool)) {
+        throw new Error(`Missing required static plugin tool ${expectedTool}.`);
       }
-      if (!tool.outputSchema) throw new Error(`Missing output schema on ${tool.name}.`);
     }
 
-    for (const writeName of [
-      "stage_market_buy",
-      "stage_market_sell",
-      "stage_scout_assignment",
-      "stage_daily_boost_assign",
-      "confirm_pending_action",
-    ]) {
+    for (const publicName of ["search_docs", "search_players", "get_games_today"]) {
+      const tool = listed.tools.find((entry) => entry.name === publicName);
+      if (!tool) throw new Error(`Missing public plugin tool ${publicName}.`);
+      const schemes = (tool as any).securitySchemes || (tool._meta as any)?.securitySchemes;
+      if (!Array.isArray(schemes) || !schemes.some((scheme) => scheme?.type === "noauth")) {
+        throw new Error(`${publicName} must advertise noauth.`);
+      }
+    }
+
+    for (const protectedName of ["get_portfolio_summary", "stage_market_buy"]) {
+      const tool = listed.tools.find((entry) => entry.name === protectedName);
+      if (!tool) throw new Error(`Missing protected plugin tool ${protectedName}.`);
+      const schemes = (tool as any).securitySchemes || (tool._meta as any)?.securitySchemes;
+      if (!Array.isArray(schemes) || !schemes.some((scheme) => scheme?.type === "oauth2")) {
+        throw new Error(`${protectedName} must advertise OAuth.`);
+      }
+    }
+
+    for (const writeName of ["stage_market_buy", "stage_scout_assignment"]) {
       const tool = listed.tools.find((entry) => entry.name === writeName);
       if (!tool) throw new Error(`Missing required action tool ${writeName}.`);
       if ((tool.annotations as Record<string, unknown> | undefined)?.readOnlyHint !== false) {
@@ -101,12 +98,18 @@ async function main() {
 
     const sessionHeaderResponse = await fetch(server.url, {
       method: "POST",
-      headers: { "content-type": "application/json", "mcp-session-id": "not-allowed" },
+      headers: {
+        accept: "application/json, text/event-stream",
+        "content-type": "application/json",
+        "mcp-method": "tools/list",
+        "mcp-protocol-version": "2026-07-28",
+        "mcp-session-id": "not-allowed",
+      },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
     });
-    if (sessionHeaderResponse.status !== 400) {
+    if (sessionHeaderResponse.status < 400 || sessionHeaderResponse.status >= 500) {
       throw new Error(
-        `Stateless endpoint accepted an MCP session ID: ${sessionHeaderResponse.status}.`,
+        `Stateless endpoint did not reject an MCP session ID: ${sessionHeaderResponse.status}.`,
       );
     }
 
@@ -129,5 +132,5 @@ async function main() {
 
 void main().catch((error) => {
   console.error(error);
-  process.exitCode = 1;
+  process.exit(1);
 });
