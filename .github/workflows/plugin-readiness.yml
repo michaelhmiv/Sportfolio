@@ -61,7 +61,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install --no-save @modelcontextprotocol/server@2.0.0 @modelcontextprotocol/node@2.0.0-beta.5
       - name: Build ChatGPT widget assets
         run: npm run plugin:ui:build
       - name: Plugin TypeScript certification
@@ -108,7 +111,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install --no-save @modelcontextprotocol/server@2.0.0 @modelcontextprotocol/node@2.0.0-beta.5
       - name: Existing MCP audit
         run: npm run mcp:audit
       - name: Existing MCP smoke
