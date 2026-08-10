@@ -80,31 +80,49 @@ jobs:
       - name: Install repository dependencies
         run: npm ci
 
-      - name: Install Codex CLI
-        run: npm install -g @openai/codex
+      - name: Apply deterministic hardening patch
+        run: node scripts/apply-chatgpt-ui-hardening.mjs
 
-      - name: Implement hardening task with Codex CLI
-        env:
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$CODEX_API_KEY"
-          codex --version
-          codex exec \
-            --sandbox workspace-write \
-            --ephemeral \
-            --ignore-user-config \
-            --disable plugins \
-            - < .factory/tasks/chatgpt-ui-contract-hardening.md
+      - name: Plugin TypeScript certification
+        run: npx tsc -p tsconfig.plugin.json --noEmit
+
+      - name: Repository typecheck
+        run: npx tsc
+
+      - name: Focused ChatGPT UI regression tests
+        run: >-
+          npx vitest run
+          server/mcp/plugin/ui/shared-resource.test.ts
+          server/mcp/plugin/ui/player-display-name.test.ts
+          server/mcp/plugin/ui/composed-tool.test.ts
+          server/mcp/plugin/ui/protocol-resource.test.ts
+          server/mcp/plugin/ui/surface.test.ts
+          server/mcp/plugin/ui/action-surface.test.ts
+          server/mcp/plugin/ui/gameplay-surface.test.ts
+          server/mcp/plugin/ui/overview-surface.test.ts
+          server/observability/request-log-sanitizer.test.ts
+
+      - name: Production build
+        run: npm run build
+
+      - name: Plugin UI audit
+        run: npm run plugin:ui:audit
+
+      - name: Public capability governance
+        run: npm run governance:capabilities
+
+      - name: MCP audit
+        run: npm run mcp:audit
+
+      - name: MCP smoke
+        run: npm run mcp:smoke
 
       - name: Restore trusted workflow and commit source changes
         shell: bash
         run: |
           set -euo pipefail
-
           if [ -z "$(git status --porcelain -- server client scripts package.json package-lock.json tsconfig.plugin.json vite.config.ts)" ]; then
-            echo "Codex produced no implementation changes in expected source/test paths." >&2
+            echo "Patch produced no implementation changes in expected source/test paths." >&2
             exit 1
           fi
 
@@ -113,11 +131,12 @@ jobs:
           rm -f .github/workflows/direct-codex-chatgpt-hardening.yml
           rm -f .factory/tasks/chatgpt-ui-contract-hardening.md
           rm -f .factory-implementation-report.md
+          rm -f scripts/apply-chatgpt-ui-hardening.mjs
           rmdir .factory/tasks 2>/dev/null || true
           rmdir .factory 2>/dev/null || true
 
           if git diff --name-only | grep -E '^\.github/workflows/' | grep -v '^\.github/workflows/(plugin-readiness|direct-codex-chatgpt-hardening)\.yml$'; then
-            echo "Implementation modified unrelated trusted workflow files." >&2
+            echo "Patch modified unrelated trusted workflow files." >&2
             exit 1
           fi
 
