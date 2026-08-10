@@ -51,8 +51,6 @@ describe("shared Sportfolio plugin UI resource", () => {
 
     expect(tools).toHaveLength(1);
     expect(tools[0][1]._meta.ui.resourceUri).toBe(SPORTFOLIO_SHARED_UI_RESOURCE_URI);
-    expect(tools[0][1]._meta["openai/outputTemplate"]).toBe(
-      SPORTFOLIO_SHARED_UI_RESOURCE_URI,
-    );
+    expect(tools[0][1]._meta["openai/outputTemplate"]).toBe(SPORTFOLIO_SHARED_UI_RESOURCE_URI);
   });
 });
