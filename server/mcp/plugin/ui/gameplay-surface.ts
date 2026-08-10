@@ -2,7 +2,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
   createDefaultPublicMcpDependencies,
-  executePublicTool,
   type PublicMcpDependencies,
   type PublicMcpServerContext,
 } from "../../public-tool-registry";
@@ -11,6 +10,8 @@ import { pluginMcpAuthError } from "../../../auth/plugin-auth-challenge";
 import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
+import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
+import { composedToolValue, composedToolWarning, invokeComposedPublicTool } from "./composed-tool";
 
 type JsonRecord = Record<string, unknown>;
 type RawSchema = Record<string, z.ZodTypeAny>;
@@ -76,12 +77,16 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function sanitizePresentation(view: GameplayView, data: JsonRecord): JsonRecord {
+function sanitizePresentation(
+  view: GameplayView,
+  data: JsonRecord,
+  warnings: string[] = [],
+): JsonRecord {
   const payload = sanitizePluginValue({
     view,
     asOf: new Date().toISOString(),
     data,
-    warnings: [],
+    warnings,
   });
   assertNoRestrictedPluginFields(payload);
   return payload as JsonRecord;
@@ -98,15 +103,8 @@ async function safeTool(
   publicContext: PublicMcpServerContext,
   name: string,
   args: Record<string, unknown>,
-): Promise<JsonRecord> {
-  try {
-    return record(await executePublicTool(publicContext, name, args));
-  } catch (error) {
-    return {
-      unavailable: true,
-      message: error instanceof Error ? error.message : `${name} is unavailable.`,
-    };
-  }
+) {
+  return invokeComposedPublicTool(publicContext, name, args);
 }
 
 async function renderScouting(
@@ -116,7 +114,7 @@ async function renderScouting(
 ): Promise<JsonRecord> {
   const sport = stringValue(args.sport).toLowerCase();
   const limit = Math.min(20, Math.max(1, Number(args.limit) || 8));
-  const [status, assignments, opportunities] = await Promise.all([
+  const [statusResult, assignmentsResult, opportunitiesResult] = await Promise.all([
     safeTool(publicContext, "get_scout_status", {}),
     safeTool(publicContext, "list_scout_assignments", {}),
     safeTool(publicContext, "list_scout_opportunities", {
@@ -124,18 +122,30 @@ async function renderScouting(
       limit,
     }),
   ]);
-  return sanitizePresentation("scouting", {
-    sport: sport || null,
-    limit,
-    status,
-    assignments,
-    opportunities,
-    toolBindings: {
-      stage: "stage_scout_assignment",
-      stageBatch: "stage_scout_assignments",
-      review: "render_action_review",
+  const warnings = [statusResult, assignmentsResult, opportunitiesResult]
+    .map(composedToolWarning)
+    .filter((value): value is string => Boolean(value));
+  return sanitizePresentation(
+    "scouting",
+    {
+      sport: sport || null,
+      limit,
+      status: composedToolValue(statusResult),
+      assignments: composedToolValue(assignmentsResult),
+      opportunities: composedToolValue(opportunitiesResult),
+      sourceStates: {
+        status: statusResult.state,
+        assignments: assignmentsResult.state,
+        opportunities: opportunitiesResult.state,
+      },
+      toolBindings: {
+        stage: "stage_scout_assignment",
+        stageBatch: "stage_scout_assignments",
+        review: "render_action_review",
+      },
     },
-  });
+    warnings,
+  );
 }
 
 async function renderBoosts(
@@ -150,29 +160,45 @@ async function renderBoosts(
     ...(sport ? { sport } : {}),
     ...(date ? { date } : {}),
   };
-  const [active, candidates, eligible, history, community] = await Promise.all([
-    safeTool(publicContext, "list_daily_boosts", baseArgs),
-    safeTool(publicContext, "list_boost_candidates", { ...baseArgs, limit }),
-    safeTool(publicContext, "list_daily_boost_eligible_players", { ...baseArgs, limit }),
-    safeTool(publicContext, "list_daily_boost_history", { ...baseArgs, limit }),
-    safeTool(publicContext, "get_community_boost_state", baseArgs),
-  ]);
-  return sanitizePresentation("boosts", {
-    sport: sport || null,
-    date: date || null,
-    limit,
-    active,
-    candidates,
-    eligible,
-    history,
-    community,
-    toolBindings: {
-      stageAssign: "stage_daily_boost_assign",
-      stageRemove: "stage_daily_boost_remove",
-      stageCommunity: "stage_community_boost_create",
-      review: "render_action_review",
+  const [activeResult, candidatesResult, eligibleResult, historyResult, communityResult] =
+    await Promise.all([
+      safeTool(publicContext, "list_daily_boosts", baseArgs),
+      safeTool(publicContext, "list_boost_candidates", { ...baseArgs, limit }),
+      safeTool(publicContext, "list_daily_boost_eligible_players", { ...baseArgs, limit }),
+      safeTool(publicContext, "list_daily_boost_history", { ...baseArgs, limit }),
+      safeTool(publicContext, "get_community_boost_state", baseArgs),
+    ]);
+  const results = [activeResult, candidatesResult, eligibleResult, historyResult, communityResult];
+  const warnings = results
+    .map(composedToolWarning)
+    .filter((value): value is string => Boolean(value));
+  return sanitizePresentation(
+    "boosts",
+    {
+      sport: sport || null,
+      date: date || null,
+      limit,
+      active: composedToolValue(activeResult),
+      candidates: composedToolValue(candidatesResult),
+      eligible: composedToolValue(eligibleResult),
+      history: composedToolValue(historyResult),
+      community: composedToolValue(communityResult),
+      sourceStates: {
+        active: activeResult.state,
+        candidates: candidatesResult.state,
+        eligible: eligibleResult.state,
+        history: historyResult.state,
+        community: communityResult.state,
+      },
+      toolBindings: {
+        stageAssign: "stage_daily_boost_assign",
+        stageRemove: "stage_daily_boost_remove",
+        stageCommunity: "stage_community_boost_create",
+        review: "render_action_review",
+      },
     },
-  });
+    warnings,
+  );
 }
 
 function firstId(value: JsonRecord): string {
@@ -193,24 +219,33 @@ async function renderWatchlist(
   args: Record<string, unknown>,
 ): Promise<JsonRecord> {
   const limit = Math.min(50, Math.max(1, Number(args.limit) || 12));
-  const watchlists = await safeTool(publicContext, "list_watchlists", {});
+  const watchlistsResult = await safeTool(publicContext, "list_watchlists", {});
+  const watchlists = composedToolValue(watchlistsResult);
   const watchlistId = stringValue(args.watchlistId) || firstId(watchlists);
-  const items = watchlistId
+  const itemsResult = watchlistId
     ? await safeTool(publicContext, "get_watchlist_items", { watchlistId, limit })
-    : { items: [] };
-  return sanitizePresentation("watchlist", {
-    watchlistId: watchlistId || null,
-    limit,
-    watchlists,
-    items,
-    toolBindings: {
-      create: "create_watchlist",
-      update: "update_watchlist",
-      addPlayer: "add_watchlist_player",
-      removePlayer: "remove_watchlist_player",
-      delete: "delete_watchlist",
+    : ({ state: "empty", data: { items: [] } } as const);
+  const warnings = [watchlistsResult, itemsResult]
+    .map(composedToolWarning)
+    .filter((value): value is string => Boolean(value));
+  return sanitizePresentation(
+    "watchlist",
+    {
+      watchlistId: watchlistId || null,
+      limit,
+      watchlists,
+      items: composedToolValue(itemsResult),
+      sourceStates: { watchlists: watchlistsResult.state, items: itemsResult.state },
+      toolBindings: {
+        create: "create_watchlist",
+        update: "update_watchlist",
+        addPlayer: "add_watchlist_player",
+        removePlayer: "remove_watchlist_player",
+        delete: "delete_watchlist",
+      },
     },
-  });
+    warnings,
+  );
 }
 
 const DEFINITIONS: GameplayDefinition[] = [
@@ -298,7 +333,7 @@ export async function registerGameplayPluginUiSurface(
                 ui: {
                   domain: "https://www.sportfolio.market",
                   prefersBorder: true,
-                  csp: { connectDomains: [], resourceDomains: [] },
+                  csp: { connectDomains: [], resourceDomains: ["https://www.sportfolio.market"] },
                 },
                 "openai/widgetDescription": definition.description,
                 "openai/widgetPrefersBorder": true,
@@ -326,8 +361,8 @@ export async function registerGameplayPluginUiSurface(
           securitySchemes: oauthSecurity,
           source: "plugin_ui:gameplay_presentation",
           access: "oauth",
-          ui: { resourceUri: definition.resourceUri },
-          "openai/outputTemplate": definition.resourceUri,
+          ui: { resourceUri: SPORTFOLIO_SHARED_UI_RESOURCE_URI },
+          "openai/outputTemplate": SPORTFOLIO_SHARED_UI_RESOURCE_URI,
           "openai/toolInvocation/invoking": `Loading ${definition.view}…`,
           "openai/toolInvocation/invoked": `${definition.title} loaded.`,
           fixtureArgs: definition.fixtureArgs,

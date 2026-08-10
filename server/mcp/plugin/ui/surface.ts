@@ -8,6 +8,8 @@ import { storage } from "../../../storage";
 import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
+import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
+import { resolvePlayerDisplayName } from "./player-display-name";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 type JsonRecord = Record<string, unknown>;
@@ -114,10 +116,7 @@ async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
 
 function publicPlayer(playerValue: unknown): JsonRecord {
   const player = record(playerValue);
-  const displayName =
-    stringValue(player.displayName) ||
-    [stringValue(player.firstName), stringValue(player.lastName)].filter(Boolean).join(" ") ||
-    stringValue(player.name, "Unknown player");
+  const displayName = resolvePlayerDisplayName(player);
   return {
     playerId: stringValue(player.id || player.playerId),
     displayName,
@@ -678,7 +677,7 @@ function registerUiResources(server: McpServer): void {
                   prefersBorder: true,
                   csp: {
                     connectDomains: [],
-                    resourceDomains: [],
+                    resourceDomains: ["https://www.sportfolio.market"],
                   },
                 },
                 "openai/widgetDescription": descriptions[uri],
@@ -724,8 +723,8 @@ export async function registerPluginUiSurface(
           securitySchemes,
           source: "plugin_ui:presentation",
           access: definition.access,
-          ui: { resourceUri: definition.resourceUri },
-          "openai/outputTemplate": definition.resourceUri,
+          ui: { resourceUri: SPORTFOLIO_SHARED_UI_RESOURCE_URI },
+          "openai/outputTemplate": SPORTFOLIO_SHARED_UI_RESOURCE_URI,
           "openai/toolInvocation/invoking": definition.invoking,
           "openai/toolInvocation/invoked": definition.invoked,
           fixtureArgs: definition.fixtureArgs,

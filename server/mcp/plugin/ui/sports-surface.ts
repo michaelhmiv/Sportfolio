@@ -11,6 +11,12 @@ import { pluginMcpAuthError } from "../../../auth/plugin-auth-challenge";
 import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
+import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
+import {
+  composedToolWarning,
+  invokeComposedPublicTool,
+  type ComposedToolState,
+} from "./composed-tool";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 type JsonRecord = Record<string, unknown>;
@@ -135,12 +141,13 @@ async function executeOptional(
   publicContext: PublicMcpServerContext,
   name: string,
   args: Record<string, unknown>,
-): Promise<JsonRecord | null> {
-  try {
-    return record(await executePublicTool(publicContext, name, args));
-  } catch {
-    return null;
-  }
+): Promise<{ value: JsonRecord | null; state: ComposedToolState; warning?: string }> {
+  const result = await invokeComposedPublicTool(publicContext, name, args);
+  return {
+    value: result.state === "unavailable" ? null : result.data,
+    state: result.state,
+    warning: composedToolWarning(result),
+  };
 }
 
 function normalizedGame(value: unknown, userContext?: unknown): JsonRecord {
@@ -180,6 +187,7 @@ async function renderScoreSlate(
   const rawGames = array(schedule.games).map(record);
 
   const insightByGame = new Map<string, JsonRecord>();
+  let insightSourceStates: Record<string, ComposedToolState> = {};
   if (context.auth) {
     const sports = [
       ...new Set(
@@ -189,16 +197,23 @@ async function renderScoreSlate(
       ),
     ];
     const insightResponses = await Promise.all(
-      sports.map((insightSport) =>
-        executeOptional(publicContext, "get_game_insights", {
-          sport: insightSport,
-          ...(date ? { date } : {}),
-        }),
+      sports.map(
+        async (insightSport) =>
+          [
+            insightSport,
+            await executeOptional(publicContext, "get_game_insights", {
+              sport: insightSport,
+              ...(date ? { date } : {}),
+            }),
+          ] as const,
       ),
     );
-    for (const response of insightResponses) {
-      if (!response) continue;
-      for (const insight of array(response.games).map(record)) {
+    insightSourceStates = Object.fromEntries(
+      insightResponses.map(([name, result]) => [name, result.state]),
+    );
+    for (const [, response] of insightResponses) {
+      if (!response.value) continue;
+      for (const insight of array(response.value.games).map(record)) {
         const gameId = stringValue(insight.gameId);
         if (gameId) insightByGame.set(gameId, record(insight.userContext));
       }
@@ -225,6 +240,10 @@ async function renderScoreSlate(
     games,
     total: filtered.length,
     hasMore: filtered.length > games.length,
+    sourceStates: {
+      schedule: "ok",
+      gameInsights: insightSourceStates,
+    },
     capabilities: {
       canPersonalize: Boolean(context.auth),
       canOpenLiveEvent: true,
@@ -255,17 +274,18 @@ async function renderLiveEvent(
     ...(date ? { date } : {}),
   });
   const matchingGame =
-    array(schedule?.games)
+    array(schedule.value?.games)
       .map(record)
       .find((game) => stringValue(game.gameId || game.id) === eventId) || null;
 
   let userContext: JsonRecord | null = null;
+  let insights: Awaited<ReturnType<typeof executeOptional>> | null = null;
   if (context.auth) {
-    const insights = await executeOptional(publicContext, "get_game_insights", {
+    insights = await executeOptional(publicContext, "get_game_insights", {
       sport,
       ...(date ? { date } : {}),
     });
-    const matchingInsight = array(insights?.games)
+    const matchingInsight = array(insights.value?.games)
       .map(record)
       .find((game) => stringValue(game.gameId) === eventId);
     if (matchingInsight) userContext = record(matchingInsight.userContext);
@@ -285,6 +305,11 @@ async function renderLiveEvent(
       sourceStatus: stringValue(liveState.sourceStatus) || null,
       statusConfidence: stringValue(liveState.statusConfidence) || null,
       provider: record(liveState.provider),
+    },
+    sourceStates: {
+      liveState: "ok",
+      schedule: schedule.state,
+      gameInsights: context.auth ? insights?.state || "empty" : "empty",
     },
     capabilities: {
       canUsePip: true,
@@ -424,7 +449,7 @@ function registerSportsUiResources(server: McpServer): void {
                   prefersBorder: true,
                   csp: {
                     connectDomains: [],
-                    resourceDomains: [],
+                    resourceDomains: ["https://www.sportfolio.market"],
                   },
                 },
                 "openai/widgetDescription": descriptions[uri],
@@ -474,8 +499,8 @@ export async function registerSportsPluginUiSurface(
           securitySchemes,
           source: "plugin_ui:sports_presentation",
           access: definition.access,
-          ui: { resourceUri: definition.resourceUri },
-          "openai/outputTemplate": definition.resourceUri,
+          ui: { resourceUri: SPORTFOLIO_SHARED_UI_RESOURCE_URI },
+          "openai/outputTemplate": SPORTFOLIO_SHARED_UI_RESOURCE_URI,
           "openai/toolInvocation/invoking": definition.invoking,
           "openai/toolInvocation/invoked": definition.invoked,
           fixtureArgs: definition.fixtureArgs,
