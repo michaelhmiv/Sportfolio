@@ -21,6 +21,7 @@ vi.mock("../../../auth/plugin-auth-challenge", () => ({
 }));
 
 import { createDefaultPublicMcpDependencies, executePublicTool } from "../../public-tool-registry";
+import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
 import {
   buildGameplayPluginPresentationCatalog,
   registerGameplayPluginUiSurface,
@@ -162,7 +163,7 @@ describe("Sportfolio gameplay presentation surfaces", () => {
         ui: {
           domain: "https://www.sportfolio.market",
           prefersBorder: true,
-          csp: { connectDomains: [], resourceDomains: [] },
+          csp: { connectDomains: [], resourceDomains: ["https://www.sportfolio.market"] },
         },
       },
     });
@@ -173,8 +174,8 @@ describe("Sportfolio gameplay presentation surfaces", () => {
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       _meta: {
         access: "oauth",
-        ui: { resourceUri: SPORTFOLIO_GAMEPLAY_UI_RESOURCE_URIS.scouting },
-        "openai/outputTemplate": SPORTFOLIO_GAMEPLAY_UI_RESOURCE_URIS.scouting,
+        ui: { resourceUri: SPORTFOLIO_SHARED_UI_RESOURCE_URI },
+        "openai/outputTemplate": SPORTFOLIO_SHARED_UI_RESOURCE_URI,
       },
     });
   });

@@ -267,10 +267,11 @@ export async function runNativeScanTool(input: NativeToolInput): Promise<unknown
         storage.getTotalScoutsForUser(input.userId),
       ]);
       const assigned = new Map(assignments.map((entry) => [entry.playerId, entry.scoutCount]));
+      const limit = Math.min(20, positiveInt(args.limit, 20) || 20);
       const candidates = players
         .filter((player) => player.isActive !== false)
         .sort((a, b) => Number(b.currentPrice || 0) - Number(a.currentPrice || 0))
-        .slice(0, 20)
+        .slice(0, limit)
         .map((player) => ({ player, currentScoutCount: assigned.get(player.id) || 0 }));
       return {
         summary: `Loaded ${candidates.length} scout opportunities.`,
