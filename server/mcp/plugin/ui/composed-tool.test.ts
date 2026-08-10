@@ -11,7 +11,10 @@ describe("composed public-tool invocation", () => {
     });
     expect(result.state).toBe("ok");
     expect(runNativeScanTool).toHaveBeenCalledWith(
-      expect.objectContaining({ toolName: "scan_scout_opportunities", args: { sport: "mlb", limit: 6 } }),
+      expect.objectContaining({
+        toolName: "scan_scout_opportunities",
+        args: { sport: "mlb", limit: 6 },
+      }),
     );
   });
 
@@ -32,11 +35,15 @@ describe("composed public-tool invocation", () => {
       userId: "u1",
       deps: { runNativeScanTool: vi.fn(async () => ({})) },
     } as any;
-    expect((await invokeComposedPublicTool(emptyContext, "list_scout_opportunities", {})).state).toBe("empty");
+    expect(
+      (await invokeComposedPublicTool(emptyContext, "list_scout_opportunities", {})).state,
+    ).toBe("empty");
 
     const playerContext = {
       userId: "u1",
-      deps: { runNativeScanTool: vi.fn(async () => ({ candidates: [{ playerId: "player_123" }] })) },
+      deps: {
+        runNativeScanTool: vi.fn(async () => ({ candidates: [{ playerId: "player_123" }] })),
+      },
     } as any;
     const result = await invokeComposedPublicTool(playerContext, "list_scout_opportunities", {});
     expect(result).toMatchObject({

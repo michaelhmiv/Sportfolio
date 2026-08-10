@@ -1,7 +1,4 @@
-import {
-  executePublicTool,
-  type PublicMcpServerContext,
-} from "../../public-tool-registry";
+import { executePublicTool, type PublicMcpServerContext } from "../../public-tool-registry";
 import { normalizePlayerDisplayNames } from "./player-display-name";
 
 type JsonRecord = Record<string, unknown>;
@@ -35,7 +32,9 @@ export async function invokeComposedPublicTool(
   args: Record<string, unknown> = {},
 ): Promise<ComposedToolResult> {
   try {
-    const normalized = record(normalizePlayerDisplayNames(await executePublicTool(context, name, args)));
+    const normalized = record(
+      normalizePlayerDisplayNames(await executePublicTool(context, name, args)),
+    );
     return Object.keys(normalized).length === 0
       ? { state: "empty", data: normalized }
       : { state: "ok", data: normalized };

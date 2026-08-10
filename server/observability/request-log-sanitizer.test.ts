@@ -14,7 +14,14 @@ describe("request log privacy", () => {
       "user-agent": "test-agent",
     });
     const serialized = JSON.stringify(headers);
-    for (const secret of ["secret-token", "session=abc", "session-secret", "subject-secret", "api-secret", "token-secret"]) {
+    for (const secret of [
+      "secret-token",
+      "session=abc",
+      "session-secret",
+      "subject-secret",
+      "api-secret",
+      "token-secret",
+    ]) {
       expect(serialized).not.toContain(secret);
     }
     expect(headers["mcp-method"]).toBe("tools/list");

@@ -12,7 +12,11 @@ import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
 import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
-import { composedToolWarning, invokeComposedPublicTool, type ComposedToolState } from "./composed-tool";
+import {
+  composedToolWarning,
+  invokeComposedPublicTool,
+  type ComposedToolState,
+} from "./composed-tool";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 type JsonRecord = Record<string, unknown>;
@@ -193,13 +197,16 @@ async function renderScoreSlate(
       ),
     ];
     const insightResponses = await Promise.all(
-      sports.map(async (insightSport) => [
-        insightSport,
-        await executeOptional(publicContext, "get_game_insights", {
-          sport: insightSport,
-          ...(date ? { date } : {}),
-        }),
-      ] as const),
+      sports.map(
+        async (insightSport) =>
+          [
+            insightSport,
+            await executeOptional(publicContext, "get_game_insights", {
+              sport: insightSport,
+              ...(date ? { date } : {}),
+            }),
+          ] as const,
+      ),
     );
     insightSourceStates = Object.fromEntries(
       insightResponses.map(([name, result]) => [name, result.state]),

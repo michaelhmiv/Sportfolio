@@ -77,7 +77,11 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function sanitizePresentation(view: GameplayView, data: JsonRecord, warnings: string[] = []): JsonRecord {
+function sanitizePresentation(
+  view: GameplayView,
+  data: JsonRecord,
+  warnings: string[] = [],
+): JsonRecord {
   const payload = sanitizePluginValue({
     view,
     asOf: new Date().toISOString(),
@@ -165,7 +169,9 @@ async function renderBoosts(
       safeTool(publicContext, "get_community_boost_state", baseArgs),
     ]);
   const results = [activeResult, candidatesResult, eligibleResult, historyResult, communityResult];
-  const warnings = results.map(composedToolWarning).filter((value): value is string => Boolean(value));
+  const warnings = results
+    .map(composedToolWarning)
+    .filter((value): value is string => Boolean(value));
   return sanitizePresentation(
     "boosts",
     {

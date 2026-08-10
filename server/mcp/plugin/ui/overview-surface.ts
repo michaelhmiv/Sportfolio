@@ -11,7 +11,12 @@ import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
 import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
-import { composedToolValue, composedToolWarning, invokeComposedPublicTool, type ComposedToolState } from "./composed-tool";
+import {
+  composedToolValue,
+  composedToolWarning,
+  invokeComposedPublicTool,
+  type ComposedToolState,
+} from "./composed-tool";
 
 type JsonRecord = Record<string, unknown>;
 type RawSchema = Record<string, z.ZodTypeAny>;
@@ -108,7 +113,11 @@ async function safeTool(
   args: Record<string, unknown>,
 ): Promise<{ value: JsonRecord; state: ComposedToolState; warning?: string }> {
   const result = await invokeComposedPublicTool(publicContext, name, args);
-  return { value: composedToolValue(result), state: result.state, warning: composedToolWarning(result) };
+  return {
+    value: composedToolValue(result),
+    state: result.state,
+    warning: composedToolWarning(result),
+  };
 }
 
 async function renderDashboard(
