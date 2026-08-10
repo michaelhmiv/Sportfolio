@@ -82,7 +82,9 @@ function rowsOf(result: any): any[] {
 }
 
 function normalizeSport(sport?: string | null): string {
-  const normalized = String(sport || "ALL").trim().toUpperCase();
+  const normalized = String(sport || "ALL")
+    .trim()
+    .toUpperCase();
   return normalized || "ALL";
 }
 
@@ -142,7 +144,10 @@ async function loadPlayers(sport: string, playerIds?: string[]): Promise<PlayerI
     normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
   const idsClause =
     playerIds && playerIds.length
-      ? sql`p.id IN (${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)})`
+      ? sql`p.id IN (${sql.join(
+          playerIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})`
       : sql`TRUE`;
 
   const result: any = await db.execute(sql`
@@ -180,7 +185,10 @@ async function loadTradeStats(
     normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
   const idsClause =
     playerIds && playerIds.length
-      ? sql`t.player_id IN (${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)})`
+      ? sql`t.player_id IN (${sql.join(
+          playerIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})`
       : sql`TRUE`;
 
   const result: any = await db.execute(sql`
@@ -226,7 +234,10 @@ async function loadReturnBaselines(sport: string, playerIds?: string[]) {
     normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
   const idsClause =
     playerIds && playerIds.length
-      ? sql`t.player_id IN (${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)})`
+      ? sql`t.player_id IN (${sql.join(
+          playerIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})`
       : sql`TRUE`;
 
   const result: any = await db.execute(sql`
@@ -420,10 +431,7 @@ function dateStringsBetween(startDate: Date, endDate: Date) {
   return dates;
 }
 
-async function getSnapshotHealth(
-  startDate: Date,
-  endDate: Date,
-): Promise<MarketSnapshotHealth> {
+async function getSnapshotHealth(startDate: Date, endDate: Date): Promise<MarketSnapshotHealth> {
   const result: any = await db.execute(sql`
     SELECT snapshot_date::date::text AS "snapshotDate", created_at AS "createdAt"
     FROM market_snapshots
@@ -568,7 +576,9 @@ export async function screenMarkets(
   const timeRange = normalizeAnalyticsTimeRange(input.timeRange);
   const sort = input.sort || "marketCap";
   const limit = Math.min(100, Math.max(1, Math.trunc(input.limit || 50)));
-  const search = String(input.search || "").trim().toLowerCase();
+  const search = String(input.search || "")
+    .trim()
+    .toLowerCase();
   const rows = await buildMarketRows({ sport, timeRange });
   const filtered = search
     ? rows.filter((row) =>
@@ -721,7 +731,10 @@ export async function getMarketCorrelations(input: {
       FROM trades t
       WHERE t.executed_at >= ${startDate}
         AND t.executed_at <= ${endDate}
-        AND t.player_id IN (${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)})
+        AND t.player_id IN (${sql.join(
+          playerIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})
       GROUP BY day, t.player_id
     )
     SELECT day::text, player_id AS "playerId",

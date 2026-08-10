@@ -108,7 +108,9 @@ export function registerAnalyticsV2Routes(app: Express): void {
     try {
       const playerIds = playerIdsFrom(req);
       if (!playerIds.length) {
-        res.status(400).json({ error: "player_ids_required", message: "Select at least one player." });
+        res
+          .status(400)
+          .json({ error: "player_ids_required", message: "Select at least one player." });
         return;
       }
       res.setHeader("Cache-Control", "public, max-age=15, stale-while-revalidate=45");

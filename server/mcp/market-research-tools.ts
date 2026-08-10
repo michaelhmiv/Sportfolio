@@ -21,7 +21,10 @@ const TOOL_DEFINITIONS = [
     inputSchema: { sport: sportSchema, timeRange: timeRangeSchema },
     fixtureArgs: { sport: "ALL", timeRange: "30d" },
     execute: (args: Record<string, unknown>) =>
-      getMarketOverview({ sport: String(args.sport || "ALL"), timeRange: String(args.timeRange || "30d") }),
+      getMarketOverview({
+        sport: String(args.sport || "ALL"),
+        timeRange: String(args.timeRange || "30d"),
+      }),
   },
   {
     name: "screen_markets",
@@ -56,7 +59,10 @@ const TOOL_DEFINITIONS = [
     inputSchema: { sport: sportSchema, timeRange: timeRangeSchema },
     fixtureArgs: { sport: "NASCAR", timeRange: "30d" },
     execute: (args: Record<string, unknown>) =>
-      getMarketSeries({ sport: String(args.sport || "ALL"), timeRange: String(args.timeRange || "30d") }),
+      getMarketSeries({
+        sport: String(args.sport || "ALL"),
+        timeRange: String(args.timeRange || "30d"),
+      }),
   },
   {
     name: "get_market_tape",
