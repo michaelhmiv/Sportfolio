@@ -26,9 +26,7 @@ if (new Set(resources).size !== 1) {
   errors.push("All Sportfolio presentation tools must reuse the shared UI resource URI.");
 }
 if (expectedResources[0] !== SPORTFOLIO_SHARED_UI_RESOURCE_URI) {
-  errors.push(
-    "The registered UI resource must be the shared content-addressed Sportfolio shell.",
-  );
+  errors.push("The registered UI resource must be the shared content-addressed Sportfolio shell.");
 }
 
 for (const entry of catalog) {
@@ -42,7 +40,9 @@ for (const entry of catalog) {
     errors.push(`${entry.name} must reference the shared Sportfolio UI shell.`);
   }
   if (!/^ui:\/\/sportfolio\/app\/[a-f0-9]{16}\.html$/.test(entry.resourceUri)) {
-    errors.push(`${entry.name} has an invalid content-addressed resource URI: ${entry.resourceUri}`);
+    errors.push(
+      `${entry.name} has an invalid content-addressed resource URI: ${entry.resourceUri}`,
+    );
   }
   if (!entry.featureFlag.startsWith("PLUGIN_UI_")) {
     errors.push(`${entry.name} must have a dedicated PLUGIN_UI_* feature flag.`);
@@ -54,9 +54,7 @@ const widgetEntryMatch = buildScript.match(
   /client\/src\/plugin-ui\/[A-Za-z0-9._/-]+\.(?:tsx|ts|jsx|js)/,
 );
 if (!widgetEntryMatch) {
-  errors.push(
-    "Unable to resolve the ChatGPT widget source entrypoint from build-plugin-ui.mjs.",
-  );
+  errors.push("Unable to resolve the ChatGPT widget source entrypoint from build-plugin-ui.mjs.");
 }
 
 const widgetSources = [
