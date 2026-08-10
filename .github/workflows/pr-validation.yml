@@ -1,4 +1,4 @@
-name: Pull Request Validation
+name: Code Validation
 
 on:
   pull_request:
@@ -14,9 +14,25 @@ on:
       - ".github/workflows/firebase-*"
       - "mobile/ios/**"
       - "mobile/android/**"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".vscode/**"
+      - ".github/workflows/ios-*"
+      - ".github/workflows/play-*"
+      - ".github/workflows/firebase-*"
+      - "mobile/ios/**"
+      - "mobile/android/**"
 
 permissions:
   contents: read
+
+concurrency:
+  group: code-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: "22"
@@ -54,28 +70,39 @@ jobs:
         run: npm run retired-runtime:audit
 
       - name: Run tests
+        if: github.event_name == 'push'
         run: npm run test:run
 
       - name: Run tests with coverage thresholds
+        if: github.event_name == 'pull_request'
         run: npm run test:coverage
 
-      - name: Install Playwright browsers
-        run: npm run e2e:install
-        continue-on-error: true
+      - name: Production build
+        run: npm run build
+
+      - name: Install Chromium for critical smoke tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Critical browser smoke tests
+        run: npx playwright test tests/e2e/smoke.spec.ts
 
       - name: Integration tests (report-only)
+        if: github.event_name == 'pull_request'
         run: npm run e2e
         continue-on-error: true
 
       - name: Dead code and unused exports (report-only)
+        if: github.event_name == 'pull_request'
         run: npm run code:dead
         continue-on-error: true
 
       - name: Duplicate code (report-only)
+        if: github.event_name == 'pull_request'
         run: npm run code:dup
         continue-on-error: true
 
       - name: Upload coverage reports
+        if: github.event_name == 'pull_request'
         uses: codecov/codecov-action@v6
         with:
           token: "${{ secrets.CODECOV_TOKEN }}"

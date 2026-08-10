@@ -3,8 +3,40 @@ name: Plugin Readiness
 on:
   push:
     branches:
+      - main
       - "plugin/**"
       - "feat/chatgpt-plugin-ui"
+    paths:
+      - "server/mcp/plugin/**"
+      - "server/mcp/public-**"
+      - "server/auth/**"
+      - "server/routes/plugin-**"
+      - "server/routes/mcp.ts"
+      - "server/jobs/**"
+      - "server/worker.ts"
+      - "client/src/plugin-ui/**"
+      - "client/src/pages/oauth-consent.tsx"
+      - "client/src/pages/connected-apps.tsx"
+      - "client/src/pages/plugin-**"
+      - "client/oauth/**"
+      - "client/plugin/**"
+      - "client/plugin-support/**"
+      - "plugins/sportfolio/**"
+      - ".agents/plugins/marketplace.json"
+      - "config/public-capability-*.json"
+      - "scripts/public-capability-governance.ts"
+      - "scripts/plugin-**"
+      - "scripts/build-plugin-ui.mjs"
+      - "docs/plugin/**"
+      - "docs/operations/public-capability-governance.md"
+      - "client/src/pages/privacy.tsx"
+      - "client/src/pages/terms.tsx"
+      - "chatgpt-app-submission.json"
+      - "tsconfig.plugin.json"
+      - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/plugin-readiness.yml"
   pull_request:
     paths:
       - "server/mcp/plugin/**"
@@ -132,6 +164,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=critical
 
   live-oauth-compatibility:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
