@@ -49,18 +49,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Generate formatter patch
-        run: |
-          npx prettier scripts/plugin-ui-audit.ts server/mcp/plugin/ui/shared-resource.ts --write
-          git diff -- scripts/plugin-ui-audit.ts server/mcp/plugin/ui/shared-resource.ts | tee perf-format.patch
-
-      - name: Upload formatter patch
-        uses: actions/upload-artifact@v4
-        with:
-          name: perf-format-patch
-          path: perf-format.patch
-          retention-days: 1
-
       - name: Format check
         run: npm run format:check
 
