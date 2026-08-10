@@ -93,6 +93,8 @@
     "retired-runtime:audit": "node scripts/audit-retired-runtime.mjs"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.6.25",
+    "@better-auth/oauth-provider": "1.6.25",
     "@capacitor/android": "^8.0.2",
     "@capacitor/app": "^8.0.1",
     "@capacitor/browser": "^8.0.1",
@@ -108,7 +110,9 @@
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
     "@mariozechner/pi-ai": "^0.55.3",
+    "@modelcontextprotocol/node": "2.0.0-beta.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@neondatabase/serverless": "^0.10.4",
     "@octokit/rest": "^22.0.1",
     "@opentelemetry/api": "^1.9.0",
@@ -151,6 +155,7 @@
     "@types/pg": "^8.16.0",
     "@whop/sdk": "^0.0.16",
     "axios": "^1.13.2",
+    "better-auth": "1.6.25",
     "bufferutil": "^4.1.0",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
@@ -184,6 +189,7 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "^2.15.2",
     "remark-gfm": "^4.0.1",
+    "resend": "6.18.1",
     "standardwebhooks": "^1.0.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
@@ -191,11 +197,7 @@
     "vaul": "^1.1.2",
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
-    "zod": "4.4.3",
-    "better-auth": "1.6.25",
-    "@better-auth/oauth-provider": "1.6.25",
-    "@better-auth/drizzle-adapter": "1.6.25",
-    "resend": "6.18.1"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^8.57.1",
