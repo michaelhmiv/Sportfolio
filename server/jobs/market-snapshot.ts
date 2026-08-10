@@ -2,8 +2,8 @@
  * Market Snapshot Job
  *
  * Takes daily snapshots of platform-wide market metrics for analytics charts.
- * Event metrics are scoped to the Eastern Time business day while snapshotDate
- * remains a stable UTC-midnight date key for compatibility with existing rows.
+ * Event metrics are scoped to the completed Eastern Time business day while
+ * snapshotDate remains a stable UTC-midnight date key for existing consumers.
  */
 
 import { db } from "../db";
@@ -28,7 +28,12 @@ function snapshotKeyForDate(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
 }
 
-/** Calculate event metrics for an ET business day plus current canonical state. */
+export function getPreviousETBusinessDay(): string {
+  const { startOfDay } = getETDayBoundaries(getTodayET());
+  return getGameDay(new Date(startOfDay.getTime() - 1));
+}
+
+/** Calculate event metrics for a completed ET business day plus close-state canonical totals. */
 async function calculateMetricsForDate(targetDate: string): Promise<DailyMetrics> {
   const { startOfDay, endOfDay } = getETDayBoundaries(targetDate);
 
@@ -72,15 +77,15 @@ async function calculateMetricsForDate(targetDate: string): Promise<DailyMetrics
   };
 }
 
-/** Take or refresh the market snapshot for today's ET business day. */
+/** Take or refresh the close snapshot for the just-completed ET business day. */
 export async function takeMarketSnapshot(progressCallback?: ProgressCallback): Promise<JobResult> {
-  const targetDate = getTodayET();
-  console.log(`[market_snapshot] Starting market snapshot for ${targetDate} ET...`);
+  const targetDate = getPreviousETBusinessDay();
+  console.log(`[market_snapshot] Starting close snapshot for ${targetDate} ET...`);
 
   progressCallback?.({
     type: "info",
     timestamp: new Date().toISOString(),
-    message: `Starting market snapshot for ${targetDate} ET`,
+    message: `Starting market close snapshot for ${targetDate} ET`,
   });
 
   try {
@@ -116,7 +121,7 @@ export async function takeMarketSnapshot(progressCallback?: ProgressCallback): P
     progressCallback?.({
       type: "complete",
       timestamp: new Date().toISOString(),
-      message: `Market snapshot saved for ${targetDate} ET`,
+      message: `Market close snapshot saved for ${targetDate} ET`,
       data: metrics,
     });
 
