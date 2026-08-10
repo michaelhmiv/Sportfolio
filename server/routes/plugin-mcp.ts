@@ -38,6 +38,23 @@ function isPersonalApiToken(req: Request): boolean {
   return /^Bearer\s+spt_/i.test(authorization);
 }
 
+function getMcpMethod(req: Request): string {
+  const headerMethod = req.header("mcp-method")?.trim();
+  if (headerMethod) return headerMethod;
+  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) return "unknown";
+
+  const bodyMethod = (req.body as { method?: unknown }).method;
+  return typeof bodyMethod === "string" && bodyMethod.trim().length > 0
+    ? bodyMethod.trim()
+    : "unknown";
+}
+
+function getContentLength(res: Response): number | undefined {
+  const value = res.getHeader("content-length");
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 /**
  * `/mcp` historically belongs to the sessionful personal API-token MCP server.
  * ChatGPT's current MCP client also discovers `/mcp`, but presents a Better Auth
@@ -78,10 +95,15 @@ async function handlePluginRequest(
 ): Promise<void> {
   if (!pluginEnabled(res)) return;
 
+  const startedAt = process.hrtime.bigint();
   res.once("finish", () => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     observePluginMcpRequest({
       status: String(res.statusCode),
       authenticated: Boolean(req.pluginAuth),
+      rpcMethod: getMcpMethod(req),
+      durationMs,
+      responseBytes: getContentLength(res),
     });
   });
 
@@ -112,7 +134,7 @@ async function handlePluginRequest(
   } catch (error) {
     console.error("[PLUGIN_MCP] Request failed", {
       requestId,
-      method: req.header("mcp-method") || (req.body as { method?: unknown } | undefined)?.method,
+      method: getMcpMethod(req),
       protocolVersion: req.header("mcp-protocol-version") || null,
       authenticated: Boolean(req.pluginAuth),
       errorCode: error instanceof Error ? error.name : "unknown_error",
