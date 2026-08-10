@@ -158,41 +158,77 @@ function assertAction(action: GameplayAction) {
   }
 }
 
-function actionSummary(action: GameplayAction) {
+function playerDisplayName(player: any): string {
+  return [player?.firstName, player?.lastName]
+    .filter((value) => typeof value === "string" && value.trim())
+    .map((value) => value.trim())
+    .join(" ");
+}
+
+async function loadPlayer(playerId: string) {
+  try {
+    return (await storage.getPlayer(playerId)) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function playerLabel(playerId: string): Promise<string> {
+  const player = await loadPlayer(playerId);
+  return playerDisplayName(player) || "selected player";
+}
+
+async function actionSummary(action: GameplayAction): Promise<string> {
   switch (action.actionType) {
     case "pool_buy":
-      return `Buy shares of ${action.playerId} using ${action.sbAmount} SB.`;
+      return `Buy shares of ${await playerLabel(action.playerId)} using ${action.sbAmount} SB.`;
     case "pool_sell":
-      return `Sell ${action.sharesAmount} shares of ${action.playerId}.`;
+      return `Sell ${action.sharesAmount} shares of ${await playerLabel(action.playerId)}.`;
     case "pool_add_liquidity":
-      return `Add ${action.shares} shares and ${action.playMoney} SB to ${action.playerId}'s pool.`;
+      return `Add ${action.shares} shares and ${action.playMoney} SB to ${await playerLabel(action.playerId)}'s pool.`;
     case "pool_add_liquidity_optimal":
-      return `Add up to ${action.maxShares} shares and ${action.maxPlayMoney} SB optimally to ${action.playerId}'s pool.`;
+      return `Add up to ${action.maxShares} shares and ${action.maxPlayMoney} SB optimally to ${await playerLabel(action.playerId)}'s pool.`;
     case "pool_zap_add_shares":
-      return `Zap ${action.shares} shares into ${action.playerId}'s liquidity pool.`;
+      return `Zap ${action.shares} shares into ${await playerLabel(action.playerId)}'s liquidity pool.`;
     case "pool_zap_add_sb":
-      return `Zap ${action.sb} SB into ${action.playerId}'s liquidity pool.`;
+      return `Zap ${action.sb} SB into ${await playerLabel(action.playerId)}'s liquidity pool.`;
     case "pool_remove_liquidity":
-      return `Remove ${action.lpShares} LP shares from ${action.playerId}'s pool.`;
+      return `Remove ${action.lpShares} LP shares from ${await playerLabel(action.playerId)}'s pool.`;
     case "scout_set_count":
-      return `Set ${action.playerId}'s scout count to ${action.targetCount}.`;
-    case "scout_set_counts":
-      return `Set scout counts for ${action.assignments.length} players: ${action.assignments
-        .map((assignment) => `${assignment.playerId}=${assignment.targetCount}`)
+      return `Set ${await playerLabel(action.playerId)}'s scout count to ${action.targetCount}.`;
+    case "scout_set_counts": {
+      const labels = await Promise.all(
+        action.assignments.map(async (assignment) => ({
+          label: await playerLabel(assignment.playerId),
+          targetCount: assignment.targetCount,
+        })),
+      );
+      return `Set scout counts for ${labels.length} players: ${labels
+        .map((entry) => `${entry.label}=${entry.targetCount}`)
         .join(", ")}.`;
+    }
     case "holdings_stack_shares":
-      return `Stack ${action.sharesToStack} shares of ${action.playerId}.`;
+      return `Stack ${action.sharesToStack} shares of ${await playerLabel(action.playerId)}.`;
     case "daily_boost_assign":
-      return `Assign ${action.playerId} to the ${action.slotTier}x daily boost slot for ${action.boostDate}.`;
+      return `Assign ${await playerLabel(action.playerId)} to the ${action.slotTier}x daily boost slot for ${action.boostDate}.`;
     case "daily_boost_remove":
       return `Remove daily boost ${action.boostId}.`;
     case "community_boost_create":
-      return `Create a community boost for ${action.playerId} on ${action.boostDate}.`;
+      return `Create a community boost for ${await playerLabel(action.playerId)} on ${action.boostDate}.`;
     case "watchlist_add_player":
-      return `Add ${action.playerId} to a watchlist.`;
+      return `Add ${await playerLabel(action.playerId)} to a watchlist.`;
     case "watchlist_remove_player":
-      return `Remove ${action.playerId} from ${action.removeFromAll ? "all watchlists" : "a watchlist"}.`;
+      return `Remove ${await playerLabel(action.playerId)} from ${action.removeFromAll ? "all watchlists" : "a watchlist"}.`;
   }
+}
+
+async function withPlayer(result: unknown, playerId: string) {
+  const player = await loadPlayer(playerId);
+  if (!player) return result;
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    return { ...(result as Record<string, unknown>), player };
+  }
+  return { result, playerId, player };
 }
 
 async function executeDefault(userId: string, action: GameplayAction): Promise<unknown> {
@@ -201,8 +237,11 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
       await storage.applyScoutAssignments(userId, [
         { playerId: action.playerId, count: action.targetCount },
       ]);
-      return { playerId: action.playerId, targetCount: action.targetCount };
-    case "scout_set_counts":
+      return withPlayer(
+        { playerId: action.playerId, targetCount: action.targetCount },
+        action.playerId,
+      );
+    case "scout_set_counts": {
       await storage.applyScoutAssignments(
         userId,
         action.assignments.map((assignment) => ({
@@ -210,11 +249,18 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
           count: assignment.targetCount,
         })),
       );
-      return { assignments: action.assignments };
+      const assignments = await Promise.all(
+        action.assignments.map(async (assignment) => ({
+          ...assignment,
+          player: await loadPlayer(assignment.playerId),
+        })),
+      );
+      return { assignments };
+    }
     case "pool_buy": {
       const result = await executeBuy(action.playerId, userId, action.sbAmount, action.maxSlippage);
       if (!result.success) throw new Error(result.error || "Failed to execute pool buy");
-      return result;
+      return withPlayer(result, action.playerId);
     }
     case "pool_sell": {
       const result = await executeSell(
@@ -224,12 +270,12 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
         action.maxSlippage,
       );
       if (!result.success) throw new Error(result.error || "Failed to execute pool sell");
-      return result;
+      return withPlayer(result, action.playerId);
     }
     case "pool_add_liquidity": {
       const result = await addLiquidity(action.playerId, userId, action.shares, action.playMoney);
       if (!result.success) throw new Error(result.error || "Failed to add liquidity");
-      return result;
+      return withPlayer(result, action.playerId);
     }
     case "pool_add_liquidity_optimal": {
       const result = await addLiquidityOptimal(
@@ -239,34 +285,35 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
         action.maxPlayMoney,
       );
       if (!result.success) throw new Error(result.error || "Failed to add optimal liquidity");
-      return result;
+      return withPlayer(result, action.playerId);
     }
     case "pool_zap_add_shares": {
       const result = await zapAddLiquiditySharesOnly(action.playerId, userId, action.shares);
       if (!result.success) throw new Error(result.error || "Failed to execute share-side zap");
-      return result;
+      return withPlayer(result, action.playerId);
     }
     case "pool_zap_add_sb": {
       const result = await zapAddLiquiditySbOnly(action.playerId, userId, action.sb);
       if (!result.success) throw new Error(result.error || "Failed to execute cash-side zap");
-      return result;
+      return withPlayer(result, action.playerId);
     }
     case "pool_remove_liquidity": {
       const result = await removeLiquidity(action.playerId, userId, action.lpShares);
       if (!result.success) throw new Error(result.error || "Failed to remove liquidity");
-      return result;
+      return withPlayer(result, action.playerId);
     }
     case "holdings_stack_shares":
-      await storage.stackShares(userId, action.playerId, action.sharesToStack);
-      return { playerId: action.playerId, sharesToStack: action.sharesToStack };
-    case "daily_boost_assign":
-      return assignDailyBoostWithValidation({
+      return storage.stackShares(userId, action.playerId, action.sharesToStack);
+    case "daily_boost_assign": {
+      const result = await assignDailyBoostWithValidation({
         userId,
         playerId: action.playerId,
         sport: action.sport,
         slotTier: action.slotTier,
         etDate: action.boostDate,
       });
+      return withPlayer(result, action.playerId);
+    }
     case "daily_boost_remove": {
       const { startOfDay } = getETDayBoundaries(action.boostDate);
       const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
@@ -282,7 +329,7 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
         }
       }
       await storage.deleteDailyBoost(boost.id);
-      return { boostId: boost.id };
+      return withPlayer({ boostId: boost.id, playerId: boost.playerId }, boost.playerId);
     }
     case "community_boost_create": {
       const { startOfDay } = getETDayBoundaries(action.boostDate);
@@ -297,24 +344,31 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
       if (existing.some((entry) => entry.playerId === action.playerId)) {
         throw new Error("This player already has a Community Boost");
       }
-      return storage.createCommunityBoost({
+      const result = await storage.createCommunityBoost({
         creatorId: userId,
         playerId: action.playerId,
         sport: action.sport,
         boostDate: startOfDay,
         gameId: game.gameId,
       });
+      return withPlayer(result, action.playerId);
     }
     case "watchlist_add_player":
       await storage.addToWatchList(userId, action.playerId, action.watchlistId || undefined);
-      return { playerId: action.playerId, watchlistId: action.watchlistId || null };
+      return withPlayer(
+        { playerId: action.playerId, watchlistId: action.watchlistId || null },
+        action.playerId,
+      );
     case "watchlist_remove_player":
       await storage.removeFromWatchList(
         userId,
         action.playerId,
         action.removeFromAll ? undefined : action.watchlistId || undefined,
       );
-      return { playerId: action.playerId, removeFromAll: Boolean(action.removeFromAll) };
+      return withPlayer(
+        { playerId: action.playerId, removeFromAll: Boolean(action.removeFromAll) },
+        action.playerId,
+      );
   }
 }
 
@@ -344,7 +398,7 @@ export async function stageGameplayTransaction(input: {
     transactionId: randomUUID(),
     userId: input.userId,
     action: structuredClone(input.action),
-    summary: input.summary?.trim() || actionSummary(input.action),
+    summary: input.summary?.trim() || (await actionSummary(input.action)),
     warnings: [...(input.warnings || [])],
     status: "pending_confirmation",
     createdAt: now.toISOString(),
