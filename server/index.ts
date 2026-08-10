@@ -142,10 +142,10 @@ app.use("/api", (req, res, next) => {
 });
 app.use("/api", apiCorsMiddleware);
 
-// Health check endpoint - always available, even during startup
+// Health check endpoint - always available, but only healthy after startup completes.
 app.get("/api/health", (_req, res) => {
   const uptime = Date.now() - serverStartTime;
-  res.json({
+  res.status(serverReady ? 200 : 503).json({
     status: serverReady ? "ready" : "starting",
     maintenanceMode: isWriteMaintenanceMode(),
     writesBlocked: isWriteMaintenanceMode(),
