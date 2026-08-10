@@ -1,0 +1,32 @@
+name: Generate MCP v2 dependency lockfile
+
+on:
+  push:
+    branches:
+      - perf/pin-mcp-v2-deps
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Pin MCP v2 runtime dependencies
+        run: npm install --save-exact @modelcontextprotocol/server@2.0.0 @modelcontextprotocol/node@2.0.0-beta.5
+      - name: Verify dependency files changed
+        run: git diff --exit-code --quiet -- package.json package-lock.json && exit 1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcp-v2-pinned-dependencies
+          path: |
+            package.json
+            package-lock.json
+          retention-days: 1
