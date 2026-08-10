@@ -2,7 +2,9 @@
  * Cron Job Scheduler
  *
  * Owns cron tasks, overlap protection, execution logging, and lifecycle control.
- * Immutable job names, schedules, and result adapters live in job-registry.ts.
+ * Immutable registry jobs live in job-registry.ts; analytics snapshots are
+ * scheduler-owned because they are infrastructure history checkpoints rather
+ * than sports-provider jobs.
  */
 
 import * as cron from "node-cron";
@@ -13,8 +15,9 @@ import {
   getAdvertisedManualJobNames,
   getManualJobHandler,
   getScheduledJobDefinitions,
-  type JobName,
 } from "./job-registry";
+import { dailySnapshot } from "./daily-snapshot";
+import { takeMarketSnapshot } from "./market-snapshot";
 import { refreshPlayerMarketMetricsJob } from "./refresh-player-metrics";
 import type { JobResult } from "./types";
 import { withJobAdvisoryLock } from "./job-lock";
@@ -24,20 +27,34 @@ export type { JobResult } from "./types";
 const logJobEvent = createThrottledLogger();
 const JOB_TIMEZONE = "America/New_York";
 
+const ANALYTICS_SNAPSHOT_JOBS: readonly JobConfig[] = [
+  {
+    name: "market_snapshot",
+    schedule: "2 3 * * *",
+    enabled: true,
+    handler: () => takeMarketSnapshot(),
+  },
+  {
+    name: "portfolio_snapshot",
+    schedule: "7 3 * * *",
+    enabled: true,
+    handler: () => dailySnapshot(),
+  },
+] as const;
+
 export interface JobConfig {
-  name: JobName;
+  name: string;
   schedule: string;
   enabled: boolean;
   handler: () => Promise<JobResult>;
 }
 
 export class JobScheduler {
-  private jobs: Map<JobName, cron.ScheduledTask> = new Map();
-  private jobConfigs: Map<JobName, JobConfig> = new Map();
+  private jobs: Map<string, cron.ScheduledTask> = new Map();
+  private jobConfigs: Map<string, JobConfig> = new Map();
   private runningJobs: Set<string> = new Set();
   private isInitialized = false;
 
-  /** Schedule one enabled registry definition. */
   private scheduleJob(jobConfig: JobConfig) {
     if (!jobConfig.enabled) {
       info(`Job ${jobConfig.name} is disabled, skipping...`);
@@ -57,7 +74,6 @@ export class JobScheduler {
           const lockResult = await withJobAdvisoryLock(jobConfig.name, async () => {
             logJobEvent(`[${jobConfig.name}] Starting scheduled run...`);
 
-            // Best-effort job execution logging: job failures should never crash the server.
             let jobLog: { id: string } | null = null;
             try {
               jobLog = await storage.createJobLog({
@@ -145,6 +161,10 @@ export class JobScheduler {
       });
     }
 
+    for (const analyticsJob of ANALYTICS_SNAPSHOT_JOBS) {
+      this.scheduleJob(analyticsJob);
+    }
+
     // Warm complex-sort metrics at startup so first requests are accurate.
     refreshPlayerMarketMetricsJob().catch((err: any) => {
       warn("[refresh_player_metrics] Startup warm-up failed:", err?.message || err);
@@ -169,7 +189,6 @@ export class JobScheduler {
     info("API-dependent jobs initialized successfully");
   }
 
-  /** Initialize all cron jobs. */
   async initialize() {
     if (this.isInitialized) {
       info("Job scheduler already initialized");
@@ -224,7 +243,6 @@ export class JobScheduler {
           `[${jobName}] Manual trigger started${progressCallback ? " with live logging" : ""}...`,
         );
 
-        // Best-effort job logging; manual triggers should still run if logs fail.
         let jobLog: { id: string } | null = null;
         try {
           jobLog = await storage.createJobLog({
