@@ -51,7 +51,8 @@ function getMcpMethod(req: Request): string {
 
 function getContentLength(res: Response): number | undefined {
   const value = res.getHeader("content-length");
-  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  const parsed =
+    typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
