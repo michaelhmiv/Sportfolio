@@ -2,10 +2,7 @@ import { createHash } from "node:crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
 
-const widgetHash = createHash("sha256")
-  .update(SPORTFOLIO_WIDGET_HTML)
-  .digest("hex")
-  .slice(0, 16);
+const widgetHash = createHash("sha256").update(SPORTFOLIO_WIDGET_HTML).digest("hex").slice(0, 16);
 
 export const SPORTFOLIO_SHARED_UI_RESOURCE_URI = `ui://sportfolio/app/${widgetHash}.html`;
 
