@@ -237,7 +237,7 @@ test("AMM valuation stays consistent across player, portfolio, leaderboard, and 
   await expect(joeyRow).toContainText("$600.00");
 
   await page.goto("/leaderboards#portfolioValue");
-  await expect(page.getByText("@valuation-user (You)")).toBeVisible();
+  await expect(page.getByText("@valuation-user (You)").first()).toBeVisible();
   await expect(page.getByText("$600.00").first()).toBeVisible();
 
   await page.goto("/");
