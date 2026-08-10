@@ -1,0 +1,64 @@
+name: Analytics Close Fix
+
+on:
+  push:
+    branches:
+      - codex/analytics-market-terminal
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: codex/analytics-market-terminal
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Align snapshot completeness with completed ET business days
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('server/analytics/market-research.ts')
+          text = path.read_text()
+          text = text.replace(
+              'import { getTodayET } from "../lib/time";',
+              'import { getETDayBoundaries, getGameDay, getTodayET } from "../lib/time";'
+          )
+          text = text.replace(
+              '  const snapshots = rowsOf(result);\n  const actual = new Set(',
+              '  const { startOfDay: todayStart } = getETDayBoundaries(getTodayET());\n  const expectedSnapshot = getGameDay(new Date(todayStart.getTime() - 1));\n  const snapshots = rowsOf(result);\n  const actual = new Set('
+          )
+          text = text.replace(
+              '  const expectedDates = dateStringsBetween(startDate, endDate);',
+              '  const expectedDates = dateStringsBetween(\n    startDate,\n    new Date(`${expectedSnapshot}T23:59:59.999Z`),\n  );'
+          )
+          text = text.replace(
+              '    expectedSnapshot: getTodayET(),',
+              '    expectedSnapshot,'
+          )
+          path.write_text(text)
+          PY
+      - name: Format changed analytics files
+        run: >-
+          npx prettier --write
+          server/analytics/market-research.ts
+          server/jobs/market-snapshot.ts
+          server/jobs/daily-snapshot.ts
+          server/jobs/scheduler.ts
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/analytics/market-research.ts server/jobs/market-snapshot.ts server/jobs/daily-snapshot.ts server/jobs/scheduler.ts
+          git commit -m "fix: align analytics snapshots to completed ET day"
+          git push origin HEAD:codex/analytics-market-terminal
