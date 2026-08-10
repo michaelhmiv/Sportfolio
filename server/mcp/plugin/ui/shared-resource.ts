@@ -1,8 +1,23 @@
 import { createHash } from "node:crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
+import { buildSportfolioWidgetHtml } from "./generated-widget";
 
-const widgetHash = createHash("sha256").update(SPORTFOLIO_WIDGET_HTML).digest("hex").slice(0, 16);
+const DEFAULT_ASSET_ORIGIN = "https://www.sportfolio.market";
+
+function resolveAssetOrigin(): string {
+  const configured =
+    process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.VITE_PUBLIC_SITE_URL;
+  if (!configured?.trim()) return DEFAULT_ASSET_ORIGIN;
+  try {
+    return new URL(configured).origin;
+  } catch {
+    return DEFAULT_ASSET_ORIGIN;
+  }
+}
+
+const assetOrigin = resolveAssetOrigin();
+const widgetHtml = buildSportfolioWidgetHtml(assetOrigin);
+const widgetHash = createHash("sha256").update(widgetHtml).digest("hex").slice(0, 16);
 
 export const SPORTFOLIO_SHARED_UI_RESOURCE_URI = `ui://sportfolio/app/${widgetHash}.html`;
 
@@ -21,10 +36,10 @@ function isSportfolioUiUri(value: unknown): value is string {
 }
 
 /**
- * Register exactly one versioned Sportfolio MCP App resource and transparently
- * rewrite every Sportfolio presentation tool to reference it. Existing surface
- * modules can continue declaring semantic view URIs while the public MCP server
- * exposes a single cacheable-by-identity UI shell to clients.
+ * Register exactly one content-addressed Sportfolio MCP App loader and
+ * transparently rewrite every presentation tool to reference it. The loader is
+ * intentionally tiny; view-specific ESM chunks are served from Sportfolio's
+ * immutable /assets path and allowed through the declared widget CSP.
  */
 export function installSharedPluginUiResource(server: McpServer): void {
   const mutableServer = server as unknown as MutableMcpServer;
@@ -43,14 +58,14 @@ export function installSharedPluginUiResource(server: McpServer): void {
         {
           uri: SPORTFOLIO_SHARED_UI_RESOURCE_URI,
           mimeType: "text/html;profile=mcp-app",
-          text: SPORTFOLIO_WIDGET_HTML,
+          text: widgetHtml,
           _meta: {
             ui: {
-              domain: "https://www.sportfolio.market",
+              domain: assetOrigin,
               prefersBorder: true,
               csp: {
                 connectDomains: [],
-                resourceDomains: [],
+                resourceDomains: [assetOrigin],
               },
             },
             "openai/widgetDescription": SHARED_RESOURCE_DESCRIPTION,
@@ -64,8 +79,6 @@ export function installSharedPluginUiResource(server: McpServer): void {
   mutableServer.registerResource = (...args: any[]) => {
     const uri = args[1];
     if (isSportfolioUiUri(uri)) {
-      // All Sportfolio presentation resources contain the same generated shell.
-      // Suppress duplicate registrations so discovery exposes a single resource.
       return undefined;
     }
     return registerResource(...args);

@@ -22,6 +22,9 @@ AppleAuthKey_*.p8
 test-results
 playwright-report
 
+# Generated ChatGPT plugin UI chunks (rebuilt before every client/server build)
+client/public/assets/plugin-ui/
+
 # Mobile build artifacts
 mobile/ios/App/build/
 mobile/ios/App/Pods/

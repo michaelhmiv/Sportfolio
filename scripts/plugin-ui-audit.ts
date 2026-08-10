@@ -1,9 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import {
   buildAllPluginPresentationCatalog,
   getAllPluginUiResourceUris,
   SPORTFOLIO_SHARED_UI_RESOURCE_URI,
 } from "../server/mcp/plugin/ui/catalog";
+import { SPORTFOLIO_WIDGET_HTML_TEMPLATE } from "../server/mcp/plugin/ui/generated-widget";
 
 const errors: string[] = [];
 const catalog = buildAllPluginPresentationCatalog();
@@ -56,6 +58,47 @@ const widgetEntryMatch = buildScript.match(
 if (!widgetEntryMatch) {
   errors.push("Unable to resolve the ChatGPT widget source entrypoint from build-plugin-ui.mjs.");
 }
+for (const required of [
+  'format: "esm"',
+  "splitting: true",
+  "client/public/assets/plugin-ui",
+  'chunkNames: "chunks/[name]-[hash]"',
+]) {
+  if (!buildScript.includes(required)) {
+    errors.push(`Plugin UI build is missing split-bundle requirement: ${required}.`);
+  }
+}
+
+const loaderBytes = Buffer.byteLength(SPORTFOLIO_WIDGET_HTML_TEMPLATE, "utf8");
+if (loaderBytes > 10_000) {
+  errors.push(`Plugin UI loader is ${loaderBytes} bytes; budget is 10,000 bytes.`);
+}
+if (!SPORTFOLIO_WIDGET_HTML_TEMPLATE.includes('<script type="module" src="')) {
+  errors.push("Plugin UI loader must defer the React application to an external ESM asset.");
+}
+
+const assetRoot = "client/public/assets/plugin-ui";
+const assetFiles: string[] = [];
+function collectAssets(directory: string) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) collectAssets(path);
+    else assetFiles.push(path);
+  }
+}
+collectAssets(assetRoot);
+if (assetFiles.length < 2) {
+  errors.push("Plugin UI split build must emit an entry module plus at least one lazy chunk.");
+}
+const entryAsset = assetFiles.find((path) => /sportfolio-widget-[^/]+\.js$/.test(path));
+if (!entryAsset) {
+  errors.push("Plugin UI split build did not emit a hashed Sportfolio entry module.");
+} else {
+  const entryBytes = statSync(entryAsset).size;
+  if (entryBytes > 30_000) {
+    errors.push(`Plugin UI entry module is ${entryBytes} bytes; budget is 30,000 bytes.`);
+  }
+}
 
 const widgetSources = [
   widgetEntryMatch ? readFileSync(widgetEntryMatch[0], "utf8") : "",
@@ -104,14 +147,12 @@ const surfaceSource = [
   readFileSync("server/mcp/plugin/ui/action-surface.ts", "utf8"),
   readFileSync("server/mcp/plugin/ui/gameplay-surface.ts", "utf8"),
   readFileSync("server/mcp/plugin/ui/overview-surface.ts", "utf8"),
-  readFileSync("server/mcp/plugin/ui/shared-resource.ts", "utf8"),
 ].join("\n");
+const sharedResourceSource = readFileSync("server/mcp/plugin/ui/shared-resource.ts", "utf8");
 for (const required of [
   "text/html;profile=mcp-app",
   "openai/outputTemplate",
   "ui: { resourceUri",
-  "connectDomains: []",
-  "resourceDomains: []",
   "render_scouting",
   "render_boosts",
   "render_watchlist",
@@ -125,6 +166,15 @@ for (const required of [
 ]) {
   if (!surfaceSource.includes(required)) {
     errors.push(`UI surface is missing required metadata or presentation contract: ${required}.`);
+  }
+}
+for (const required of [
+  "buildSportfolioWidgetHtml",
+  "connectDomains: []",
+  "resourceDomains: [assetOrigin]",
+]) {
+  if (!sharedResourceSource.includes(required)) {
+    errors.push(`Shared UI resource is missing required loader/CSP contract: ${required}.`);
   }
 }
 
@@ -144,5 +194,5 @@ if (errors.length) {
 }
 
 console.log(
-  `Plugin UI audit passed: ${catalog.length} presentation tools share ${expectedResources.length} content-addressed resource.`,
+  `Plugin UI audit passed: ${catalog.length} presentation tools share one ${loaderBytes}-byte loader across ${assetFiles.length} split asset(s).`,
 );
