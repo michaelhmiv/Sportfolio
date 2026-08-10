@@ -116,9 +116,8 @@ async function renderScouting(
 ): Promise<JsonRecord> {
   const sport = stringValue(args.sport).toLowerCase();
   const limit = Math.min(20, Math.max(1, Number(args.limit) || 8));
-  const [status, roster, assignments, opportunities] = await Promise.all([
+  const [status, assignments, opportunities] = await Promise.all([
     safeTool(publicContext, "get_scout_status", {}),
-    safeTool(publicContext, "get_scout_roster", {}),
     safeTool(publicContext, "list_scout_assignments", {}),
     safeTool(publicContext, "list_scout_opportunities", {
       ...(sport ? { sport } : {}),
@@ -129,10 +128,13 @@ async function renderScouting(
     sport: sport || null,
     limit,
     status,
-    roster,
     assignments,
     opportunities,
-    toolBindings: { stage: "stage_scout_assignment", review: "render_action_review" },
+    toolBindings: {
+      stage: "stage_scout_assignment",
+      stageBatch: "stage_scout_assignments",
+      review: "render_action_review",
+    },
   });
 }
 
@@ -216,7 +218,7 @@ const DEFINITIONS: GameplayDefinition[] = [
     name: "render_scouting",
     title: "Show Sportfolio scouting",
     description:
-      "Render the connected user's current scouting status, assignments, roster, and candidate opportunities in an interactive Sportfolio view.",
+      "Render the connected user's current scouting status, assignments, and candidate opportunities in an interactive Sportfolio view.",
     view: "scouting",
     featureFlag: "PLUGIN_UI_SCOUTING_ENABLED",
     resourceUri: SPORTFOLIO_GAMEPLAY_UI_RESOURCE_URIS.scouting,

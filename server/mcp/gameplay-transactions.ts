@@ -14,6 +14,10 @@ import { storage } from "../storage";
 
 export type GameplayAction =
   | { actionType: "scout_set_count"; playerId: string; targetCount: number }
+  | {
+      actionType: "scout_set_counts";
+      assignments: Array<{ playerId: string; targetCount: number }>;
+    }
   | { actionType: "pool_buy"; playerId: string; sbAmount: number; maxSlippage: number }
   | { actionType: "pool_sell"; playerId: string; sharesAmount: number; maxSlippage: number }
   | { actionType: "pool_add_liquidity"; playerId: string; shares: number; playMoney: number }
@@ -85,6 +89,12 @@ function assertPositive(value: number, label: string) {
   if (!Number.isFinite(value) || value <= 0) throw new Error(`${label} must be greater than zero`);
 }
 
+function assertScoutTargetCount(value: number) {
+  if (!Number.isInteger(value) || value < 0 || value > 10) {
+    throw new Error("targetCount must be an integer between 0 and 10");
+  }
+}
+
 function assertAction(action: GameplayAction) {
   if ("playerId" in action && !action.playerId) {
     throw new Error("playerId is required");
@@ -123,10 +133,26 @@ function assertAction(action: GameplayAction) {
       }
       break;
     case "scout_set_count":
-      if (!Number.isInteger(action.targetCount) || action.targetCount < 0) {
-        throw new Error("targetCount must be a non-negative integer");
+      assertScoutTargetCount(action.targetCount);
+      break;
+    case "scout_set_counts": {
+      if (!Array.isArray(action.assignments) || action.assignments.length < 1) {
+        throw new Error("assignments must contain at least one scout assignment");
+      }
+      if (action.assignments.length > 10) {
+        throw new Error("assignments cannot contain more than 10 scout assignments");
+      }
+      const seen = new Set<string>();
+      for (const assignment of action.assignments) {
+        if (!assignment.playerId) throw new Error("playerId is required for every assignment");
+        if (seen.has(assignment.playerId)) {
+          throw new Error(`Duplicate scout assignment for ${assignment.playerId}`);
+        }
+        seen.add(assignment.playerId);
+        assertScoutTargetCount(assignment.targetCount);
       }
       break;
+    }
     default:
       break;
   }
@@ -150,6 +176,10 @@ function actionSummary(action: GameplayAction) {
       return `Remove ${action.lpShares} LP shares from ${action.playerId}'s pool.`;
     case "scout_set_count":
       return `Set ${action.playerId}'s scout count to ${action.targetCount}.`;
+    case "scout_set_counts":
+      return `Set scout counts for ${action.assignments.length} players: ${action.assignments
+        .map((assignment) => `${assignment.playerId}=${assignment.targetCount}`)
+        .join(", ")}.`;
     case "holdings_stack_shares":
       return `Stack ${action.sharesToStack} shares of ${action.playerId}.`;
     case "daily_boost_assign":
@@ -172,6 +202,15 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
         { playerId: action.playerId, count: action.targetCount },
       ]);
       return { playerId: action.playerId, targetCount: action.targetCount };
+    case "scout_set_counts":
+      await storage.applyScoutAssignments(
+        userId,
+        action.assignments.map((assignment) => ({
+          playerId: assignment.playerId,
+          count: assignment.targetCount,
+        })),
+      );
+      return { assignments: action.assignments };
     case "pool_buy": {
       const result = await executeBuy(action.playerId, userId, action.sbAmount, action.maxSlippage);
       if (!result.success) throw new Error(result.error || "Failed to execute pool buy");
