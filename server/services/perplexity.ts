@@ -15,9 +15,10 @@ interface PerplexityResponse {
 
 class PerplexityService {
   private baseUrl = "https://api.perplexity.ai/chat/completions";
+  private backoffUntil = 0;
+  private backoffReason: string | null = null;
 
   constructor() {
-    // Log initial status but don't cache the API key
     if (this.getApiKey()) {
       console.log("[Perplexity] Service initialized successfully");
     } else {
@@ -25,32 +26,62 @@ class PerplexityService {
     }
   }
 
-  /**
-   * Get API key fresh from environment (supports runtime secret injection in production)
-   */
   private getApiKey(): string | null {
     return process.env.PERPLEXITY_API_KEY || null;
   }
 
-  /**
-   * Check if the Perplexity service is properly configured
-   */
+  private getBackoffMs(): number {
+    const configured = Number(process.env.PERPLEXITY_QUOTA_BACKOFF_MS);
+    return Number.isFinite(configured) && configured >= 60_000
+      ? configured
+      : 6 * 60 * 60 * 1000;
+  }
+
+  private activeBackoffError(): string | null {
+    if (this.backoffUntil <= Date.now()) {
+      this.backoffUntil = 0;
+      this.backoffReason = null;
+      return null;
+    }
+    return `Perplexity temporarily backed off until ${new Date(this.backoffUntil).toISOString()}${
+      this.backoffReason ? ` (${this.backoffReason})` : ""
+    }.`;
+  }
+
+  private recordProviderFailure(status: number, body: string): void {
+    const normalized = body.toLowerCase();
+    const quotaFailure =
+      status === 429 ||
+      (status === 401 &&
+        (normalized.includes("insufficient_quota") ||
+          normalized.includes("exceeded your current quota")));
+    if (!quotaFailure) return;
+
+    this.backoffUntil = Date.now() + this.getBackoffMs();
+    this.backoffReason = status === 429 ? "rate limit" : "quota exhausted";
+    console.warn(
+      `[Perplexity] Entering provider backoff until ${new Date(this.backoffUntil).toISOString()} (${this.backoffReason})`,
+    );
+  }
+
+  private unavailableResponse(): PerplexityResponse | null {
+    const backoff = this.activeBackoffError();
+    return backoff ? { success: false, error: backoff } : null;
+  }
+
   isReady(): boolean {
     return !!this.getApiKey();
   }
 
-  /**
-   * Get current configuration status
-   */
-  getStatus(): { configured: boolean } {
+  getStatus(): { configured: boolean; backedOff: boolean; backoffUntil: string | null } {
+    const backoff = this.activeBackoffError();
     return {
       configured: this.isReady(),
+      backedOff: Boolean(backoff),
+      backoffUntil: backoff ? new Date(this.backoffUntil).toISOString() : null,
     };
   }
 
-  /**
-   * Get player news summaries from Perplexity
-   */
   async getPlayerSummaries(
     playerNames: string[],
     promptTemplate: string,
@@ -63,6 +94,9 @@ class PerplexityService {
       };
     }
 
+    const unavailable = this.unavailableResponse();
+    if (unavailable) return unavailable;
+
     if (!playerNames || playerNames.length === 0) {
       return {
         success: false,
@@ -70,7 +104,6 @@ class PerplexityService {
       };
     }
 
-    // Build the prompt with player names
     const playersString = playerNames.join(", ");
     const prompt = promptTemplate.replace("{players}", playersString);
 
@@ -96,7 +129,7 @@ class PerplexityService {
           ],
           max_tokens: 300,
           temperature: 0.2,
-          search_recency_filter: "week", // Focus on recent news
+          search_recency_filter: "week",
           return_images: false,
           return_related_questions: false,
         }),
@@ -104,6 +137,7 @@ class PerplexityService {
 
       if (!response.ok) {
         const errorData = await response.text();
+        this.recordProviderFailure(response.status, errorData);
         console.error("[Perplexity] API error:", response.status, errorData);
         return {
           success: false,
@@ -139,9 +173,6 @@ class PerplexityService {
     }
   }
 
-  /**
-   * Draft a tweet based on provided context/prompt
-   */
   async draftTweet(prompt: string): Promise<PerplexityResponse> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
@@ -150,6 +181,9 @@ class PerplexityService {
         error: "Perplexity service not configured. Please add PERPLEXITY_API_KEY.",
       };
     }
+
+    const unavailable = this.unavailableResponse();
+    if (unavailable) return unavailable;
 
     try {
       const response = await instrumentedFetch(this.baseUrl, {
@@ -181,6 +215,7 @@ class PerplexityService {
 
       if (!response.ok) {
         const errorData = await response.text();
+        this.recordProviderFailure(response.status, errorData);
         console.error("[Perplexity] Draft tweet API error:", response.status, errorData);
         return {
           success: false,
@@ -213,9 +248,6 @@ class PerplexityService {
     }
   }
 
-  /**
-   * Fetch breaking sports news (for News Hub)
-   */
   async fetchBreakingNews(prompt: string): Promise<PerplexityResponse> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
@@ -223,6 +255,12 @@ class PerplexityService {
         success: false,
         error: "Perplexity service not configured. Please add PERPLEXITY_API_KEY.",
       };
+    }
+
+    const unavailable = this.unavailableResponse();
+    if (unavailable) {
+      console.log(`[Perplexity] ${unavailable.error}`);
+      return unavailable;
     }
 
     try {
@@ -248,8 +286,8 @@ class PerplexityService {
             },
           ],
           max_tokens: 400,
-          temperature: 0.1, // Low temperature for factual news
-          search_recency_filter: "day", // Capture news from last 12-24 hours
+          temperature: 0.1,
+          search_recency_filter: "day",
           return_images: false,
           return_related_questions: false,
         }),
@@ -257,6 +295,7 @@ class PerplexityService {
 
       if (!response.ok) {
         const errorData = await response.text();
+        this.recordProviderFailure(response.status, errorData);
         console.error("[Perplexity] Breaking news API error:", response.status, errorData);
         return {
           success: false,
@@ -291,9 +330,6 @@ class PerplexityService {
     }
   }
 
-  /**
-   * Test the API connection
-   */
   async testConnection(): Promise<{ valid: boolean; error?: string }> {
     if (!this.isReady()) {
       return {
@@ -321,5 +357,4 @@ class PerplexityService {
   }
 }
 
-// Export singleton instance
 export const perplexityService = new PerplexityService();
