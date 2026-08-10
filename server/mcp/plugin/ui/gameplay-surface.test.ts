@@ -201,7 +201,6 @@ describe("Sportfolio gameplay presentation surfaces", () => {
   it("composes scouting from canonical account tools and clamps input", async () => {
     mockPublicTools({
       get_scout_status: { slotsUsed: 1, slotsTotal: 3 },
-      get_scout_roster: { players: [{ id: "p1", name: "Scout One" }] },
       list_scout_assignments: { assignments: [{ playerId: "p1" }] },
       list_scout_opportunities: { opportunities: [{ playerId: "p2" }] },
     });
@@ -222,10 +221,13 @@ describe("Sportfolio gameplay presentation surfaces", () => {
         sport: "mlb",
         limit: 20,
         status: { slotsUsed: 1, slotsTotal: 3 },
-        roster: { players: [{ id: "p1", name: "Scout One" }] },
         assignments: { assignments: [{ playerId: "p1" }] },
         opportunities: { opportunities: [{ playerId: "p2" }] },
-        toolBindings: { stage: "stage_scout_assignment", review: "render_action_review" },
+        toolBindings: {
+          stage: "stage_scout_assignment",
+          stageBatch: "stage_scout_assignments",
+          review: "render_action_review",
+        },
       },
       warnings: [],
     });
@@ -234,6 +236,9 @@ describe("Sportfolio gameplay presentation surfaces", () => {
       expect.objectContaining({ userId: "user_7", deps }),
       "list_scout_opportunities",
       { sport: "mlb", limit: 20 },
+    );
+    expect(vi.mocked(executePublicTool).mock.calls.map((call) => call[1])).not.toContain(
+      "get_scout_roster",
     );
   });
 
