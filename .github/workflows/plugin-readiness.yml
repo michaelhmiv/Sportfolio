@@ -69,7 +69,9 @@ jobs:
       - name: Repository typecheck
         run: npx tsc
       - name: Production build
-        run: npm run plugin:ui:build && vite build && esbuild server/index.ts server/worker.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+        run: |
+          npm run build
+          npx esbuild server/worker.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/worker.js
       - name: Public capability governance
         run: npm run governance:capabilities
       - name: Plugin unit tests
