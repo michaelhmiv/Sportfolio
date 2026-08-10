@@ -1,0 +1,36 @@
+name: Temporary standardize build scripts
+
+on:
+  push:
+    branches:
+      - perf/standardize-production-build-v2
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: perf/standardize-production-build-v2
+      - name: Normalize production build scripts
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          pkg.scripts.check = 'tsc --noEmit';
+          pkg.scripts.build = 'npm run plugin:ui:build && vite build && esbuild server/index.ts server/worker.ts --platform=node --packages=external --bundle --format=esm --outdir=dist';
+          fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+      - name: Remove temporary workflow and commit
+        run: |
+          rm .github/workflows/temp-standardize-build.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json .github/workflows/temp-standardize-build.yml
+          git commit -m "perf(build): standardize web and worker artifacts"
+          git push origin HEAD:perf/standardize-production-build-v2
