@@ -41,7 +41,9 @@ function isSettlableNascarStats(
   return !runName.includes("qualifying") && !runName.includes("practice");
 }
 
-export async function settleSharePayouts(progressCallback?: ProgressCallback): Promise<JobResult> {
+export async function settleSharePayouts(
+  progressCallback?: ProgressCallback,
+): Promise<JobResult> {
   let processed = 0;
   let requestCount = 0;
   let errorCount = 0;
