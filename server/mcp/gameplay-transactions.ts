@@ -75,6 +75,7 @@ export type GameplayTransactionExecutor = (
 ) => Promise<unknown>;
 
 const DEFAULT_TRANSACTION_TTL_MS = 15 * 60 * 1000;
+const CANONICAL_PLAYER_ID = /^(?:mlb|nascar|nhl|nfl|nba|wnba)_/i;
 const transactions = new Map<string, GameplayTransaction>();
 let executorOverride: GameplayTransactionExecutor | null = null;
 
@@ -166,6 +167,7 @@ function playerDisplayName(player: any): string {
 }
 
 async function loadPlayer(playerId: string) {
+  if (!CANONICAL_PLAYER_ID.test(playerId)) return null;
   try {
     return (await storage.getPlayer(playerId)) || null;
   } catch {
@@ -302,8 +304,10 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
       if (!result.success) throw new Error(result.error || "Failed to remove liquidity");
       return withPlayer(result, action.playerId);
     }
-    case "holdings_stack_shares":
-      return storage.stackShares(userId, action.playerId, action.sharesToStack);
+    case "holdings_stack_shares": {
+      const result = await storage.stackShares(userId, action.playerId, action.sharesToStack);
+      return withPlayer(result, action.playerId);
+    }
     case "daily_boost_assign": {
       const result = await assignDailyBoostWithValidation({
         userId,
