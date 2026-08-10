@@ -26,7 +26,9 @@ if (new Set(resources).size !== 1) {
   errors.push("All Sportfolio presentation tools must reuse the shared UI resource URI.");
 }
 if (expectedResources[0] !== SPORTFOLIO_SHARED_UI_RESOURCE_URI) {
-  errors.push("The registered UI resource must be the shared content-addressed Sportfolio shell.");
+  errors.push(
+    "The registered UI resource must be the shared content-addressed Sportfolio shell.",
+  );
 }
 
 for (const entry of catalog) {
@@ -52,7 +54,9 @@ const widgetEntryMatch = buildScript.match(
   /client\/src\/plugin-ui\/[A-Za-z0-9._/-]+\.(?:tsx|ts|jsx|js)/,
 );
 if (!widgetEntryMatch) {
-  errors.push("Unable to resolve the ChatGPT widget source entrypoint from build-plugin-ui.mjs.");
+  errors.push(
+    "Unable to resolve the ChatGPT widget source entrypoint from build-plugin-ui.mjs.",
+  );
 }
 
 const widgetSources = [
