@@ -112,7 +112,7 @@ function pctChange(current: number | null, baseline: number | null): number | nu
   return round(((current - baseline) / baseline) * 100);
 }
 
-function depthForFivePercentMove(market: CanonicalPlayerMarket) {
+export function calculateFivePercentDepth(market: CanonicalPlayerMarket) {
   if (
     market.marketStatus !== "priced" ||
     !market.shareReserve ||
@@ -138,7 +138,8 @@ function depthForFivePercentMove(market: CanonicalPlayerMarket) {
 
 async function loadPlayers(sport: string, playerIds?: string[]): Promise<PlayerIdentity[]> {
   const normalizedSport = normalizeSport(sport);
-  const sportClause = normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
+  const sportClause =
+    normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
   const idsClause =
     playerIds && playerIds.length
       ? sql`p.id IN (${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)})`
@@ -175,7 +176,8 @@ async function loadTradeStats(
   playerIds?: string[],
 ): Promise<Map<string, TradeStats>> {
   const normalizedSport = normalizeSport(sport);
-  const sportClause = normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
+  const sportClause =
+    normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
   const idsClause =
     playerIds && playerIds.length
       ? sql`t.player_id IN (${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)})`
@@ -220,7 +222,8 @@ async function loadTradeStats(
 
 async function loadReturnBaselines(sport: string, playerIds?: string[]) {
   const normalizedSport = normalizeSport(sport);
-  const sportClause = normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
+  const sportClause =
+    normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
   const idsClause =
     playerIds && playerIds.length
       ? sql`t.player_id IN (${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)})`
@@ -295,7 +298,9 @@ async function buildMarketRows(input: {
     const volume = stats?.volume ?? 0;
     const buyNotional = stats?.buyNotional ?? 0;
     const sellNotional = stats?.sellNotional ?? 0;
-    const depth = market ? depthForFivePercentMove(market) : { buyDepth5Pct: null, sellDepth5Pct: null };
+    const depth = market
+      ? calculateFivePercentDepth(market)
+      : { buyDepth5Pct: null, sellDepth5Pct: null };
 
     return {
       playerId: player.id,
@@ -314,6 +319,7 @@ async function buildMarketRows(input: {
       buyNotional,
       sellNotional,
       peerNotional: stats?.peerNotional ?? 0,
+      whaleVolume: stats?.whaleVolume ?? 0,
       netFlow: round(buyNotional - sellNotional),
       turnover: marketCap && marketCap > 0 ? round(volume / marketCap, 4) : null,
       liquidityUtilization: tvl && tvl > 0 ? round(volume / tvl, 4) : null,
@@ -353,8 +359,12 @@ function sortMarketRows(rows: MarketScreenerRow[], sort: MarketSort) {
 }
 
 function average(values: Array<number | null | undefined>) {
-  const finiteValues = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-  return finiteValues.length ? finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length : 0;
+  const finiteValues = values.filter(
+    (value): value is number => typeof value === "number" && Number.isFinite(value),
+  );
+  return finiteValues.length
+    ? finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length
+    : 0;
 }
 
 function buildBreadth(rows: MarketScreenerRow[]) {
@@ -397,8 +407,12 @@ function aggregateSport(rows: MarketScreenerRow[], sport: string): MarketOvervie
 
 function dateStringsBetween(startDate: Date, endDate: Date) {
   const dates: string[] = [];
-  const cursor = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-  const end = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+  const cursor = new Date(
+    Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()),
+  );
+  const end = new Date(
+    Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()),
+  );
   while (cursor <= end && dates.length < 120) {
     dates.push(cursor.toISOString().slice(0, 10));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
@@ -406,20 +420,27 @@ function dateStringsBetween(startDate: Date, endDate: Date) {
   return dates;
 }
 
-async function getSnapshotHealth(startDate: Date, endDate: Date): Promise<MarketSnapshotHealth> {
+async function getSnapshotHealth(
+  startDate: Date,
+  endDate: Date,
+): Promise<MarketSnapshotHealth> {
   const result: any = await db.execute(sql`
-    SELECT snapshot_date AS "snapshotDate", valuation_version AS "valuationVersion", created_at AS "createdAt"
+    SELECT snapshot_date::date::text AS "snapshotDate", created_at AS "createdAt"
     FROM market_snapshots
-    WHERE snapshot_date >= ${startDate.toISOString().slice(0, 10)}
-      AND snapshot_date <= ${endDate.toISOString().slice(0, 10)}
+    WHERE snapshot_date >= ${new Date(`${startDate.toISOString().slice(0, 10)}T00:00:00.000Z`)}
+      AND snapshot_date <= ${new Date(`${endDate.toISOString().slice(0, 10)}T23:59:59.999Z`)}
     ORDER BY snapshot_date ASC
   `);
   const snapshots = rowsOf(result);
-  const actual = new Set(snapshots.map((row) => String(row.snapshotDate ?? row.snapshot_date)));
+  const actual = new Set(
+    snapshots.map((row) => String(row.snapshotDate ?? row.snapshot_date).slice(0, 10)),
+  );
   const expectedDates = dateStringsBetween(startDate, endDate);
   const missingDates = expectedDates.filter((date) => !actual.has(date));
   const latest = snapshots[snapshots.length - 1];
-  const latestSnapshot = latest ? String(latest.snapshotDate ?? latest.snapshot_date) : null;
+  const latestSnapshot = latest
+    ? String(latest.snapshotDate ?? latest.snapshot_date).slice(0, 10)
+    : null;
 
   return {
     latestSnapshot,
@@ -427,15 +448,17 @@ async function getSnapshotHealth(startDate: Date, endDate: Date): Promise<Market
     snapshotCount: snapshots.length,
     missingDates,
     isPartial: missingDates.length > 0,
-    valuationVersion: latest ? String(latest.valuationVersion ?? latest.valuation_version ?? "") || null : null,
+    valuationVersion: snapshots.length ? VALUATION_VERSION : null,
     dataThrough: latestSnapshot || endDate.toISOString(),
   };
 }
 
-export async function getMarketOverview(input: {
-  sport?: string;
-  timeRange?: AnalyticsTimeRange | string;
-} = {}): Promise<MarketOverview> {
+export async function getMarketOverview(
+  input: {
+    sport?: string;
+    timeRange?: AnalyticsTimeRange | string;
+  } = {},
+): Promise<MarketOverview> {
   const sport = normalizeSport(input.sport);
   const timeRange = normalizeAnalyticsTimeRange(input.timeRange);
   const { startDate, endDate } = getAnalyticsRange(timeRange);
@@ -447,7 +470,7 @@ export async function getMarketOverview(input: {
   const buyNotional = rows.reduce((sum, row) => sum + row.buyNotional, 0);
   const sellNotional = rows.reduce((sum, row) => sum + row.sellNotional, 0);
   const peerNotional = rows.reduce((sum, row) => sum + row.peerNotional, 0);
-  const whaleVolume = rows.reduce((sum, row) => sum + (row.volume >= WHALE_NOTIONAL ? row.volume : 0), 0);
+  const whaleVolume = rows.reduce((sum, row) => sum + row.whaleVolume, 0);
   const priced = rows.filter((row) => row.marketStatus === "priced");
   const sortedCaps = priced.map((row) => row.marketCap || 0).sort((a, b) => b - a);
   const top10Cap = sortedCaps.slice(0, 10).reduce((sum, value) => sum + value, 0);
@@ -532,13 +555,15 @@ export async function getMarketOverview(input: {
   };
 }
 
-export async function screenMarkets(input: {
-  sport?: string;
-  timeRange?: AnalyticsTimeRange | string;
-  sort?: MarketSort;
-  limit?: number;
-  search?: string;
-} = {}) {
+export async function screenMarkets(
+  input: {
+    sport?: string;
+    timeRange?: AnalyticsTimeRange | string;
+    sort?: MarketSort;
+    limit?: number;
+    search?: string;
+  } = {},
+) {
   const sport = normalizeSport(input.sport);
   const timeRange = normalizeAnalyticsTimeRange(input.timeRange);
   const sort = input.sort || "marketCap";
@@ -547,7 +572,10 @@ export async function screenMarkets(input: {
   const rows = await buildMarketRows({ sport, timeRange });
   const filtered = search
     ? rows.filter((row) =>
-        [row.playerName, row.team, row.position, row.sport].join(" ").toLowerCase().includes(search),
+        [row.playerName, row.team, row.position, row.sport]
+          .join(" ")
+          .toLowerCase()
+          .includes(search),
       )
     : rows;
   return {
@@ -561,10 +589,12 @@ export async function screenMarkets(input: {
   };
 }
 
-export async function getMarketSeries(input: {
-  sport?: string;
-  timeRange?: AnalyticsTimeRange | string;
-} = {}): Promise<MarketSeries> {
+export async function getMarketSeries(
+  input: {
+    sport?: string;
+    timeRange?: AnalyticsTimeRange | string;
+  } = {},
+): Promise<MarketSeries> {
   const sport = normalizeSport(input.sport);
   const timeRange = normalizeAnalyticsTimeRange(input.timeRange);
   const { startDate, endDate } = getAnalyticsRange(timeRange);
@@ -647,7 +677,7 @@ export async function compareMarkets(input: {
   };
 }
 
-function pearson(left: number[], right: number[]): number | null {
+export function calculatePearsonCorrelation(left: number[], right: number[]): number | null {
   if (left.length !== right.length || left.length < 2) return null;
   const leftMean = left.reduce((sum, value) => sum + value, 0) / left.length;
   const rightMean = right.reduce((sum, value) => sum + value, 0) / right.length;
@@ -674,7 +704,11 @@ export async function getMarketCorrelations(input: {
   const timeRange = normalizeAnalyticsTimeRange(input.timeRange || "30d");
   const minSamples = Math.min(30, Math.max(3, Math.trunc(input.minSamples || 5)));
   if (playerIds.length < 2) {
-    return { summary: "Select at least two players for correlation research.", timeRange, pairs: [] as MarketCorrelation[] };
+    return {
+      summary: "Select at least two players for correlation research.",
+      timeRange,
+      pairs: [] as MarketCorrelation[],
+    };
   }
   const { startDate, endDate } = getAnalyticsRange(timeRange);
   const result: any = await db.execute(sql`
@@ -695,7 +729,9 @@ export async function getMarketCorrelations(input: {
     FROM daily
     ORDER BY day ASC
   `);
-  const identities = new Map((await loadPlayers("ALL", playerIds)).map((player) => [player.id, player]));
+  const identities = new Map(
+    (await loadPlayers("ALL", playerIds)).map((player) => [player.id, player]),
+  );
   const byPlayer = new Map<string, Map<string, number>>();
   for (const row of rowsOf(result)) {
     const id = String(row.playerId ?? row.player_id);
@@ -712,7 +748,7 @@ export async function getMarketCorrelations(input: {
       const rightDays = byPlayer.get(rightId) || new Map();
       const commonDays = Array.from(leftDays.keys()).filter((day) => rightDays.has(day));
       if (commonDays.length < minSamples) continue;
-      const coefficient = pearson(
+      const coefficient = calculatePearsonCorrelation(
         commonDays.map((day) => leftDays.get(day)!),
         commonDays.map((day) => rightDays.get(day)!),
       );
@@ -721,9 +757,13 @@ export async function getMarketCorrelations(input: {
       const rightIdentity = identities.get(rightId);
       pairs.push({
         player1Id: leftId,
-        player1Name: leftIdentity ? `${leftIdentity.firstName} ${leftIdentity.lastName}`.trim() : leftId,
+        player1Name: leftIdentity
+          ? `${leftIdentity.firstName} ${leftIdentity.lastName}`.trim()
+          : leftId,
         player2Id: rightId,
-        player2Name: rightIdentity ? `${rightIdentity.firstName} ${rightIdentity.lastName}`.trim() : rightId,
+        player2Name: rightIdentity
+          ? `${rightIdentity.firstName} ${rightIdentity.lastName}`.trim()
+          : rightId,
         correlation: round(coefficient, 4),
         sampleCount: commonDays.length,
       });
@@ -740,13 +780,15 @@ export async function getMarketCorrelations(input: {
   };
 }
 
-export async function getMarketTape(input: {
-  sport?: string;
-  side?: MarketTapeSide;
-  minNotional?: number;
-  limit?: number;
-  playerId?: string;
-} = {}) {
+export async function getMarketTape(
+  input: {
+    sport?: string;
+    side?: MarketTapeSide;
+    minNotional?: number;
+    limit?: number;
+    playerId?: string;
+  } = {},
+) {
   const sport = normalizeSport(input.sport);
   const side = input.side || "all";
   const limit = Math.min(100, Math.max(1, Math.trunc(input.limit || 40)));
@@ -785,7 +827,9 @@ export async function getMarketTape(input: {
     LIMIT ${limit}
   `);
   const sourceRows = rowsOf(result);
-  const markets = await getCanonicalPlayerMarkets(Array.from(new Set(sourceRows.map((row) => String(row.playerId ?? row.player_id)))));
+  const markets = await getCanonicalPlayerMarkets(
+    Array.from(new Set(sourceRows.map((row) => String(row.playerId ?? row.player_id)))),
+  );
   const items: MarketTapeItem[] = sourceRows.map((row) => {
     const playerId = String(row.playerId ?? row.player_id);
     const executionPrice = finite(row.price);
@@ -800,7 +844,9 @@ export async function getMarketTape(input: {
       id: String(row.id),
       timestamp: new Date(row.timestamp).toISOString(),
       playerId,
-      playerName: `${String(row.firstName ?? row.first_name ?? "")} ${String(row.lastName ?? row.last_name ?? "")}`.trim() || playerId,
+      playerName:
+        `${String(row.firstName ?? row.first_name ?? "")} ${String(row.lastName ?? row.last_name ?? "")}`.trim() ||
+        playerId,
       sport: String(row.sport || "").toUpperCase(),
       team: String(row.team || ""),
       side: resolvedSide,
