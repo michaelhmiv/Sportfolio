@@ -36,7 +36,7 @@ async function calculateMetricsForDate(targetDate: string): Promise<DailyMetrics
     db
       .select({
         count: sql<string>`COUNT(*)`,
-        volume: sql<string>`COALESCE(SUM(${trades.totalCost}::numeric), 0)`,
+        volume: sql<string>`COALESCE(SUM(${trades.price}::numeric * ${trades.quantity}::numeric), 0)`,
       })
       .from(trades)
       .where(and(gte(trades.executedAt, startOfDay), lt(trades.executedAt, endOfDay))),
