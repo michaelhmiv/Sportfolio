@@ -91,6 +91,7 @@ export type MarketScreenerRow = {
   buyNotional: number;
   sellNotional: number;
   peerNotional: number;
+  whaleVolume: number;
   netFlow: number;
   turnover: number | null;
   liquidityUtilization: number | null;
