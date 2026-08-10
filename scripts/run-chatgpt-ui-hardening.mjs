@@ -33,10 +33,16 @@ if (!sports.includes(stateAnchor)) throw new Error("score-slate source-state anc
 sports = sports.replace(stateAnchor, `      gameInsights: insightSourceStates,`);
 writeFileSync(sportsPath, sports);
 
-// Make protocol test failures report the HTTP status/body instead of only a
-// boolean assertion so we can distinguish test-shape errors from server defects.
+// Make protocol failures diagnostic and include the MCP v2 name header when
+// the body names a resource URI, matching the handler's transport contract.
 const protocolPath = "server/mcp/plugin/ui/protocol-resource.test.ts";
 let protocol = readFileSync(protocolPath, "utf8");
+const headerAnchor = `          "mcp-method": method,\n        },`;
+if (!protocol.includes(headerAnchor)) throw new Error("protocol header anchor missing");
+protocol = protocol.replace(
+  headerAnchor,
+  `          "mcp-method": method,\n          ...(typeof params.uri === "string" ? { "mcp-name": params.uri } : {}),\n        },`,
+);
 const httpAnchor = `    expect(response.ok).toBe(true);\n    const text = await response.text();`;
 if (!protocol.includes(httpAnchor)) throw new Error("protocol HTTP assertion anchor missing");
 protocol = protocol.replace(
