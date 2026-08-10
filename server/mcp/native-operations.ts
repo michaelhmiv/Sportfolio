@@ -89,8 +89,15 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
         holdings: rows,
       };
     }
-    case "get_holdings":
-      return storage.getUserHoldingsWithPlayers(input.userId);
+    case "get_holdings": {
+      const rows = await storage.getUserHoldingsWithPlayers(input.userId);
+      const sport = optionalText(args.sport)?.toUpperCase();
+      const limit = Math.min(100, positiveInt(args.limit, 100) || 100);
+      const filtered = sport
+        ? rows.filter((row) => text(row.player?.sport).toUpperCase() === sport)
+        : rows;
+      return filtered.slice(0, limit);
+    }
     case "get_trade_history":
       return storage.getMarketActivity({
         userId: input.userId,

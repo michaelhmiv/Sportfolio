@@ -1,6 +1,8 @@
 const BLOCKED_KEY =
-  /(?:password|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|cookie|service[_-]?role|provider[_-]?key|session[_-]?id|request[_-]?id|stack|sql)/i;
+  /(?:password|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|cookie|service[_-]?role|provider[_-]?key|session[_-]?id|request[_-]?id)/i;
+const BLOCKED_DIAGNOSTIC_KEY = /^(?:stack|sql)$/i;
 const DIRECT_PII_KEY = /^(?:email|phone|phoneNumber|firstName|lastName|fullName)$/i;
+const CANONICAL_PLAYER_ID = /^(?:mlb|nascar|nhl|nfl|nba|wnba)_/i;
 
 export type PluginSanitizeOptions = {
   maxDepth?: number;
@@ -22,6 +24,33 @@ function sanitizeString(value: string, maxLength: number): string {
     })
     .join("");
   return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength)}…` : cleaned;
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isBlockedKey(key: string): boolean {
+  return BLOCKED_KEY.test(key) || BLOCKED_DIAGNOSTIC_KEY.test(key);
+}
+
+function resolvePublicPlayerDisplayName(record: Record<string, unknown>): string {
+  const id = text(record.id) || text(record.playerId);
+  const looksLikePublicPlayer = Boolean(
+    id &&
+    (CANONICAL_PLAYER_ID.test(id) ||
+      text(record.sport) ||
+      text(record.position) ||
+      text(record.team)),
+  );
+  if (!looksLikePublicPlayer) return "";
+
+  return (
+    text(record.playerName) ||
+    text(record.displayName) ||
+    text(record.name) ||
+    [text(record.firstName), text(record.lastName)].filter(Boolean).join(" ")
+  );
 }
 
 export function sanitizePluginValue(
@@ -49,9 +78,15 @@ export function sanitizePluginValue(
     if (seen.has(value)) return "[circular]";
     seen.add(value);
 
+    const source = value as Record<string, unknown>;
     const output: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-      if (BLOCKED_KEY.test(key) || DIRECT_PII_KEY.test(key)) continue;
+    const publicPlayerDisplayName = resolvePublicPlayerDisplayName(source);
+    if (publicPlayerDisplayName) {
+      output.displayName = sanitizeString(publicPlayerDisplayName, resolved.maxStringLength);
+    }
+
+    for (const [key, item] of Object.entries(source)) {
+      if (isBlockedKey(key) || DIRECT_PII_KEY.test(key)) continue;
       output[key] = sanitizePluginValue(item, resolved, depth + 1, seen);
     }
     return output;
@@ -75,7 +110,7 @@ export function assertNoRestrictedPluginFields(
   }
 
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    if (BLOCKED_KEY.test(key) || DIRECT_PII_KEY.test(key)) {
+    if (isBlockedKey(key) || DIRECT_PII_KEY.test(key)) {
       throw new Error(`Restricted marketplace output field at ${path}.${key}`);
     }
     assertNoRestrictedPluginFields(item, `${path}.${key}`, seen);
