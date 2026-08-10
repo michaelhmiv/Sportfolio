@@ -34,7 +34,9 @@ function isBlockedKey(key: string): boolean {
   return BLOCKED_KEY.test(key) || BLOCKED_DIAGNOSTIC_KEY.test(key);
 }
 
-function resolvePublicPlayerDisplayName(record: Record<string, unknown>): string {
+function resolvePublicPlayerDisplayName(
+  record: Record<string, unknown>,
+): string {
   const id = text(record.id) || text(record.playerId);
   const looksLikePublicPlayer = Boolean(
     id &&
