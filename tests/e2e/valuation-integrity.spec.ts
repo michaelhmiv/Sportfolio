@@ -42,6 +42,9 @@ const joeyPosition = {
 
 async function mockValuationApis(page: Page) {
   await page.addInitScript(() => {
+    // Enter protected routes immediately while the mocked auth query settles.
+    // App.tsx exposes this loopback-only hook specifically for Playwright.
+    (window as Window & { __PLAYWRIGHT_AGENT_E2E__?: boolean }).__PLAYWRIGHT_AGENT_E2E__ = true;
     window.localStorage.setItem("sportfolio_selected_sport", "ALL");
     window.localStorage.setItem("portfolioViewMode", "list");
   });
