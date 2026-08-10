@@ -159,7 +159,7 @@ describe("Sportfolio overview presentation surfaces", () => {
         ui: {
           domain: "https://www.sportfolio.market",
           prefersBorder: true,
-          csp: { connectDomains: [], resourceDomains: [] },
+          csp: { connectDomains: [], resourceDomains: ["https://www.sportfolio.market"] },
         },
       },
     });

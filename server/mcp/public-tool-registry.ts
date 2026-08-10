@@ -1441,6 +1441,11 @@ const optionalSportDateSchema: RawSchema = {
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
 };
+const scoutOpportunitySchema: RawSchema = {
+  message: z.string().min(1).max(1200).optional(),
+  sport: z.string().min(2).max(16).optional(),
+  limit: z.number().int().positive().max(20).optional(),
+};
 const pendingActionSchema: RawSchema = {
   transactionId: z.string().uuid(),
 };
@@ -1724,8 +1729,8 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
     description: "Rank the strongest current scout targets and reallocation opportunities.",
     domain: "scouting",
     readOnly: true,
-    inputSchema: optionalMessageSchema,
-    fixtureArgs: {},
+    inputSchema: scoutOpportunitySchema,
+    fixtureArgs: { sport: "mlb", limit: 6 },
     execute: (context, args) => executeScanTool(context, "scan_scout_opportunities", args),
   }),
   defineTool({

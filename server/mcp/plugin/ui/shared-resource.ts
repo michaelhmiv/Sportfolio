@@ -15,93 +15,52 @@ function resolveAssetOrigin(): string {
   }
 }
 
-const assetOrigin = resolveAssetOrigin();
-const widgetHtml = buildSportfolioWidgetHtml(assetOrigin);
+export const SPORTFOLIO_WIDGET_ASSET_ORIGIN = resolveAssetOrigin();
+const widgetHtml = buildSportfolioWidgetHtml(SPORTFOLIO_WIDGET_ASSET_ORIGIN);
 const widgetHash = createHash("sha256").update(widgetHtml).digest("hex").slice(0, 16);
 
 export const SPORTFOLIO_SHARED_UI_RESOURCE_URI = `ui://sportfolio/app/${widgetHash}.html`;
+export const SPORTFOLIO_UI_MIME_TYPE = "text/html;profile=mcp-app";
 
-const SPORTFOLIO_UI_PREFIX = "ui://sportfolio/";
 const SHARED_RESOURCE_NAME = "sportfolio-plugin-ui-shared";
 const SHARED_RESOURCE_DESCRIPTION =
   "Shared Sportfolio interactive UI shell. The rendered view is selected from tool structured content.";
 
-type MutableMcpServer = {
-  registerResource: (...args: any[]) => any;
-  registerTool: (...args: any[]) => any;
-};
-
-function isSportfolioUiUri(value: unknown): value is string {
-  return typeof value === "string" && value.startsWith(SPORTFOLIO_UI_PREFIX);
+export function buildPluginUiResourceMeta(description = SHARED_RESOURCE_DESCRIPTION) {
+  const assetOrigin = SPORTFOLIO_WIDGET_ASSET_ORIGIN;
+  return {
+    ui: {
+      domain: assetOrigin,
+      prefersBorder: true,
+      csp: {
+        connectDomains: [],
+        resourceDomains: [assetOrigin],
+      },
+    },
+    "openai/widgetDescription": description,
+    "openai/widgetPrefersBorder": true,
+  };
 }
 
-/**
- * Register exactly one content-addressed Sportfolio MCP App loader and
- * transparently rewrite every presentation tool to reference it. The loader is
- * intentionally tiny; view-specific ESM chunks are served from Sportfolio's
- * immutable /assets path and allowed through the declared widget CSP.
- */
-export function installSharedPluginUiResource(server: McpServer): void {
-  const mutableServer = server as unknown as MutableMcpServer;
-  const registerResource = mutableServer.registerResource.bind(server);
-  const registerTool = mutableServer.registerTool.bind(server);
-
-  registerResource(
+/** Register the canonical content-addressed MCP App resource exactly once. */
+export function registerSharedPluginUiResource(server: McpServer): void {
+  server.registerResource(
     SHARED_RESOURCE_NAME,
     SPORTFOLIO_SHARED_UI_RESOURCE_URI,
     {
-      mimeType: "text/html;profile=mcp-app",
+      mimeType: SPORTFOLIO_UI_MIME_TYPE,
       description: SHARED_RESOURCE_DESCRIPTION,
     },
-    async () => ({
-      contents: [
-        {
-          uri: SPORTFOLIO_SHARED_UI_RESOURCE_URI,
-          mimeType: "text/html;profile=mcp-app",
-          text: widgetHtml,
-          _meta: {
-            ui: {
-              domain: assetOrigin,
-              prefersBorder: true,
-              csp: {
-                connectDomains: [],
-                resourceDomains: [assetOrigin],
-              },
-            },
-            "openai/widgetDescription": SHARED_RESOURCE_DESCRIPTION,
-            "openai/widgetPrefersBorder": true,
+    async () =>
+      ({
+        contents: [
+          {
+            uri: SPORTFOLIO_SHARED_UI_RESOURCE_URI,
+            mimeType: SPORTFOLIO_UI_MIME_TYPE,
+            text: widgetHtml,
+            _meta: buildPluginUiResourceMeta(),
           },
-        },
-      ],
-    }),
+        ],
+      }) as any,
   );
-
-  mutableServer.registerResource = (...args: any[]) => {
-    const uri = args[1];
-    if (isSportfolioUiUri(uri)) {
-      return undefined;
-    }
-    return registerResource(...args);
-  };
-
-  mutableServer.registerTool = (name: string, config: any, handler: any) => {
-    const meta = config?._meta;
-    const uiResourceUri = meta?.ui?.resourceUri;
-    const outputTemplate = meta?.["openai/outputTemplate"];
-
-    if (!isSportfolioUiUri(uiResourceUri) && !isSportfolioUiUri(outputTemplate)) {
-      return registerTool(name, config, handler);
-    }
-
-    const nextMeta = {
-      ...meta,
-      ui: {
-        ...(meta?.ui || {}),
-        resourceUri: SPORTFOLIO_SHARED_UI_RESOURCE_URI,
-      },
-      "openai/outputTemplate": SPORTFOLIO_SHARED_UI_RESOURCE_URI,
-    };
-
-    return registerTool(name, { ...config, _meta: nextMeta }, handler);
-  };
 }
