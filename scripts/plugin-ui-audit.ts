@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import {
   buildAllPluginPresentationCatalog,
   getAllPluginUiResourceUris,
+  SPORTFOLIO_SHARED_UI_RESOURCE_URI,
 } from "../server/mcp/plugin/ui/catalog";
 
 const errors: string[] = [];
@@ -10,16 +11,22 @@ const names = catalog.map((entry) => entry.name);
 const resources = catalog.map((entry) => entry.resourceUri);
 const expectedResources = getAllPluginUiResourceUris().sort();
 
-if (catalog.length !== expectedResources.length) {
+if (catalog.length === 0) {
+  errors.push("Sportfolio must expose at least one presentation tool.");
+}
+if (expectedResources.length !== 1) {
   errors.push(
-    `Expected one Sportfolio presentation tool per UI resource, found ${catalog.length} tools and ${expectedResources.length} resources.`,
+    `Expected one shared Sportfolio UI resource, found ${expectedResources.length} resources.`,
   );
 }
 if (new Set(names).size !== names.length) {
   errors.push("Sportfolio presentation tool names must be unique.");
 }
-if (new Set(resources).size !== resources.length) {
-  errors.push("Each Sportfolio presentation surface must use a distinct resource URI.");
+if (new Set(resources).size !== 1) {
+  errors.push("All Sportfolio presentation tools must reuse the shared UI resource URI.");
+}
+if (expectedResources[0] !== SPORTFOLIO_SHARED_UI_RESOURCE_URI) {
+  errors.push("The registered UI resource must be the shared content-addressed Sportfolio shell.");
 }
 
 for (const entry of catalog) {
@@ -29,18 +36,15 @@ for (const entry of catalog) {
   if (!entry.readOnly || entry.destructive || entry.openWorld) {
     errors.push(`${entry.name} must be read-only, non-destructive, and closed-world.`);
   }
-  if (!/^ui:\/\/sportfolio\/[a-z0-9-]+\/v\d+\.html$/.test(entry.resourceUri)) {
-    errors.push(`${entry.name} has an invalid or unversioned resource URI: ${entry.resourceUri}`);
+  if (entry.resourceUri !== SPORTFOLIO_SHARED_UI_RESOURCE_URI) {
+    errors.push(`${entry.name} must reference the shared Sportfolio UI shell.`);
+  }
+  if (!/^ui:\/\/sportfolio\/app\/[a-f0-9]{16}\.html$/.test(entry.resourceUri)) {
+    errors.push(`${entry.name} has an invalid content-addressed resource URI: ${entry.resourceUri}`);
   }
   if (!entry.featureFlag.startsWith("PLUGIN_UI_")) {
     errors.push(`${entry.name} must have a dedicated PLUGIN_UI_* feature flag.`);
   }
-}
-
-if (JSON.stringify([...resources].sort()) !== JSON.stringify(expectedResources)) {
-  errors.push(
-    "Presentation catalog resources do not match the registered Sportfolio UI resources.",
-  );
 }
 
 const buildScript = readFileSync("scripts/build-plugin-ui.mjs", "utf8");
@@ -98,6 +102,7 @@ const surfaceSource = [
   readFileSync("server/mcp/plugin/ui/action-surface.ts", "utf8"),
   readFileSync("server/mcp/plugin/ui/gameplay-surface.ts", "utf8"),
   readFileSync("server/mcp/plugin/ui/overview-surface.ts", "utf8"),
+  readFileSync("server/mcp/plugin/ui/shared-resource.ts", "utf8"),
 ].join("\n");
 for (const required of [
   "text/html;profile=mcp-app",
@@ -137,5 +142,5 @@ if (errors.length) {
 }
 
 console.log(
-  `Plugin UI audit passed: ${catalog.length} presentation tools and ${resources.length} versioned resources.`,
+  `Plugin UI audit passed: ${catalog.length} presentation tools share ${expectedResources.length} content-addressed resource.`,
 );

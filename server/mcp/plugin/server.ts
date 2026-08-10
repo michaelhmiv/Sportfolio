@@ -6,6 +6,7 @@ import { registerPluginMarketplaceSurface } from "./registry";
 import { registerActionPluginUiSurface } from "./ui/action-surface";
 import { registerGameplayPluginUiSurface } from "./ui/gameplay-surface";
 import { registerOverviewPluginUiSurface } from "./ui/overview-surface";
+import { installSharedPluginUiResource } from "./ui/shared-resource";
 import { registerSportsPluginUiSurface } from "./ui/sports-surface";
 import { registerPluginUiSurface } from "./ui/surface";
 
@@ -34,6 +35,11 @@ export async function createPluginMcpServer(
     },
   });
   const registrationServer = server as unknown as LegacyMcpServer;
+
+  // All presentation tools use the same generated widget shell. Register it
+  // once and rewrite the surface-specific output templates during registration
+  // so MCP clients do not fetch the same ~165 KB resource for every view.
+  installSharedPluginUiResource(registrationServer);
 
   await registerPluginMarketplaceSurface(registrationServer, context, deps);
   await registerPluginUiSurface(registrationServer, context);
