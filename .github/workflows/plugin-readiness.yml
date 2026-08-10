@@ -81,7 +81,7 @@ jobs:
         run: npm ci
 
       - name: Apply deterministic hardening patch
-        run: node scripts/apply-chatgpt-ui-hardening.mjs
+        run: node scripts/run-chatgpt-ui-hardening.mjs
 
       - name: Plugin TypeScript certification
         run: npx tsc -p tsconfig.plugin.json --noEmit
@@ -132,6 +132,7 @@ jobs:
           rm -f .factory/tasks/chatgpt-ui-contract-hardening.md
           rm -f .factory-implementation-report.md
           rm -f scripts/apply-chatgpt-ui-hardening.mjs
+          rm -f scripts/run-chatgpt-ui-hardening.mjs
           rmdir .factory/tasks 2>/dev/null || true
           rmdir .factory 2>/dev/null || true
 
