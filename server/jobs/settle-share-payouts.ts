@@ -4,10 +4,7 @@ import { sendUserNotification } from "../services/notification-dispatcher";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { isNflPreseasonGame } from "../nfl/season";
-import {
-  getSharePayoutStats,
-  loadSharePayoutSettlementContext,
-} from "./share-payout-read-model";
+import { getSharePayoutStats, loadSharePayoutSettlementContext } from "./share-payout-read-model";
 
 function toFiniteNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
@@ -41,9 +38,7 @@ function isSettlableNascarStats(
   return !runName.includes("qualifying") && !runName.includes("practice");
 }
 
-export async function settleSharePayouts(
-  progressCallback?: ProgressCallback,
-): Promise<JobResult> {
+export async function settleSharePayouts(progressCallback?: ProgressCallback): Promise<JobResult> {
   let processed = 0;
   let requestCount = 0;
   let errorCount = 0;
