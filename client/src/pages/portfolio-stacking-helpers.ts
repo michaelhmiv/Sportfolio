@@ -11,6 +11,10 @@ export interface PortfolioStackingHolding {
   effectiveShares?: string | number | null;
   multiplier?: string | number | null;
   isStackedShare?: boolean | null;
+  isCanonicalPosition?: boolean | null;
+  singles?: string | number | null;
+  stackPower?: string | number | null;
+  gameplayPower?: string | number | null;
   availableQuantity?: string | number | null;
   player?: Player | null;
 }
@@ -262,6 +266,18 @@ export function buildStackingCandidates(
       } satisfies AggregatedCandidate);
 
     const quantity = toNumber(holding.quantity);
+    if (holding.isCanonicalPosition) {
+      const singles = toNumber(holding.singles ?? holding.quantity);
+      const stackPower = toNumber(holding.stackPower);
+      current.regularShares += singles;
+      current.availableToStack += toNumber(holding.availableQuantity ?? singles);
+      current.stackedShareCount += stackPower > 0 ? 1 : 0;
+      current.bestStackedMultiplier = Math.max(current.bestStackedMultiplier, stackPower);
+      current.effectiveShares += toNumber(holding.gameplayPower ?? singles + stackPower);
+      aggregatedByPlayer.set(playerId, current);
+      continue;
+    }
+
     const effectiveShares = toNumber(holding.effectiveShares ?? holding.quantity);
     const multiplier = Math.max(1, toNumber(holding.multiplier ?? "1"));
 

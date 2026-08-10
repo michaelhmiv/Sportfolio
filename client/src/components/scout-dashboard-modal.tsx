@@ -680,16 +680,15 @@ export function ScoutDashboardModal() {
       }
     }
 
-    // Add game status to each player first
-    // Use lastTradePrice for display (actual market price), fallback to currentPrice
+    // Add game status to each player first. Player-list currentPrice/marketPrice
+    // is the canonical AMM spot; lastTradePrice remains historical only.
     const playersWithGameStatus = rawList.map((p): PlayerWithScoutData => {
       const gameInfo = getGameStatusForPlayer(p.team, p.sport);
-      // Prefer lastTradePrice (actual trades) over currentPrice (placeholder/default)
-      const displayPrice = (p as any).lastTradePrice || p.currentPrice || "0";
+      const displayPrice = (p as any).marketPrice ?? p.currentPrice ?? 0;
       return {
         ...p,
         fpts: parseFloat(p.avgFantasyPointsPerGame || "0"),
-        price: parseFloat(displayPrice),
+        price: Number(displayPrice),
         change: parseFloat(p.priceChange24h || "0"),
         volume: p.volume24h || 0,
         mcap: parseFloat(p.marketCap || "0"),

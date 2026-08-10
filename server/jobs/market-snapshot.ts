@@ -13,17 +13,11 @@
  */
 
 import { db } from "../db";
-import {
-  trades,
-  vestingClaims,
-  dailyBoosts,
-  holdings,
-  players,
-  marketSnapshots,
-} from "@shared/schema";
-import { sql, eq, gte, lte, and, inArray } from "drizzle-orm";
+import { trades, vestingClaims, dailyBoosts, marketSnapshots } from "@shared/schema";
+import { sql, gte, lte, and, inArray } from "drizzle-orm";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
+import { getCanonicalMarketTotals } from "../valuation/canonical-valuation";
 
 interface DailyMetrics {
   date: Date;
@@ -100,26 +94,11 @@ async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> 
 
   const sharesBurned = parseInt(burnedBoostStats[0]?.total || "0");
 
-  // 4. Total shares in economy (current snapshot from holdings)
-  const totalSharesResult = await db
-    .select({
-      total: sql<string>`COALESCE(SUM(${holdings.quantity}), 0)`,
-    })
-    .from(holdings)
-    .where(eq(holdings.assetType, "player"));
-
-  const totalShares = parseInt(totalSharesResult[0]?.total || "0");
-
-  // 5. Market cap = sum of (shares held per player × player price)
-  const marketCapResult = await db
-    .select({
-      total: sql<string>`COALESCE(SUM(${holdings.quantity} * COALESCE(${players.lastTradePrice}, ${players.currentPrice})), 0)`,
-    })
-    .from(holdings)
-    .innerJoin(players, eq(holdings.assetId, players.id))
-    .where(eq(holdings.assetType, "player"));
-
-  const marketCap = parseFloat(marketCapResult[0]?.total || "0");
+  // 4-5. Liquid supply and market cap use the same AMM-backed production valuation.
+  // Stack Power and LP tokens are excluded; pool share reserves are included once.
+  const canonicalTotals = await getCanonicalMarketTotals();
+  const totalShares = Math.round(canonicalTotals.totalLiquidShares);
+  const marketCap = canonicalTotals.marketCap;
 
   return {
     date: startOfDay,

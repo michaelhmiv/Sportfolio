@@ -242,7 +242,7 @@ export function CommunityBoostSelector({
           opponent,
           gameStartTime: game?.startTime || null,
           boostCount: boostCountMap.get(player.id) || 0,
-          price: parseFloat((player as any).lastTradePrice || player.currentPrice || "0"),
+          price: Number((player as any).marketPrice ?? player.currentPrice ?? 0),
           change: parseFloat(player.priceChange24h || "0"),
           volume: player.volume24h || 0,
           mcap: parseFloat(player.marketCap || "0"),

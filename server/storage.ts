@@ -106,6 +106,12 @@ import {
   type PushNotificationEvent,
 } from "@shared/schema";
 import {
+  getAllCanonicalPortfolioValues,
+  getCanonicalMarketTotals,
+  getCanonicalPlayerMarket,
+  getCanonicalPlayerMarkets,
+} from "./valuation/canonical-valuation";
+import {
   DEFAULT_ACTIVITY_FEED_CATEGORIES,
   USER_ACTIVITY_CATEGORIES,
   type UserActivityCategory,
@@ -596,7 +602,8 @@ export interface IStorage {
       name: string;
       team: string;
       position: string;
-      price: number;
+      price: number | null;
+      marketStatus: "priced" | "unpriced";
       priceChange7d: number;
       volume: number;
       avgFantasyPoints: number;
@@ -2146,13 +2153,23 @@ export class DatabaseStorage implements IStorage {
     if (activityFilter === "inactive") conditions.push(eq(players.isActive, false));
 
     const isComplexSort = ["sentiment", "undervalued", "fantasyPoints"].includes(sortBySafe);
-    const needsPoolJoin = ["price", "change", "tvl"].includes(sortBySafe);
+    const needsPoolJoin = ["price", "change", "tvl", "marketCap"].includes(sortBySafe);
     const effectivePriceExpr = sql<number>`CASE
       WHEN COALESCE(${playerPools.shares}, 0)::numeric > 0
         AND COALESCE(${playerPools.playMoney}, 0)::numeric > 0
       THEN ${playerPools.playMoney}::numeric / NULLIF(${playerPools.shares}::numeric, 0)
-      WHEN ${players.lastTradePrice} IS NOT NULL
-      THEN ${players.lastTradePrice}::numeric
+      ELSE 0
+    END`;
+    const canonicalMarketCapExpr = sql<number>`CASE
+      WHEN COALESCE(${playerPools.shares}, 0)::numeric > 0
+        AND COALESCE(${playerPools.playMoney}, 0)::numeric > 0
+      THEN ${effectivePriceExpr} * (
+        ${playerPools.shares}::numeric + COALESCE((
+          SELECT SUM(h.quantity::numeric)
+          FROM holdings h
+          WHERE h.asset_type = 'player' AND h.asset_id = ${players.id}
+        ), 0)
+      )
       ELSE 0
     END`;
     const firstTradePrice24hExpr = sql<number>`COALESCE((
@@ -2178,7 +2195,10 @@ export class DatabaseStorage implements IStorage {
           sortOrder === "asc" ? sql`${effectivePriceExpr} ASC` : sql`${effectivePriceExpr} DESC`;
         break;
       case "marketCap":
-        orderByClause = sortOrder === "asc" ? asc(players.marketCap) : desc(players.marketCap);
+        orderByClause =
+          sortOrder === "asc"
+            ? sql`${canonicalMarketCapExpr} ASC`
+            : sql`${canonicalMarketCapExpr} DESC`;
         break;
       case "volume":
         orderByClause = sortOrder === "asc" ? asc(players.volume24h) : desc(players.volume24h);
@@ -3327,16 +3347,12 @@ export class DatabaseStorage implements IStorage {
         ${players.id} AS player_id,
         CASE
           WHEN ft.first_price > 0
+            AND COALESCE(${playerPools.shares}, 0)::numeric > 0
+            AND COALESCE(${playerPools.playMoney}, 0)::numeric > 0
           THEN (
             (
-              CASE
-                WHEN COALESCE(${playerPools.shares}, 0)::numeric > 0
-                  AND COALESCE(${playerPools.playMoney}, 0)::numeric > 0
-                THEN ${playerPools.playMoney}::numeric / NULLIF(${playerPools.shares}::numeric, 0)
-                WHEN ${players.lastTradePrice} IS NOT NULL
-                THEN ${players.lastTradePrice}::numeric
-                ELSE 0
-              END - ft.first_price
+              (${playerPools.playMoney}::numeric / NULLIF(${playerPools.shares}::numeric, 0))
+              - ft.first_price
             ) / ft.first_price
           ) * 100
           ELSE 0
@@ -3412,22 +3428,12 @@ export class DatabaseStorage implements IStorage {
     targetPlayerIds = Array.from(new Set(targetPlayerIds));
     if (targetPlayerIds.length === 0) return 0;
 
-    const [playerRows, sentimentMap, seasonStatsMap, allTimeAvgMap] = await Promise.all([
-      db
-        .select({
-          id: players.id,
-          lastTradePrice: players.lastTradePrice,
-        })
-        .from(players)
-        .where(inArray(players.id, targetPlayerIds)),
+    const [canonicalMarkets, sentimentMap, seasonStatsMap, allTimeAvgMap] = await Promise.all([
+      getCanonicalPlayerMarkets(targetPlayerIds),
       this.getBatchSentiment(targetPlayerIds),
       this.getBatchPlayerSeasonStatsFromLogs(targetPlayerIds),
       this.getBatchAllTimeAvgFantasyPoints(targetPlayerIds),
     ]);
-
-    const playerPriceMap = new Map(
-      playerRows.map((p) => [p.id, parseFloat(p.lastTradePrice || "0")]),
-    );
 
     const LEAGUE_AVG_PE = 0.43;
     const now = new Date();
@@ -3438,7 +3444,7 @@ export class DatabaseStorage implements IStorage {
         avgFantasyPointsPerGame: "0.0",
       };
       const allTimeAvgFp = allTimeAvgMap.get(playerId) || 0;
-      const price = playerPriceMap.get(playerId) || 0;
+      const price = canonicalMarkets.get(playerId)?.marketPrice || 0;
       const peRatio = allTimeAvgFp > 0 ? price / allTimeAvgFp : 0;
       const valueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
 
@@ -5306,44 +5312,11 @@ export class DatabaseStorage implements IStorage {
   async getAllUsersForRanking(): Promise<
     Array<{ userId: string; balance: string; portfolioValue: number }>
   > {
-    const result: any = await db.execute(sql`
-      SELECT
-        u.id AS user_id,
-        u.balance AS balance,
-        COALESCE(
-          SUM(pos.effective_shares * COALESCE(p.last_trade_price::numeric, 0)),
-          0
-        )::text AS portfolio_value
-      FROM ${users} u
-      LEFT JOIN (
-        SELECT
-          ${holdings.userId} AS user_id,
-          ${holdings.assetId} AS player_id,
-          ${holdings.quantity}::numeric AS effective_shares
-        FROM ${holdings}
-        WHERE ${holdings.assetType} = 'player'
-          AND ${holdings.quantity}::numeric > 0
-
-        UNION ALL
-
-        SELECT
-          ${playerMultipliers.userId} AS user_id,
-          ${playerMultipliers.playerId} AS player_id,
-          ${playerMultipliers.multiplier}::numeric AS effective_shares
-        FROM ${playerMultipliers}
-        WHERE ${playerMultipliers.multiplier} > 0
-      ) pos
-        ON pos.user_id = u.id
-      LEFT JOIN ${players} p
-        ON p.id = pos.player_id
-      GROUP BY u.id, u.balance
-    `);
-
-    const rows = result?.rows ?? result;
-    return rows.map((row: any) => ({
-      userId: row.user_id ?? row.userId,
+    const rows = await getAllCanonicalPortfolioValues();
+    return rows.map((row) => ({
+      userId: row.userId,
       balance: row.balance,
-      portfolioValue: parseFloat(row.portfolio_value ?? row.portfolioValue ?? "0"),
+      portfolioValue: row.portfolioValue,
     }));
   }
 
@@ -5495,32 +5468,7 @@ export class DatabaseStorage implements IStorage {
       .from(trades)
       .where(and(gte(trades.executedAt, prevStartDate), lte(trades.executedAt, prevEndDate)));
 
-    // Total market cap = sum of (all shares held * last trade price)
-    const marketCapResult: any = await db.execute(sql`
-      SELECT
-        COALESCE(
-          SUM(pos.effective_shares * COALESCE(p.last_trade_price::numeric, p.current_price::numeric, 0)),
-          0
-        )::text AS market_cap
-      FROM (
-        SELECT
-          ${holdings.assetId} AS player_id,
-          ${holdings.quantity}::numeric AS effective_shares
-        FROM ${holdings}
-        WHERE ${holdings.assetType} = 'player'
-          AND ${holdings.quantity}::numeric > 0
-
-        UNION ALL
-
-        SELECT
-          ${playerMultipliers.playerId} AS player_id,
-          ${playerMultipliers.multiplier}::numeric AS effective_shares
-        FROM ${playerMultipliers}
-        WHERE ${playerMultipliers.multiplier} > 0
-      ) pos
-      INNER JOIN ${players} p ON p.id = pos.player_id
-    `);
-    const marketCapRows = marketCapResult?.rows ?? marketCapResult;
+    const canonicalMarketTotals = await getCanonicalMarketTotals();
 
     // Get previous period's market cap from snapshots
     const prevMarketCapSnapshot = await db
@@ -5535,14 +5483,12 @@ export class DatabaseStorage implements IStorage {
     return {
       transactionCount: currentTrades[0]?.count || 0,
       totalVolume: parseFloat(currentTrades[0]?.volume || "0"),
-      totalMarketCap: parseFloat(
-        marketCapRows[0]?.market_cap ?? marketCapRows[0]?.marketCap ?? "0",
-      ),
+      totalMarketCap: canonicalMarketTotals.marketCap,
       prevTransactionCount: prevTrades[0]?.count || 0,
       prevTotalVolume: parseFloat(prevTrades[0]?.volume || "0"),
       prevTotalMarketCap: prevMarketCapSnapshot[0]
         ? parseFloat(prevMarketCapSnapshot[0].marketCap)
-        : parseFloat(marketCapRows[0]?.market_cap ?? marketCapRows[0]?.marketCap ?? "0"), // Fallback to current if no historical data
+        : canonicalMarketTotals.marketCap,
     };
   }
 
@@ -5569,35 +5515,9 @@ export class DatabaseStorage implements IStorage {
       .groupBy(sql`DATE(${trades.executedAt})`)
       .orderBy(sql`DATE(${trades.executedAt})`);
 
-    // Get current market cap (we don't have historical snapshots yet)
-    const marketCapResult: any = await db.execute(sql`
-      SELECT
-        COALESCE(
-          SUM(pos.effective_shares * COALESCE(p.last_trade_price::numeric, p.current_price::numeric, 0)),
-          0
-        )::text AS market_cap
-      FROM (
-        SELECT
-          ${holdings.assetId} AS player_id,
-          ${holdings.quantity}::numeric AS effective_shares
-        FROM ${holdings}
-        WHERE ${holdings.assetType} = 'player'
-          AND ${holdings.quantity}::numeric > 0
-
-        UNION ALL
-
-        SELECT
-          ${playerMultipliers.playerId} AS player_id,
-          ${playerMultipliers.multiplier}::numeric AS effective_shares
-        FROM ${playerMultipliers}
-        WHERE ${playerMultipliers.multiplier} > 0
-      ) pos
-      INNER JOIN ${players} p ON p.id = pos.player_id
-    `);
-    const marketCapRows = marketCapResult?.rows ?? marketCapResult;
-    const currentMarketCap = parseFloat(
-      marketCapRows[0]?.market_cap ?? marketCapRows[0]?.marketCap ?? "0",
-    );
+    // Historical market snapshots remain immutable; current-day gaps use the
+    // same canonical liquid-supply market cap as every live surface.
+    const currentMarketCap = (await getCanonicalMarketTotals()).marketCap;
 
     return dailyStats.map((row) => ({
       date: row.date,
@@ -5608,39 +5528,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayerSharesOutstanding(playerIds?: string[]): Promise<Map<string, number>> {
-    const filterClause =
-      playerIds && playerIds.length > 0 ? sql`WHERE player_id = ANY(${playerIds})` : sql``;
-
-    const results: any = await db.execute(sql`
-      SELECT
-        player_id,
-        COALESCE(SUM(effective_shares), 0)::text AS total_shares
-      FROM (
-        SELECT
-          ${holdings.assetId} AS player_id,
-          ${holdings.quantity}::numeric AS effective_shares
-        FROM ${holdings}
-        WHERE ${holdings.assetType} = 'player'
-          AND ${holdings.quantity}::numeric > 0
-
-        UNION ALL
-
-        SELECT
-          ${playerMultipliers.playerId} AS player_id,
-          ${playerMultipliers.multiplier}::numeric AS effective_shares
-        FROM ${playerMultipliers}
-        WHERE ${playerMultipliers.multiplier} > 0
-      ) player_positions
-      ${filterClause}
-      GROUP BY player_id
-    `);
+    if (playerIds && playerIds.length === 0) return new Map();
+    const conditions = [eq(holdings.assetType, "player")];
+    if (playerIds) conditions.push(inArray(holdings.assetId, playerIds));
+    const results = await db
+      .select({
+        playerId: holdings.assetId,
+        totalShares: sql<string>`COALESCE(SUM(${holdings.quantity}::numeric), 0)::text`,
+      })
+      .from(holdings)
+      .where(and(...conditions))
+      .groupBy(holdings.assetId);
     const sharesMap = new Map<string, number>();
-    const rows = results?.rows ?? results;
-    for (const row of rows) {
-      sharesMap.set(
-        row.player_id ?? row.playerId,
-        parseInt(row.total_shares ?? row.totalShares) || 0,
-      );
+    for (const row of results) {
+      sharesMap.set(row.playerId, Number(row.totalShares) || 0);
     }
     return sharesMap;
   }
@@ -5709,7 +5610,8 @@ export class DatabaseStorage implements IStorage {
       name: string;
       team: string;
       position: string;
-      price: number;
+      price: number | null;
+      marketStatus: "priced" | "unpriced";
       priceChange7d: number;
       volume: number;
       avgFantasyPoints: number;
@@ -5719,15 +5621,18 @@ export class DatabaseStorage implements IStorage {
     // Get active players with their stats
     const activePlayers = await db.select().from(players).where(eq(players.isActive, true));
 
-    // Get fantasy points averages for each player
-    const fantasyStats = await db
-      .select({
-        playerId: playerGameStats.playerId,
-        avgFantasyPoints: sql<string>`AVG(${playerGameStats.fantasyPoints})`.as("avg_fantasy"),
-        gamesPlayed: count(),
-      })
-      .from(playerGameStats)
-      .groupBy(playerGameStats.playerId);
+    // Get fantasy points averages and canonical AMM markets in parallel.
+    const [fantasyStats, canonicalMarkets] = await Promise.all([
+      db
+        .select({
+          playerId: playerGameStats.playerId,
+          avgFantasyPoints: sql<string>`AVG(${playerGameStats.fantasyPoints})`.as("avg_fantasy"),
+          gamesPlayed: count(),
+        })
+        .from(playerGameStats)
+        .groupBy(playerGameStats.playerId),
+      getCanonicalPlayerMarkets(activePlayers.map((player) => player.id)),
+    ]);
 
     const fantasyMap = new Map<string, { avgFantasy: number; gamesPlayed: number }>();
     for (const stat of fantasyStats) {
@@ -5753,13 +5658,15 @@ export class DatabaseStorage implements IStorage {
       const fantasyScore = Math.min((avgFantasy / 50) * 100, 100); // 0-50 fantasy pts mapped to 0-100
 
       const compositeScore = priceMomentumScore * 0.4 + volumeScore * 0.3 + fantasyScore * 0.3;
+      const market = canonicalMarkets.get(player.id);
 
       return {
         playerId: player.id,
         name: `${player.firstName} ${player.lastName}`,
         team: player.team,
         position: player.position,
-        price: parseFloat(player.lastTradePrice || player.currentPrice || "0"),
+        price: market?.marketPrice ?? null,
+        marketStatus: market?.marketStatus || "unpriced",
         priceChange7d: priceChange, // Using 24h as proxy for now
         volume,
         avgFantasyPoints: avgFantasy,
@@ -6434,9 +6341,12 @@ export class DatabaseStorage implements IStorage {
     const player = await this.getPlayer(playerId);
     if (!player) throw new Error("Player not found");
 
-    const seasonStats = await this.getPlayerSeasonStatsFromLogs(playerId);
+    const [seasonStats, market] = await Promise.all([
+      this.getPlayerSeasonStatsFromLogs(playerId),
+      getCanonicalPlayerMarket(playerId),
+    ]);
     const avgFantasyPoints = seasonStats ? Number(seasonStats.avgFantasyPointsPerGame) : 0;
-    const currentPrice = player.lastTradePrice ? Number(player.lastTradePrice) : 0;
+    const currentPrice = market?.marketPrice || 0;
 
     // --- P/E INDEX CALCULATION ---
     // 1. Calculate Player P/E
@@ -6498,8 +6408,7 @@ export class DatabaseStorage implements IStorage {
     // Simple heuristic for now until we have global rank query
     // Top tier > $100k cap (assuming lots of shares * price)
     // This is a placeholder logic that should eventually be a percentile query
-    const totalShares = await this.getTotalSharesForPlayer(playerId);
-    const mktCap = totalShares * currentPrice;
+    const mktCap = market?.marketCap || 0;
 
     let tier: "blue_chip" | "mid_cap" | "moonshot" = "mid_cap";
     if (mktCap > 50000) tier = "blue_chip";
@@ -6596,7 +6505,7 @@ export class DatabaseStorage implements IStorage {
         position: players.position,
         sport: players.sport,
         currentPrice: ammSpotPriceTextExpr,
-        lastTradePrice: sql<string>`COALESCE(${players.lastTradePrice}, ${ammSpotPriceNumericExpr})::text`,
+        lastTradePrice: players.lastTradePrice,
         volume24h: players.volume24h,
         priceChange24h: players.priceChange24h,
         marketCap: players.marketCap,
@@ -6609,6 +6518,10 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(playerGameStats, eq(players.id, playerGameStats.playerId))
       .where(whereClause)
       .groupBy(players.id, playerPools.playerId, playerPools.shares, playerPools.playMoney);
+
+    const canonicalMarkets = await getCanonicalPlayerMarkets(
+      activePlayers.map((player) => player.id),
+    );
 
     // 2. Bulk Fetch Sentiment (AMM-only) based on executed pool trades in last 24h
     const sentimentStats = await db
@@ -6626,7 +6539,8 @@ export class DatabaseStorage implements IStorage {
     // 3. Process Metrics
     const LEAGUE_AVG_PE = 0.43;
     const processed = activePlayers.map((p) => {
-      const price = parseFloat(p.lastTradePrice as string);
+      const market = canonicalMarkets.get(p.id);
+      const price = market?.marketPrice || 0;
       const avgFP = p.avgPoints ? parseFloat(p.avgPoints) : 0;
       const peRatio = avgFP > 0 ? price / avgFP : 0;
       const valueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
@@ -6640,6 +6554,10 @@ export class DatabaseStorage implements IStorage {
       return {
         player: {
           ...p,
+          marketStatus: market?.marketStatus || "unpriced",
+          marketPrice: market?.marketPrice ?? null,
+          currentPrice: market?.marketPrice?.toFixed(2) ?? null,
+          marketCap: market?.marketCap?.toFixed(2) ?? null,
           status: "active",
           totalSharesOutstanding: 0,
           totalHolders: 0,

@@ -74,7 +74,7 @@ function getFairPrice(player: {
   currentPrice: string | null;
   lastTradePrice: string | null;
 }): number {
-  const price = player.lastTradePrice || player.currentPrice || "0.00";
+  const price = player.currentPrice || "0.00";
   return parseFloat(price);
 }
 

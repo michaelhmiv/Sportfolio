@@ -177,7 +177,7 @@ function toHighlight(
     team: signal.team,
     sport: "",
     href: `/player/${signal.playerId}`,
-    currentPrice: roundToTwo(signal.currentPrice),
+    currentPrice: signal.currentPrice == null ? null : roundToTwo(signal.currentPrice),
     priceChange24h: roundToTwo(signal.priceChange24h),
     note: signal.note,
     metricLabel,
@@ -219,7 +219,12 @@ export function buildMarketActivityFeed({
     const playerName = getPlayerName(item);
     const quantity = toNumber(item.quantity);
     const price = toNumber(item.price);
-    const currentPrice = toNumber(item.currentPrice) || signal?.currentPrice || price;
+    const currentPrice =
+      item.currentPrice != null
+        ? toNumber(item.currentPrice)
+        : signal?.marketStatus === "priced"
+          ? signal.currentPrice
+          : null;
     const notional = roundToTwo(quantity * price);
     const gameState = (signal?.gameStatus || "none") as MarketActivityGameState;
     const poolTvl = roundToTwo(signal?.poolTvl || 0);
@@ -259,7 +264,8 @@ export function buildMarketActivityFeed({
 
     const tags = Array.from(signalTags);
     const primarySignal = getPrimarySignal(tags);
-    const spotMovePct = price > 0 ? roundToTwo(((currentPrice - price) / price) * 100) : 0;
+    const spotMovePct =
+      price > 0 && currentPrice != null ? roundToTwo(((currentPrice - price) / price) * 100) : 0;
     const activityScore = roundToTwo(
       Math.abs(signal?.priceChange24h || 0) * ACTIVITY_SCORE_PRICE_CHANGE_WEIGHT +
         Math.log10(Math.max(notional, 1)) * ACTIVITY_SCORE_NOTIONAL_WEIGHT +
@@ -300,7 +306,7 @@ export function buildMarketActivityFeed({
       sellerUsername: item.sellerUsername,
       quantity: roundToTwo(quantity),
       price: roundToTwo(price),
-      currentPrice: roundToTwo(currentPrice),
+      currentPrice: currentPrice == null ? null : roundToTwo(currentPrice),
       notional,
       side: getSide(item),
       gameState,

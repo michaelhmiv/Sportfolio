@@ -24,6 +24,17 @@ interface UserPortfolioData {
   totalNetWorth: number;
 }
 
+export function buildDailySnapshotPortfolioData(
+  rows: Array<{ userId: string; balance: string; portfolioValue: number }>,
+): UserPortfolioData[] {
+  return rows.map((user) => ({
+    userId: user.userId,
+    cashBalance: user.balance,
+    portfolioValue: user.portfolioValue,
+    totalNetWorth: parseFloat(user.balance) + user.portfolioValue,
+  }));
+}
+
 export async function dailySnapshot(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[daily_snapshot] Starting daily portfolio snapshot...");
 
@@ -63,12 +74,7 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     // Use the optimized storage method that performs a single JOIN query
     const allUsersData = await storage.getAllUsersForRanking();
 
-    const userPortfolioData: UserPortfolioData[] = allUsersData.map((user) => ({
-      userId: user.userId,
-      cashBalance: user.balance,
-      portfolioValue: user.portfolioValue,
-      totalNetWorth: parseFloat(user.balance) + user.portfolioValue,
-    }));
+    const userPortfolioData = buildDailySnapshotPortfolioData(allUsersData);
 
     console.log(
       `[daily_snapshot] Calculated portfolio values for ${userPortfolioData.length} users`,

@@ -411,4 +411,22 @@ describe("buildMobileMarketOverview", () => {
     expect(overview.nowMoving[0]?.gameStatus).toBe("none");
     expect(overview.marketIndicators.volatilityIndex).toBeGreaterThan(0);
   });
+
+  it("does not present a historical last trade as a live price without an AMM pool", async () => {
+    const overview = await buildMobileMarketOverview(
+      { sport: "NBA" },
+      {
+        ...baseDeps,
+        getBatchPoolData: async () => new Map(),
+      },
+    );
+
+    const signal = overview.nowMoving.find((entry) => entry.playerId === playerOne.id);
+    expect(playerOne.lastTradePrice).toBe("30.00");
+    expect(signal).toMatchObject({
+      currentPrice: null,
+      marketStatus: "unpriced",
+    });
+    expect(overview.ticker).toHaveLength(0);
+  });
 });

@@ -9,6 +9,12 @@ import {
 } from "../amm/pool";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { storage } from "../storage";
+import {
+  getCanonicalPlayerMarket,
+  getCanonicalPortfolioValuation,
+  getCanonicalPortfolioTotals,
+  type CanonicalPortfolioValuation,
+} from "../valuation/canonical-valuation";
 
 export type NativeToolInput = {
   toolName: string;
@@ -44,19 +50,17 @@ async function requirePlayer(playerId: string) {
   return player;
 }
 
-function summarizeHoldingRows(rows: any[]) {
-  const marketValue = rows.reduce((sum, row) => {
-    const quantity = Number(row.quantity ?? row.effectiveShares ?? 0);
-    const price = Number(row.player?.currentPrice ?? row.currentPrice ?? 0);
-    return sum + quantity * price;
-  }, 0);
+export function buildNativePortfolioSummary(
+  valuation: CanonicalPortfolioValuation,
+  availableBalance: number,
+) {
   return {
-    holdingCount: rows.length,
-    totalQuantity: rows.reduce(
-      (sum, row) => sum + Number(row.quantity ?? row.effectiveShares ?? 0),
-      0,
-    ),
-    estimatedMarketValue: marketValue,
+    ...getCanonicalPortfolioTotals(valuation),
+    availableBalance,
+    holdingCount: valuation.positionCount,
+    holdings: valuation.positions,
+    lpPositions: valuation.lpPositions,
+    warnings: valuation.warnings,
   };
 }
 
@@ -76,26 +80,26 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
       };
     }
     case "get_portfolio_summary": {
-      const [user, rows] = await Promise.all([
-        storage.getUser(input.userId),
-        storage.getUserHoldingsWithPlayers(input.userId),
+      const [valuation, availableBalance] = await Promise.all([
+        getCanonicalPortfolioValuation(input.userId),
+        storage.getAvailableBalance(input.userId),
       ]);
-      if (!user) throw new Error("User not found");
+      if (!valuation) throw new Error("User not found");
       return {
         summary: "Loaded portfolio summary.",
-        availableBalance: await storage.getAvailableBalance(input.userId),
-        cashBalance: Number(user.balance || 0),
-        ...summarizeHoldingRows(rows),
-        holdings: rows,
+        ...buildNativePortfolioSummary(valuation, availableBalance),
       };
     }
     case "get_holdings": {
-      const rows = await storage.getUserHoldingsWithPlayers(input.userId);
+      const valuation = await getCanonicalPortfolioValuation(input.userId);
+      if (!valuation) throw new Error("User not found");
       const sport = optionalText(args.sport)?.toUpperCase();
       const limit = Math.min(100, positiveInt(args.limit, 100) || 100);
       const filtered = sport
-        ? rows.filter((row) => text(row.player?.sport).toUpperCase() === sport)
-        : rows;
+        ? valuation.positions.filter(
+            (position) => text(position.player.sport).toUpperCase() === sport,
+          )
+        : valuation.positions;
       return filtered.slice(0, limit);
     }
     case "get_trade_history":
@@ -130,7 +134,20 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
     case "get_player_detail": {
       const playerId = text(args.playerId);
       if (!playerId) throw new Error("playerId is required");
-      return requirePlayer(playerId);
+      const [player, market] = await Promise.all([
+        requirePlayer(playerId),
+        getCanonicalPlayerMarket(playerId),
+      ]);
+      return {
+        ...player,
+        marketStatus: market?.marketStatus || "unpriced",
+        marketPrice: market?.marketPrice ?? null,
+        priceSource: market?.priceSource ?? null,
+        poolInitialized: market?.poolInitialized || false,
+        poolTvl: market?.poolTvl ?? null,
+        marketCap: market?.marketCap ?? null,
+        lastTradePrice: player.lastTradePrice,
+      };
     }
     case "get_player_stats": {
       const playerId = text(args.playerId);
@@ -154,14 +171,20 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
       const playerId = text(args.playerId);
       if (!playerId) throw new Error("playerId is required");
       await requirePlayer(playerId);
-      const [sharesOutstanding, availableShares, breakdown] = await Promise.all([
-        storage.getPlayerSharesOutstanding([playerId]),
+      const [market, availableShares, breakdown] = await Promise.all([
+        getCanonicalPlayerMarket(playerId),
         storage.getAvailableShares(input.userId, "player", playerId),
         storage.getPlayerShareBreakdown(input.userId, playerId),
       ]);
       return {
         playerId,
-        sharesOutstanding: sharesOutstanding.get(playerId) || 0,
+        marketStatus: market?.marketStatus || "unpriced",
+        marketPrice: market?.marketPrice ?? null,
+        priceSource: market?.priceSource ?? null,
+        liquidUserShares: market?.liquidUserShares || 0,
+        poolShareReserve: market?.shareReserve ?? null,
+        liquidSharesOutstanding: market?.liquidSharesOutstanding || 0,
+        marketCap: market?.marketCap ?? null,
         availableShares,
         breakdown,
       };
@@ -213,8 +236,26 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
       const playerId = text(args.playerId);
       if (!playerId) throw new Error("playerId is required");
       await requirePlayer(playerId);
-      const pool = await getPool(playerId);
-      return pool ? { ...pool, poolInitialized: true } : { playerId, poolInitialized: false };
+      const [pool, market] = await Promise.all([
+        getPool(playerId),
+        getCanonicalPlayerMarket(playerId),
+      ]);
+      return pool
+        ? {
+            ...pool,
+            poolInitialized: true,
+            marketStatus: market?.marketStatus || "unpriced",
+            marketPrice: market?.marketPrice ?? null,
+            priceSource: market?.priceSource ?? null,
+            poolTvl: market?.poolTvl ?? null,
+          }
+        : {
+            playerId,
+            poolInitialized: false,
+            marketStatus: "unpriced",
+            marketPrice: null,
+            priceSource: null,
+          };
     }
     case "get_amm_trade_quote": {
       const playerId = text(args.playerId);
@@ -258,12 +299,11 @@ export async function runNativeScanTool(input: NativeToolInput): Promise<unknown
       };
     }
     case "scan_portfolio_cleanup_levers": {
-      const holdings = await storage.getUserHoldingsWithPlayers(input.userId);
-      const ranked = [...holdings]
-        .sort((a, b) => Number(a.quantity || 0) - Number(b.quantity || 0))
-        .slice(0, 15);
+      const valuation = await getCanonicalPortfolioValuation(input.userId);
+      if (!valuation) throw new Error("User not found");
+      const ranked = [...valuation.positions].sort((a, b) => a.singles - b.singles).slice(0, 15);
       return {
-        summary: `Reviewed ${holdings.length} portfolio holdings.`,
+        summary: `Reviewed ${valuation.positions.length} portfolio positions.`,
         cleanupCandidates: ranked,
       };
     }

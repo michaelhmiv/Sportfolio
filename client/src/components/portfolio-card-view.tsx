@@ -28,10 +28,13 @@ interface PlayerGroup {
   stacked: ShareBreakdown[];
   totalShares: number;
   totalPower: string;
+  stackPower: number;
   currentValue: string;
   pnl: string;
   pnlPercent: string;
   avgCostBasis: string;
+  marketStatus: "priced" | "unpriced";
+  marketPrice: number | null;
 }
 
 interface PortfolioCardViewProps {
@@ -72,10 +75,7 @@ export function PortfolioCardView({
 
   const getSortValue = (group: PlayerGroup): string => {
     const singlesCount = group.regular?.quantity || 0;
-    const stackPower = group.stacked.reduce(
-      (sum, share) => sum + share.multiplier * share.quantity,
-      0,
-    );
+    const stackPower = group.stackPower;
 
     switch (sortField) {
       case "quantity":
@@ -84,15 +84,17 @@ export function PortfolioCardView({
       case "stackPower":
         return `${stackPower.toFixed(2)}p`;
       case "value":
-        return `$${group.currentValue}`;
+        return group.marketStatus === "unpriced" ? "Unpriced" : `$${group.currentValue}`;
       case "pnl":
-        return `${parseFloat(group.pnl) >= 0 ? "+" : ""}$${group.pnl}`;
+        return group.marketStatus === "unpriced"
+          ? "Unpriced"
+          : `${parseFloat(group.pnl) >= 0 ? "+" : ""}$${group.pnl}`;
       case "avgCost":
         return `$${group.avgCostBasis}`;
       case "price":
-        return `$${parseFloat(group.player.lastTradePrice || "0").toFixed(2)}`;
+        return group.marketPrice == null ? "Unpriced" : `$${group.marketPrice.toFixed(2)}`;
       default:
-        return `$${group.currentValue}`;
+        return group.marketStatus === "unpriced" ? "Unpriced" : `$${group.currentValue}`;
     }
   };
 
@@ -126,15 +128,10 @@ export function PortfolioCardView({
     <>
       <div className="grid grid-cols-3 gap-2 p-2">
         {holdings.map((group) => {
-          const hasStackedShares = group.stacked.length > 0;
+          const hasStackedShares = group.stackPower > 0;
           const availableToStack = group.regular?.availableQuantity || 0;
           const canStackShares = availableToStack >= 4;
           const effectiveShares = parseFloat(group.totalPower);
-          const maxMultiplier =
-            group.stacked.length > 0
-              ? Math.max(...group.stacked.map((share) => share.multiplier))
-              : 0;
-
           const lpPosition = lpPositions?.find((entry) => entry.playerId === group.player.id);
           const lpShares = lpPosition ? Math.round(lpPosition.equivalentShares || 0) : 0;
 
@@ -151,7 +148,7 @@ export function PortfolioCardView({
                       className={`${getMultiplierTierColor(effectiveShares)} h-4 cursor-pointer px-1 py-0 text-[10px] hover:opacity-80`}
                       onClick={(event) => handleMultiplierBadgeClick(event, group)}
                     >
-                      {group.totalPower} effective
+                      {group.totalPower} gameplay power
                     </Badge>
                   ) : (
                     <div className="h-4" />
@@ -185,10 +182,12 @@ export function PortfolioCardView({
                 </div>
 
                 <div className="mb-1 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
-                  <span>{group.totalShares} shr</span>
+                  <span>{group.totalShares} Singles</span>
                   {lpShares > 0 && <span className="text-category-liquidity">({lpShares}p)</span>}
                   {hasStackedShares && (
-                    <span className="text-category-stacking">Stacked {maxMultiplier}x</span>
+                    <span className="text-category-stacking">
+                      {formatShareCount(group.stackPower)}p Stack Power
+                    </span>
                   )}
                 </div>
 
@@ -223,7 +222,7 @@ export function PortfolioCardView({
       <Dialog open={!!selectedPlayer} onOpenChange={() => setSelectedPlayer(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Stacking Breakdown</DialogTitle>
+            <DialogTitle>Power Breakdown</DialogTitle>
           </DialogHeader>
 
           {selectedPlayer && (
@@ -251,7 +250,7 @@ export function PortfolioCardView({
                       <Badge
                         className={`${getMultiplierTierColor(parseFloat(selectedPlayer.totalPower))} text-sm`}
                       >
-                        {selectedPlayer.totalPower} effective
+                        {selectedPlayer.totalPower} gameplay power
                       </Badge>
                     </div>
 
@@ -272,6 +271,23 @@ export function PortfolioCardView({
                             <div className="text-sm text-muted-foreground">
                               {formatShareCount(selectedPlayer.regular.availableQuantity)} unlocked
                             </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedPlayer.stackPower > 0 && (
+                        <div className="flex items-center justify-between rounded-compact border border-category-stacking/30 bg-category-stacking/10 p-3">
+                          <div className="flex items-center gap-3">
+                            <div className="h-3 w-3 rounded-compact bg-category-stacking" />
+                            <div>
+                              <div className="font-medium text-content">Stack Power</div>
+                              <div className="text-sm text-muted-foreground">
+                                Non-tradeable gameplay inventory
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-lg font-mono font-bold text-category-stacking">
+                            {formatShareCount(selectedPlayer.stackPower)}p
                           </div>
                         </div>
                       )}
