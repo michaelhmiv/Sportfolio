@@ -1,9 +1,9 @@
 /**
  * Daily Portfolio Snapshot Job
  *
- * Takes daily snapshots of all users' portfolio metrics for historical tracking.
- * The ET business day is represented by a stable UTC-midnight snapshot key so
- * existing analytics queries retain one comparable date value per day.
+ * Takes close snapshots of all users' portfolio metrics for historical tracking.
+ * The completed ET business day is represented by a stable UTC-midnight key so
+ * market and portfolio history share the same close-date convention.
  */
 
 import { storage } from "../storage";
@@ -12,7 +12,7 @@ import type { ProgressCallback } from "../lib/admin-stream";
 import { eq } from "drizzle-orm";
 import { portfolioSnapshots } from "@shared/schema";
 import { db } from "../db";
-import { getTodayET } from "../lib/time";
+import { getPreviousETBusinessDay } from "./market-snapshot";
 
 interface UserPortfolioData {
   userId: string;
@@ -37,14 +37,14 @@ function snapshotKeyForDate(date: string): Date {
 }
 
 export async function dailySnapshot(progressCallback?: ProgressCallback): Promise<JobResult> {
-  const targetDate = getTodayET();
+  const targetDate = getPreviousETBusinessDay();
   const snapshotDate = snapshotKeyForDate(targetDate);
-  console.log(`[daily_snapshot] Starting portfolio snapshot for ${targetDate} ET...`);
+  console.log(`[daily_snapshot] Starting portfolio close snapshot for ${targetDate} ET...`);
 
   progressCallback?.({
     type: "info",
     timestamp: new Date().toISOString(),
-    message: `Starting portfolio snapshot for ${targetDate} ET`,
+    message: `Starting portfolio close snapshot for ${targetDate} ET`,
   });
 
   let snapshotsCreated = 0;
@@ -69,7 +69,7 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
       .sort((a, b) => b.totalNetWorth - a.totalNetWorth)
       .forEach((user, index) => netWorthRankMap.set(user.userId, index + 1));
 
-    // A rerun for the same ET business day replaces that day's portfolio snapshot
+    // A rerun for the same completed ET business day replaces that day's close
     // atomically at the day level instead of creating duplicate history rows.
     await db.delete(portfolioSnapshots).where(eq(portfolioSnapshots.snapshotDate, snapshotDate));
 
@@ -106,7 +106,7 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     progressCallback?.({
       type: "complete",
       timestamp: new Date().toISOString(),
-      message: `Portfolio snapshot completed for ${targetDate}: ${snapshotsCreated} rows`,
+      message: `Portfolio close snapshot completed for ${targetDate}: ${snapshotsCreated} rows`,
       data: {
         success: errorCount === 0,
         summary: { snapshotsCreated, errors: errorCount },
