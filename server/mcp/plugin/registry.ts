@@ -63,6 +63,37 @@ const envelopeOutputSchema: RawSchema = {
   warnings: z.array(z.string().max(500)).max(20),
 };
 
+const playerBatchResolveInputSchema: RawSchema = {
+  queries: z
+    .array(
+      z
+        .object({
+          query: z.string().trim().min(1).max(120),
+          sport: z.string().trim().min(2).max(16).optional(),
+          team: z.string().trim().min(1).max(80).optional(),
+          position: z.string().trim().min(1).max(40).optional(),
+        })
+        .strict(),
+    )
+    .min(1)
+    .max(12),
+  limitPerQuery: z.number().int().min(1).max(5).optional().default(3),
+};
+
+const scoutBatchInputSchema: RawSchema = {
+  assignments: z
+    .array(
+      z
+        .object({
+          playerId: z.string().min(1).max(160),
+          targetCount: z.number().int().min(0).max(10),
+        })
+        .strict(),
+    )
+    .min(1)
+    .max(10),
+};
+
 function humanizeToolName(name: string): string {
   return name
     .split("_")
@@ -259,6 +290,232 @@ async function registerStaticTools(
   }
 }
 
+function registerPlayerResolutionFastPath(
+  server: McpServer,
+  context: PluginMcpContext,
+  deps: PublicMcpDependencies,
+): void {
+  const toolName = "resolve_players";
+  const title = "Resolve Multiple Players";
+  const securitySchemes = [{ type: "noauth" as const }];
+
+  server.registerTool(
+    toolName,
+    {
+      title,
+      description:
+        "Resolve several player names to canonical Sportfolio player IDs in one bounded call. Use this whenever a request names multiple players instead of calling search_players separately for each name.",
+      inputSchema: playerBatchResolveInputSchema,
+      outputSchema: envelopeOutputSchema,
+      securitySchemes,
+      annotations: {
+        title,
+        readOnlyHint: true,
+        openWorldHint: false,
+        destructiveHint: false,
+      },
+      _meta: {
+        securitySchemes,
+        marketplaceVersion: "v2-fast-path",
+        access: "public",
+        domain: "players",
+        source: "plugin_fast_path",
+        executionModel: "read",
+        confirmationModel: "immediate",
+        requiresConfirmation: false,
+        riskLevel: "low",
+        routeRefs: [],
+        fixtureArgs: {
+          queries: [{ query: "Shohei Ohtani", sport: "MLB" }, { query: "Ryan Blaney" }],
+          limitPerQuery: 3,
+        },
+      },
+    } as any,
+    async (args: Record<string, unknown>) => {
+      const startedAt = Date.now();
+      try {
+        const queries = Array.isArray(args.queries)
+          ? args.queries.map((entry) => entry as Record<string, unknown>)
+          : [];
+        const limitPerQuery = Math.min(5, Math.max(1, Number(args.limitPerQuery) || 3));
+        const userId = context.auth?.userId || "plugin-public-user";
+        const resolved = await withPluginDeadline(
+          Promise.all(
+            queries.map(async (query) => ({
+              query: String(query.query || ""),
+              result: await executePublicTool({ userId, deps }, "search_players", {
+                query: String(query.query || ""),
+                ...(query.sport ? { sport: String(query.sport) } : {}),
+                ...(query.team ? { team: String(query.team) } : {}),
+                ...(query.position ? { position: String(query.position) } : {}),
+                limit: limitPerQuery,
+              }),
+            })),
+          ),
+        );
+        const result = toPluginToolResult(
+          {
+            summary: `Resolved ${resolved.length} player name${resolved.length === 1 ? "" : "s"}.`,
+            queries: resolved,
+          },
+          "Player resolution completed.",
+        );
+        observePluginMcpTool({
+          tool: toolName,
+          status: "success",
+          access: "public",
+          durationMs: Date.now() - startedAt,
+          outputBytes: outputSize(result),
+        });
+        return result as any;
+      } catch (error) {
+        const timeout = error instanceof PluginDeadlineError;
+        observePluginMcpTool({
+          tool: toolName,
+          status: timeout ? "timeout" : "error",
+          access: "public",
+          durationMs: Date.now() - startedAt,
+        });
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: timeout
+                ? "Sportfolio took too long to resolve the requested players. Try again."
+                : "Sportfolio could not resolve the requested players.",
+            },
+          ],
+          structuredContent: {
+            summary: timeout
+              ? "The player resolution request exceeded its execution deadline."
+              : "Player resolution could not be completed.",
+            data: { code: timeout ? "tool_timeout" : "tool_execution_failed" },
+            warnings: [],
+          },
+        } as any;
+      }
+    },
+  );
+}
+
+function registerScoutBatchFastPath(
+  server: McpServer,
+  context: PluginMcpContext,
+  deps: PublicMcpDependencies,
+): void {
+  const securitySchemes = [{ type: "oauth2" as const, scopes: ["openid"] }];
+  const toolName = "stage_scout_assignments";
+  const title = "Stage Scout Assignments";
+
+  server.registerTool(
+    toolName,
+    {
+      title,
+      description:
+        "Stage multiple scout assignment target counts as one exact bundle for a single confirmation. Use this instead of repeated stage_scout_assignment calls when changing more than one player.",
+      inputSchema: scoutBatchInputSchema,
+      outputSchema: envelopeOutputSchema,
+      securitySchemes,
+      annotations: {
+        title,
+        readOnlyHint: false,
+        openWorldHint: false,
+        destructiveHint: false,
+      },
+      _meta: {
+        securitySchemes,
+        marketplaceVersion: "v2-fast-path",
+        access: "oauth",
+        domain: "scouting",
+        source: "plugin_fast_path",
+        executionModel: "staged_write",
+        confirmationModel: "staged_confirmation",
+        requiresConfirmation: true,
+        riskLevel: "medium",
+        routeRefs: [],
+        fixtureArgs: {
+          assignments: [
+            { playerId: "player_1", targetCount: 1 },
+            { playerId: "player_2", targetCount: 1 },
+          ],
+        },
+      },
+    } as any,
+    async (args: Record<string, unknown>) => {
+      if (!context.auth?.userId) {
+        return pluginMcpAuthError(getPluginOAuthConfig(), {
+          error: "invalid_token",
+          description: "Connect your Sportfolio account to change scout assignments.",
+        }) as any;
+      }
+
+      const startedAt = Date.now();
+      try {
+        const assignments = Array.isArray(args.assignments)
+          ? args.assignments.map((entry) => {
+              const assignment = entry as Record<string, unknown>;
+              return {
+                playerId: String(assignment.playerId || ""),
+                targetCount: Number(assignment.targetCount),
+              };
+            })
+          : [];
+        const raw = await withPluginDeadline(
+          deps.stageGameplayTransaction({
+            userId: context.auth.userId,
+            action: { actionType: "scout_set_counts", assignments },
+          }),
+        );
+        const result = toPluginToolResult(raw, "Scout assignment bundle staged for confirmation.");
+        observePluginMcpTool({
+          tool: toolName,
+          status: "success",
+          access: "oauth",
+          durationMs: Date.now() - startedAt,
+          outputBytes: outputSize(result),
+        });
+        return result as any;
+      } catch (error) {
+        const timeout = error instanceof PluginDeadlineError;
+        observePluginMcpTool({
+          tool: toolName,
+          status: timeout ? "timeout" : "error",
+          access: "oauth",
+          durationMs: Date.now() - startedAt,
+        });
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: timeout
+                ? "Sportfolio took too long to stage the scout changes. Try again."
+                : "Sportfolio could not stage the scout assignment bundle.",
+            },
+          ],
+          structuredContent: {
+            summary: timeout
+              ? "The scout staging request exceeded its execution deadline."
+              : "The scout assignment bundle could not be staged.",
+            data: { code: timeout ? "tool_timeout" : "tool_execution_failed" },
+            warnings: [],
+          },
+        } as any;
+      }
+    },
+  );
+}
+
+function registerPluginFastPathTools(
+  server: McpServer,
+  context: PluginMcpContext,
+  deps: PublicMcpDependencies,
+): void {
+  registerPlayerResolutionFastPath(server, context, deps);
+  registerScoutBatchFastPath(server, context, deps);
+}
+
 export async function registerPluginMarketplaceSurface(
   server: McpServer,
   context: PluginMcpContext,
@@ -266,6 +523,7 @@ export async function registerPluginMarketplaceSurface(
 ): Promise<void> {
   assertPublicMcpSurfaceIntegrity();
   await registerStaticTools(server, context, deps);
+  registerPluginFastPathTools(server, context, deps);
 
   const publicContext = {
     userId: context.auth?.userId || "plugin-public-user",
