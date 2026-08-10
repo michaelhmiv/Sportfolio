@@ -14,6 +14,7 @@ const defaultAssetOrigin = "https://www.sportfolio.market";
 rmSync(assetOutputDir, { recursive: true, force: true });
 mkdirSync(assetOutputDir, { recursive: true });
 
+// ESM splitting keeps the loader tiny and defers each card surface until its view is actually rendered.
 const result = await build({
   entryPoints: { "sportfolio-widget": entryPoint },
   outdir: assetOutputDir,
