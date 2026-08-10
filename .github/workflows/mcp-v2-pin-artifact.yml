@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   pin:
-    if: ${{ !contains(github.event.head_commit.message, 'build: pin MCP v2 runtime dependencies') }}
+    if: "!contains(github.event.head_commit.message, 'build: pin MCP v2 runtime dependencies')"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
