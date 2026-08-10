@@ -10,7 +10,7 @@ import type {
   MarketTapeItem,
 } from "@shared/analytics-market";
 import { db } from "../db";
-import { getTodayET } from "../lib/time";
+import { getETDayBoundaries, getGameDay, getTodayET } from "../lib/time";
 import { storage } from "../storage";
 import {
   getCanonicalPlayerMarkets,
@@ -439,11 +439,16 @@ async function getSnapshotHealth(startDate: Date, endDate: Date): Promise<Market
       AND snapshot_date <= ${new Date(`${endDate.toISOString().slice(0, 10)}T23:59:59.999Z`)}
     ORDER BY snapshot_date ASC
   `);
+  const { startOfDay: todayStart } = getETDayBoundaries(getTodayET());
+  const expectedSnapshot = getGameDay(new Date(todayStart.getTime() - 1));
   const snapshots = rowsOf(result);
   const actual = new Set(
     snapshots.map((row) => String(row.snapshotDate ?? row.snapshot_date).slice(0, 10)),
   );
-  const expectedDates = dateStringsBetween(startDate, endDate);
+  const expectedDates = dateStringsBetween(
+    startDate,
+    new Date(`${expectedSnapshot}T23:59:59.999Z`),
+  );
   const missingDates = expectedDates.filter((date) => !actual.has(date));
   const latest = snapshots[snapshots.length - 1];
   const latestSnapshot = latest
@@ -452,7 +457,7 @@ async function getSnapshotHealth(startDate: Date, endDate: Date): Promise<Market
 
   return {
     latestSnapshot,
-    expectedSnapshot: getTodayET(),
+    expectedSnapshot,
     snapshotCount: snapshots.length,
     missingDates,
     isPartial: missingDates.length > 0,
