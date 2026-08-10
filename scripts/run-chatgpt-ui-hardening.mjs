@@ -32,3 +32,15 @@ const stateAnchor = `      gameInsights: Object.fromEntries(insightResponses.map
 if (!sports.includes(stateAnchor)) throw new Error("score-slate source-state anchor missing");
 sports = sports.replace(stateAnchor, `      gameInsights: insightSourceStates,`);
 writeFileSync(sportsPath, sports);
+
+// Make protocol test failures report the HTTP status/body instead of only a
+// boolean assertion so we can distinguish test-shape errors from server defects.
+const protocolPath = "server/mcp/plugin/ui/protocol-resource.test.ts";
+let protocol = readFileSync(protocolPath, "utf8");
+const httpAnchor = `    expect(response.ok).toBe(true);\n    const text = await response.text();`;
+if (!protocol.includes(httpAnchor)) throw new Error("protocol HTTP assertion anchor missing");
+protocol = protocol.replace(
+  httpAnchor,
+  `    const text = await response.text();\n    if (!response.ok) {\n      throw new Error(\`MCP \${method} returned HTTP \${response.status}: \${text}\`);\n    }`,
+);
+writeFileSync(protocolPath, protocol);
