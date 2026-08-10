@@ -45,6 +45,7 @@ type MarketChipLabel =
 
 type PlayerWithPool = Player & {
   poolInitialized?: boolean;
+  marketStatus?: "priced" | "unpriced";
   currentPrice?: string | number | null;
   priceChange24h?: string | number | null;
   volume24h?: number | null;
@@ -108,7 +109,8 @@ interface MobileMarketSignal {
   lastName: string;
   team: string;
   position: string;
-  currentPrice: number;
+  currentPrice: number | null;
+  marketStatus?: "priced" | "unpriced";
   priceChange24h: number;
   poolTvl: number;
   buyPressure: number;
@@ -402,7 +404,9 @@ function formatBoardMetricValue(
     case "marketCap":
       return formatCompactCurrency(toNumber(player.marketCap));
     case "price":
-      return `$${toNumber(player.currentPrice).toFixed(2)}`;
+      return player.marketStatus === "unpriced" || player.poolInitialized === false
+        ? "Unpriced"
+        : `$${toNumber(player.currentPrice).toFixed(2)}`;
     case "change":
       return formatSignedPercent(toNumber(player.priceChange24h));
     case "tvl":
@@ -428,6 +432,7 @@ function buildPlayerStub(
     team,
     position,
     currentPrice,
+    marketStatus,
     priceChange24h,
     poolTvl,
     buyPressure,
@@ -442,6 +447,7 @@ function buildPlayerStub(
     team: string;
     position: string;
     currentPrice?: number | null;
+    marketStatus?: "priced" | "unpriced";
     priceChange24h?: number | null;
     poolTvl?: number | null;
     buyPressure?: number | null;
@@ -460,7 +466,10 @@ function buildPlayerStub(
     position,
     sport: sport === "ALL" ? "NBA" : sport,
     currentPrice: currentPrice ?? "0",
-    lastTradePrice: String(currentPrice ?? 0),
+    marketStatus:
+      marketStatus ?? (currentPrice == null || currentPrice <= 0 ? "unpriced" : "priced"),
+    poolInitialized: marketStatus !== "unpriced" && currentPrice != null && currentPrice > 0,
+    lastTradePrice: null,
     priceChange24h: String(priceChange24h ?? 0),
     volume24h: 0,
     marketCap: "0",
@@ -552,7 +561,9 @@ function MarketIntelList({
               </div>
             </div>
             <div className="text-right font-mono text-[10px] whitespace-nowrap">
-              ${item.currentPrice.toFixed(2)}
+              {item.marketStatus === "unpriced"
+                ? "Unpriced"
+                : `$${toNumber(item.currentPrice).toFixed(2)}`}
             </div>
             <div
               className={cn(
@@ -949,6 +960,7 @@ export function MarketMobilePoolsBoard({
         team: signal.team,
         position: signal.position,
         currentPrice: signal.currentPrice,
+        marketStatus: signal.marketStatus,
         priceChange24h: signal.priceChange24h,
         poolTvl: signal.poolTvl,
         buyPressure: signal.buyPressure,
@@ -1411,7 +1423,9 @@ export function MarketMobilePoolsBoard({
                       </div>
 
                       <div className="text-right font-mono text-[10px] font-semibold whitespace-nowrap">
-                        ${currentPrice.toFixed(2)}
+                        {player.marketStatus === "unpriced" || player.poolInitialized === false
+                          ? "Unpriced"
+                          : `$${currentPrice.toFixed(2)}`}
                       </div>
 
                       <div className="truncate text-right font-mono text-[10px] uppercase tracking-[0.08em] text-foreground whitespace-nowrap">

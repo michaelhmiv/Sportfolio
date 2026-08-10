@@ -38,7 +38,7 @@ export interface MarketActivityFeedItem {
   sellerUsername: string | null;
   quantity: number;
   price: number;
-  currentPrice: number;
+  currentPrice: number | null;
   notional: number;
   side: MarketActivitySide;
   gameState: MarketActivityGameState;
@@ -66,7 +66,7 @@ export interface MarketActivityHighlight {
   team: string;
   sport: string;
   href: string;
-  currentPrice: number;
+  currentPrice: number | null;
   priceChange24h: number;
   note: string;
   metricLabel: string;

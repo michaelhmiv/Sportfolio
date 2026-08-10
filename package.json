@@ -80,6 +80,7 @@
     "public-tools:audit": "tsx scripts/audit-public-tool-policy.ts",
     "db:migrate:scout-claims": "node scripts/apply-scout-claims-migration.mjs",
     "audit:sports-semantics": "tsx scripts/audit-unified-sports-semantics.ts",
+    "audit:portfolio-valuations": "tsx scripts/audit-portfolio-valuations.ts",
     "governance:capabilities": "tsx scripts/public-capability-governance.ts check",
     "governance:capabilities:snapshot": "tsx scripts/public-capability-governance.ts snapshot",
     "governance:capabilities:update": "tsx scripts/public-capability-governance.ts update",

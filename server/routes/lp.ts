@@ -17,13 +17,16 @@ import {
   removeLiquidity,
   getLpPosition,
   getUserLpPositions,
-  getPool,
   getZapAddQuoteSharesOnly,
   zapAddLiquiditySharesOnly,
   getZapAddQuoteSbOnly,
   zapAddLiquiditySbOnly,
 } from "../amm/pool";
 import { storage } from "../storage";
+import {
+  getCanonicalPlayerMarket,
+  getCanonicalPlayerMarkets,
+} from "../valuation/canonical-valuation";
 
 export function registerLpRoutes(app: Express) {
   // Helper to get user ID from authenticated request
@@ -42,31 +45,36 @@ export function registerLpRoutes(app: Express) {
     try {
       const userId = getUserId(req);
       const positions = await getUserLpPositions(userId);
-
-      // Enrich with player info
-      const enrichedPositions = await Promise.all(
-        positions.map(async (pos) => {
-          const player = await storage.getPlayer(pos.playerId);
-          const pool = await getPool(pos.playerId);
-          return {
-            ...pos,
-            player: player
-              ? {
-                  id: player.id,
-                  name: `${player.firstName} ${player.lastName}`,
-                  team: player.team,
-                  position: player.position,
-                }
-              : null,
-            pool: pool
-              ? {
-                  currentPrice: pool.currentPrice,
-                  totalLpShares: pool.lpSharesTotal,
-                }
-              : null,
-          };
-        }),
-      );
+      const playerIds = positions.map((position) => position.playerId);
+      const [players, markets] = await Promise.all([
+        storage.getPlayersByIds(playerIds),
+        getCanonicalPlayerMarkets(playerIds),
+      ]);
+      const playersById = new Map(players.map((player) => [player.id, player]));
+      const enrichedPositions = positions.map((position) => {
+        const player = playersById.get(position.playerId);
+        const market = markets.get(position.playerId);
+        return {
+          ...position,
+          marketStatus: market?.marketStatus || "unpriced",
+          marketPrice: market?.marketPrice ?? null,
+          positionValue: market?.marketPrice == null ? null : position.positionValue,
+          player: player
+            ? {
+                id: player.id,
+                name: `${player.firstName} ${player.lastName}`,
+                team: player.team,
+                position: player.position,
+              }
+            : null,
+          pool: market?.poolInitialized
+            ? {
+                currentPrice: market.marketPrice,
+                poolTvl: market.poolTvl,
+              }
+            : null,
+        };
+      });
 
       res.json(enrichedPositions);
     } catch (error: any) {
@@ -90,7 +98,10 @@ export function registerLpRoutes(app: Express) {
         return res.json({ position: null });
       }
 
-      const player = await storage.getPlayer(playerId);
+      const [player, market] = await Promise.all([
+        storage.getPlayer(playerId),
+        getCanonicalPlayerMarket(playerId),
+      ]);
 
       res.json({
         position: {
@@ -101,9 +112,13 @@ export function registerLpRoutes(app: Express) {
                 name: `${player.firstName} ${player.lastName}`,
                 team: player.team,
                 position: player.position,
-                currentPrice: player.lastTradePrice,
+                marketStatus: market?.marketStatus || "unpriced",
+                currentPrice: market?.marketPrice ?? null,
               }
             : null,
+          marketStatus: market?.marketStatus || "unpriced",
+          marketPrice: market?.marketPrice ?? null,
+          positionValue: market?.marketPrice == null ? null : position.positionValue,
         },
       });
     } catch (error: any) {

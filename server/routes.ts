@@ -81,6 +81,7 @@ import {
 } from "./market-activity-feed";
 import { registerMarketMobileRoutes } from "./routes/market-mobile";
 import { registerPlayersRoutes } from "./routes/players";
+import { registerPortfolioRoutes } from "./routes/portfolio";
 import { normalizeEtDateParam } from "./routes/players-query";
 import { getPool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
@@ -109,6 +110,13 @@ import { ensureUserApiTokenSchema } from "./api-token-auth";
 import { getLeaderboardReadResponse } from "./leaderboards-read-service";
 import { getBotRuntimeStatus, getBotStats, runBotEngineTick } from "./bot/bot-engine";
 import { buildStackSharesResponsePayload } from "./lib/stack-shares-response";
+import {
+  getCanonicalPlayerMarkets,
+  getCanonicalPlayerMarket,
+  getCanonicalPortfolioValuation,
+  getCanonicalMarketTotals,
+  getCanonicalPortfolioTotals,
+} from "./valuation/canonical-valuation";
 
 // Public route validation includes every sport enabled by the shared product configuration.
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR", "NHL"] as const;
@@ -2050,29 +2058,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
   }
 
-  // Helper: Calculate P&L for holdings - returns null values if no market price exists
-  function calculatePnL(quantity: number, avgCost: string, lastTradePrice: string | null) {
-    // If no market price exists (no trades), return null values
-    if (!lastTradePrice) {
+  async function enrichPlayersWithCanonicalMarkets(playerRows: Player[]) {
+    const markets = await getCanonicalPlayerMarkets(playerRows.map((player) => player.id));
+    return playerRows.map((player) => {
+      const market = markets.get(player.id);
       return {
-        currentValue: null,
-        pnl: null,
-        pnlPercent: null,
+        ...player,
+        lastTradePrice: player.lastTradePrice || null,
+        marketStatus: market?.marketStatus || "unpriced",
+        marketPrice: market?.marketPrice ?? null,
+        priceSource: market?.priceSource ?? null,
+        currentPrice: market?.marketPrice?.toFixed(2) ?? null,
+        marketCap: market?.marketCap?.toFixed(2) ?? null,
+        poolTvl: market?.poolTvl ?? null,
       };
-    }
-
-    const cost = parseFloat(avgCost);
-    const price = parseFloat(lastTradePrice);
-    const totalValue = quantity * price;
-    const totalCost = quantity * cost;
-    const pnl = totalValue - totalCost;
-    const pnlPercent = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
-
-    return {
-      currentValue: totalValue.toFixed(2),
-      pnl: pnl.toFixed(2),
-      pnlPercent: pnlPercent.toFixed(2),
-    };
+    });
   }
 
   // Helper: Sync Whop payments for a user and credit premium shares
@@ -3110,7 +3110,7 @@ ${items}
         const playerMap = new Map(players.map((p) => [p.id, p]));
 
         // Enrich hot players (sync operation, no await needed)
-        const hotPlayers = hotPlayersRaw.map(enrichPlayerWithMarketValue);
+        const hotPlayers = await enrichPlayersWithCanonicalMarkets(hotPlayersRaw);
 
         timings.total = performance.now() - startTime;
         console.log(
@@ -3144,18 +3144,18 @@ ${items}
       }
 
       // Fetch user-specific data in parallel
-      const [userHoldings, boostsData] = await Promise.all([
-        storage.getUserHoldings(user.id),
+      const [portfolioValuation, boostsData] = await Promise.all([
+        getCanonicalPortfolioValuation(user.id),
         getDashboardBoostData(user.id),
       ]);
+      if (!portfolioValuation) return res.status(404).json({ error: "User not found" });
+      const portfolioTotals = getCanonicalPortfolioTotals(portfolioValuation);
 
       // Collect all unique player IDs we need to fetch
       const playerIds = new Set<string>();
 
       // Add holdings player IDs
-      userHoldings.forEach((h) => {
-        if (h.assetType === "player") playerIds.add(h.assetId);
-      });
+      portfolioValuation.positions.forEach((position) => playerIds.add(position.playerId));
 
       // Add recent trades player IDs
       recentTrades.forEach((t) => playerIds.add(t.playerId));
@@ -3172,46 +3172,28 @@ ${items}
       ]);
       const playerMap = new Map(players.map((p) => [p.id, p]));
 
-      // Calculate portfolio value using pre-fetched players
-      // Only count holdings with real market prices (skip placeholder prices)
-      let portfolioValue = 0;
-      for (const holding of userHoldings) {
-        if (holding.assetType === "player") {
-          const player = playerMap.get(holding.assetId);
-          const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity);
-          if (player && player.lastTradePrice) {
-            portfolioValue += effectiveShares * parseFloat(player.lastTradePrice);
-          }
-        }
-      }
+      const portfolioValue = portfolioTotals.portfolioValue;
 
       // Enrich hot players with market values (sync operation using pre-fetched data)
-      const hotPlayers = hotPlayersRaw.map(enrichPlayerWithMarketValue);
+      const hotPlayers = await enrichPlayersWithCanonicalMarkets(hotPlayersRaw);
 
       // Get top 3 holdings by value using pre-fetched players
-      const topHoldings = [];
-      for (const holding of userHoldings) {
-        if (holding.assetType === "player") {
-          const player = playerMap.get(holding.assetId);
-          if (player) {
-            const enrichedPlayer = enrichPlayerWithMarketValue(player);
-            const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity);
-            const { currentValue, pnl, pnlPercent } = calculatePnL(
-              effectiveShares,
-              holding.avgCostBasis,
-              enrichedPlayer.lastTradePrice,
-            );
-            topHoldings.push({
-              player: enrichedPlayer,
-              quantity: effectiveShares.toFixed(2),
-              effectiveShares: effectiveShares.toFixed(2),
-              value: currentValue,
-              pnl,
-              pnlPercent,
-            });
-          }
-        }
-      }
+      const topHoldings = portfolioValuation.positions.map((position) => ({
+        player: {
+          ...position.player,
+          marketStatus: position.marketStatus,
+          marketPrice: position.marketPrice,
+          currentPrice: position.marketPrice?.toFixed(2) ?? null,
+        },
+        quantity: position.singles.toFixed(2),
+        effectiveShares: position.gameplayPower.toFixed(2),
+        singles: position.singles,
+        stackPower: position.stackPower,
+        gameplayPower: position.gameplayPower,
+        value: position.marketValue?.toFixed(2) ?? null,
+        pnl: position.unrealizedChange?.toFixed(2) ?? null,
+        pnlPercent: position.unrealizedChangePercent?.toFixed(2) ?? null,
+      }));
       // Sort by value, putting null values at the end
       topHoldings.sort((a, b) => {
         if (a.value === null && b.value === null) return 0;
@@ -3246,34 +3228,23 @@ ${items}
         ? yesterdaySnapshot.portfolioRank - currentPortfolioRank
         : null;
 
-      const currentNetWorth = parseFloat(user.balance) + portfolioValue;
+      const currentNetWorth = portfolioTotals.netWorth;
       const roundToTwo = (value: number) => Math.round(value * 100) / 100;
       const moverSharesByPlayer = new Map<string, number>();
 
-      for (const holding of userHoldings) {
-        if (holding.assetType !== "player") {
-          continue;
-        }
-
-        const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity || "0");
-        if (effectiveShares <= 0) {
-          continue;
-        }
-
-        moverSharesByPlayer.set(
-          holding.assetId,
-          roundToTwo((moverSharesByPlayer.get(holding.assetId) || 0) + effectiveShares),
-        );
+      for (const position of portfolioValuation.positions) {
+        if (position.singles > 0) moverSharesByPlayer.set(position.playerId, position.singles);
       }
 
       const portfolioMovers24h = Array.from(moverSharesByPlayer.entries())
         .map(([playerId, effectiveShares]) => {
+          const position = portfolioValuation.positions.find((item) => item.playerId === playerId);
           const player = playerMap.get(playerId);
-          if (!player || !player.lastTradePrice) {
+          if (!player || !position || position.marketPrice == null) {
             return null;
           }
 
-          const currentPrice = parseFloat(player.lastTradePrice || "0");
+          const currentPrice = position.marketPrice;
           const priceChange24h = parseFloat(player.priceChange24h || "0");
           if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
             return null;
@@ -3288,7 +3259,12 @@ ${items}
           }
 
           return {
-            player: enrichPlayerWithMarketValue(player),
+            player: {
+              ...player,
+              marketStatus: position.marketStatus,
+              marketPrice: position.marketPrice,
+              currentPrice: position.marketPrice.toFixed(2),
+            },
             effectiveShares,
             currentPrice: roundToTwo(currentPrice),
             priceChange24h: roundToTwo(priceChange24h),
@@ -3299,7 +3275,10 @@ ${items}
           (
             mover,
           ): mover is {
-            player: Player & { lastTradePrice: string | null };
+            player: Player & {
+              marketStatus: "priced" | "unpriced";
+              marketPrice: number;
+            };
             effectiveShares: number;
             currentPrice: number;
             priceChange24h: number;
@@ -3404,7 +3383,10 @@ ${items}
       res.json({
         user: {
           balance: user.balance,
+          valuationVersion: portfolioTotals.valuationVersion,
           portfolioValue: portfolioValue.toFixed(2),
+          singlesMarketValue: portfolioTotals.singlesMarketValue.toFixed(2),
+          lpMarketValue: portfolioTotals.lpMarketValue.toFixed(2),
           netWorth: currentNetWorth.toFixed(2),
           cashRank: currentCashRank,
           portfolioRank: currentPortfolioRank,
@@ -4535,21 +4517,19 @@ ${items}
         LIMIT ${limit};
       `);
 
+      const riserRows = result?.rows || [];
+      const riserMarkets = await getCanonicalPlayerMarkets(riserRows.map((row: any) => row.id));
       res.json(
         withPublicDataHeaders(
           res,
-          (result?.rows || []).map((r: any) => ({
+          riserRows.map((r: any) => ({
             id: r.id,
             firstName: r.firstName,
             lastName: r.lastName,
             team: r.team,
             position: r.position,
-            currentPrice:
-              typeof r.currentPrice === "number"
-                ? r.currentPrice
-                : r.currentPrice != null
-                  ? parseFloat(r.currentPrice)
-                  : null,
+            marketStatus: riserMarkets.get(r.id)?.marketStatus || "unpriced",
+            currentPrice: riserMarkets.get(r.id)?.marketPrice ?? null,
             priceChange24h:
               typeof r.priceChange24h === "number"
                 ? r.priceChange24h
@@ -4572,17 +4552,12 @@ ${items}
       const sport = (req.query.sport as string) || "NBA";
       const players = await storage.getPlayersBySport(sport);
 
-      const playerIds = players.map((p) => p.id);
-      const poolDataMap = await storage.getBatchPoolData(playerIds);
+      const markets = await getCanonicalPlayerMarkets(players.map((player) => player.id));
 
       // Only include players with real AMM pool price data
       const topMarketCap = players
         .map((p) => {
-          const poolData = poolDataMap.get(p.id);
-          const ammSpotPrice =
-            poolData && poolData.shares > 0 && poolData.playMoney > 0
-              ? poolData.playMoney / poolData.shares
-              : null;
+          const market = markets.get(p.id);
 
           return {
             id: p.id,
@@ -4590,9 +4565,10 @@ ${items}
             lastName: p.lastName,
             team: p.team,
             position: p.position,
-            currentPrice: ammSpotPrice,
-            marketCap: parseFloat(p.marketCap),
-            totalShares: p.totalShares,
+            marketStatus: market?.marketStatus || "unpriced",
+            currentPrice: market?.marketPrice ?? null,
+            marketCap: market?.marketCap ?? null,
+            totalShares: market?.liquidSharesOutstanding || 0,
           };
         })
         .filter(
@@ -4600,9 +4576,10 @@ ${items}
             p.currentPrice !== null &&
             Number.isFinite(p.currentPrice) &&
             p.currentPrice > 0 &&
+            p.marketCap !== null &&
             p.marketCap > 0,
         )
-        .sort((a, b) => b.marketCap - a.marketCap)
+        .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0))
         .slice(0, limit);
 
       res.json(
@@ -4634,10 +4611,14 @@ ${items}
           p.last_name AS "lastName",
           p.team AS team,
           p.position AS position,
-          (p.current_price)::float8 AS "currentPrice"
+          (CASE WHEN pp.shares::numeric > 0 AND pp.play_money::numeric > 0
+            THEN pp.play_money::numeric / pp.shares::numeric
+            ELSE NULL END)::float8 AS "currentPrice"
         FROM player_pools pp
         INNER JOIN players p ON p.id = pp.player_id
         WHERE p.is_active = TRUE
+          AND pp.shares::numeric > 0
+          AND pp.play_money::numeric > 0
           AND ${sportFilter}
         ORDER BY tvl DESC
         LIMIT ${limit};
@@ -4685,9 +4666,9 @@ ${items}
     getETDayBoundaries,
     getMarketplaceGameStatus,
     enrichPlayerWithMarketValue,
-    isAmmOnlyMode,
     getMlbPlayerPregameLookup,
     getMlbPitcherMatchupChip,
+    getCanonicalPlayerMarkets,
   });
 
   // Market activity feed
@@ -5091,14 +5072,17 @@ ${items}
         return res.status(404).json({ error: "Player not found" });
       }
 
-      // Enrich with market value
-      const player = await enrichPlayerWithMarketValue(playerRaw);
-
-      // AMM-only parity: player page price should match pool spot price
-      if (isAmmOnlyMode) {
-        const pool = await getPool(player.id);
-        player.lastTradePrice = pool ? pool.currentPrice.toFixed(2) : null;
-      }
+      const market = await getCanonicalPlayerMarket(playerRaw.id);
+      const player = {
+        ...playerRaw,
+        marketStatus: market?.marketStatus || "unpriced",
+        marketPrice: market?.marketPrice ?? null,
+        currentPrice: market?.marketPrice?.toFixed(2) ?? null,
+        priceSource: market?.priceSource ?? null,
+        poolInitialized: market?.poolInitialized || false,
+        poolTvl: market?.poolTvl ?? null,
+        marketCap: market?.marketCap?.toFixed(2) ?? null,
+      };
 
       // Parse time range for chart data (1D, 1W, 1M, 1Y)
       const range = (req.query.range as string) || "1D";
@@ -5359,18 +5343,7 @@ ${items}
         return res.status(404).json({ error: "Player not found" });
       }
 
-      // Calculate total shares outstanding across all users
-      const totalSharesResult = await db
-        .select({ total: sql<number>`COALESCE(SUM(${holdings.quantity}), 0)` })
-        .from(holdings)
-        .where(and(eq(holdings.assetType, "player"), eq(holdings.assetId, player.id)));
-
-      const totalShares = Number(totalSharesResult[0]?.total || 0);
-
-      // Use ONLY last trade price - never fall back to placeholder currentPrice
-      // If no trades have occurred, price and market cap are null
-      const sharePrice = player.lastTradePrice ? parseFloat(player.lastTradePrice) : null;
-      const marketCap = sharePrice !== null ? totalShares * sharePrice : null;
+      const market = await getCanonicalPlayerMarket(player.id);
 
       // Get number of unique holders
       const holdersResult = await db
@@ -5394,9 +5367,16 @@ ${items}
           team: player.team,
         },
         sharesInfo: {
-          totalSharesOutstanding: totalShares,
-          currentSharePrice: sharePrice !== null ? sharePrice.toFixed(2) : null,
-          marketCap: marketCap !== null ? marketCap.toFixed(2) : null,
+          marketStatus: market?.marketStatus || "unpriced",
+          priceSource: market?.priceSource ?? null,
+          poolInitialized: market?.poolInitialized || false,
+          liquidUserShares: market?.liquidUserShares || 0,
+          poolShareReserve: market?.shareReserve ?? null,
+          totalSharesOutstanding: market?.liquidSharesOutstanding || 0,
+          currentSharePrice: market?.marketPrice?.toFixed(2) ?? null,
+          lastTradePrice: player.lastTradePrice,
+          marketCap: market?.marketCap?.toFixed(2) ?? null,
+          poolTvl: market?.poolTvl ?? null,
           totalHolders,
           volume24h: player.volume24h,
           priceChange24h: player.priceChange24h,
@@ -5419,121 +5399,12 @@ ${items}
     }
   });
 
-  // Portfolio
-  app.get("/api/portfolio", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const userState = await loadEffectiveUserState(userId);
-      if (!userState) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const user = userState.user;
-
-      // Optimized: Single JOIN query to get holdings + players + locks
-      const holdingsWithData = await storage.getUserHoldingsWithPlayers(user.id);
-
-      let totalValue = 0;
-      let totalPnL = 0;
-      let totalCost = 0;
-
-      const playerHoldingIds = holdingsWithData
-        .filter((item: any) => item.holding.assetType === "player" && item.player)
-        .map((item: any) => item.player.id.toString());
-
-      const poolDataMap =
-        playerHoldingIds.length > 0 ? await storage.getBatchPoolData(playerHoldingIds) : new Map();
-      const globalScoutMap =
-        playerHoldingIds.length > 0
-          ? await storage.getBatchActiveScoutCounts(playerHoldingIds)
-          : new Map();
-
-      // Group holdings by player to calculate total effective shares
-      const playerEffectiveSharesMap = new Map<string, number>();
-      holdingsWithData
-        .filter((item: any) => item.holding.assetType === "player")
-        .forEach((item: any) => {
-          const playerId = item.holding.assetId;
-          const currentEffectiveShares = playerEffectiveSharesMap.get(playerId) || 0;
-          const holdingEffectiveShares = parseFloat(
-            item.holding.effectiveShares || item.holding.quantity || "0",
-          );
-          playerEffectiveSharesMap.set(playerId, currentEffectiveShares + holdingEffectiveShares);
-        });
-
-      const enrichedHoldings = holdingsWithData.map((item: any) => {
-        const holding = item.holding;
-        const player = item.player;
-        const lockedQuantity = Number(item.totalLocked || 0);
-
-        if (holding.assetType === "player" && player) {
-          const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity || "0");
-          const poolData = poolDataMap.get(player.id);
-          const poolTvl =
-            poolData?.shares && poolData.shares > 0
-              ? poolData.playMoney * 2
-              : poolData?.playMoney || 0;
-
-          // Use effective shares for valuation so stacked shares carry their multiplier exposure.
-          const { currentValue, pnl, pnlPercent } = calculatePnL(
-            effectiveShares,
-            holding.avgCostBasis,
-            player.lastTradePrice,
-          );
-
-          if (currentValue !== null) {
-            totalValue += parseFloat(currentValue);
-            totalPnL += parseFloat(pnl!);
-            totalCost += parseFloat(holding.totalCostBasis);
-          }
-
-          const globalScoutCount = globalScoutMap.get(player.id.toString()) || 0;
-          const totalPlayerEffectiveShares = playerEffectiveSharesMap.get(player.id) || 0;
-
-          return {
-            ...holding,
-            player: {
-              ...player,
-              poolLiquidity: poolData?.playMoney || 0,
-              poolTvl,
-              poolShares: poolData?.shares || 0,
-              poolTotalTrades: poolData?.totalTrades || 0,
-            },
-            currentValue,
-            pnl,
-            pnlPercent,
-            lockedQuantity,
-            availableQuantity: Math.max(0, holding.quantity - lockedQuantity),
-            effectiveShares: effectiveShares.toFixed(2),
-            multiplier: holding.multiplier ?? "1.00",
-            hasStackedShare: Boolean(holding.isStackedShare),
-            totalPlayerEffectiveShares: totalPlayerEffectiveShares.toFixed(2),
-            globalScoutCount,
-          };
-        }
-        return holding;
-      });
-
-      const premiumShares =
-        holdingsWithData.find((item: any) => item.holding.assetType === "premium")?.holding
-          .quantity || 0;
-
-      res.json({
-        balance: user.balance,
-        portfolioValue: totalValue.toFixed(2),
-        totalPnL: totalPnL.toFixed(2),
-        totalPnLPercent: totalCost > 0 ? ((totalPnL / totalCost) * 100).toFixed(2) : "0.00",
-        holdings: enrichedHoldings,
-        premiumShares,
-        isPremium: userState.entitlements.premiumActive,
-        premiumActive: userState.entitlements.premiumActive,
-        premiumExpiresAt: userState.entitlements.premiumExpiresAt,
-        rewardedScoutBoostActive: userState.entitlements.rewardedScoutBoostActive,
-        rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
-        maxScouts: userState.entitlements.maxScouts,
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
+  registerPortfolioRoutes(app, {
+    isAuthenticated,
+    getUserId,
+    loadEffectiveUserState,
+    getCanonicalPortfolioValuation,
+    storage,
   });
 
   // Activity feed - user transactions and activity timeline
@@ -5831,22 +5702,32 @@ ${items}
       const safeLimit = Number.isNaN(parsedLimit) ? 25 : Math.max(1, Math.min(parsedLimit, 50));
 
       const topPlayers = await storage.getTopPlayersByVolume(safeLimit);
+      const canonicalMarkets = await getCanonicalPlayerMarkets(
+        topPlayers.map((player) => player.id),
+      );
       const generatedAt = new Date();
       const mostRecentUpdate = topPlayers
         .map((player) => (player.lastUpdated ? new Date(player.lastUpdated) : null))
         .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
         .sort((a, b) => b.getTime() - a.getTime())[0];
-      const players = topPlayers.map((player) => ({
-        id: player.id,
-        name: `${player.firstName} ${player.lastName}`,
-        team: player.team,
-        sport: player.sport,
-        price: player.lastTradePrice,
-        volume24h: player.volume24h,
-        marketCap: player.marketCap,
-        lastUpdated: player.lastUpdated,
-        canonicalUrl: `/player/${player.id}`,
-      }));
+      const players = topPlayers.map((player) => {
+        const market = canonicalMarkets.get(player.id);
+        return {
+          id: player.id,
+          name: `${player.firstName} ${player.lastName}`,
+          team: player.team,
+          sport: player.sport,
+          marketStatus: market?.marketStatus || "unpriced",
+          price: market?.marketPrice ?? null,
+          priceSource: market?.priceSource ?? null,
+          lastTradePrice: player.lastTradePrice,
+          volume24h: player.volume24h,
+          marketCap: market?.marketCap ?? null,
+          poolTvl: market?.poolTvl ?? null,
+          lastUpdated: player.lastUpdated,
+          canonicalUrl: `/player/${player.id}`,
+        };
+      });
 
       setPublicDataHeaders(res, {
         generatedAt,
@@ -9010,6 +8891,7 @@ ${items}
         allPlayers,
         sportPlayerStats,
         sportTradeStats,
+        canonicalMarketTotals,
       ] = await Promise.all([
         storage.getMarketHealthStats(effectiveStartDate, now),
         storage.getShareEconomyStats(effectiveStartDate, now),
@@ -9038,7 +8920,22 @@ ${items}
           .innerJoin(players, eq(trades.playerId, players.id))
           .where(and(gte(trades.executedAt, effectiveStartDate), lte(trades.executedAt, now)))
           .groupBy(players.sport),
+        getCanonicalMarketTotals(),
       ]);
+
+      const canonicalMarkets = await getCanonicalPlayerMarkets(
+        allPlayers.map((player) => player.id),
+      );
+      const canonicalMarketCapBySport = new Map<string, number>();
+      for (const player of allPlayers) {
+        if (!player.isActive) continue;
+        const sport = String(player.sport || "").toUpperCase();
+        const marketCap = canonicalMarkets.get(player.id)?.marketCap || 0;
+        canonicalMarketCapBySport.set(
+          sport,
+          (canonicalMarketCapBySport.get(sport) || 0) + marketCap,
+        );
+      }
 
       // Calculate percentage changes
       const transactionChange =
@@ -9055,7 +8952,7 @@ ${items}
           : 0;
       const marketCapChange =
         marketHealth.prevTotalMarketCap > 0
-          ? ((marketHealth.totalMarketCap - marketHealth.prevTotalMarketCap) /
+          ? ((canonicalMarketTotals.marketCap - marketHealth.prevTotalMarketCap) /
               marketHealth.prevTotalMarketCap) *
             100
           : 0;
@@ -9068,7 +8965,11 @@ ${items}
           lastName: r.name.split(" ").slice(1).join(" "),
           team: r.team,
           position: r.position,
-          lastTradePrice: r.price.toFixed(2),
+          currentPrice: r.price?.toFixed(2) ?? null,
+          marketPrice: r.price,
+          marketStatus: r.marketStatus,
+          lastTradePrice:
+            allPlayers.find((player) => player.id === r.playerId)?.lastTradePrice ?? null,
           volume24h: r.volume,
           priceChange24h: r.priceChange7d.toFixed(2),
         },
@@ -9091,7 +8992,11 @@ ${items}
               lastName: p.name.split(" ").slice(1).join(" "),
               team: p.team,
               position: p.position,
-              lastTradePrice: p.price.toFixed(2),
+              currentPrice: p.price?.toFixed(2) ?? null,
+              marketPrice: p.price,
+              marketStatus: p.marketStatus,
+              lastTradePrice:
+                allPlayers.find((player) => player.id === p.playerId)?.lastTradePrice ?? null,
               volume24h: p.volume,
               priceChange24h: p.priceChange7d.toFixed(2),
             },
@@ -9144,7 +9049,7 @@ ${items}
           totalPlayers: playerStats?.totalPlayers || 0,
           activePlayers: playerStats?.activePlayers || 0,
           totalVolume24h: parseFloat(playerStats?.totalVolume24h || "0"),
-          totalMarketCap: parseFloat(playerStats?.totalMarketCap || "0"),
+          totalMarketCap: canonicalMarketCapBySport.get(sport) || 0,
           avgPriceChange24h: parseFloat(playerStats?.avgPriceChange24h || "0"),
           tradesInRange: tradeStats?.tradesInRange || 0,
           tradedVolumeInRange: parseFloat(tradeStats?.tradedVolumeInRange || "0"),
@@ -9157,11 +9062,11 @@ ${items}
           transactionChange,
           volume: marketHealth.totalVolume,
           volumeChange,
-          marketCap: marketHealth.totalMarketCap,
+          marketCap: canonicalMarketTotals.marketCap,
           marketCapChange,
           sharesMined: shareEconomy.totalSharesScouted,
           sharesBurned: shareEconomy.totalSharesBurned,
-          totalShares: shareEconomy.totalSharesInEconomy,
+          totalShares: canonicalMarketTotals.totalLiquidShares,
           periodSharesMined: shareEconomy.periodSharesScouted,
           periodSharesBurned: shareEconomy.periodSharesBurned,
           timeSeries,
@@ -9314,14 +9219,14 @@ ${items}
 
       // Get AMM-first comparison data
       const [
-        sharesMap,
+        canonicalMarkets,
         poolDataMap,
         totalBoostsResult,
         boostUsageRows,
         ammStatsRows,
         ammHistoryRows,
       ] = await Promise.all([
-        storage.getPlayerSharesOutstanding(playerIds),
+        getCanonicalPlayerMarkets(playerIds),
         storage.getBatchPoolData(playerIds),
         db
           .select({ count: sql<number>`COUNT(*)` })
@@ -9414,9 +9319,10 @@ ${items}
           const player = await storage.getPlayer(id);
           if (!player) return null;
 
-          const shares = sharesMap.get(id) || 0;
-          const price = parseFloat(player.lastTradePrice || player.currentPrice || "0");
-          const marketCap = shares * price;
+          const market = canonicalMarkets.get(id);
+          const shares = market?.liquidSharesOutstanding || 0;
+          const price = market?.marketPrice ?? null;
+          const marketCap = market?.marketCap ?? null;
           const boostUsage = boostUsageMap.get(id) || { timesUsed: 0, usagePercent: 0 };
           const poolData = poolDataMap.get(id) || {
             shares: 0,
@@ -9435,6 +9341,9 @@ ${items}
             shares,
             marketCap,
             price,
+            marketStatus: market?.marketStatus || "unpriced",
+            priceSource: market?.priceSource ?? null,
+            lastTradePrice: player.lastTradePrice,
             volume: player.volume24h || 0,
             priceChange24h: parseFloat(player.priceChange24h || "0"),
             boostUsagePercent: boostUsage.usagePercent,

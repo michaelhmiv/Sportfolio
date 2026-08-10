@@ -6,8 +6,8 @@ audience: public
 category: gameplay
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-05-31
-changeTriggers: client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts,shared/schema.ts
+lastReviewedAt: 2026-08-10
+changeTriggers: client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts,server/valuation/canonical-valuation.ts,shared/schema.ts
 slug: portfolio-and-holdings
 surface: web
 searchKeywords: portfolio,holdings,singles,stack power,lp,locks,premium,community shares
@@ -16,6 +16,27 @@ searchKeywords: portfolio,holdings,singles,stack power,lp,locks,premium,communit
 # Portfolio and Holdings
 
 Your portfolio is the source of truth for account state: cash, player inventory, LP, premium/community assets, and activity history.
+
+## Valuation Rules
+
+Every current player price comes from the initialized AMM pool:
+
+```
+AMM spot price = pool SB reserve / pool share reserve
+```
+
+An initialized pool is priced even before its first trade. `lastTradePrice` is historical context only. A player without a valid pool is shown as **Unpriced**, never as `$0`.
+
+Financial totals use these boundaries:
+
+- Singles market value = all Singles, including locked Singles, times AMM spot.
+- Stack Power is non-tradeable gameplay power and has no liquid market value.
+- LP market value = the current value of the position's underlying pool shares and SB.
+- Portfolio value = Singles market value + LP market value.
+- Net worth = cash balance + portfolio value.
+- Player market cap = AMM spot × (liquid user Singles + AMM pool share reserve).
+
+LP tokens and Stack Power are excluded from player market cap so the same underlying shares are not counted twice.
 
 ## Core Asset Types
 

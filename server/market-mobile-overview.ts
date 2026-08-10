@@ -8,6 +8,11 @@ import { db } from "./db";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { storage } from "./storage";
 import type { HoldingWithPlayerSummary } from "./storage";
+import {
+  getCanonicalPlayerMarkets,
+  resolveCanonicalPlayerMarket,
+  type CanonicalPlayerMarket,
+} from "./valuation/canonical-valuation";
 
 type GameStatus = "none" | "upcoming" | "live" | "ended";
 type SignalKind =
@@ -86,7 +91,8 @@ export interface MobileMarketSignal {
   lastName: string;
   team: string;
   position: string;
-  currentPrice: number;
+  currentPrice: number | null;
+  marketStatus: "priced" | "unpriced";
   priceChange24h: number;
   poolTvl: number;
   buyPressure: number;
@@ -170,6 +176,7 @@ export interface MarketMobileOverviewDeps {
   getBatchActiveScoutCounts: (playerIds: string[]) => Promise<Map<string, number>>;
   getCommunityBoostsAllSports: (date: Date) => Promise<CommunityBoostLike[]>;
   getPlayersByIds: (playerIds: string[]) => Promise<Player[]>;
+  getCanonicalPlayerMarkets?: (playerIds: string[]) => Promise<Map<string, CanonicalPlayerMarket>>;
   getPlayerFinancialMetrics: (playerId: string) => Promise<{
     heatCheck?: { status?: HeatCheckStatus };
   }>;
@@ -219,6 +226,7 @@ const defaultDeps: MarketMobileOverviewDeps = {
   getBatchActiveScoutCounts: (playerIds) => storage.getBatchActiveScoutCounts(playerIds),
   getCommunityBoostsAllSports: (date) => storage.getCommunityBoostsAllSports(date),
   getPlayersByIds: (playerIds) => storage.getPlayersByIds(playerIds),
+  getCanonicalPlayerMarkets,
   getPlayerFinancialMetrics: (playerId) => storage.getPlayerFinancialMetrics(playerId),
   getWatchList: (userId) => storage.getWatchList(userId),
   getAllHoldingsWithPlayers: (userId) => storage.getAllHoldingsWithPlayers(userId),
@@ -384,7 +392,8 @@ type PlayerContext = {
   sport: string;
   team: string;
   position: string;
-  currentPrice: number;
+  currentPrice: number | null;
+  marketStatus: "priced" | "unpriced";
   priceChange24h: number;
   volume24h: number;
   poolTvl: number;
@@ -502,10 +511,13 @@ async function buildPlayerContextMap(
     return new Map();
   }
 
-  const [playersById, poolMap, scoutCountMap] = await Promise.all([
+  const [playersById, poolMap, scoutCountMap, canonicalMarkets] = await Promise.all([
     deps.getPlayersByIds(dedupedPlayerIds),
     deps.getBatchPoolData(dedupedPlayerIds),
     deps.getBatchActiveScoutCounts(dedupedPlayerIds),
+    deps.getCanonicalPlayerMarkets
+      ? deps.getCanonicalPlayerMarkets(dedupedPlayerIds)
+      : Promise.resolve(new Map<string, CanonicalPlayerMarket>()),
   ]);
 
   const communityBoosts = await deps.getCommunityBoostsAllSports(deps.now());
@@ -550,9 +562,11 @@ async function buildPlayerContextMap(
     const pool = poolMap.get(player.id);
     const scanner = scannerMetrics.get(player.id);
     const game = teamGameMap.get(player.team);
-    const currentPrice =
-      pool && pool.shares > 0 ? pool.playMoney / pool.shares : toNumber(player.lastTradePrice);
-    const poolTvl = pool && pool.shares > 0 ? pool.playMoney * 2 : pool ? pool.playMoney : 0;
+    const canonicalMarket =
+      canonicalMarkets.get(player.id) || resolveCanonicalPlayerMarket({ player, pool });
+    const currentPrice = canonicalMarket.marketPrice;
+    const marketStatus = canonicalMarket.marketStatus;
+    const poolTvl = canonicalMarket.poolTvl ?? 0;
 
     contextMap.set(player.id, {
       playerId: player.id,
@@ -562,6 +576,7 @@ async function buildPlayerContextMap(
       team: player.team,
       position: player.position,
       currentPrice,
+      marketStatus,
       priceChange24h: toNumber(player.priceChange24h),
       volume24h: Number(player.volume24h || 0),
       poolTvl,
@@ -705,7 +720,10 @@ async function buildMobileMarketOverviewInternal(
     .slice(0, 12)
     .map((entry) => {
       const context = contextMap.get(entry.playerId);
-      const price = context?.currentPrice || toNumber(entry.price);
+      const price =
+        context?.marketStatus === "priced" && context.currentPrice != null
+          ? context.currentPrice
+          : 0;
       const quantity = Number(entry.quantity || 0);
       const notional = roundToTwo(price * quantity);
 
@@ -740,7 +758,7 @@ async function buildMobileMarketOverviewInternal(
 
       return {
         ...signal,
-        currentPrice: entry.currentPrice > 0 ? entry.currentPrice : signal.currentPrice,
+        currentPrice: signal.currentPrice,
         priceChange24h: roundToTwo(entry.priceChange24h),
       } satisfies MobileMarketSignal;
     })
@@ -882,7 +900,10 @@ async function buildMobileMarketOverviewInternal(
       }
 
       const quantity = Number(entry.quantity || 0);
-      const price = context.currentPrice || toNumber(entry.price);
+      const price =
+        context.marketStatus === "priced" && context.currentPrice != null
+          ? context.currentPrice
+          : 0;
       const notional = roundToTwo(quantity * price);
       const note =
         notional >= WHALE_ALERT_MIN_VALUE

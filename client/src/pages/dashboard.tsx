@@ -206,8 +206,8 @@ function ActivePositionsToday({
                 eligibleEntry &&
                 !eligibleEntry.isAlreadyBoosted &&
                 eligibleEntry.availableShares > 0;
-              const price = parseFloat(
-                holding.player.lastTradePrice ?? holding.player.currentPrice ?? "0",
+              const price = Number(
+                (holding.player as any).marketPrice ?? holding.player.currentPrice ?? 0,
               );
               const change24h = parseFloat(holding.player.priceChange24h ?? "0");
 

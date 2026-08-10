@@ -308,7 +308,7 @@ function ActivityRow({ activity }: { activity: MarketActivityFeedItem }) {
           </div>
           <div>
             <div className="font-mono text-xs font-semibold">
-              ${activity.currentPrice.toFixed(2)}
+              {activity.currentPrice == null ? "Unpriced" : `$${activity.currentPrice.toFixed(2)}`}
             </div>
             <div className="text-[11px] text-muted-foreground">
               {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}

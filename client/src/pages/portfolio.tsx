@@ -88,23 +88,27 @@ import {
 } from "@/pages/portfolio-stack-feedback";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
+type PortfolioPosition = Holding & {
+  player?: Player & { marketStatus?: "priced" | "unpriced"; marketPrice?: number | null };
+  currentValue: string | null;
+  pnl: string | null;
+  pnlPercent: string | null;
+  lockedQuantity?: number;
+  availableQuantity?: number;
+  isCanonicalPosition: true;
+  singles: number;
+  stackPower: number;
+  gameplayPower: number;
+  stackId?: string | null;
+};
+
 interface PortfolioData {
   balance: string;
   portfolioValue: string;
   totalPnL: string;
   totalPnLPercent: string;
-  holdings: (Holding & {
-    player?: Player;
-    currentValue: string;
-    pnl: string;
-    pnlPercent: string;
-    multiplier?: string;
-    effectiveShares?: string;
-    totalPlayerEffectiveShares?: string;
-    isStackedShare?: boolean;
-    lockedQuantity?: number;
-    availableQuantity?: number;
-  })[];
+  positions: PortfolioPosition[];
+  holdings: Array<PortfolioPosition | Holding>;
   premiumShares: number;
   isPremium: boolean;
   premiumExpiresAt?: string;
@@ -115,7 +119,7 @@ type SortDirection = "asc" | "desc";
 
 const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: "name", label: "Name" },
-  { value: "singles", label: "Shares" },
+  { value: "singles", label: "Singles" },
   { value: "stackPower", label: "Power" },
   { value: "avgCost", label: "Avg Cost" },
   { value: "price", label: "Price" },
@@ -123,34 +127,6 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: "pnl", label: "P&L" },
   { value: "tvl", label: "Pool TVL" },
 ];
-
-// Helper function to calculate P&L
-function calculatePnL(
-  quantity: number,
-  avgCost: string,
-  lastTradePrice: string | null | undefined,
-) {
-  if (!lastTradePrice) {
-    return {
-      currentValue: null,
-      pnl: null,
-      pnlPercent: null,
-    };
-  }
-
-  const cost = parseFloat(avgCost);
-  const price = parseFloat(lastTradePrice);
-  const totalValue = quantity * price;
-  const totalCost = quantity * cost;
-  const pnl = totalValue - totalCost;
-  const pnlPercent = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
-
-  return {
-    currentValue: totalValue.toFixed(2),
-    pnl: pnl.toFixed(2),
-    pnlPercent: pnlPercent.toFixed(2),
-  };
-}
 
 function toFiniteNumber(value: unknown): number {
   const parsed = Number(value);
@@ -396,7 +372,7 @@ export default function Portfolio() {
   // Unique held players for the benchmark selector
   const heldPlayers = useMemo(() => {
     const seen = new Set<string>();
-    return (data?.holdings ?? []).reduce(
+    return (data?.positions ?? []).reduce(
       (acc, h) => {
         const playerId = h.assetId || h.player?.id;
         if (!playerId || seen.has(playerId)) return acc;
@@ -410,7 +386,7 @@ export default function Portfolio() {
       },
       [] as { id: string; name: string }[],
     );
-  }, [data?.holdings]);
+  }, [data?.positions]);
 
   // Clear notifications when viewing Activity tab
   useEffect(() => {
@@ -610,7 +586,7 @@ export default function Portfolio() {
   }
 
   interface PlayerGroup {
-    player: Player;
+    player: Player & { marketStatus?: "priced" | "unpriced"; marketPrice?: number | null };
     regular: ShareBreakdown | null;
     stacked: ShareBreakdown[];
     totalShares: number;
@@ -622,84 +598,46 @@ export default function Portfolio() {
     pnl: string;
     pnlPercent: string;
     avgCostBasis: string;
+    marketStatus: "priced" | "unpriced";
+    marketPrice: number | null;
   }
 
   const playerHoldings: PlayerGroup[] = (() => {
     const playerMap = new Map<string, PlayerGroup>();
 
-    // First pass: group by player
-    data?.holdings
-      .filter((h) => h.assetType === "player" && h.player)
+    data?.positions
+      .filter((holding) => holding.player)
       .forEach((holding) => {
         const playerId = holding.player!.id;
         const player = holding.player!;
-
-        if (!playerMap.has(playerId)) {
-          // Calculate PnL from the first holding for this player
-          const { currentValue, pnl, pnlPercent } = calculatePnL(
-            parseFloat(holding.quantity),
-            holding.avgCostBasis,
-            player.lastTradePrice,
-          );
-
-          playerMap.set(playerId, {
-            player,
-            regular: null,
-            stacked: [],
-            totalShares: 0,
-            totalPower: "0.00",
-            singlesCount: 0,
-            availableSingles: 0,
-            stackPower: 0,
-            currentValue: currentValue || "0.00",
-            pnl: pnl || "0.00",
-            pnlPercent: pnlPercent || "0.00",
-            avgCostBasis: holding.avgCostBasis,
-          });
-        }
-
-        const group = playerMap.get(playerId)!;
-
-        const shareBreakdown: ShareBreakdown = {
-          quantity: parseFloat(holding.quantity),
-          multiplier: parseFloat(holding.multiplier || "1"),
-          effectiveShares: holding.effectiveShares || parseFloat(holding.quantity).toFixed(2),
+        const singles = toFiniteNumber(holding.singles);
+        const stackPower = toFiniteNumber(holding.stackPower);
+        playerMap.set(playerId, {
+          player,
+          regular:
+            singles > 0
+              ? {
+                  quantity: singles,
+                  multiplier: 1,
+                  effectiveShares: singles.toFixed(2),
+                  avgCostBasis: holding.avgCostBasis,
+                  availableQuantity: toFiniteNumber(holding.availableQuantity),
+                  id: holding.id,
+                }
+              : null,
+          stacked: [],
+          totalShares: singles,
+          totalPower: toFiniteNumber(holding.gameplayPower).toFixed(2),
+          singlesCount: singles,
+          availableSingles: toFiniteNumber(holding.availableQuantity),
+          stackPower,
+          currentValue: holding.currentValue ?? "0.00",
+          pnl: holding.pnl ?? "0.00",
+          pnlPercent: holding.pnlPercent ?? "0.00",
           avgCostBasis: holding.avgCostBasis,
-          availableQuantity: Number(holding.availableQuantity || 0),
-          id: holding.id,
-        };
-
-        if (!holding.isStackedShare) {
-          // Regular share - combine quantities and average cost
-          if (group.regular) {
-            const holdingQty = parseFloat(holding.quantity);
-            const totalCost =
-              parseFloat(group.regular.avgCostBasis || "0") * group.regular.quantity +
-              parseFloat(holding.avgCostBasis || "0") * holdingQty;
-            const totalQty = group.regular.quantity + holdingQty;
-            const newAvgCost = totalQty > 0 ? (totalCost / totalQty).toFixed(4) : "0.0000";
-            group.regular = {
-              ...group.regular,
-              quantity: totalQty,
-              avgCostBasis: newAvgCost,
-              effectiveShares: totalQty.toFixed(2),
-              availableQuantity: group.regular.availableQuantity + shareBreakdown.availableQuantity,
-            };
-          } else {
-            group.regular = shareBreakdown;
-          }
-        } else {
-          // Stacked share
-          group.stacked.push(shareBreakdown);
-        }
-
-        // Update totals
-        group.totalShares =
-          (group.regular?.quantity || 0) + group.stacked.reduce((sum, p) => sum + p.quantity, 0);
-        group.singlesCount = group.regular?.quantity || 0;
-        group.availableSingles = group.regular?.availableQuantity || 0;
-        group.stackPower = group.stacked.reduce((sum, p) => sum + p.multiplier * p.quantity, 0);
-        group.totalPower = (group.singlesCount + group.stackPower).toFixed(2);
+          marketStatus: player.marketStatus || "unpriced",
+          marketPrice: player.marketPrice ?? null,
+        });
       });
 
     return Array.from(playerMap.values());
@@ -710,7 +648,7 @@ export default function Portfolio() {
   const sortedHoldings = playerHoldings
     .filter(
       (h) =>
-        (h.totalShares > 0 || parseFloat(h.regular?.effectiveShares || "0") > 0) &&
+        (h.totalShares > 0 || h.stackPower > 0) &&
         (!sport || sport === "ALL" || h.player.sport === sport),
     )
     .slice()
@@ -735,8 +673,8 @@ export default function Portfolio() {
             : parseCurrency(b.avgCostBasis) - parseCurrency(a.avgCostBasis);
         case "price":
           return sortDirection === "asc"
-            ? parseCurrency(a.player.lastTradePrice) - parseCurrency(b.player.lastTradePrice)
-            : parseCurrency(b.player.lastTradePrice) - parseCurrency(a.player.lastTradePrice);
+            ? toFiniteNumber(a.marketPrice) - toFiniteNumber(b.marketPrice)
+            : toFiniteNumber(b.marketPrice) - toFiniteNumber(a.marketPrice);
         case "value":
           return sortDirection === "asc"
             ? parseCurrency(a.currentValue) - parseCurrency(b.currentValue)
@@ -758,21 +696,21 @@ export default function Portfolio() {
   const allStackingCandidates = useMemo(
     () =>
       buildStackingCandidates(
-        data?.holdings || [],
+        data?.positions || [],
         stackingEligibility?.eligiblePlayers || [],
         "ALL",
       ),
-    [data?.holdings, stackingEligibility?.eligiblePlayers],
+    [data?.positions, stackingEligibility?.eligiblePlayers],
   );
 
   const stackingCandidates = useMemo(
     () =>
       buildStackingCandidates(
-        data?.holdings || [],
+        data?.positions || [],
         stackingEligibility?.eligiblePlayers || [],
         sport,
       ),
-    [data?.holdings, stackingEligibility?.eligiblePlayers, sport],
+    [data?.positions, stackingEligibility?.eligiblePlayers, sport],
   );
 
   const selectedStackingCandidate = useMemo(
@@ -1327,7 +1265,7 @@ export default function Portfolio() {
                             data-testid="th-sort-singles"
                           >
                             <span className="flex items-center justify-end">
-                              Shares
+                              Singles
                               <SortIcon field="singles" />
                             </span>
                           </th>
@@ -1337,7 +1275,7 @@ export default function Portfolio() {
                             data-testid="th-sort-power"
                           >
                             <span className="flex items-center justify-end">
-                              Power
+                              Stack Power
                               <SortIcon field="stackPower" />
                             </span>
                           </th>
@@ -1524,7 +1462,9 @@ export default function Portfolio() {
                                                   </span>
                                                 </div>
                                                 <span className="font-mono text-sm font-semibold">
-                                                  ${group.currentValue}
+                                                  {group.marketStatus === "unpriced"
+                                                    ? "Unpriced"
+                                                    : `$${group.currentValue}`}
                                                 </span>
                                               </div>
                                               <div className="flex items-center justify-between gap-2 text-xs">
@@ -1582,7 +1522,7 @@ export default function Portfolio() {
                                               variant="outline"
                                               className="text-[10px] h-4 px-1 border-category-stacking/50 text-category-stacking bg-category-stacking/10"
                                             >
-                                              {group.totalPower} effective
+                                              {group.totalPower} gameplay power
                                             </Badge>
                                           )}
                                         </div>
@@ -1636,7 +1576,7 @@ export default function Portfolio() {
                                   </td>
                                   <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">
                                     <div className="flex flex-col items-end gap-0.5">
-                                      <span title="Shares">
+                                      <span title="Singles">
                                         {formatPortfolioUnits(singlesCount)}
                                       </span>
                                       {availableSingles < singlesCount && (
@@ -1694,14 +1634,22 @@ export default function Portfolio() {
                                     ${group.avgCostBasis}
                                   </td>
                                   <td className="px-2 py-1.5 text-right hidden md:table-cell">
-                                    <AnimatedPrice
-                                      value={parseFloat(group.player.lastTradePrice || "0")}
-                                      size="sm"
-                                      className="font-mono font-bold justify-end"
-                                    />
+                                    {group.marketPrice == null ? (
+                                      <span className="text-xs text-muted-foreground">
+                                        Unpriced
+                                      </span>
+                                    ) : (
+                                      <AnimatedPrice
+                                        value={group.marketPrice}
+                                        size="sm"
+                                        className="font-mono font-bold justify-end"
+                                      />
+                                    )}
                                   </td>
                                   <td className="px-2 py-1.5 text-right font-mono font-bold text-sm hidden xl:table-cell">
-                                    ${group.currentValue}
+                                    {group.marketStatus === "unpriced"
+                                      ? "Unpriced"
+                                      : `$${group.currentValue}`}
                                   </td>
                                 </tr>
 

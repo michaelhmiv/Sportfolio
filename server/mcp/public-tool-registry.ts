@@ -43,6 +43,7 @@ import { CURATED_MLB_TOOLS } from "./providers/mlb/tool-definitions";
 import { redeemPremiumShare } from "../services/premium-redemption";
 import { loadUserEntitlements } from "../services/user-entitlements";
 import { getLeaderboardReadResponse } from "../leaderboards-read-service";
+import { getCanonicalPlayerMarkets } from "../valuation/canonical-valuation";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 
@@ -221,6 +222,7 @@ export type PublicMcpDependencies = {
   getDocsArticle: typeof getDocsArticle;
   redeemPremiumShare: typeof redeemPremiumShare;
   getLeaderboardReadResponse: typeof getLeaderboardReadResponse;
+  getCanonicalPlayerMarkets?: typeof getCanonicalPlayerMarkets;
   listCollections: (userId: string) => Promise<unknown[]>;
   getCollectionDetail: (
     userId: string,
@@ -742,12 +744,18 @@ async function searchPlayers(context: PublicMcpServerContext, args: Record<strin
     position,
   });
 
+  const matches = players
+    .filter((player) => (sport ? (player.sport || "").toUpperCase() === sport : true))
+    .slice(0, limit);
+  const canonicalMarkets = context.deps.getCanonicalPlayerMarkets
+    ? await context.deps.getCanonicalPlayerMarkets(matches.map((player) => player.id))
+    : new Map();
+
   return {
-    summary: `Found ${Math.min(players.length, limit)} player result(s).`,
-    results: players
-      .filter((player) => (sport ? (player.sport || "").toUpperCase() === sport : true))
-      .slice(0, limit)
-      .map((player) => ({
+    summary: `Found ${matches.length} player result(s).`,
+    results: matches.map((player) => {
+      const market = canonicalMarkets.get(player.id);
+      return {
         id: player.id,
         firstName: player.firstName,
         lastName: player.lastName,
@@ -755,9 +763,13 @@ async function searchPlayers(context: PublicMcpServerContext, args: Record<strin
         sport: player.sport,
         team: player.team,
         position: player.position,
+        marketStatus: market?.marketStatus || "unpriced",
+        marketPrice: market?.marketPrice ?? null,
+        priceSource: market?.priceSource ?? null,
         lastTradePrice: player.lastTradePrice,
         priceChange24h: player.priceChange24h,
-      })),
+      };
+    }),
   };
 }
 
@@ -1016,10 +1028,12 @@ async function getGameInsights(context: PublicMcpServerContext, args: Record<str
       continue;
     }
     const collection = holdingsByTeam.get(player.team) || [];
-    collection.push({
-      id: player.id,
-      name: `${player.firstName} ${player.lastName}`,
-    });
+    if (!collection.some((ownedPlayer) => ownedPlayer.id === player.id)) {
+      collection.push({
+        id: player.id,
+        name: `${player.firstName} ${player.lastName}`,
+      });
+    }
     holdingsByTeam.set(player.team, collection);
   }
 
@@ -2757,6 +2771,7 @@ export function createDefaultPublicMcpDependencies(): PublicMcpDependencies {
     getDocsArticle,
     redeemPremiumShare,
     getLeaderboardReadResponse,
+    getCanonicalPlayerMarkets,
     listCollections: defaultListCollections,
     getCollectionDetail: defaultGetCollectionDetail,
     listMilestones: defaultListMilestones,

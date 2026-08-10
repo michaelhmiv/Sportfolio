@@ -13,6 +13,7 @@ import { getPool, getBuyQuote, getSellQuote, executeBuy, executeSell } from "../
 import { isAuthenticated } from "../auth/runtime-auth";
 import { storage } from "../storage";
 import { logger } from "../lib/logger";
+import { getCanonicalPlayerMarket } from "../valuation/canonical-valuation";
 
 // Slippage validation bounds
 const MIN_SLIPPAGE = 0.001; // 0.1%
@@ -54,14 +55,21 @@ export function registerAmmRoutes(app: Express) {
         });
       }
 
-      const pool = await getPool(playerId);
+      const [pool, market] = await Promise.all([
+        getPool(playerId),
+        getCanonicalPlayerMarket(playerId),
+      ]);
       if (!pool) {
         return res.json({
           playerId,
           poolInitialized: false,
-          shares: 0,
-          playMoney: 0,
-          currentPrice: 0,
+          marketStatus: "unpriced",
+          marketPrice: null,
+          priceSource: null,
+          shares: null,
+          playMoney: null,
+          currentPrice: null,
+          poolTvl: null,
           totalVolume: 0,
           totalTrades: 0,
           k: 0,
@@ -79,9 +87,13 @@ export function registerAmmRoutes(app: Express) {
       res.json({
         playerId: pool.playerId,
         poolInitialized: true,
+        marketStatus: market?.marketStatus || "unpriced",
+        marketPrice: market?.marketPrice ?? null,
+        priceSource: market?.priceSource ?? null,
         shares: pool.shares,
         playMoney: pool.playMoney,
-        currentPrice: pool.currentPrice,
+        currentPrice: market?.marketPrice ?? null,
+        poolTvl: market?.poolTvl ?? null,
         totalVolume: pool.totalVolume,
         totalTrades: pool.totalTrades,
         k: pool.k,

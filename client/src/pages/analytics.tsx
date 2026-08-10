@@ -82,7 +82,10 @@ interface PowerRanking {
     lastName: string;
     team: string;
     position: string;
-    lastTradePrice: string;
+    currentPrice: string | null;
+    marketPrice: number | null;
+    marketStatus: "priced" | "unpriced";
+    lastTradePrice: string | null;
     volume24h: number;
     priceChange24h: string;
   };
@@ -101,7 +104,10 @@ interface PositionRanking {
       lastName: string;
       team: string;
       position: string;
-      lastTradePrice: string;
+      currentPrice: string | null;
+      marketPrice: number | null;
+      marketStatus: "priced" | "unpriced";
+      lastTradePrice: string | null;
       volume24h: number;
       priceChange24h: string;
     };
@@ -1566,10 +1572,12 @@ export default function Analytics() {
                       <div className="rounded-compact border border-border/70 bg-background/50 p-3">
                         <div className={ANALYTICS_COMPACT_TYPE.label}>Price</div>
                         <div className={ANALYTICS_COMPACT_TYPE.primaryValue}>
-                          {formatMetricValue(
-                            "marketCap",
-                            Number(spotlightRanking.player.lastTradePrice),
-                          )}
+                          {spotlightRanking.player.marketStatus === "unpriced"
+                            ? "Unpriced"
+                            : formatMetricValue(
+                                "marketCap",
+                                Number(spotlightRanking.player.marketPrice),
+                              )}
                         </div>
                       </div>
                       <div className="rounded-compact border border-border/70 bg-background/50 p-3">

@@ -48,7 +48,7 @@ import { AmmTradePanel } from "@/components/amm-trade-panel";
 import { Progress } from "@/components/ui/progress";
 
 interface PlayerPageData {
-  player: Player;
+  player: Player & { marketStatus?: "priced" | "unpriced"; marketPrice?: number | null };
   priceHistory: PriceHistory[];
   recentTrades: (Trade & { buyer: { username: string }; seller: { username: string } })[];
   userBalance: string;
@@ -58,9 +58,11 @@ interface PlayerPageData {
 interface AmmPoolData {
   playerId: string;
   poolInitialized?: boolean;
-  shares: number;
-  playMoney: number;
-  currentPrice: number;
+  marketStatus?: "priced" | "unpriced";
+  shares: number | null;
+  playMoney: number | null;
+  currentPrice: number | null;
+  poolTvl?: number | null;
   totalVolume: number;
   totalTrades: number;
   lpSharesTotal: number;
@@ -617,8 +619,9 @@ export default function PlayerPage() {
   const playerName = `${player.firstName} ${player.lastName}`;
 
   // AMM-first display price: prefer live pool spot price over cached player.lastTradePrice
-  const effectiveCurrentPrice =
-    poolData?.currentPrice ?? (player.lastTradePrice ? parseFloat(player.lastTradePrice) : null);
+  const effectiveCurrentPrice = isPoolInitialized
+    ? (poolData?.currentPrice ?? player.marketPrice ?? null)
+    : null;
 
   // Only show change when we have at least two AMM chart points in range
   const displayedPriceChange =
@@ -699,7 +702,7 @@ export default function PlayerPage() {
                     className="text-lg sm:text-xl justify-start sm:justify-end"
                   />
                 ) : (
-                  <span className="text-muted-foreground text-sm">No market value</span>
+                  <span className="text-muted-foreground text-sm">Unpriced</span>
                 )}
               </div>
               {displayedPriceChange !== null && (
@@ -860,17 +863,46 @@ export default function PlayerPage() {
                             Pool Shares
                           </div>
                           <div className="font-mono font-bold text-sm">
-                            {poolData.shares.toLocaleString()}
+                            {poolData.shares?.toLocaleString() ?? "Unpriced"}
                           </div>
                         </div>
                         <div className="p-2 bg-muted/50 rounded-compact">
                           <div className="text-[10px] text-muted-foreground uppercase">
-                            Pool TVL
+                            SB Liquidity
                           </div>
                           <div className="font-mono font-bold text-sm">
-                            {formatAdaptiveCurrency(
-                              poolData.playMoney + poolData.shares * poolData.currentPrice,
-                            )}
+                            {poolData.playMoney == null
+                              ? "Unpriced"
+                              : formatAdaptiveCurrency(poolData.playMoney)}
+                          </div>
+                        </div>
+                        <div className="p-2 bg-muted/50 rounded-compact">
+                          <div className="text-[10px] text-muted-foreground uppercase">
+                            Spot Price
+                          </div>
+                          <div className="font-mono font-bold text-sm">
+                            {poolData.currentPrice == null
+                              ? "Unpriced"
+                              : formatAdaptiveCurrency(poolData.currentPrice)}
+                          </div>
+                        </div>
+                        <div className="p-2 bg-muted/50 rounded-compact">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="cursor-help text-[10px] text-muted-foreground uppercase">
+                                Pool TVL
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs text-xs">
+                                Combined marked value of the share and SB reserves in the AMM pool.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <div className="font-mono font-bold text-sm">
+                            {poolData.poolTvl == null
+                              ? "Unpriced"
+                              : formatAdaptiveCurrency(poolData.poolTvl)}
                           </div>
                         </div>
                       </div>

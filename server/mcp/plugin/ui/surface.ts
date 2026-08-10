@@ -10,6 +10,13 @@ import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitize
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
 import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
 import { resolvePlayerDisplayName } from "./player-display-name";
+import {
+  getCanonicalPlayerMarket,
+  getCanonicalPlayerMarkets,
+  getCanonicalPortfolioValuation,
+  getCanonicalPortfolioTotals,
+  type CanonicalPortfolioValuation,
+} from "../../../valuation/canonical-valuation";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 type JsonRecord = Record<string, unknown>;
@@ -208,6 +215,7 @@ async function renderPlayerMarket(
     holdingState,
     availableBalance,
     lp,
+    canonicalMarket,
   ] = await Promise.all([
     safe(getPool(playerId), null),
     safe(storage.getPriceHistory(playerId, rangeDays(range)), []),
@@ -219,6 +227,7 @@ async function renderPlayerMarket(
       : Promise.resolve(null),
     userId ? safe(storage.getAvailableBalance(userId), 0) : Promise.resolve(0),
     userId ? safe(getLpPosition(playerId, userId), null) : Promise.resolve(null),
+    safe(getCanonicalPlayerMarket(playerId), null),
   ]);
 
   const sourcePoints = rawHistory
@@ -233,26 +242,28 @@ async function renderPlayerMarket(
 
   const playerRecord = record(player);
   const poolRecord = record(pool);
-  const fallbackPrice = numberValue(playerRecord.lastTradePrice || playerRecord.currentPrice);
-  const currentPrice = pool ? numberValue(poolRecord.currentPrice, fallbackPrice) : fallbackPrice;
+  const currentPrice = canonicalMarket?.marketPrice ?? null;
   const openingPrice = points.length ? points[0].price : currentPrice;
-  const absoluteChange = currentPrice - openingPrice;
-  const percentageChange = openingPrice > 0 ? (absoluteChange / openingPrice) * 100 : 0;
-  const poolInitialized = Boolean(pool);
+  const absoluteChange =
+    currentPrice == null || openingPrice == null ? null : currentPrice - openingPrice;
+  const percentageChange =
+    absoluteChange == null || !openingPrice ? null : (absoluteChange / openingPrice) * 100;
+  const poolInitialized = canonicalMarket?.poolInitialized || false;
   const holding = record(holdingState);
   const lpRecord = record(lp);
 
   return sanitizePresentation("player_market", {
     player: publicPlayer(player),
     market: {
-      status: poolInitialized ? "active" : "uninitialized",
+      status: canonicalMarket?.marketStatus || "unpriced",
       statusMessage: poolInitialized
         ? null
         : "This player does not have an initialized AMM pool yet.",
       currentPrice,
-      liquidity: poolInitialized
-        ? numberValue(poolRecord.playMoney) * 2
-        : numberValue(playerRecord.marketCap),
+      liquidity: canonicalMarket?.poolTvl ?? null,
+      marketCap: canonicalMarket?.marketCap ?? null,
+      priceSource: canonicalMarket?.priceSource ?? null,
+      lastTradePrice: canonicalMarket?.lastTradePrice ?? null,
       volume: numberValue(poolRecord.totalVolume || playerRecord.volume24h),
       totalTrades: numberValue(poolRecord.totalTrades),
       sharesReserve: numberValue(poolRecord.shares),
@@ -324,51 +335,36 @@ async function renderTradePreview(
   });
 }
 
-async function renderPortfolio(
-  context: PluginMcpContext,
+export function buildPortfolioViewData(
+  valuation: CanonicalPortfolioValuation,
+  availableBalance: number,
   args: Record<string, unknown>,
-): Promise<JsonRecord> {
-  const userId = context.auth?.userId;
-  if (!userId) throw new Error("Authentication is required.");
+): JsonRecord {
+  const totals = getCanonicalPortfolioTotals(valuation);
   const requestedSport = stringValue(args.sport).toUpperCase();
   const sort = stringValue(args.sort, "value");
   const limit = Math.min(50, Math.max(1, Math.trunc(numberValue(args.limit, 25))));
-  const [rawHoldings, availableBalance] = await Promise.all([
-    storage.getUserHoldingsWithPlayers(userId),
-    storage.getAvailableBalance(userId),
-  ]);
-
-  const holdings = array(rawHoldings).map(record);
-  const playerIds = holdings
-    .map((holding) => stringValue(record(holding.player).id || holding.assetId))
-    .filter(Boolean);
-  const pools = playerIds.length ? await storage.getBatchPoolData(playerIds) : new Map();
-
-  const normalized = holdings
-    .map((holding) => {
-      const player = record(holding.player);
-      const playerId = stringValue(player.id || holding.assetId);
-      const pool = pools.get(playerId);
-      const poolRecord = record(pool);
-      const quantity = numberValue(holding.effectiveShares || holding.quantity);
-      const currentPrice =
-        pool && numberValue(poolRecord.shares) > 0
-          ? numberValue(poolRecord.playMoney) / numberValue(poolRecord.shares, 1)
-          : numberValue(player.lastTradePrice || player.currentPrice);
-      const averageCostBasis = numberValue(holding.avgCostBasis || holding.avgCost);
-      const positionValue = quantity * currentPrice;
-      const costBasis = quantity * averageCostBasis;
-      const unrealizedChange = positionValue - costBasis;
+  const normalized = valuation.positions
+    .map((position) => {
+      const player = record(position.player);
       return {
         player: publicPlayer(player),
-        quantity,
-        availableShares: numberValue(holding.availableShares || holding.quantity),
-        currentPrice,
-        positionValue,
-        averageCostBasis,
-        costBasis,
-        unrealizedChange,
-        unrealizedChangePercent: costBasis > 0 ? (unrealizedChange / costBasis) * 100 : 0,
+        quantity: position.singles,
+        singles: position.singles,
+        lockedSingles: position.lockedSingles,
+        availableShares: position.availableSingles,
+        stackPower: position.stackPower,
+        gameplayPower: position.gameplayPower,
+        marketStatus: position.marketStatus,
+        marketPrice: position.marketPrice,
+        currentPrice: position.marketPrice,
+        priceSource: position.priceSource,
+        positionValue: position.marketValue,
+        averageCostBasis: position.averageCostBasis,
+        costBasis: position.costBasis,
+        unrealizedChange: position.unrealizedChange,
+        unrealizedChangePercent: position.unrealizedChangePercent,
+        lastTradePrice: position.lastTradePrice,
       };
     })
     .filter((holding) => {
@@ -379,9 +375,9 @@ async function renderPortfolio(
   normalized.sort((left, right) => {
     switch (sort) {
       case "gain":
-        return right.unrealizedChange - left.unrealizedChange;
+        return numberValue(right.unrealizedChange) - numberValue(left.unrealizedChange);
       case "loss":
-        return left.unrealizedChange - right.unrealizedChange;
+        return numberValue(left.unrealizedChange) - numberValue(right.unrealizedChange);
       case "quantity":
         return right.quantity - left.quantity;
       case "name":
@@ -390,21 +386,30 @@ async function renderPortfolio(
         );
       case "value":
       default:
-        return right.positionValue - left.positionValue;
+        return numberValue(right.positionValue) - numberValue(left.positionValue);
     }
   });
 
-  const totalValue = normalized.reduce((sum, holding) => sum + holding.positionValue, 0);
+  const totalValue = valuation.portfolioValue;
   const costBasis = normalized.reduce((sum, holding) => sum + holding.costBasis, 0);
-  const unrealizedChange = totalValue - costBasis;
+  const playerPositionValue = normalized.reduce(
+    (sum, holding) => sum + numberValue(holding.positionValue),
+    0,
+  );
+  const unrealizedChange = playerPositionValue - costBasis;
   const allocations = new Map<string, number>();
   for (const holding of normalized) {
     const sport = stringValue(record(holding.player).sport, "Other");
-    allocations.set(sport, (allocations.get(sport) || 0) + holding.positionValue);
+    allocations.set(sport, (allocations.get(sport) || 0) + numberValue(holding.positionValue));
+  }
+  for (const position of valuation.lpPositions) {
+    const sport = stringValue(record(position.player).sport, "Other");
+    allocations.set(sport, (allocations.get(sport) || 0) + numberValue(position.marketValue));
   }
 
-  return sanitizePresentation("portfolio", {
+  return {
     summary: {
+      ...totals,
       totalValue,
       availableBalance,
       costBasis,
@@ -419,13 +424,32 @@ async function renderPortfolio(
       percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
     })),
     holdings: normalized.slice(0, limit),
+    lpPositions: valuation.lpPositions,
     page: {
       returned: Math.min(limit, normalized.length),
       total: normalized.length,
       hasMore: normalized.length > limit,
     },
     filters: { sport: requestedSport || null, sort },
-  });
+  };
+}
+
+async function renderPortfolio(
+  context: PluginMcpContext,
+  args: Record<string, unknown>,
+): Promise<JsonRecord> {
+  const userId = context.auth?.userId;
+  if (!userId) throw new Error("Authentication is required.");
+  const [valuation, availableBalance] = await Promise.all([
+    getCanonicalPortfolioValuation(userId),
+    storage.getAvailableBalance(userId),
+  ]);
+  if (!valuation) throw new Error("User not found.");
+  return sanitizePresentation(
+    "portfolio",
+    buildPortfolioViewData(valuation, availableBalance, args),
+    valuation.warnings,
+  );
 }
 
 async function renderMarketMovers(
@@ -457,21 +481,20 @@ async function renderMarketMovers(
   });
   const players = result.players;
   const playerIds = players.map((player) => player.id);
-  const [poolData, changeData] = await Promise.all([
+  const [poolData, changeData, canonicalMarkets] = await Promise.all([
     playerIds.length ? storage.getBatchPoolData(playerIds) : Promise.resolve(new Map()),
     playerIds.length ? storage.getBatchPlayerPriceChange24h(playerIds) : Promise.resolve(new Map()),
+    getCanonicalPlayerMarkets(playerIds),
   ]);
 
   const items = players.map((player) => {
     const playerRecord = record(player);
     const pool = record(poolData.get(player.id));
-    const currentPrice =
-      numberValue(pool.shares) > 0
-        ? numberValue(pool.playMoney) / numberValue(pool.shares, 1)
-        : numberValue(playerRecord.lastTradePrice || playerRecord.currentPrice);
+    const market = canonicalMarkets.get(player.id);
     return {
       player: publicPlayer(player),
-      currentPrice,
+      marketStatus: market?.marketStatus || "unpriced",
+      currentPrice: market?.marketPrice ?? null,
       changePercent: numberValue(changeData.get(player.id) || playerRecord.priceChange24h),
       volume: numberValue(pool.totalVolume || playerRecord.volume24h),
       totalTrades: numberValue(pool.totalTrades),
@@ -504,11 +527,12 @@ async function renderLiquidity(
   const playerId = stringValue(args.playerId);
   const player = await storage.getPlayer(playerId);
   if (!player) throw new Error("Player not found.");
-  const [pool, position, holding, availableBalance] = await Promise.all([
+  const [pool, position, holding, availableBalance, canonicalMarket] = await Promise.all([
     safe(getPool(playerId), null),
     safe(getLpPosition(playerId, userId), null),
     safe(storage.getHoldingMultiplierState(userId, playerId), null),
     safe(storage.getAvailableBalance(userId), 0),
+    safe(getCanonicalPlayerMarket(playerId), null),
   ]);
   const poolRecord = record(pool);
   const positionRecord = record(position);
@@ -517,10 +541,11 @@ async function renderLiquidity(
     player: publicPlayer(player),
     pool: {
       initialized: Boolean(pool),
+      marketStatus: canonicalMarket?.marketStatus || "unpriced",
       shares: numberValue(poolRecord.shares),
       playMoney: numberValue(poolRecord.playMoney),
-      currentPrice: numberValue(poolRecord.currentPrice),
-      liquidity: numberValue(poolRecord.playMoney) * 2,
+      currentPrice: canonicalMarket?.marketPrice ?? null,
+      liquidity: canonicalMarket?.poolTvl ?? null,
       totalVolume: numberValue(poolRecord.totalVolume),
       totalTrades: numberValue(poolRecord.totalTrades),
       lpSharesTotal: numberValue(poolRecord.lpSharesTotal),
@@ -532,7 +557,8 @@ async function renderLiquidity(
       ownershipPercentage: numberValue(positionRecord.ownershipPercentage),
       equivalentShares: numberValue(positionRecord.equivalentShares),
       equivalentPlayMoney: numberValue(positionRecord.equivalentPlayMoney),
-      positionValue: numberValue(positionRecord.positionValue),
+      positionValue:
+        canonicalMarket?.marketPrice == null ? null : numberValue(positionRecord.positionValue),
       feesEarnedToDate: numberValue(positionRecord.feesEarnedToDate),
     },
     availableAssets: {

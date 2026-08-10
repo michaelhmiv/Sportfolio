@@ -54,6 +54,9 @@ function money(value: unknown): string {
     maximumFractionDigits: 2,
   }).format(num(value));
 }
+function marketMoney(value: unknown, marketStatus: unknown): string {
+  return marketStatus === "unpriced" || value == null ? "Unpriced" : money(value);
+}
 function quantity(value: unknown, digits = 2): string {
   return new Intl.NumberFormat(getOpenAIHost()?.locale, { maximumFractionDigits: digits }).format(
     num(value),
@@ -375,14 +378,14 @@ function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Pay
         <Identity player={player} />
         <div style={{ textAlign: "right" }}>
           <div className="label">Virtual price</div>
-          <div className="value">{money(market.currentPrice)}</div>
+          <div className="value">{marketMoney(market.currentPrice, text(market.status))}</div>
           <div className={change > 0 ? "positive" : change < 0 ? "negative" : "muted"}>
             {pct(change)}
           </div>
         </div>
       </header>
       <div className="content">
-        {text(market.status) !== "active" ? (
+        {text(market.status) !== "priced" ? (
           <Notice>{text(market.statusMessage, "This market is not active yet.")}</Notice>
         ) : null}
         <div className="between">
@@ -643,8 +646,9 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
           </div>
           <div className="grid">
             <Stat label="Available balance" value={money(summary.availableBalance)} />
-            <Stat label="Cost basis" value={money(summary.costBasis)} />
-            <Stat label="Holdings" value={quantity(summary.holdingCount, 0)} />
+            <Stat label="LP value" value={money(summary.lpMarketValue)} />
+            <Stat label="Singles" value={quantity(summary.totalSingles)} />
+            <Stat label="Stack Power" value={quantity(summary.totalStackPower)} />
           </div>
         </div>
         {fullscreen ? (
@@ -718,7 +722,9 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
               <thead>
                 <tr>
                   <th>Player</th>
-                  <th>Shares</th>
+                  <th>Singles</th>
+                  <th>Stack Power</th>
+                  <th>Gameplay Power</th>
                   <th>Value</th>
                   <th>Avg cost</th>
                   <th>Unrealized</th>
@@ -737,13 +743,21 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
                           {[text(player.team), text(player.sport)].filter(Boolean).join(" · ")}
                         </div>
                       </td>
-                      <td>{quantity(holding.quantity)}</td>
-                      <td>{money(holding.positionValue)}</td>
+                      <td>{quantity(holding.singles ?? holding.quantity)}</td>
+                      <td>{quantity(holding.stackPower)}</td>
+                      <td>{quantity(holding.gameplayPower)}</td>
+                      <td>{marketMoney(holding.positionValue, holding.marketStatus)}</td>
                       <td>{money(holding.averageCostBasis)}</td>
                       <td className={change > 0 ? "positive" : change < 0 ? "negative" : ""}>
-                        {change >= 0 ? "+" : ""}
-                        {money(change)}
-                        <div className="muted">{pct(holding.unrealizedChangePercent)}</div>
+                        {holding.unrealizedChange == null ? (
+                          "—"
+                        ) : (
+                          <>
+                            {change >= 0 ? "+" : ""}
+                            {money(change)}
+                            <div className="muted">{pct(holding.unrealizedChangePercent)}</div>
+                          </>
+                        )}
                       </td>
                       <td>
                         <button className="btn" onClick={() => void openMarket(holding)}>

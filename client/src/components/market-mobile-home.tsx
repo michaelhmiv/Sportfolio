@@ -50,6 +50,7 @@ type MarketChipLabel =
 
 type PlayerWithPool = Player & {
   poolInitialized?: boolean;
+  marketStatus?: "priced" | "unpriced";
   currentPrice?: string | number | null;
   priceChange24h?: string | number | null;
   volume24h?: number | null;
@@ -109,7 +110,8 @@ interface MobileMarketSignal {
   lastName: string;
   team: string;
   position: string;
-  currentPrice: number;
+  currentPrice: number | null;
+  marketStatus?: "priced" | "unpriced";
   priceChange24h: number;
   poolTvl: number;
   buyPressure: number;
@@ -402,8 +404,8 @@ function formatBoardMetricValue(
     case "marketCap":
       return formatCompactCurrency(toNumber(player.marketCap));
     case "price":
-      return player.poolInitialized === false
-        ? "No market yet"
+      return player.marketStatus === "unpriced" || player.poolInitialized === false
+        ? "Unpriced"
         : `$${toNumber(player.currentPrice).toFixed(2)}`;
     case "change": {
       const change = toNumber(player.priceChange24h);
@@ -432,6 +434,7 @@ function buildPlayerStub(
     team,
     position,
     currentPrice,
+    marketStatus,
     priceChange24h,
     poolTvl,
     buyPressure,
@@ -446,6 +449,7 @@ function buildPlayerStub(
     team: string;
     position: string;
     currentPrice?: number | null;
+    marketStatus?: "priced" | "unpriced";
     priceChange24h?: number | null;
     poolTvl?: number | null;
     buyPressure?: number | null;
@@ -464,7 +468,10 @@ function buildPlayerStub(
     position,
     sport: sport === "ALL" ? "NBA" : sport,
     currentPrice: currentPrice ?? "0",
-    lastTradePrice: String(currentPrice ?? 0),
+    marketStatus:
+      marketStatus ?? (currentPrice == null || currentPrice <= 0 ? "unpriced" : "priced"),
+    poolInitialized: marketStatus !== "unpriced" && currentPrice != null && currentPrice > 0,
+    lastTradePrice: null,
     priceChange24h: String(priceChange24h ?? 0),
     volume24h: 0,
     marketCap: "0",
@@ -566,7 +573,11 @@ function NarrativeModule({
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-mono uppercase tracking-[0.08em]">
                   <span className="truncate text-muted-foreground">{item.note}</span>
-                  <span className="shrink-0">${item.currentPrice.toFixed(2)}</span>
+                  <span className="shrink-0">
+                    {item.marketStatus === "unpriced"
+                      ? "Unpriced"
+                      : `$${toNumber(item.currentPrice).toFixed(2)}`}
+                  </span>
                 </div>
               </button>
             ))}
@@ -813,6 +824,7 @@ export function MarketMobileHome({
         team: signal.team,
         position: signal.position,
         currentPrice: signal.currentPrice,
+        marketStatus: signal.marketStatus,
         priceChange24h: signal.priceChange24h,
         poolTvl: signal.poolTvl,
         buyPressure: signal.buyPressure,
@@ -1181,7 +1193,8 @@ export function MarketMobileHome({
                 const primaryChip = getPrimaryChip(player, signal, quickContext, whalePlayerIds);
                 const priceChange = toNumber(player.priceChange24h);
                 const currentPrice = toNumber(player.currentPrice);
-                const poolInitialized = player.poolInitialized !== false;
+                const poolInitialized =
+                  player.poolInitialized !== false && player.marketStatus !== "unpriced";
                 const showSell = poolInitialized && (quickContext.availableShares || 0) > 0;
                 const boardMetricValue = formatBoardMetricValue(player, boardMetricField, signal);
                 const secondaryAction = quickContext.isBoostEligible
@@ -1270,7 +1283,7 @@ export function MarketMobileHome({
 
                       <div className="text-right">
                         <div className="font-mono text-sm font-semibold">
-                          {poolInitialized ? `$${currentPrice.toFixed(2)}` : "No market yet"}
+                          {poolInitialized ? `$${currentPrice.toFixed(2)}` : "Unpriced"}
                         </div>
                       </div>
 

@@ -47,9 +47,9 @@ export interface RegisterPlayersRoutesDeps {
   getETDayBoundaries: (gameDay: string) => { startOfDay: Date; endOfDay: Date };
   getMarketplaceGameStatus: (...args: any[]) => MarketplaceGameStatus;
   enrichPlayerWithMarketValue: (player: any) => any;
-  isAmmOnlyMode: boolean;
   getMlbPlayerPregameLookup: (...args: any[]) => Promise<MlbPregameLookup>;
   getMlbPitcherMatchupChip: (...args: any[]) => MlbPitcherMatchupChip;
+  getCanonicalPlayerMarkets?: (playerIds: string[]) => Promise<Map<string, any>>;
 }
 
 export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesDeps): void {
@@ -60,9 +60,9 @@ export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesD
     getETDayBoundaries,
     getMarketplaceGameStatus,
     enrichPlayerWithMarketValue,
-    isAmmOnlyMode,
     getMlbPlayerPregameLookup,
     getMlbPitcherMatchupChip,
+    getCanonicalPlayerMarkets,
   } = deps;
 
   // Batch price sparklines for multiple players - powers mini-sparkline UX in the marketplace
@@ -188,6 +188,7 @@ export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesD
         poolDataMap,
         todaysGames,
         communityBoosts,
+        canonicalMarkets,
       ] = await Promise.all([
         storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
         storage.getBatchSentiment(playerIds),
@@ -199,6 +200,9 @@ export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesD
           ? storage.getDailyGamesBySport(sport.toUpperCase(), startOfDay, endOfDay)
           : storage.getDailyGames(startOfDay, endOfDay),
         storage.getCommunityBoostsAllSports(targetDate),
+        getCanonicalPlayerMarkets
+          ? getCanonicalPlayerMarkets(playerIds)
+          : Promise.resolve(new Map()),
       ]);
 
       const teamGameMap = new Map<
@@ -251,15 +255,15 @@ export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesD
           totalVolume24h: 0,
         };
         const poolData = poolDataMap.get(player.id);
-        const ammSpotPrice =
-          poolData && poolData.shares > 0 ? poolData.playMoney / poolData.shares : null;
+        const market = canonicalMarkets.get(player.id);
+        const ammSpotPrice = market
+          ? market.marketPrice
+          : poolData && poolData.shares > 0 && poolData.playMoney > 0
+            ? poolData.playMoney / poolData.shares
+            : null;
 
         const leagueAvgPe = 0.43;
-        const price = parseFloat(
-          (isAmmOnlyMode && ammSpotPrice !== null
-            ? ammSpotPrice.toFixed(2)
-            : player.lastTradePrice) || "0",
-        );
+        const price = ammSpotPrice ?? 0;
         const avgFP = avgFantasyPointsMap.get(player.id) || 0;
         const peRatio = avgFP > 0 ? price / avgFP : 0;
         const derivedValueIndex = leagueAvgPe > 0 ? (peRatio / leagueAvgPe) * 100 : 0;
@@ -298,13 +302,12 @@ export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesD
 
         return {
           ...enriched,
-          ...(isAmmOnlyMode
-            ? {
-                lastTradePrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
-                currentPrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
-              }
-            : {}),
-          poolInitialized: Boolean(poolData),
+          marketStatus: market?.marketStatus || (ammSpotPrice !== null ? "priced" : "unpriced"),
+          marketPrice: ammSpotPrice,
+          priceSource: ammSpotPrice !== null ? "amm_spot" : null,
+          currentPrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
+          marketCap: market?.marketCap?.toFixed(2) ?? null,
+          poolInitialized: market?.poolInitialized ?? Boolean(poolData),
           priceChange24h,
           avgFantasyPointsPerGame: (
             metricAvgFantasyPoints ?? parseFloat(seasonStats.avgFantasyPointsPerGame || "0")

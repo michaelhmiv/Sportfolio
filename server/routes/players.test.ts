@@ -65,6 +65,7 @@ function createDependencies(optionalAuth: RequestHandler): {
       mlbMatchupChip: null,
       mlbPregameSummary: null,
     }),
+    getCanonicalPlayerMarkets: vi.fn().mockResolvedValue(new Map()),
   };
 
   return { deps, storage };
@@ -159,6 +160,61 @@ describe("registerPlayersRoutes", () => {
       await expect(response.json()).resolves.toEqual({
         "p-1": [10.5],
         "p-2": [7.25],
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("uses AMM spot as current price without overwriting historical lastTradePrice", async () => {
+    const { app, baseUrl, close } = createTestServer();
+    const optionalAuth: RequestHandler = (_req, _res, next) => next();
+    const { deps, storage } = createDependencies(optionalAuth);
+    const player = {
+      id: "nascar_3859",
+      sport: "NASCAR",
+      firstName: "Joey",
+      lastName: "Gase",
+      team: "39",
+      position: "Driver",
+      lastTradePrice: "7.00",
+      currentPrice: "7.00",
+      marketCap: "0.00",
+      priceChange24h: "0.00",
+      volume24h: 0,
+    } as any;
+    vi.mocked(storage.getPlayersPaginated).mockResolvedValue({ players: [player], total: 1 });
+    vi.mocked(storage.getBatchPoolData).mockResolvedValue(
+      new Map([[player.id, { shares: 5, playMoney: 50, totalVolume: 0, totalTrades: 0 }]]) as any,
+    );
+    vi.mocked(deps.getCanonicalPlayerMarkets!).mockResolvedValue(
+      new Map([
+        [
+          player.id,
+          {
+            marketStatus: "priced",
+            marketPrice: 10,
+            priceSource: "amm_spot",
+            marketCap: 650,
+            poolInitialized: true,
+          },
+        ],
+      ]),
+    );
+
+    registerPlayersRoutes(app, deps);
+    try {
+      const response = await fetch(`${baseUrl}/api/players?sport=NASCAR`);
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as any;
+      expect(body.players).toHaveLength(1);
+      expect(body.players[0]).toMatchObject({
+        id: "nascar_3859",
+        lastTradePrice: "7.00",
+        currentPrice: "10.00",
+        marketPrice: 10,
+        marketCap: "650.00",
+        marketStatus: "priced",
       });
     } finally {
       await close();

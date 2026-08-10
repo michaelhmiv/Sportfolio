@@ -31,6 +31,10 @@ import type { ProgressCallback } from "../lib/admin-stream";
 import { getETDayBoundaries, getGameDay, getTodayET } from "../lib/time";
 import { sendNotificationToUsers, sendUserNotification } from "../services/notification-dispatcher";
 import { getAllUsersEligibleForCategory } from "../services/notification-settings";
+import {
+  getCanonicalPlayerMarkets,
+  getCanonicalPortfolioValuation,
+} from "../valuation/canonical-valuation";
 
 export interface DigestSection {
   title: string;
@@ -181,6 +185,7 @@ async function getPortfolioHealth(userId: string): Promise<DigestSection | null>
 async function getGlobalMarketMovers(): Promise<DigestSection> {
   const topGainers = await db
     .select({
+      id: players.id,
       firstName: players.firstName,
       lastName: players.lastName,
       priceChange24h: players.priceChange24h,
@@ -193,6 +198,7 @@ async function getGlobalMarketMovers(): Promise<DigestSection> {
 
   const topLosers = await db
     .select({
+      id: players.id,
       firstName: players.firstName,
       lastName: players.lastName,
       priceChange24h: players.priceChange24h,
@@ -204,13 +210,19 @@ async function getGlobalMarketMovers(): Promise<DigestSection> {
     .limit(5);
 
   const items: DigestSection["items"] = [];
+  const canonicalMarkets = await getCanonicalPlayerMarkets(
+    [...topGainers, ...topLosers].map((player) => player.id),
+  );
 
   topGainers.forEach((p) => {
     const change = parseFloat(p.priceChange24h || "0");
     if (change > 0) {
       items.push({
         label: `📈 ${p.firstName} ${p.lastName}`,
-        value: `$${parseFloat(p.lastTradePrice || "0").toFixed(2)}`,
+        value:
+          canonicalMarkets.get(p.id)?.marketPrice == null
+            ? "Unpriced"
+            : `$${canonicalMarkets.get(p.id)!.marketPrice!.toFixed(2)}`,
         change: `+${change.toFixed(1)}%`,
         isPositive: true,
       });
@@ -222,7 +234,10 @@ async function getGlobalMarketMovers(): Promise<DigestSection> {
     if (change < 0) {
       items.push({
         label: `📉 ${p.firstName} ${p.lastName}`,
-        value: `$${parseFloat(p.lastTradePrice || "0").toFixed(2)}`,
+        value:
+          canonicalMarkets.get(p.id)?.marketPrice == null
+            ? "Unpriced"
+            : `$${canonicalMarkets.get(p.id)!.marketPrice!.toFixed(2)}`,
         change: `${change.toFixed(1)}%`,
         isPositive: false,
       });
@@ -427,30 +442,20 @@ async function getBoostPerformanceSection(
 }
 
 async function getPortfolioAttributionSection(userId: string): Promise<DigestSection> {
-  const heldPlayers = await db
-    .select({
-      quantity: holdings.quantity,
-      firstName: players.firstName,
-      lastName: players.lastName,
-      lastTradePrice: players.lastTradePrice,
-      priceChange24h: players.priceChange24h,
-    })
-    .from(holdings)
-    .innerJoin(players, eq(holdings.assetId, players.id))
-    .where(and(eq(holdings.userId, userId), eq(holdings.assetType, "player")));
-
-  const positions = heldPlayers
+  const valuation = await getCanonicalPortfolioValuation(userId);
+  const positions = (valuation?.positions || [])
     .map((position) => {
-      const quantity = asNumber(position.quantity);
-      const price = asNumber(position.lastTradePrice);
-      const priceChange24h = asNumber(position.priceChange24h);
-      const marketValue = quantity * price;
+      const player = position.player as any;
+      const quantity = position.singles;
+      const priceChange24h = asNumber(player.priceChange24h);
+      const marketValue = position.marketValue || 0;
       const estimatedContribution = marketValue * (priceChange24h / 100);
 
       return {
-        name: `${position.firstName} ${position.lastName}`,
+        name: `${player.firstName} ${player.lastName}`,
         quantity,
         marketValue,
+        marketStatus: position.marketStatus,
         priceChange24h,
         estimatedContribution,
       };
@@ -480,6 +485,7 @@ async function getPortfolioAttributionSection(userId: string): Promise<DigestSec
   const topNegative = [...positions].sort(
     (a, b) => a.estimatedContribution - b.estimatedContribution,
   )[0];
+  const unpricedCount = positions.filter((position) => position.marketStatus === "unpriced").length;
 
   return {
     title: "Portfolio Attribution",
@@ -488,6 +494,14 @@ async function getPortfolioAttributionSection(userId: string): Promise<DigestSec
         label: "Held Value",
         value: formatCurrency(totalHeldValue),
       },
+      ...(unpricedCount > 0
+        ? [
+            {
+              label: "Unpriced Positions",
+              value: String(unpricedCount),
+            },
+          ]
+        : []),
       {
         label: "Estimated 24h Move",
         value: formatSignedCurrency(estimatedMove),
