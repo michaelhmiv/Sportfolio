@@ -34,16 +34,14 @@ function isBlockedKey(key: string): boolean {
   return BLOCKED_KEY.test(key) || BLOCKED_DIAGNOSTIC_KEY.test(key);
 }
 
-function resolvePublicPlayerDisplayName(
-  record: Record<string, unknown>,
-): string {
+function resolvePublicPlayerDisplayName(record: Record<string, unknown>): string {
   const id = text(record.id) || text(record.playerId);
   const looksLikePublicPlayer = Boolean(
     id &&
-      (CANONICAL_PLAYER_ID.test(id) ||
-        text(record.sport) ||
-        text(record.position) ||
-        text(record.team)),
+    (CANONICAL_PLAYER_ID.test(id) ||
+      text(record.sport) ||
+      text(record.position) ||
+      text(record.team)),
   );
   if (!looksLikePublicPlayer) return "";
 
@@ -84,10 +82,7 @@ export function sanitizePluginValue(
     const output: Record<string, unknown> = {};
     const publicPlayerDisplayName = resolvePublicPlayerDisplayName(source);
     if (publicPlayerDisplayName) {
-      output.displayName = sanitizeString(
-        publicPlayerDisplayName,
-        resolved.maxStringLength,
-      );
+      output.displayName = sanitizeString(publicPlayerDisplayName, resolved.maxStringLength);
     }
 
     for (const [key, item] of Object.entries(source)) {
