@@ -30,13 +30,13 @@ const JOB_TIMEZONE = "America/New_York";
 const ANALYTICS_SNAPSHOT_JOBS: readonly JobConfig[] = [
   {
     name: "market_snapshot",
-    schedule: "2 3 * * *",
+    schedule: "5 0 * * *",
     enabled: true,
     handler: () => takeMarketSnapshot(),
   },
   {
     name: "portfolio_snapshot",
-    schedule: "7 3 * * *",
+    schedule: "10 0 * * *",
     enabled: true,
     handler: () => dailySnapshot(),
   },
