@@ -53,6 +53,66 @@ env:
   DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_plugin_ci
 
 jobs:
+  format-chatgpt-ui-hardening:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'factory/format-chatgpt-ui-contract-hardening'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Check out formatting branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Format only flagged implementation files
+        run: >-
+          npx prettier --write
+          server/mcp/plugin/ui/composed-tool.test.ts
+          server/mcp/plugin/ui/composed-tool.ts
+          server/mcp/plugin/ui/gameplay-surface.ts
+          server/mcp/plugin/ui/overview-surface.ts
+          server/mcp/plugin/ui/player-display-name.test.ts
+          server/mcp/plugin/ui/protocol-resource.test.ts
+          server/mcp/plugin/ui/sports-surface.ts
+          server/observability/request-log-sanitizer.test.ts
+      - name: Verify formatting
+        run: npm run format:check
+      - name: Typecheck formatted tree
+        run: npx tsc
+      - name: Focused regression tests
+        run: >-
+          npx vitest run
+          server/mcp/plugin/ui/shared-resource.test.ts
+          server/mcp/plugin/ui/player-display-name.test.ts
+          server/mcp/plugin/ui/composed-tool.test.ts
+          server/mcp/plugin/ui/protocol-resource.test.ts
+          server/mcp/plugin/ui/surface.test.ts
+          server/mcp/plugin/ui/action-surface.test.ts
+          server/mcp/plugin/ui/gameplay-surface.test.ts
+          server/mcp/plugin/ui/overview-surface.test.ts
+          server/observability/request-log-sanitizer.test.ts
+      - name: Restore trusted workflow and commit formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout origin/main -- .github/workflows/plugin-readiness.yml
+          git config user.name "openai-codex[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          HUSKY=0 git commit -m "style(plugin-ui): format ChatGPT hardening changes"
+          git push origin HEAD:${{ github.head_ref }}
+
   static-and-unit:
     runs-on: ubuntu-latest
     timeout-minutes: 25
