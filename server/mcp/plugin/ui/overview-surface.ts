@@ -2,7 +2,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
   createDefaultPublicMcpDependencies,
-  executePublicTool,
   type PublicMcpDependencies,
   type PublicMcpServerContext,
 } from "../../public-tool-registry";
@@ -11,6 +10,8 @@ import { pluginMcpAuthError } from "../../../auth/plugin-auth-challenge";
 import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
+import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
+import { composedToolValue, composedToolWarning, invokeComposedPublicTool, type ComposedToolState } from "./composed-tool";
 
 type JsonRecord = Record<string, unknown>;
 type RawSchema = Record<string, z.ZodTypeAny>;
@@ -105,15 +106,9 @@ async function safeTool(
   publicContext: PublicMcpServerContext,
   name: string,
   args: Record<string, unknown>,
-): Promise<{ value: JsonRecord; warning?: string }> {
-  try {
-    return { value: record(await executePublicTool(publicContext, name, args)) };
-  } catch (error) {
-    return {
-      value: { unavailable: true },
-      warning: error instanceof Error ? error.message : `${name} is unavailable.`,
-    };
-  }
+): Promise<{ value: JsonRecord; state: ComposedToolState; warning?: string }> {
+  const result = await invokeComposedPublicTool(publicContext, name, args);
+  return { value: composedToolValue(result), state: result.state, warning: composedToolWarning(result) };
 }
 
 async function renderDashboard(
@@ -124,7 +119,7 @@ async function renderDashboard(
   const dashboard = await safeTool(publicContext, "get_dashboard_overview", { recentLotsLimit });
   return sanitizePresentation(
     "dashboard",
-    { recentLotsLimit, dashboard: dashboard.value },
+    { recentLotsLimit, dashboard: dashboard.value, sourceStates: { dashboard: dashboard.state } },
     dashboard.warning ? [dashboard.warning] : [],
   );
 }
@@ -136,7 +131,7 @@ async function renderCollections(
   const type = text(args.type);
   const targetId = text(args.targetId);
   const collectionList = await safeTool(publicContext, "list_collections", {});
-  let selected: { value: JsonRecord; warning?: string } | null = null;
+  let selected: Awaited<ReturnType<typeof safeTool>> | null = null;
   if (type && targetId) {
     selected = await safeTool(publicContext, "get_collection_detail", { type, targetId });
   }
@@ -150,6 +145,7 @@ async function renderCollections(
       targetId: targetId || null,
       collections: collectionList.value,
       selected: selected?.value || null,
+      sourceStates: { collections: collectionList.state, selected: selected?.state || "empty" },
     },
     warnings,
   );
@@ -164,7 +160,7 @@ async function renderRankings(
   const rankings = await safeTool(publicContext, "get_leaderboard", { category, limit });
   return sanitizePresentation(
     "rankings",
-    { category, limit, rankings: rankings.value },
+    { category, limit, rankings: rankings.value, sourceStates: { rankings: rankings.state } },
     rankings.warning ? [rankings.warning] : [],
   );
 }
@@ -259,7 +255,7 @@ export async function registerOverviewPluginUiSurface(
                 ui: {
                   domain: "https://www.sportfolio.market",
                   prefersBorder: true,
-                  csp: { connectDomains: [], resourceDomains: [] },
+                  csp: { connectDomains: [], resourceDomains: ["https://www.sportfolio.market"] },
                 },
                 "openai/widgetDescription": definition.description,
                 "openai/widgetPrefersBorder": true,
@@ -287,8 +283,8 @@ export async function registerOverviewPluginUiSurface(
           securitySchemes: oauthSecurity,
           source: "plugin_ui:overview_presentation",
           access: "oauth",
-          ui: { resourceUri: definition.resourceUri },
-          "openai/outputTemplate": definition.resourceUri,
+          ui: { resourceUri: SPORTFOLIO_SHARED_UI_RESOURCE_URI },
+          "openai/outputTemplate": SPORTFOLIO_SHARED_UI_RESOURCE_URI,
           "openai/toolInvocation/invoking": `Loading ${definition.view}…`,
           "openai/toolInvocation/invoked": `${definition.title} loaded.`,
           fixtureArgs: definition.fixtureArgs,

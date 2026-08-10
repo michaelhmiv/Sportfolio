@@ -24,6 +24,7 @@ import { db } from "./db";
 import { botProfiles } from "@shared/schema";
 import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
+import { serializeRequestForLog } from "./observability/request-log-sanitizer";
 import { nanoid } from "nanoid";
 import { normalizeSiteUrl } from "@shared/seo";
 import { isWriteMaintenanceMode, maintenanceWriteGuard } from "./maintenance-mode";
@@ -77,6 +78,7 @@ app.use(
       ignore: (req) => req.url === "/api/health",
     },
     genReqId: (req) => req.requestId ?? nanoid(),
+    serializers: { req: serializeRequestForLog },
     customLogLevel: (_req, res, err) => {
       if (err || res.statusCode >= 500) return "error";
       if (res.statusCode >= 400) return "warn";

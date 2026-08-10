@@ -6,6 +6,7 @@ import { pluginMcpAuthError } from "../../../auth/plugin-auth-challenge";
 import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
+import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -89,7 +90,7 @@ export async function registerActionPluginUiSurface(
                 prefersBorder: true,
                 csp: {
                   connectDomains: [],
-                  resourceDomains: [],
+                  resourceDomains: ["https://www.sportfolio.market"],
                 },
               },
               "openai/widgetDescription": description,
@@ -120,8 +121,8 @@ export async function registerActionPluginUiSurface(
         securitySchemes: oauthSecurity,
         source: "plugin_ui:action_review",
         access: "oauth",
-        ui: { resourceUri: SPORTFOLIO_ACTION_UI_RESOURCE_URI },
-        "openai/outputTemplate": SPORTFOLIO_ACTION_UI_RESOURCE_URI,
+        ui: { resourceUri: SPORTFOLIO_SHARED_UI_RESOURCE_URI },
+        "openai/outputTemplate": SPORTFOLIO_SHARED_UI_RESOURCE_URI,
         "openai/toolInvocation/invoking": "Loading staged Sportfolio action…",
         "openai/toolInvocation/invoked": "Sportfolio action ready for review.",
         fixtureArgs: { transactionId: "00000000-0000-4000-8000-000000000001" },
