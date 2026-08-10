@@ -194,12 +194,12 @@ async function loadTradeStats(
   const result: any = await db.execute(sql`
     SELECT
       t.player_id AS "playerId",
-      COALESCE(SUM(t.total_cost::numeric), 0)::float8 AS volume,
+      COALESCE(SUM((t.price::numeric * t.quantity::numeric)), 0)::float8 AS volume,
       COUNT(*)::int AS trades,
-      COALESCE(SUM(CASE WHEN t.seller_id = 'pool' THEN t.total_cost::numeric ELSE 0 END), 0)::float8 AS "buyNotional",
-      COALESCE(SUM(CASE WHEN t.buyer_id = 'pool' THEN t.total_cost::numeric ELSE 0 END), 0)::float8 AS "sellNotional",
-      COALESCE(SUM(CASE WHEN COALESCE(t.buyer_id, '') <> 'pool' AND COALESCE(t.seller_id, '') <> 'pool' THEN t.total_cost::numeric ELSE 0 END), 0)::float8 AS "peerNotional",
-      COALESCE(SUM(CASE WHEN t.total_cost::numeric >= ${WHALE_NOTIONAL} THEN t.total_cost::numeric ELSE 0 END), 0)::float8 AS "whaleVolume",
+      COALESCE(SUM(CASE WHEN t.seller_id = 'pool' THEN (t.price::numeric * t.quantity::numeric) ELSE 0 END), 0)::float8 AS "buyNotional",
+      COALESCE(SUM(CASE WHEN t.buyer_id = 'pool' THEN (t.price::numeric * t.quantity::numeric) ELSE 0 END), 0)::float8 AS "sellNotional",
+      COALESCE(SUM(CASE WHEN COALESCE(t.buyer_id, '') <> 'pool' AND COALESCE(t.seller_id, '') <> 'pool' THEN (t.price::numeric * t.quantity::numeric) ELSE 0 END), 0)::float8 AS "peerNotional",
+      COALESCE(SUM(CASE WHEN (t.price::numeric * t.quantity::numeric) >= ${WHALE_NOTIONAL} THEN (t.price::numeric * t.quantity::numeric) ELSE 0 END), 0)::float8 AS "whaleVolume",
       ((ARRAY_AGG(t.price::numeric ORDER BY t.executed_at ASC))[1])::float8 AS "firstPrice"
     FROM trades t
     INNER JOIN players p ON p.id = t.player_id
@@ -489,8 +489,8 @@ export async function getMarketOverview(
   const top10Cap = sortedCaps.slice(0, 10).reduce((sum, value) => sum + value, 0);
   const tradeSizesResult: any = await db.execute(sql`
     SELECT
-      COALESCE(AVG(t.total_cost::numeric), 0)::float8 AS average,
-      COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.total_cost::numeric), 0)::float8 AS median
+      COALESCE(AVG((t.price::numeric * t.quantity::numeric)), 0)::float8 AS average,
+      COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (t.price::numeric * t.quantity::numeric)), 0)::float8 AS median
     FROM trades t
     INNER JOIN players p ON p.id = t.player_id
     WHERE t.executed_at >= ${startDate}
@@ -620,10 +620,10 @@ export async function getMarketSeries(
         t.player_id,
         ((ARRAY_AGG(t.price::numeric ORDER BY t.executed_at ASC))[1])::float8 AS first_price,
         ((ARRAY_AGG(t.price::numeric ORDER BY t.executed_at DESC))[1])::float8 AS last_price,
-        SUM(t.total_cost::numeric)::float8 AS volume,
+        SUM((t.price::numeric * t.quantity::numeric))::float8 AS volume,
         COUNT(*)::int AS trades,
-        SUM(CASE WHEN t.seller_id = 'pool' THEN t.total_cost::numeric ELSE 0 END)::float8 AS buy_notional,
-        SUM(CASE WHEN t.buyer_id = 'pool' THEN t.total_cost::numeric ELSE 0 END)::float8 AS sell_notional
+        SUM(CASE WHEN t.seller_id = 'pool' THEN (t.price::numeric * t.quantity::numeric) ELSE 0 END)::float8 AS buy_notional,
+        SUM(CASE WHEN t.buyer_id = 'pool' THEN (t.price::numeric * t.quantity::numeric) ELSE 0 END)::float8 AS sell_notional
       FROM trades t
       INNER JOIN players p ON p.id = t.player_id
       WHERE t.executed_at >= ${startDate}
@@ -826,7 +826,7 @@ export async function getMarketTape(
       t.player_id AS "playerId",
       t.quantity,
       t.price::float8 AS price,
-      t.total_cost::float8 AS notional,
+      (t.price::numeric * t.quantity::numeric)::float8 AS notional,
       t.executed_at AS "timestamp",
       t.buyer_id AS "buyerId",
       t.seller_id AS "sellerId",
@@ -840,7 +840,7 @@ export async function getMarketTape(
       AND ${sport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${sport}`}
       AND ${playerClause}
       AND ${sideClause}
-      AND t.total_cost::numeric >= ${minNotional}
+      AND (t.price::numeric * t.quantity::numeric) >= ${minNotional}
     ORDER BY t.executed_at DESC
     LIMIT ${limit}
   `);
