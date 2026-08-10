@@ -82,7 +82,10 @@ export function sanitizePluginValue(
     const output: Record<string, unknown> = {};
     const publicPlayerDisplayName = resolvePublicPlayerDisplayName(source);
     if (publicPlayerDisplayName) {
-      output.displayName = sanitizeString(publicPlayerDisplayName, resolved.maxStringLength);
+      output.displayName = sanitizeString(
+        publicPlayerDisplayName,
+        resolved.maxStringLength,
+      );
     }
 
     for (const [key, item] of Object.entries(source)) {
