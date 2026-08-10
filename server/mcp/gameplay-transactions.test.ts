@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { storage } from "../storage";
 import {
   cancelGameplayTransaction,
   configureGameplayTransactionExecutorForTests,
@@ -9,7 +10,10 @@ import {
 } from "./gameplay-transactions";
 
 beforeEach(() => resetGameplayTransactionsForTests());
-afterEach(() => resetGameplayTransactionsForTests());
+afterEach(() => {
+  vi.restoreAllMocks();
+  resetGameplayTransactionsForTests();
+});
 
 describe("gameplay transactions", () => {
   it("stages and confirms an owned action exactly once", async () => {
@@ -27,6 +31,28 @@ describe("gameplay transactions", () => {
     await expect(confirmGameplayTransaction("user-1", staged.transactionId)).rejects.toThrow(
       "confirmed",
     );
+  });
+
+  it("uses public player names instead of canonical ids in staged summaries", async () => {
+    vi.spyOn(storage, "getPlayer").mockResolvedValue({
+      id: "nascar_4023",
+      firstName: "Ryan",
+      lastName: "Blaney",
+      sport: "NASCAR",
+      team: "NCS",
+    } as any);
+
+    const staged = await stageGameplayTransaction({
+      userId: "user-1",
+      action: {
+        actionType: "holdings_stack_shares",
+        playerId: "nascar_4023",
+        sharesToStack: 4,
+      },
+    });
+
+    expect(staged.summary).toBe("Stack 4 shares of Ryan Blaney.");
+    expect(staged.summary).not.toContain("nascar_4023");
   });
 
   it("stages multiple scout targets as one exact confirmation bundle", async () => {
