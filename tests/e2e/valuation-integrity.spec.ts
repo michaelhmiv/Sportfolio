@@ -65,6 +65,7 @@ async function mockValuationApis(page: Page) {
         isAdmin: false,
       });
     }
+    if (path === "/api/players/injuries") return json([]);
     if (path === "/api/watchlist") return json([]);
     if (path === "/api/player/nascar_3859") {
       return json({
