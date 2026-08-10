@@ -32,9 +32,7 @@ class PerplexityService {
 
   private getBackoffMs(): number {
     const configured = Number(process.env.PERPLEXITY_QUOTA_BACKOFF_MS);
-    return Number.isFinite(configured) && configured >= 60_000
-      ? configured
-      : 6 * 60 * 60 * 1000;
+    return Number.isFinite(configured) && configured >= 60_000 ? configured : 6 * 60 * 60 * 1000;
   }
 
   private activeBackoffError(): string | null {
