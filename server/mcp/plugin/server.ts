@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import type { McpServer as LegacyMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerMarketResearchTools } from "../market-research-tools";
 import type { PublicMcpDependencies } from "../public-tool-registry";
 import type { PluginMcpContext } from "./context";
 import { registerPluginMarketplaceSurface } from "./registry";
@@ -12,7 +13,7 @@ import { registerPluginUiSurface } from "./ui/surface";
 
 const PLUGIN_SERVER_INFO = {
   name: "sportfolio-marketplace-plugin",
-  version: "1.2.0",
+  version: "1.3.0",
 } as const;
 
 /**
@@ -42,6 +43,7 @@ export async function createPluginMcpServer(
   registerSharedPluginUiResource(registrationServer);
 
   await registerPluginMarketplaceSurface(registrationServer, context, deps);
+  registerMarketResearchTools(registrationServer, { plugin: true });
   await registerPluginUiSurface(registrationServer, context);
   await registerSportsPluginUiSurface(registrationServer, context, deps);
   await registerActionPluginUiSurface(registrationServer, context);
