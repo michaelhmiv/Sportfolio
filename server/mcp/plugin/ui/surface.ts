@@ -442,9 +442,15 @@ async function renderMarketMovers(
 
   const sortBy = category === "volume" || category === "most_traded" ? "volume" : "change";
   const sortOrder = category === "decliners" ? "asc" : "desc";
+  // Change-sorted categories use the same 24-hour AMM price-change formula in SQL
+  // and batch enrichment, so only the requested result window is needed. Volume
+  // and most-traded retain the broad candidate set because their final pool metrics
+  // are not identical to the database's 24-hour volume ordering.
+  const candidateLimit =
+    category === "gainers" || category === "decliners" || category === "watchlist" ? limit : 100;
   const result = await storage.getPlayersPaginated({
     sport: requestedSport || undefined,
-    limit: 100,
+    limit: candidateLimit,
     offset: 0,
     sortBy,
     sortOrder,
