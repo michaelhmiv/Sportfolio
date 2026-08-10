@@ -155,18 +155,25 @@ function approximatelyEqual(left: number, right: number): boolean {
   return Math.abs(left - right) <= Math.max(0.01, Math.abs(right) * 0.0001);
 }
 
-const driftWarningLastLoggedAt = new Map<string, number>();
+let driftWarningLastLoggedAt = 0;
 const DRIFT_WARNING_LOG_INTERVAL_MS = 5 * 60 * 1000;
+const DRIFT_WARNING_SAMPLE_SIZE = 10;
 
-function logMarketDrift(market: CanonicalPlayerMarket): void {
-  if (!market.warnings.length) return;
-  const key = `${market.playerId}:${market.warnings.join("|")}`;
+function logMarketDriftBatch(markets: Iterable<CanonicalPlayerMarket>): void {
+  const drifted = Array.from(markets).filter((market) => market.warnings.length > 0);
+  if (!drifted.length) return;
   const now = Date.now();
-  if (now - (driftWarningLastLoggedAt.get(key) || 0) < DRIFT_WARNING_LOG_INTERVAL_MS) return;
-  driftWarningLastLoggedAt.set(key, now);
-  console.warn("[canonical_valuation] Market-state drift", {
-    playerId: market.playerId,
-    warnings: market.warnings,
+  if (now - driftWarningLastLoggedAt < DRIFT_WARNING_LOG_INTERVAL_MS) return;
+  driftWarningLastLoggedAt = now;
+
+  console.warn("[canonical_valuation] Market-state drift summary", {
+    marketCount: drifted.length,
+    warningCount: drifted.reduce((sum, market) => sum + market.warnings.length, 0),
+    samples: drifted.slice(0, DRIFT_WARNING_SAMPLE_SIZE).map((market) => ({
+      playerId: market.playerId,
+      warnings: market.warnings,
+    })),
+    omittedMarketCount: Math.max(0, drifted.length - DRIFT_WARNING_SAMPLE_SIZE),
   });
 }
 
@@ -454,9 +461,7 @@ export async function getCanonicalPlayerMarkets(
       liquidUserShares: holdingsByPlayer.get(player.id) || 0,
     })),
   );
-  for (const market of result.values()) {
-    logMarketDrift(market);
-  }
+  logMarketDriftBatch(result.values());
   return result;
 }
 
