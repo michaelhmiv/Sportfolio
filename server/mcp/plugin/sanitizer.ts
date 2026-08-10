@@ -1,7 +1,8 @@
 const BLOCKED_KEY =
-  /(?:password|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|cookie|service[_-]?role|provider[_-]?key|session[_-]?id|request[_-]?id|stack|sql)/i;
+  /(?:password|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|cookie|service[_-]?role|provider[_-]?key|session[_-]?id|request[_-]?id)/i;
+const BLOCKED_DIAGNOSTIC_KEY = /^(?:stack|sql)$/i;
 const DIRECT_PII_KEY = /^(?:email|phone|phoneNumber|firstName|lastName|fullName)$/i;
-const CANONICAL_PLAYER_ID = /^(?:mlb|nascar|nhl|nfl|nba)_/i;
+const CANONICAL_PLAYER_ID = /^(?:mlb|nascar|nhl|nfl|nba|wnba)_/i;
 
 export type PluginSanitizeOptions = {
   maxDepth?: number;
@@ -27,6 +28,10 @@ function sanitizeString(value: string, maxLength: number): string {
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function isBlockedKey(key: string): boolean {
+  return BLOCKED_KEY.test(key) || BLOCKED_DIAGNOSTIC_KEY.test(key);
 }
 
 function resolvePublicPlayerDisplayName(record: Record<string, unknown>): string {
@@ -81,7 +86,7 @@ export function sanitizePluginValue(
     }
 
     for (const [key, item] of Object.entries(source)) {
-      if (BLOCKED_KEY.test(key) || DIRECT_PII_KEY.test(key)) continue;
+      if (isBlockedKey(key) || DIRECT_PII_KEY.test(key)) continue;
       output[key] = sanitizePluginValue(item, resolved, depth + 1, seen);
     }
     return output;
@@ -105,7 +110,7 @@ export function assertNoRestrictedPluginFields(
   }
 
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    if (BLOCKED_KEY.test(key) || DIRECT_PII_KEY.test(key)) {
+    if (isBlockedKey(key) || DIRECT_PII_KEY.test(key)) {
       throw new Error(`Restricted marketplace output field at ${path}.${key}`);
     }
     assertNoRestrictedPluginFields(item, `${path}.${key}`, seen);
