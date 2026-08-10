@@ -13,6 +13,7 @@ on:
       - "server/routes/plugin-**"
       - "server/routes/mcp.ts"
       - "server/jobs/**"
+      - "server/worker.ts"
       - "client/src/plugin-ui/**"
       - "client/src/pages/oauth-consent.tsx"
       - "client/src/pages/connected-apps.tsx"
@@ -62,17 +63,13 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install dependencies
-        run: |
-          npm ci
-          npm install --no-save @modelcontextprotocol/server@2.0.0 @modelcontextprotocol/node@2.0.0-beta.5
-      - name: Build ChatGPT widget assets
-        run: npm run plugin:ui:build
+        run: npm ci
       - name: Plugin TypeScript certification
         run: npx tsc -p tsconfig.plugin.json --noEmit
       - name: Repository typecheck
-        run: npm run check
+        run: npx tsc
       - name: Production build
-        run: npm run build
+        run: npm run plugin:ui:build && vite build && esbuild server/index.ts server/worker.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
       - name: Public capability governance
         run: npm run governance:capabilities
       - name: Plugin unit tests
@@ -112,9 +109,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install dependencies
-        run: |
-          npm ci
-          npm install --no-save @modelcontextprotocol/server@2.0.0 @modelcontextprotocol/node@2.0.0-beta.5
+        run: npm ci
       - name: Existing MCP audit
         run: npm run mcp:audit
       - name: Existing MCP smoke
