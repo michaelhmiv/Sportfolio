@@ -61,6 +61,22 @@ const pluginMcpRequests = new client.Counter({
   registers: enabled ? [register] : [],
 });
 
+const pluginMcpRequestLatency = new client.Histogram({
+  name: "plugin_mcp_request_latency_seconds",
+  help: "Marketplace MCP HTTP request latency by JSON-RPC method",
+  labelNames: ["rpc_method", "status", "authenticated"],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: enabled ? [register] : [],
+});
+
+const pluginMcpResponseBytes = new client.Histogram({
+  name: "plugin_mcp_response_bytes",
+  help: "Marketplace MCP HTTP response body bytes when Content-Length is available",
+  labelNames: ["rpc_method", "status"],
+  buckets: [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144],
+  registers: enabled ? [register] : [],
+});
+
 const pluginMcpToolCalls = new client.Counter({
   name: "plugin_mcp_tool_calls_total",
   help: "Marketplace MCP tool call outcomes",
@@ -112,9 +128,25 @@ export function observeAuthTelemetryEvent(args: { event: string; code?: string }
   authTelemetryEvents.labels(args.event, args.code || "none").inc();
 }
 
-export function observePluginMcpRequest(args: { status: string; authenticated: boolean }) {
+export function observePluginMcpRequest(args: {
+  status: string;
+  authenticated: boolean;
+  rpcMethod?: string;
+  durationMs?: number;
+  responseBytes?: number;
+}) {
   if (!enabled) return;
-  pluginMcpRequests.labels(args.status, args.authenticated ? "true" : "false").inc();
+  const authenticated = args.authenticated ? "true" : "false";
+  const rpcMethod = args.rpcMethod || "unknown";
+  pluginMcpRequests.labels(args.status, authenticated).inc();
+  if (args.durationMs !== undefined && Number.isFinite(args.durationMs)) {
+    pluginMcpRequestLatency
+      .labels(rpcMethod, args.status, authenticated)
+      .observe(Math.max(0, args.durationMs) / 1000);
+  }
+  if (args.responseBytes !== undefined && Number.isFinite(args.responseBytes)) {
+    pluginMcpResponseBytes.labels(rpcMethod, args.status).observe(Math.max(0, args.responseBytes));
+  }
 }
 
 export function observePluginMcpTool(args: {
