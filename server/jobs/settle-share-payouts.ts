@@ -4,6 +4,7 @@ import { sendUserNotification } from "../services/notification-dispatcher";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { isNflPreseasonGame } from "../nfl/season";
+import { getSharePayoutStats, loadSharePayoutSettlementContext } from "./share-payout-read-model";
 
 function toFiniteNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
@@ -44,6 +45,7 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
 
   try {
     const pending = await storage.getPendingSharePayouts(5000);
+    requestCount += 1;
 
     progressCallback?.({
       type: "info",
@@ -51,18 +53,23 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
       message: `Share payout settlement checking ${pending.length} pending rows`,
     });
 
-    for (const payout of pending) {
-      requestCount++;
+    if (pending.length === 0) {
+      return { requestCount, recordsProcessed: 0, errorCount: 0 };
+    }
 
+    const settlementContext = await loadSharePayoutSettlementContext(pending);
+    requestCount += settlementContext.readCount;
+
+    for (const payout of pending) {
       try {
-        const game = await storage.getDailyGameByGameId(payout.gameId);
+        const game = settlementContext.gamesById.get(payout.gameId);
         if (!game) continue;
         if (isNflPreseasonGame(game)) continue;
 
         const gameStatus = (game.status || "").toLowerCase();
         if (gameStatus !== "completed" && gameStatus !== "ended") continue;
 
-        const stats = await storage.getPlayerGameStats(payout.playerId, payout.gameId);
+        const stats = getSharePayoutStats(settlementContext, payout.playerId, payout.gameId);
         if (!stats) continue;
         if (!isSettlableNascarStats(game.sport, stats)) continue;
 
@@ -71,6 +78,7 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
         const baseRate = toFiniteNumber(payout.baseRate, 1);
         const amount = Math.max(0, earningUnits * fantasyPoints * baseRate);
 
+        requestCount += 1;
         const credited = await storage.processSharePayoutCredit(
           payout.id,
           payout.userId,
@@ -121,7 +129,7 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
       recordsProcessed: processed,
       errorCount,
     };
-  } catch (err: any) {
+  } catch (_err: any) {
     return {
       requestCount,
       recordsProcessed: processed,
