@@ -379,18 +379,11 @@ export async function selectCandidates(
     if (context.actionType === "boost_assign" && !context.heldPlayerIds.has(playerId)) {
       continue; // Need shares to boost
     }
-    if (context.actionType === "stack_shares" && !context.heldPlayerIds.has(playerId)) {
-      continue; // Must hold shares to stack
-    }
-    if (context.actionType === "stack_shares" && availableShares < 4) {
-      continue; // Need at least 4 shares to stack
-    }
     if (
       (context.actionType === "sell" ||
         context.actionType === "pool_create" ||
         context.actionType === "pool_add_liquidity" ||
-        context.actionType === "boost_assign" ||
-        context.actionType === "stack_shares") &&
+        context.actionType === "boost_assign") &&
       availableShares < 1
     ) {
       continue; // Can't use locked-only holdings

@@ -449,17 +449,6 @@ async function buildFeasibleActionParams(
       return availableShares >= 1
         ? { params: calculateActionParams(actionType, target, state.profile) }
         : null;
-    case "stack_shares": {
-      if (availableShares < 4) {
-        return null;
-      }
-      // Stack the max even amount at ~60% of available shares
-      const targetStack = Math.floor(availableShares * 0.6);
-      // Round down to nearest even number (minimum 4)
-      const sharesToStack = Math.max(4, targetStack - (targetStack % 2));
-      if (sharesToStack < 4) return null;
-      return { params: { shares: sharesToStack } };
-    }
     default:
       return null;
   }

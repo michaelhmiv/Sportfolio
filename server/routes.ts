@@ -1726,7 +1726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
 
       currentBoosts.forEach((boost) => boostedPlayerIds.add(boost.playerId));
-      boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
+      boostSlotsRemaining = Math.max(0, 5 - currentBoosts.length);
 
       const eligibleByGame = new Map<string, typeof eligiblePlayers>();
       eligiblePlayers.forEach((player) => {
@@ -1740,13 +1740,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Each holding row represents a distinct share with its own multiplier/effective-share state.
         // We show individual shares because only ONE share can be placed in a boost slot
         const topMultiplierPlayers = [...playersForGame]
-          .sort((a, b) => parseFloat(b.multiplier || "0") - parseFloat(a.multiplier || "0"))
+          .sort((a, b) => 0)
           .slice(0, 2)
           .map((player) => ({
             playerId: player.player.id,
             name: `${player.player.firstName} ${player.player.lastName}`,
             team: player.player.team,
-            multiplier: parseFloat(player.multiplier || "0"),
+            multiplier: 1,
             availableShares: Number(player.availableShares || 0),
             totalShares: Number(player.effectiveShares || player.quantity || 0),
             isBoosted: boostedPlayerIds.has(player.player.id),
@@ -1767,7 +1767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         playersForGame.forEach((player) => {
           const playerId = player.player.id;
-          const multiplier = parseFloat(player.multiplier || "0");
+          const multiplier = 1;
           const availableShares = Number(player.availableShares || 0);
           const totalShares = Number(player.effectiveShares || player.quantity || 0);
           const existing = ownedPlayersById.get(playerId);
@@ -1813,7 +1813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           playerId,
           name: `${holding.player.firstName} ${holding.player.lastName}`,
           team: holding.player.team,
-          multiplier: parseFloat(holding.multiplier || "0"),
+          multiplier: 1,
           availableShares: 0,
           totalShares,
           isBoosted: boostedPlayerIds.has(playerId),
@@ -3185,10 +3185,8 @@ ${items}
           currentPrice: position.marketPrice?.toFixed(2) ?? null,
         },
         quantity: position.singles.toFixed(2),
-        effectiveShares: position.gameplayPower.toFixed(2),
+        effectiveShares: position.singles.toFixed(2),
         singles: position.singles,
-        stackPower: position.stackPower,
-        gameplayPower: position.gameplayPower,
         value: position.marketValue?.toFixed(2) ?? null,
         pnl: position.unrealizedChange?.toFixed(2) ?? null,
         pnlPercent: position.unrealizedChangePercent?.toFixed(2) ?? null,
@@ -3510,7 +3508,7 @@ ${items}
           storage.getAllHoldingsWithPlayers(userId),
         ]);
 
-        boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
+        boostSlotsRemaining = Math.max(0, 5 - currentBoosts.length);
         const boostedPlayerIds = new Set(currentBoosts.map((boost) => boost.playerId));
 
         userHoldings = eligiblePlayers.map((holding) => ({
