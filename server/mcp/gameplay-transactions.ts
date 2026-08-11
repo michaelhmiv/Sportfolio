@@ -30,12 +30,12 @@ export type GameplayAction =
   | { actionType: "pool_zap_add_shares"; playerId: string; shares: number }
   | { actionType: "pool_zap_add_sb"; playerId: string; sb: number }
   | { actionType: "pool_remove_liquidity"; playerId: string; lpShares: number }
-  | { actionType: "holdings_stack_shares"; playerId: string; sharesToStack: number }
   | {
       actionType: "daily_boost_assign";
       playerId: string;
       sport: string;
-      slotTier: 2 | 3 | 4 | 5;
+      slotTier: 2 | 3 | 5 | 7 | 10;
+      shares: number;
       boostDate: string;
     }
   | { actionType: "daily_boost_remove"; boostId: string; boostDate: string }
@@ -124,13 +124,10 @@ function assertAction(action: GameplayAction) {
     case "pool_remove_liquidity":
       assertPositive(action.lpShares, "lpShares");
       break;
-    case "holdings_stack_shares":
-      if (
-        !Number.isInteger(action.sharesToStack) ||
-        action.sharesToStack < 4 ||
-        action.sharesToStack % 2 !== 0
-      ) {
-        throw new Error("sharesToStack must be an even integer of at least 4");
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
       }
       break;
     case "scout_set_count":
@@ -304,16 +301,13 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
       if (!result.success) throw new Error(result.error || "Failed to remove liquidity");
       return withPlayer(result, action.playerId);
     }
-    case "holdings_stack_shares": {
-      const result = await storage.stackShares(userId, action.playerId, action.sharesToStack);
-      return withPlayer(result, action.playerId);
-    }
     case "daily_boost_assign": {
       const result = await assignDailyBoostWithValidation({
         userId,
         playerId: action.playerId,
         sport: action.sport,
         slotTier: action.slotTier,
+        shares: action.shares,
         etDate: action.boostDate,
       });
       return withPlayer(result, action.playerId);

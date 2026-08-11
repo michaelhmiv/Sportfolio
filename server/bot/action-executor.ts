@@ -297,13 +297,16 @@ async function executeBoostAssign(
   player: PlayerCandidate,
   params: ActionParams,
 ): Promise<ActionResult> {
-  const slotTier = params.slotTier || 4;
+  const requestedTier = params.slotTier || 5;
+  const slotTier = [2, 3, 5, 7, 10].includes(requestedTier) ? requestedTier : 5;
+  const shares = Math.max(0.0001, params.shares || 1);
 
   try {
-    const { shareMultiplier, shareSourceType } = await assignDailyBoostWithValidation({
+    const result = await assignDailyBoostWithValidation({
       userId: botUserId,
       playerId: player.playerId,
       slotTier,
+      shares,
       sport: player.sport,
       etDate: new Date(),
     });
@@ -315,8 +318,7 @@ async function executeBoostAssign(
       success: true,
       details: {
         slotTier,
-        shareMultiplier,
-        shareSourceType,
+        sharesCommitted: result.sharesCommitted,
       },
     };
   } catch (error: any) {

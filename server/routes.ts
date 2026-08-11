@@ -9902,28 +9902,22 @@ ${items}
       }
 
       const tierNum = parseInt(slotTier);
-      if (![2, 3, 4, 5].includes(tierNum)) {
-        return res.status(400).json({ error: "slotTier must be 2, 3, 4, or 5" });
+      if (![2, 3, 5, 7, 10].includes(tierNum)) {
+        return res.status(400).json({ error: "slotTier must be 2, 3, 5, 7, or 10" });
       }
 
-      const shares = parseInt(sharesEntered);
+      const shares = Number(sharesEntered);
       if (shares <= 0) {
         return res.status(400).json({ error: "sharesEntered must be positive" });
       }
 
-      // Verify only 1 share is entered per boost slot.
-      if (shares !== 1) {
-        return res.status(400).json({
-          error: `Only 1 share can be placed in a boost slot. You entered ${shares} shares. Use Stack Shares to roll more multiplier into a single share.`,
-        });
-      }
-
       const dateStr = resolveEtDateOrToday(date);
-      const { boost, canonicalPlayerId, shareMultiplier } = await assignDailyBoostWithValidation({
+      const { boost, canonicalPlayerId, sharesCommitted } = await assignDailyBoostWithValidation({
         userId,
         playerId,
         sport,
         slotTier: tierNum,
+        shares,
         etDate: dateStr,
       });
 
@@ -9940,7 +9934,7 @@ ${items}
           boostId: boost.id,
           playerId: canonicalPlayerId,
           slotTier: String(tierNum),
-          shareMultiplier,
+          sharesCommitted: sharesCommitted.toFixed(4),
         },
         dedupeKey: `boost_assigned:${boost.id}`,
       }).catch((error) => {
