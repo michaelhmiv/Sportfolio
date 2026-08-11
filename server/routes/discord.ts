@@ -30,7 +30,6 @@ import { loadUserEntitlements } from "../services/user-entitlements";
 import {
   DISCORD_SUPPORTED_SPORTS,
   normalizeDiscordSport,
-  normalizePortfolioView,
   resolveAmountInput,
 } from "../discord-command-utils";
 
@@ -393,10 +392,8 @@ function handleHelp() {
     "`/market` movers + indicators",
     "`/news` latest stories",
     "Examples:",
-    "`/portfolio sport:MLB view:stacked`",
     "`/buy player:<name> amount:50%`",
     "`/sell player:<name> amount:max`",
-    "`/stack player:<name> amount:50%`",
   ];
 
   return buildEphemeralResponse(lines.join("\n"));
@@ -418,11 +415,6 @@ async function handlePortfolio(
     );
   }
 
-  const view = normalizePortfolioView(getStringOption(options, "view"));
-  if (!view) {
-    return buildErrorResponse("Invalid view filter. Use one of: all, stacked, regular.");
-  }
-
   const limitRaw = getNumberOption(options, "limit");
   const limit = Math.max(1, Math.min(limitRaw ? Math.floor(limitRaw) : 5, 20));
 
@@ -440,12 +432,7 @@ async function handlePortfolio(
     .filter((item: any) => item?.holding?.assetType === "player" && item?.player)
     .filter((item: any) =>
       sport === "ALL" ? true : String(item.player?.sport || "").toUpperCase() === sport,
-    )
-    .filter((item: any) => {
-      if (view === "stacked") return isStacked;
-      if (view === "regular") return !isStacked;
-      return true;
-    });
+    );
 
   const topHoldings = filteredHoldings
     .sort(

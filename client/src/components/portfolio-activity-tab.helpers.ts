@@ -11,7 +11,6 @@ export type PortfolioActivityFocusFilter = "all" | "cash" | "pending" | "gamepla
 const PENDING_STATUSES = new Set(["pending", "active", "locked"]);
 const GAMEPLAY_CATEGORIES = new Set<UserActivityCategory>([
   "scout",
-  "stacking",
   "boosts",
   "community",
   "payouts",

@@ -60,7 +60,6 @@ import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
 import { setupAuth, isAuthenticated, optionalAuth } from "./auth/runtime-auth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
-import { getPerformanceEarningUnits } from "./lib/performance-earnings";
 import { buildGameStatsPayload } from "./game-stats-response";
 import { getGameBoxscore } from "./game-boxscores";
 import { buildMlbGameplaySignals, type MlbGameplaySignal } from "./mlb-gameplay-signals";

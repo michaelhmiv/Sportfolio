@@ -1,9 +1,8 @@
 export const DISCORD_SUPPORTED_SPORTS = ["ALL", "NBA", "NFL", "MLB", "NASCAR"] as const;
 export type DiscordSupportedSport = (typeof DISCORD_SUPPORTED_SPORTS)[number];
 
-export type DiscordPortfolioView = "all" | "stacked" | "regular";
 export type ParsedAmountKind = "absolute" | "percent" | "max";
-export type ResolvedAmountKind = "currency" | "whole" | "evenWhole";
+export type ResolvedAmountKind = "currency" | "whole";
 
 const PERCENT_PATTERN = /^(\d+(?:\.\d+)?)%$/;
 
@@ -29,16 +28,6 @@ export function normalizeDiscordSport(
   return DISCORD_SUPPORTED_SPORTS.includes(normalized as DiscordSupportedSport)
     ? (normalized as DiscordSupportedSport)
     : null;
-}
-
-export function normalizePortfolioView(
-  viewInput: string | null | undefined,
-): DiscordPortfolioView | null {
-  const normalized = (viewInput || "all").trim().toLowerCase();
-  if (normalized === "all" || normalized === "stacked" || normalized === "regular") {
-    return normalized;
-  }
-  return null;
 }
 
 export function parseAmountInput(rawInput: string): ParsedAmountInput | null {
@@ -102,8 +91,7 @@ export function resolveAmountInput(config: {
   } else if (config.kind === "whole") {
     resolvedValue = Math.floor(resolvedRaw);
   } else {
-    const floored = Math.floor(resolvedRaw);
-    resolvedValue = floored - (floored % 2);
+    resolvedValue = Math.floor(resolvedRaw);
   }
 
   if (!Number.isFinite(resolvedValue) || resolvedValue < config.minimum) {
