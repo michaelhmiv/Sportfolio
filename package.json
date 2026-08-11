@@ -91,7 +91,10 @@
     "auth:web:test": "vitest run server/auth/better-auth-session.test.ts server/auth/web-auth.test.ts client/src/lib/passwordless-auth.contract.test.ts",
     "retired-surfaces:audit": "node scripts/audit-retired-surfaces.mjs",
     "nfl:backfill-boxscores": "tsx scripts/nfl-boxscore-backfill.ts",
-    "retired-runtime:audit": "node scripts/audit-retired-runtime.mjs"
+    "retired-runtime:audit": "node scripts/audit-retired-runtime.mjs",
+    "db:migrate:economy-v2": "node scripts/apply-economy-v2-migration.mjs",
+    "economy:simulate": "tsx scripts/simulate-economy-v2.ts",
+    "economy:calibrate": "tsx scripts/calibrate-economy-v2.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.6.25",
