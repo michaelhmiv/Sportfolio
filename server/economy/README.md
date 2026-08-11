@@ -9,6 +9,6 @@ This directory owns the canonical monetary rules for player earnings and direct-
 - Daily Boosts use Singles directly at 2x, 3x, 5x, 7x, and 10x.
 - Boosted Singles receive their ordinary 1x base EPS from the pre-burn record snapshot; Boost settlement mints only the incremental `(multiplier - 1)` bonus.
 - Boosted Singles are permanently burned once a valid game begins.
-- Stack Power is retired and must not be reintroduced into active runtime or public surfaces.
+- Player ownership is represented only by liquid Singles; Daily Boosts consume Singles directly.
 
 Future economy changes should adjust the centralized targets/benchmark calibration rather than adding hidden payout coefficients.

@@ -1055,9 +1055,12 @@ function GlobalBoostCeremonyManager() {
     playerName: data.playerName,
     playerTeam: data.playerTeam,
     slotTier: data.slotTier,
-    shareMultiplier: data.shareMultiplier,
-    totalMultiplier: data.totalMultiplier,
+    effectiveMultiplier: data.effectiveMultiplier,
     sharesBurned: data.sharesBurned,
+    payout: data.payout,
+    boostBonus: data.boostBonus,
+    baseComponent: data.baseComponent,
+    gameEps: data.gameEps,
   };
 
   return (

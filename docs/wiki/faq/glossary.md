@@ -23,9 +23,6 @@ Your liquid virtual cash.
 **Single (Raw Share)**
 A tradeable player share with power 1.
 
-**Stack (Stack Power)**
-The non-tradeable per-player power record created by stacking Singles. Re-stacking adds power to this same record.
-
 **Premium Share**
 A separate asset used to redeem premium access windows.
 
@@ -53,9 +50,6 @@ Total value currently in a pool.
 
 **Stack Shares**
 Conversion flow from unlocked Singles into stack power.
-
-**Stack Power**
-Power value used by stack inventory. Stacking adds `N/2` power from `N` Singles.
 
 **Multiplier (Legacy Label)**
 Historical name for stack power in APIs/UI. In current gameplay docs, this is described as power.

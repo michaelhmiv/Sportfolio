@@ -23,7 +23,7 @@ describe("portfolio-value leaderboard canonical inputs", () => {
     storageMock.getLatestSnapshotRanks.mockResolvedValue(new Map());
   });
 
-  it("ranks $600 of liquid Singles above $200 without adding Stack Power", async () => {
+  it("ranks $600 of liquid Singles above $200 without adding non-liquid legacy inventory", async () => {
     storageMock.getAllUsersForRanking.mockResolvedValue([
       { userId: "user-a", balance: "100.00", portfolioValue: 600 },
       { userId: "user-b", balance: "100.00", portfolioValue: 200 },

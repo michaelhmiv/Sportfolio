@@ -442,7 +442,6 @@ async function handlePortfolio(
       sport === "ALL" ? true : String(item.player?.sport || "").toUpperCase() === sport,
     )
     .filter((item: any) => {
-      const isStacked = Boolean(item.holding?.isStackedShare);
       if (view === "stacked") return isStacked;
       if (view === "regular") return !isStacked;
       return true;
@@ -457,9 +456,7 @@ async function handlePortfolio(
     .slice(0, limit)
     .map((item: any) => {
       const effectiveShares = toSafeNumber(item.holding?.effectiveShares || item.holding?.quantity);
-      const shareType = item.holding?.isStackedShare
-        ? `stacked ${toSafeNumber(item.holding?.multiplier || 1).toFixed(2)}x`
-        : "regular";
+      const shareType = "Singles";
 
       return `${item.player.firstName} ${item.player.lastName} [${item.player.sport}] - ${effectiveShares.toFixed(2)} effective (${shareType})`;
     });

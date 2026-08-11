@@ -34,27 +34,6 @@ Scouts distribute shares over time based on scout-minutes (time weighted).
 **How many scouts can I have?**
 Standard: 5. Premium: 10.
 
-## Singles, Stack Power, and Stacking
-
-**What is the difference between a Single and a Stack?**
-A Single is a tradeable raw share (power 1). A Stack is a non-tradeable power record for that player, used for high-impact boost inventory.
-
-**How does stacking work?**
-Stacking converts unlocked Singles into stack power. Rules are unchanged:
-
-- minimum 4 Singles
-- even input only
-- `N` Singles -> `+N/2` stack power
-
-**Can I have multiple stacks for one player?**
-Normal gameplay uses one stack record per user/player. Repeated stacking increases that same stack's power.
-
-**Can I sell stacked inventory directly?**
-No. Only Singles are tradeable in AMM pools.
-
-**Does stacking create free value?**
-No. It is a quality-for-quantity conversion.
-
 ## Boosts
 
 **Do boosts consume my shares?**

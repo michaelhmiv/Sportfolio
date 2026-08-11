@@ -648,7 +648,6 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
             <Stat label="Available balance" value={money(summary.availableBalance)} />
             <Stat label="LP value" value={money(summary.lpMarketValue)} />
             <Stat label="Singles" value={quantity(summary.totalSingles)} />
-            <Stat label="Stack Power" value={quantity(summary.totalStackPower)} />
           </div>
         </div>
         {fullscreen ? (
@@ -723,7 +722,6 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
                 <tr>
                   <th>Player</th>
                   <th>Singles</th>
-                  <th>Stack Power</th>
                   <th>Gameplay Power</th>
                   <th>Value</th>
                   <th>Avg cost</th>
@@ -744,8 +742,6 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
                         </div>
                       </td>
                       <td>{quantity(holding.singles ?? holding.quantity)}</td>
-                      <td>{quantity(holding.stackPower)}</td>
-                      <td>{quantity(holding.gameplayPower)}</td>
                       <td>{marketMoney(holding.positionValue, holding.marketStatus)}</td>
                       <td>{money(holding.averageCostBasis)}</td>
                       <td className={change > 0 ? "positive" : change < 0 ? "negative" : ""}>

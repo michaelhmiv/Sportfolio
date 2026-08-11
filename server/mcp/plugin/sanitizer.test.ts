@@ -74,8 +74,6 @@ describe("plugin sanitizer player identity", () => {
     const sanitized = sanitizePluginValue({
       sharesStacked: 4200,
       newStackPower: 2100,
-      stackPower: 2100,
-      isStackedShare: true,
       stack: "Error: internal stack trace",
       sql: "select * from secrets",
     }) as any;
@@ -83,8 +81,6 @@ describe("plugin sanitizer player identity", () => {
     expect(sanitized).toEqual({
       sharesStacked: 4200,
       newStackPower: 2100,
-      stackPower: 2100,
-      isStackedShare: true,
     });
     expect(() => assertNoRestrictedPluginFields(sanitized)).not.toThrow();
   });

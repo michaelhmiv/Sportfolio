@@ -42,7 +42,6 @@ export interface DashboardShowcaseEligiblePlayer {
   hasStackedShare?: boolean;
   regularShares?: number;
   availableRegularShares?: number;
-  stackedShares?: number;
   gameId: string | null;
   gameStartTime: string | Date | null;
   hasGameToday: boolean;
@@ -194,7 +193,7 @@ function getEarningPlayerIds(
           entry.hasGameToday &&
           (sport === "ALL" || entry.sport === sport) &&
           entry.gameStatus !== "none" &&
-          (Boolean(entry.isAlreadyBoosted) || toNumber(entry.stackedShares) > 0),
+          Boolean(entry.isAlreadyBoosted),
       )
       .map((entry) => entry.playerId),
   );

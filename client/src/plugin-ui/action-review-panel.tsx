@@ -24,8 +24,6 @@ function labelForAction(actionType: string): string {
       return "Remove virtual liquidity";
     case "scout_set_count":
       return "Update scouting assignment";
-    case "holdings_stack_shares":
-      return "Stack virtual shares";
     case "daily_boost_assign":
       return "Assign daily boost";
     case "daily_boost_remove":

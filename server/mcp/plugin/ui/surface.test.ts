@@ -36,7 +36,7 @@ describe("Sportfolio plugin UI presentation catalog", () => {
     ]);
   });
 
-  it("presents one canonical player position with separate Singles and Stack Power", () => {
+  it("presents one canonical player position with separate Singles and non-liquid legacy inventory", () => {
     const data = buildPortfolioViewData(
       {
         valuationVersion: "amm_liquid_v2",
@@ -69,8 +69,6 @@ describe("Sportfolio plugin UI presentation catalog", () => {
             singles: 60,
             lockedSingles: 0,
             availableSingles: 60,
-            stackPower: 600,
-            gameplayPower: 660,
             averageCostBasis: 4,
             costBasis: 240,
             marketStatus: "priced",
@@ -99,8 +97,6 @@ describe("Sportfolio plugin UI presentation catalog", () => {
     expect(holdings).toHaveLength(1);
     expect(holdings[0]).toMatchObject({
       singles: 60,
-      stackPower: 600,
-      gameplayPower: 660,
       positionValue: 600,
       marketStatus: "priced",
     });
@@ -133,8 +129,6 @@ describe("Sportfolio plugin UI presentation catalog", () => {
             singles: 3,
             lockedSingles: 0,
             availableSingles: 3,
-            stackPower: 0,
-            gameplayPower: 3,
             averageCostBasis: 2,
             costBasis: 6,
             marketStatus: "unpriced",

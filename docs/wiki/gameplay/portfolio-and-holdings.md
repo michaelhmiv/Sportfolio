@@ -1,106 +1,27 @@
 ---
 id: gameplay-portfolio-holdings
 title: Portfolio and Holdings
-summary: How to read Singles, Stack Power, LP exposure, and availability in your portfolio.
+summary: How to read Singles, liquidity positions, market value, availability, and player earnings.
 audience: public
 category: gameplay
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-08-10
-changeTriggers: client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts,server/valuation/canonical-valuation.ts,shared/schema.ts
+lastReviewedAt: 2026-08-11
 slug: portfolio-and-holdings
-surface: web
-searchKeywords: portfolio,holdings,singles,stack power,lp,locks,premium,community shares
+surface: web,cli
+searchKeywords: portfolio,holdings,singles,liquidity,market value,availability
 ---
 
 # Portfolio and Holdings
 
-Your portfolio is the source of truth for account state: cash, player inventory, LP, premium/community assets, and activity history.
+Your player inventory is measured in **Singles**. Singles are tradeable player shares and the ownership units used for player earnings.
 
-## Valuation Rules
+For each player, the portfolio shows total Singles, how many are temporarily reserved, how many remain available, cost basis, current market price when a pool is priced, market value, and unrealized gain or loss.
 
-Every current player price comes from the initialized AMM pool:
+Reserved Singles are still yours but cannot be sold or committed elsewhere until the reservation clears. A Daily Boost reserves the chosen quantity before game lock and permanently burns that quantity when the valid game begins.
 
-```
-AMM spot price = pool SB reserve / pool share reserve
-```
+Liquidity-provider positions are shown separately because they represent proportional claims on AMM pool reserves rather than additional player shares. Their value is included in portfolio value through the canonical LP valuation path.
 
-An initialized pool is priced even before its first trade. `lastTradePrice` is historical context only. A player without a valid pool is shown as **Unpriced**, never as `$0`.
+Player market capitalization uses the liquid share supply and AMM pool inventory under Sportfolio's canonical valuation rules.
 
-Financial totals use these boundaries:
-
-- Singles market value = all Singles, including locked Singles, times AMM spot.
-- Stack Power is non-tradeable gameplay power and has no liquid market value.
-- LP market value = the current value of the position's underlying pool shares and SB.
-- Portfolio value = Singles market value + LP market value.
-- Net worth = cash balance + portfolio value.
-- Player market cap = AMM spot × (liquid user Singles + AMM pool share reserve).
-
-LP tokens and Stack Power are excluded from player market cap so the same underlying shares are not counted twice.
-
-## Core Asset Types
-
-| Asset             | Description                                  |
-| ----------------- | -------------------------------------------- |
-| Cash balance (SB) | Liquid spending power                        |
-| Player holdings   | Singles plus optional Stack Power per player |
-| LP positions      | Ownership in AMM liquidity pools             |
-| Premium shares    | Redeem for premium access windows            |
-| Community shares  | Spend to create community boosts             |
-| Activity history  | Audit trail of state changes                 |
-
-## Singles + One Stack Model
-
-For each player, holdings are modeled as:
-
-- Singles: tradeable raw shares (power 1 each)
-- Stack: one non-tradeable power record (if stacked)
-
-When you stack again, power is added to the same stack record. You do not create multiple stack lots for the same player in normal gameplay.
-
-## Mobile Holdings Row
-
-On mobile, each player row is compact and action-focused:
-
-- line 1: player + current value
-- line 2: team/position + P&L
-- line 3: `Singles X · Stack Yp · <Ready|Need X|Add ready>`
-
-Tap the row to open details and actions (Trade, Boost, Pool, Stack, View).
-
-## Availability and Locks
-
-Locked shares cannot be reused until unlocked.
-
-```
-available Singles = quantity - lockedQuantity
-```
-
-This check applies to stacking and boost assignment flows.
-
-## Why Stack Power Matters
-
-Stack power is the high-impact inventory used first for boost assignment when available.
-
-Regular Singles stay flexible for:
-
-- trading
-- LP flows
-- future stack adds
-
-## Activity Feed
-
-Use activity history to explain state changes:
-
-- market trades
-- scout distributions
-- stack conversions
-- boost locks/burns/payouts
-- LP adds/removes/fees
-
-## Next Steps
-
-- [Player Pools](/wiki/gameplay/player-pools)
-- [Scouts and Rewards](/wiki/gameplay/scouts-and-rewards)
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts)
-- [Liquidity Providing](/wiki/gameplay/liquidity-providing)
+See also [Player Earnings](/wiki/gameplay/player-earnings), [Daily Boosts](/wiki/gameplay/daily-boosts), and [Scouting and Share Supply](/wiki/gameplay/scouting-and-share-supply).

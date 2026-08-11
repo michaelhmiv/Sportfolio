@@ -1,81 +1,31 @@
 ---
 id: getting-started-overview
-title: Getting Started
-summary: Practical orientation to Sportfolio's core loop and first-session workflow.
+title: Sportfolio Overview
+summary: The core loop: scout players, trade Singles, earn from performance, and use direct-share Boosts.
 audience: public
 category: getting-started
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-05-31
-changeTriggers: client/src/App.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts
+lastReviewedAt: 2026-08-11
 slug: overview
 surface: web,cli
-searchKeywords: onboarding,start,balance,portfolio,first steps,overview
+searchKeywords: overview,getting started,singles,scouting,boosts,earnings
 ---
 
-# What Sportfolio Is
+# Sportfolio Overview
 
-Sportfolio is a sports market game built around player shares, live slates, and fantasy-driven payout loops.
+Sportfolio is a virtual sports-market game. You use virtual SB to trade player Singles, scout players to create new Singles, provide AMM liquidity, and earn virtual distributions when your players perform.
 
-You allocate cash, accumulate player inventory, convert some Singles into Stack Power, and deploy boosts around game windows.
+The core loop is simple:
 
-## Your Resources
+1. Scout players or buy Singles from player pools.
+2. Hold Singles to participate in capped player-game earnings.
+3. Trade when your view of a player's future performance differs from the market.
+4. Optionally commit Singles to a Daily Boost for a larger one-game multiplier; those Singles are permanently burned when the valid game begins.
+5. Provide liquidity when you want exposure to pool fees and reserve value instead of only directional player inventory.
 
-| Asset             | What it is                                       |
-| ----------------- | ------------------------------------------------ |
-| SB (cash balance) | Liquid spending power for trades, boosts, and LP |
-| Player Singles    | Tradeable player shares                          |
-| Stack Power       | Non-tradeable per-player power inventory         |
-| Premium shares    | Redeemable for premium access windows            |
-| Community shares  | Consumed to create community boosts              |
+More shares never increase a player's base SB pool. They divide the same capped earnings through game EPS, so share issuance creates dilution rather than an unbounded monetary faucet.
 
-## Core Loop
+Regular-season and postseason earnings are separately normalized across MLB, NFL, NHL, and NASCAR so materially different sports and positions can have comparable full-season economic opportunity.
 
-```
-Buy shares -> Assign scouts -> Build stack power -> Deploy boosts -> Review payouts
-```
-
-1. Trade: buy player Singles in AMM pools.
-2. Accumulate: scouts earn more shares over time.
-3. Convert: stack unlocked Singles when quality matters more than quantity.
-4. Compete: assign daily boosts before lock.
-5. Review: track portfolio and leaderboard impact.
-
-## First Session Checklist
-
-1. Pick a sport from the selector.
-2. Scan Player Pools for price, volume, and game context.
-3. Buy a small basket of players you have conviction on.
-4. Assign scouts to those players.
-5. Keep some cash for flexibility.
-6. Before lock, review Boosts and assign slots intentionally.
-
-## Daily Rhythm
-
-- Open: check slate and news.
-- Build: add or trim positions.
-- Accumulate: adjust scout assignments.
-- Convert: stack Singles when appropriate.
-- Deploy: assign boosts before lock.
-- Review: inspect activity feed and outcomes.
-
-## Main Pages
-
-| Page         | Purpose                                         |
-| ------------ | ----------------------------------------------- |
-| Dashboard    | Live context, market activity, account snapshot |
-| Player Pools | Browse and trade                                |
-| Player Page  | Deeper execution and research                   |
-| Portfolio    | Holdings, stack status, LP, and activity        |
-| Boosts       | Stacking, slot assignment, and payout tracking  |
-| News         | Breaking stories and personalized digest        |
-
-Saved live strategies can auto-run only an allowlisted gameplay subset. Payment and checkout flows remain excluded from auto-runs.
-
-## Where to Go Next
-
-- [Platform Tour](/wiki/getting-started/platform-tour)
-- [Player Pools](/wiki/gameplay/player-pools)
-- [Scouts and Rewards](/wiki/gameplay/scouts-and-rewards)
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts)
-- [Glossary](/wiki/faq/glossary)
+Start with [Player Earnings](/wiki/gameplay/player-earnings), [Daily Boosts](/wiki/gameplay/daily-boosts), and [Scouting and Share Supply](/wiki/gameplay/scouting-and-share-supply).

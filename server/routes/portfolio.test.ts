@@ -136,8 +136,6 @@ describe("GET /api/portfolio canonical contract", () => {
       );
       expect(body.positions.find((position: any) => position.assetId === joey.id)).toMatchObject({
         singles: 60,
-        stackPower: 600,
-        gameplayPower: 660,
         marketPrice: 10,
         currentValue: "600.00",
       });
@@ -145,7 +143,6 @@ describe("GET /api/portfolio canonical contract", () => {
         body.positions.find((position: any) => position.assetId === unpriced.id),
       ).toMatchObject({
         singles: 3,
-        stackPower: 0,
         marketStatus: "unpriced",
         marketPrice: null,
         currentValue: null,

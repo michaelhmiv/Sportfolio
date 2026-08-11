@@ -45,7 +45,7 @@ describe("gameplay transactions", () => {
     const staged = await stageGameplayTransaction({
       userId: "user-1",
       action: {
-        actionType: "holdings_stack_shares",
+        actionType: "daily_boost_assign",
         playerId: "nascar_4023",
         sharesToStack: 4,
       },

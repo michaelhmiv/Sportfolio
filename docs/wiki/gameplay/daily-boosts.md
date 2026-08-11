@@ -17,7 +17,7 @@ searchKeywords: daily boost,boosts,2x,3x,5x,7x,10x,burn shares,singles
 
 Daily Boosts are Sportfolio's active risk/reward layer. You can keep Singles for slow, durable player earnings, or commit some Singles to a one-game Boost for a larger payout.
 
-There is no separate Stack Power asset. Boosts use Singles directly.
+Boosts use Singles directly.
 
 ## Boost slots
 
