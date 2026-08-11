@@ -17,7 +17,10 @@ def remove_between(text, start, end):
     if start not in text:
         return text
     a = text.index(start)
-    b = text.index(end, a)
+    try:
+        b = text.index(end, a)
+    except ValueError:
+        return text
     return text[:a] + text[b:]
 
 
@@ -31,8 +34,10 @@ for token in [
     "  type InsertPlayerMultiplierEvent,\n",
 ]:
     text = text.replace(token, "")
+# Interface Stack contract sits before the Daily Boost contract.
 text = remove_between(text, "  // Multiplier / Stack Shares methods", "  // Daily Boosts methods")
-text = remove_between(text, "  // Stack Shares methods", "  // Daily Boosts methods")
+# Implementation Stack contract runs through the old multiplier-state helper and ends at AMM/LP.
+text = remove_between(text, "  // Stack Shares methods", "  // AMM / LP Methods")
 # Interface contracts for old payout/lock helpers.
 text = re.sub(
     r'''  createSharePayoutSnapshotsForGame\([\s\S]*?\): Promise<number>;\n''',
@@ -50,7 +55,10 @@ text = text.replace("  lockBoostShares(boostId: string): Promise<void>;\n", "")
 # Activity feed: stacking category is retired completely.
 text = remove_between(text, '    if (typeSet.has("stacking")) {', '    if (typeSet.has("boosts")) {')
 # Direct Boost activity fields.
-text = text.replace("                shareMultiplier: dailyBoosts.shareMultiplier,\n", "                sharesEntered: dailyBoosts.sharesEntered,\n")
+text = text.replace(
+    "                shareMultiplier: dailyBoosts.shareMultiplier,\n",
+    "                sharesEntered: dailyBoosts.sharesEntered,\n",
+)
 text = text.replace("                shareSourceType: dailyBoosts.shareSourceType,\n", "")
 text = re.sub(
     r'''            const sourceLabel =\n              boost\.shareSourceType === "stacked"\n                \? `\$\{toHoldingNumber\(boost\.shareMultiplier\)\.toFixed\(2\)\}x stacked share`\n                : "single share";''',
@@ -86,17 +94,23 @@ text = text.replace(
     '''    { holding?: HoldingLike; multiplier?: MultiplierLike; player: PlayerLike }\n''',
     '''    { holding?: HoldingLike; player: PlayerLike }\n''',
 )
-# Remove loop that inserted multiplier-only positions.
-text = re.sub(r'''\n  for \(const multiplier of input\.multipliers\) \{[\s\S]*?\n  \}\n\n  const positions:''', "\n\n  const positions:", text, count=1)
+text = re.sub(
+    r'''\n  for \(const multiplier of input\.multipliers\) \{[\s\S]*?\n  \}\n\n  const positions:''',
+    "\n\n  const positions:",
+    text,
+    count=1,
+)
 text = text.replace("    const stackPower = Math.max(0, finite(row.multiplier?.multiplier));\n", "")
 text = text.replace("      stackId: row.multiplier?.id || null,\n", "")
 text = text.replace("      stackPower,\n", "")
 text = text.replace("      gameplayPower: singles + stackPower,\n", "")
 text = re.sub(r'''\n    totalStackPower: positions\.reduce\([\s\S]*?\),''', "", text, count=1)
 text = re.sub(r'''\n    totalGameplayPower: positions\.reduce\([\s\S]*?\),''', "", text, count=1)
-# Remove multiplier DB query from Promise.all and downstream arguments.
 old_query = '''    db\n      .select({\n        id: playerMultipliers.id,\n        playerId: playerMultipliers.playerId,\n        multiplier: playerMultipliers.multiplier,\n        player: players,\n      })\n      .from(playerMultipliers)\n      .innerJoin(players, eq(playerMultipliers.playerId, players.id))\n      .where(eq(playerMultipliers.userId, userId)),\n'''
-text = text.replace("  const [userRows, holdingRows, multiplierRows, lpRows] = await Promise.all([", "  const [userRows, holdingRows, lpRows] = await Promise.all([")
+text = text.replace(
+    "  const [userRows, holdingRows, multiplierRows, lpRows] = await Promise.all([",
+    "  const [userRows, holdingRows, lpRows] = await Promise.all([",
+)
 text = text.replace(old_query, "")
 text = text.replace("    ...multiplierRows.map((row) => row.playerId),\n", "")
 text = text.replace("    multipliers: multiplierRows,\n", "")
@@ -105,12 +119,6 @@ save(path, text)
 # --- MCP transaction copy and public registry ---
 path = "server/mcp/gameplay-transactions.ts"
 text = load(path)
-text = re.sub(
-    r'''\n    case "holdings_stack_shares":\n      return `Stack \$\{action\.sharesToStack\} shares of \$\{await playerLabel\(action\.playerId\)\}\.``?;''',
-    "",
-    text,
-)
-# Simpler exact fallback in case template regex differs.
 text = text.replace(
     '    case "holdings_stack_shares":\n      return `Stack ${action.sharesToStack} shares of ${await playerLabel(action.playerId)}.`;\n',
     "",
@@ -127,8 +135,10 @@ text = text.replace(
     '    case "preview_stack_shares":\n      return { actionType: "holdings_stack_shares", playerId, sharesToStack: Number(args.shares) };\n',
     "",
 )
-text = text.replace("        slotTier: Number(args.slotTier) as 2 | 3 | 4 | 5,\n", "        slotTier: Number(args.slotTier) as 2 | 3 | 5 | 7 | 10,\n        shares: Number(args.shares),\n")
-# Remove stage_stack_shares tool object by its name up to the next stage_daily_boost tool.
+text = text.replace(
+    "        slotTier: Number(args.slotTier) as 2 | 3 | 4 | 5,\n",
+    "        slotTier: Number(args.slotTier) as 2 | 3 | 5 | 7 | 10,\n        shares: Number(args.shares),\n",
+)
 text = re.sub(
     r'''\n  \{\n    name: "stage_stack_shares",[\s\S]*?\n  \},(?=\n  \{\n    name: "stage_daily_boost_assign")''',
     "",
@@ -152,10 +162,8 @@ save(path, text)
 # --- Discord: retire command and report direct share quantity ---
 path = "server/routes/discord.ts"
 text = load(path)
-# Remove direct storage.stackShares command block if present.
 text = re.sub(r'''\nasync function handleStack[\s\S]*?(?=\nasync function )''', "\n", text, count=1)
 text = text.replace("boost.shareMultiplier", "boost.sharesEntered")
-# sharesEntered is decimal/string in Drizzle; make any numeric slot assignment explicit.
 text = text.replace("sharesEntered: 1,", 'sharesEntered: "1",')
 save(path, text)
 
