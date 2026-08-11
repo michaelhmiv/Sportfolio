@@ -442,10 +442,6 @@ export async function selectCandidates(
       if (context.actionType === "sell" || context.actionType === "pool_add_liquidity") {
         score += 80;
       }
-      if (context.actionType === "stack_shares") {
-        // Prefer players with more available shares (bigger stacks = more multiplier)
-        score += Math.min(80, availableShares * 2);
-      }
     }
 
     // Randomized jitter (0-80 points)

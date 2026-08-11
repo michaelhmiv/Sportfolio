@@ -276,7 +276,7 @@ export function getStageAllowedActions(stage: BotStage): ActionType[] {
     case "scouting":
       return ["scout_assign"];
     case "accumulating":
-      return ["scout_assign", "scout_rebalance", "buy", "stack_shares"];
+      return ["scout_assign", "scout_rebalance", "buy", "boost_assign"];
     case "pool_building":
       return [
         "scout_assign",

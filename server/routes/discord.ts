@@ -25,6 +25,7 @@ import { getBuyQuote, getSellQuote, executeBuy, executeSell, getPool } from "../
 import { newsFeed, players, trades } from "@shared/schema";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { hasGameStartedForBoost } from "@shared/game-status";
+import { assignDailyBoostWithValidation } from "../boosts/assign-daily-boost";
 import { loadUserEntitlements } from "../services/user-entitlements";
 import {
   DISCORD_SUPPORTED_SPORTS,
@@ -799,7 +800,7 @@ async function handleBoost(
       .slice(0, 12)
       .map((entry) => {
         const p = entry.row.player;
-        return `${p.firstName} ${p.lastName} (${entry.sport}) - ${entry.row.multiplier}x`;
+        return `${p.firstName} ${p.lastName} (${entry.sport}) - ${entry.row.availableShares.toFixed(4)} Singles available`;
       });
 
     return buildEphemeralResponse(
@@ -820,8 +821,8 @@ async function handleBoost(
     }
 
     const slotTier = Math.floor(slot);
-    if (![2, 3, 4, 5].includes(slotTier)) {
-      return buildErrorResponse("slot must be one of 2, 3, 4, or 5.");
+    if (![2, 3, 5, 7, 10].includes(slotTier)) {
+      return buildErrorResponse("slot must be one of 2, 3, 5, 7, or 10.");
     }
 
     const player = await resolvePlayerFromInput(playerInput);
@@ -844,8 +845,8 @@ async function handleBoost(
     if (currentBoosts.some((boost) => boost.playerId === canonicalPlayerId)) {
       return buildErrorResponse("This player is already in a boost slot.");
     }
-    if (currentBoosts.length >= 4) {
-      return buildErrorResponse("All four boost slots are already filled.");
+    if (currentBoosts.length >= 5) {
+      return buildErrorResponse("All five boost slots are already filled.");
     }
 
     const game = await storage.getPlayerGameForDate(canonicalPlayerId, sport, targetDate);
@@ -861,52 +862,21 @@ async function handleBoost(
       return buildErrorResponse("You need at least one available share for this player.");
     }
 
-    const breakdown = await storage.getPlayerShareBreakdown(userId, canonicalPlayerId);
-    const candidates = [
-      ...(breakdown.stacked || [])
-        .filter((holding) => parseFloat(holding.quantity) >= 1)
-        .map((holding) => ({
-          multiplier: parseFloat(holding.multiplier || "1"),
-          isStackedShare: true,
-        })),
-      ...(breakdown.regular && parseFloat(breakdown.regular.quantity) >= 1
-        ? [
-            {
-              multiplier: 1,
-              isStackedShare: false,
-            },
-          ]
-        : []),
-    ];
-
-    if (candidates.length === 0) {
-      return buildErrorResponse("No eligible share source found for this player.");
-    }
-
-    const selectedHolding = candidates.sort((a, b) => b.multiplier - a.multiplier)[0];
-    const shareMultiplier = Number(selectedHolding.multiplier || 1).toFixed(2);
-    const shareSourceType = selectedHolding.isStackedShare ? "stacked" : "regular";
-
-    const { startOfDay } = getETDayBoundaries(dateStr);
-
-    const boost = await storage.createDailyBoost({
+    const shares = Math.min(1, availableShares);
+    const { boost } = await assignDailyBoostWithValidation({
       userId,
       playerId: canonicalPlayerId,
       sport,
       slotTier,
-      boostDate: startOfDay,
-      sharesEntered: "1",
-      shareMultiplier,
-      shareSourceType,
-      gameId: game.gameId,
+      shares,
+      etDate: dateStr,
     });
 
     return buildEphemeralResponse(
       [
         `Boost assigned for ${player.firstName} ${player.lastName}.`,
         `Slot: ${slotTier}x`,
-        `Share source: ${shareSourceType}`,
-        `Share multiplier: ${shareMultiplier}x`,
+        `Singles committed: 1`,
         `Boost id: ${boost.id}`,
       ].join("\n"),
     );
@@ -1358,8 +1328,6 @@ async function handleApplicationCommand(ctx: DiscordCommandContext) {
       return handleBuy(ctx, options);
     case "sell":
       return handleSell(ctx, options);
-    case "stack":
-      return handleStack(ctx, options);
     case "boost":
       return handleBoost(ctx, options);
     case "scout":

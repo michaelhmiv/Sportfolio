@@ -414,7 +414,6 @@ type HoldingContext = {
 
 type HoldingAggregation = {
   regularShares: number;
-  stackedShares: number;
   bestShareMultiplier: number;
 };
 

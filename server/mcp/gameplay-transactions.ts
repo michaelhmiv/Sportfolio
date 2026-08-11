@@ -154,6 +154,12 @@ function assertAction(action: GameplayAction) {
         throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
       }
       break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
     case "scout_set_count":
       assertScoutTargetCount(action.targetCount);
       break;

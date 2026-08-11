@@ -6,7 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -213,7 +219,8 @@ export default function BoostsPage() {
     [eligibleData?.eligiblePlayers, search],
   );
 
-  const boostForTier = (tier: number) => boostsData?.boosts?.find((boost) => boost.slotTier === tier);
+  const boostForTier = (tier: number) =>
+    boostsData?.boosts?.find((boost) => boost.slotTier === tier);
   const active = (boostsData?.boosts || []).filter((boost) => boost.status === "active").length;
   const locked = (boostsData?.boosts || []).filter((boost) => boost.status === "locked").length;
   const burned = (boostsData?.boosts || []).reduce((sum, boost) => sum + n(boost.sharesBurned), 0);
@@ -233,27 +240,44 @@ export default function BoostsPage() {
         <section className="terminal-shell p-3 sm:p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="terminal-strip mb-2"><Zap className="h-3.5 w-3.5" /> Boost Desk</div>
+              <div className="terminal-strip mb-2">
+                <Zap className="h-3.5 w-3.5" /> Boost Desk
+              </div>
               <h1 className="terminal-heading text-xl sm:text-2xl">Daily Boosts</h1>
               <p className="mt-1 max-w-2xl text-xs text-muted-foreground sm:text-sm">
-                Keep Singles for durable player earnings, or sacrifice some for a larger one-game payout.
-                Boosted Singles are permanently burned when the game begins.
+                Keep Singles for durable player earnings, or sacrifice some for a larger one-game
+                payout. Boosted Singles are permanently burned when the game begins.
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="icon" variant="terminalOutline" onClick={goToPreviousDay}><ChevronLeft className="h-4 w-4" /></Button>
+              <Button size="icon" variant="terminalOutline" onClick={goToPreviousDay}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
               <div className="min-w-[130px] text-center">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Session</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Session
+                </div>
                 <div className="text-sm font-medium">{format(selectedDate, "EEE, MMM d")}</div>
               </div>
-              <Button size="icon" variant="terminalOutline" onClick={goToNextDay}><ChevronRight className="h-4 w-4" /></Button>
+              <Button size="icon" variant="terminalOutline" onClick={goToNextDay}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-xs sm:max-w-lg">
-            <div className="terminal-shell p-2"><div className="terminal-label">Committed</div><div className="terminal-value">{active}/5</div></div>
-            <div className="terminal-shell p-2"><div className="terminal-label">Live</div><div className="terminal-value">{locked}</div></div>
-            <div className="terminal-shell p-2"><div className="terminal-label">Burned</div><div className="terminal-value">{burned.toLocaleString()}</div></div>
+            <div className="terminal-shell p-2">
+              <div className="terminal-label">Committed</div>
+              <div className="terminal-value">{active}/5</div>
+            </div>
+            <div className="terminal-shell p-2">
+              <div className="terminal-label">Live</div>
+              <div className="terminal-value">{locked}</div>
+            </div>
+            <div className="terminal-shell p-2">
+              <div className="terminal-label">Burned</div>
+              <div className="terminal-value">{burned.toLocaleString()}</div>
+            </div>
           </div>
         </section>
 
@@ -269,22 +293,48 @@ export default function BoostsPage() {
               >
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center justify-between text-base">
-                    <span className="flex items-center gap-1.5">{tier === 10 ? <Flame className="h-4 w-4" /> : <Zap className="h-4 w-4" />}{tier}x</span>
-                    {boost && <Badge variant={boost.status === "locked" ? "default" : "outline"}>{boost.status}</Badge>}
+                    <span className="flex items-center gap-1.5">
+                      {tier === 10 ? <Flame className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+                      {tier}x
+                    </span>
+                    {boost && (
+                      <Badge variant={boost.status === "locked" ? "default" : "outline"}>
+                        {boost.status}
+                      </Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {boost ? (
                     <>
                       <div>
-                        <PlayerName player={boost.player} fallbackId={boost.playerId} className="font-medium" />
-                        <div className="text-xs text-muted-foreground">{n(boost.sharesEntered).toLocaleString()} Singles committed</div>
+                        <PlayerName
+                          playerId={boost.playerId}
+                          firstName={boost.player?.firstName ?? ""}
+                          lastName={boost.player?.lastName ?? ""}
+                          className="font-medium"
+                        />
+                        <div className="text-xs text-muted-foreground">
+                          {n(boost.sharesEntered).toLocaleString()} Singles committed
+                        </div>
                       </div>
-                      {effectiveMultiplier !== tier && <div className="text-xs text-positive">Community effect: {effectiveMultiplier}x effective</div>}
+                      {effectiveMultiplier !== tier && (
+                        <div className="text-xs text-positive">
+                          Community effect: {effectiveMultiplier}x effective
+                        </div>
+                      )}
                       {boost.status === "processed" && (
                         <div className="grid grid-cols-2 gap-1 text-xs">
-                          <div><div className="text-muted-foreground">Bonus</div><div className="font-mono">{n(boost.boostBonusSb).toFixed(2)} SB</div></div>
-                          <div><div className="text-muted-foreground">Total game</div><div className="font-mono">{n(boost.totalEconomicEarningsSb ?? boost.payout).toFixed(2)} SB</div></div>
+                          <div>
+                            <div className="text-muted-foreground">Bonus</div>
+                            <div className="font-mono">{n(boost.boostBonusSb).toFixed(2)} SB</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Total game</div>
+                            <div className="font-mono">
+                              {n(boost.totalEconomicEarningsSb ?? boost.payout).toFixed(2)} SB
+                            </div>
+                          </div>
                         </div>
                       )}
                       {boost.status === "active" && (
@@ -292,7 +342,10 @@ export default function BoostsPage() {
                           size="sm"
                           variant="destructive"
                           className="w-full"
-                          onClick={(event) => { event.stopPropagation(); setRemoveId(boost.id); }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setRemoveId(boost.id);
+                          }}
                         >
                           Remove before lock
                         </Button>
@@ -314,30 +367,50 @@ export default function BoostsPage() {
           <CardContent className="flex gap-3 p-3 text-xs sm:text-sm">
             <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <div>
-              <strong>Boosts consume the underlying Singles.</strong> The shares still receive their normal
-              1x game EPS from the record snapshot, then the Boost adds the extra multiplier bonus. Once the
-              valid game begins, the committed shares are gone even if the player performs poorly.
+              <strong>Boosts consume the underlying Singles.</strong> The shares still receive their
+              normal 1x game EPS from the record snapshot, then the Boost adds the extra multiplier
+              bonus. Once the valid game begins, the committed shares are gone even if the player
+              performs poorly.
             </div>
           </CardContent>
         </Card>
 
         <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><History className="h-4 w-4" /> Recent Boost Results</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4" /> Recent Boost Results
+              </CardTitle>
+            </CardHeader>
             <CardContent>
               {(historyData?.payouts || []).length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">No settled Boosts yet.</div>
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  No settled Boosts yet.
+                </div>
               ) : (
                 <div className="divide-y divide-border">
                   {(historyData?.payouts || []).slice(0, 12).map((entry) => (
                     <div key={entry.id} className="grid grid-cols-[1fr_auto] gap-3 py-2 text-sm">
                       <div>
-                        <div className="font-medium"><PlayerName player={entry.player} fallbackId={entry.playerId} /></div>
-                        <div className="text-xs text-muted-foreground">{n(entry.sharesUsed).toLocaleString()} Singles · {entry.multiplier}x · {n(entry.fantasyPoints).toFixed(1)} FP</div>
+                        <div className="font-medium">
+                          <PlayerName
+                            playerId={entry.playerId}
+                            firstName={entry.player?.firstName ?? ""}
+                            lastName={entry.player?.lastName ?? ""}
+                          />
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {n(entry.sharesUsed).toLocaleString()} Singles · {entry.multiplier}x ·{" "}
+                          {n(entry.fantasyPoints).toFixed(1)} FP
+                        </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono font-medium">+{n(entry.boostBonusSb ?? entry.payoutAmount).toFixed(2)} SB</div>
-                        <div className="text-[10px] uppercase text-muted-foreground">Boost bonus</div>
+                        <div className="font-mono font-medium">
+                          +{n(entry.boostBonusSb ?? entry.payoutAmount).toFixed(2)} SB
+                        </div>
+                        <div className="text-[10px] uppercase text-muted-foreground">
+                          Boost bonus
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -347,26 +420,38 @@ export default function BoostsPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Community Boost</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Community Boost</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <p className="text-xs text-muted-foreground">
                 Community Boosts add to a player's effective Daily Boost multiplier for the session.
               </p>
-              <Button variant="terminalOutline" className="w-full" onClick={() => setCommunityOpen(true)}>
+              <Button
+                variant="terminalOutline"
+                className="w-full"
+                onClick={() => setCommunityOpen(true)}
+              >
                 Manage Community Boost
               </Button>
               <div className="rounded-md border border-border p-2 text-xs text-muted-foreground">
-                Base player earnings remain capped independently. Community effects only change the incremental Boost bonus.
+                Base player earnings remain capped independently. Community effects only change the
+                incremental Boost bonus.
               </div>
             </CardContent>
           </Card>
         </div>
 
         <Sheet open={selectorOpen} onOpenChange={setSelectorOpen}>
-          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto sm:left-auto sm:right-0 sm:top-0 sm:h-full sm:max-h-none sm:w-[440px] sm:rounded-none">
+          <SheetContent
+            side="bottom"
+            className="max-h-[90vh] overflow-y-auto sm:left-auto sm:right-0 sm:top-0 sm:h-full sm:max-h-none sm:w-[440px] sm:rounded-none"
+          >
             <SheetHeader>
               <SheetTitle>{selectedSlot}x Boost</SheetTitle>
-              <SheetDescription>Choose a player and how many Singles you are willing to permanently sacrifice.</SheetDescription>
+              <SheetDescription>
+                Choose a player and how many Singles you are willing to permanently sacrifice.
+              </SheetDescription>
             </SheetHeader>
 
             <div className="mt-4 space-y-4">
@@ -376,13 +461,24 @@ export default function BoostsPage() {
                     <CardContent className="space-y-3 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <PlayerName player={selectedPlayer.player} fallbackId={selectedPlayer.playerId} className="font-medium" />
-                          <div className="text-xs text-muted-foreground">{selectedPlayer.player.team} · {selectedPlayer.sport}</div>
+                          <PlayerName
+                            playerId={selectedPlayer.playerId}
+                            firstName={selectedPlayer.player.firstName}
+                            lastName={selectedPlayer.player.lastName}
+                            className="font-medium"
+                          />
+                          <div className="text-xs text-muted-foreground">
+                            {selectedPlayer.player.team} · {selectedPlayer.sport}
+                          </div>
                         </div>
-                        <Badge variant="outline">{selectedPlayer.availableShares.toLocaleString()} available</Badge>
+                        <Badge variant="outline">
+                          {selectedPlayer.availableShares.toLocaleString()} available
+                        </Badge>
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs font-medium" htmlFor="boost-quantity">Singles to Boost</label>
+                        <label className="mb-1 block text-xs font-medium" htmlFor="boost-quantity">
+                          Singles to Boost
+                        </label>
                         <Input
                           id="boost-quantity"
                           inputMode="decimal"
@@ -396,7 +492,14 @@ export default function BoostsPage() {
                               key={fraction}
                               size="sm"
                               variant="outline"
-                              onClick={() => setQuantity(Math.max(0.0001, selectedPlayer.availableShares * fraction).toFixed(4).replace(/0+$/, "").replace(/\.$/, ""))}
+                              onClick={() =>
+                                setQuantity(
+                                  Math.max(0.0001, selectedPlayer.availableShares * fraction)
+                                    .toFixed(4)
+                                    .replace(/0+$/, "")
+                                    .replace(/\.$/, ""),
+                                )
+                              }
                             >
                               {fraction === 1 ? "Max" : `${fraction * 100}%`}
                             </Button>
@@ -406,11 +509,22 @@ export default function BoostsPage() {
                     </CardContent>
                   </Card>
                   <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
-                    <strong>Permanent burn:</strong> {n(quantity).toLocaleString()} Singles will be removed when this valid game begins. They cannot be recovered after lock.
+                    <strong>Permanent burn:</strong> {n(quantity).toLocaleString()} Singles will be
+                    removed when this valid game begins. They cannot be recovered after lock.
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1" onClick={() => setSelectedPlayer(null)}>Back</Button>
-                    <Button className="flex-1" disabled={assignMutation.isPending || !(n(quantity) > 0)} onClick={() => assignMutation.mutate()}>
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setSelectedPlayer(null)}
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      disabled={assignMutation.isPending || !(n(quantity) > 0)}
+                      onClick={() => assignMutation.mutate()}
+                    >
                       Confirm {selectedSlot}x
                     </Button>
                   </div>
@@ -419,12 +533,21 @@ export default function BoostsPage() {
                 <>
                   <div className="relative">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search eligible players" className="pl-9" />
+                    <Input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search eligible players"
+                      className="pl-9"
+                    />
                   </div>
                   {eligibleLoading ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">Loading holdings…</div>
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      Loading holdings…
+                    </div>
                   ) : filteredPlayers.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">No eligible Singles with an upcoming game.</div>
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      No eligible Singles with an upcoming game.
+                    </div>
                   ) : (
                     <div className="space-y-1">
                       {filteredPlayers.map((entry) => (
@@ -432,15 +555,29 @@ export default function BoostsPage() {
                           key={`${entry.sport}:${entry.playerId}`}
                           type="button"
                           className="flex w-full items-center justify-between gap-3 rounded-md border border-border p-3 text-left hover:bg-muted/40"
-                          onClick={() => { setSelectedPlayer(entry); setQuantity("1"); }}
+                          onClick={() => {
+                            setSelectedPlayer(entry);
+                            setQuantity("1");
+                          }}
                         >
                           <div>
-                            <PlayerName player={entry.player} fallbackId={entry.playerId} className="font-medium" />
-                            <div className="text-xs text-muted-foreground">{entry.player.team} · {entry.sport}</div>
+                            <PlayerName
+                              playerId={entry.playerId}
+                              firstName={entry.player.firstName}
+                              lastName={entry.player.lastName}
+                              className="font-medium"
+                            />
+                            <div className="text-xs text-muted-foreground">
+                              {entry.player.team} · {entry.sport}
+                            </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-mono text-sm">{entry.availableShares.toLocaleString()}</div>
-                            <div className="text-[10px] uppercase text-muted-foreground">available</div>
+                            <div className="font-mono text-sm">
+                              {entry.availableShares.toLocaleString()}
+                            </div>
+                            <div className="text-[10px] uppercase text-muted-foreground">
+                              available
+                            </div>
                           </div>
                         </button>
                       ))}
@@ -452,14 +589,19 @@ export default function BoostsPage() {
           </SheetContent>
         </Sheet>
 
-        <CommunityBoostSelector open={communityOpen} onOpenChange={setCommunityOpen} selectedDate={selectedDateKey} />
+        <CommunityBoostSelector
+          open={communityOpen}
+          onOpenChange={setCommunityOpen}
+          selectedDate={selectedDate}
+        />
 
         <AlertDialog open={Boolean(removeId)} onOpenChange={(open) => !open && setRemoveId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Remove this Boost?</AlertDialogTitle>
               <AlertDialogDescription>
-                This is only possible before lock. The reserved Singles will return to your available balance.
+                This is only possible before lock. The reserved Singles will return to your
+                available balance.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -474,7 +616,9 @@ export default function BoostsPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {boostsLoading && <div className="text-center text-xs text-muted-foreground">Refreshing Boosts…</div>}
+        {boostsLoading && (
+          <div className="text-center text-xs text-muted-foreground">Refreshing Boosts…</div>
+        )}
       </div>
     </div>
   );
