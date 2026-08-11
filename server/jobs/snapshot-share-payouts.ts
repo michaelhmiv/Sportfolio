@@ -1,13 +1,10 @@
+import { ensureGameShareSnapshots } from "../economy/repository";
+import { resolveEconomySeasonPhase } from "../economy/config";
 import { storage } from "../storage";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
-import { isNflPreseasonGame } from "../nfl/season";
 
-const SHARE_PAYOUT_BASE_RATE = "1.0000";
 const SNAPSHOT_LOOKBACK_HOURS = 36;
-const STACKED_SHARE_PAYOUT_CUTOVER_AT = process.env.STACKED_SHARE_PAYOUT_CUTOVER_AT
-  ? new Date(process.env.STACKED_SHARE_PAYOUT_CUTOVER_AT)
-  : null;
 
 export async function snapshotSharePayouts(
   progressCallback?: ProgressCallback,
@@ -23,49 +20,34 @@ export async function snapshotSharePayouts(
 
     const gamesToSnapshot = [] as typeof candidateGames;
     for (const game of candidateGames) {
-      if (isNflPreseasonGame(game)) continue;
+      if (resolveEconomySeasonPhase({ seasonType: game.seasonType }) === "preseason") continue;
       const status = (game.status || "").toLowerCase();
-      if (status === "postponed" || status === "cancelled") continue;
+      if (["postponed", "cancelled", "canceled"].includes(status)) continue;
 
       const startTimeMs = new Date(game.startTime).getTime();
       if (!Number.isFinite(startTimeMs)) {
         errorCount++;
-        const message = `Share snapshot skipped game ${game.gameId}: invalid startTime`;
-        console.warn(`[snapshot_share_payouts] ${message}`);
         progressCallback?.({
           type: "error",
           timestamp: new Date().toISOString(),
-          message,
+          message: `Share snapshot skipped game ${game.gameId}: invalid startTime`,
         });
         continue;
       }
-
-      if (startTimeMs <= now.getTime()) {
-        if (
-          STACKED_SHARE_PAYOUT_CUTOVER_AT &&
-          Number.isFinite(STACKED_SHARE_PAYOUT_CUTOVER_AT.getTime()) &&
-          startTimeMs < STACKED_SHARE_PAYOUT_CUTOVER_AT.getTime()
-        ) {
-          continue;
-        }
-        gamesToSnapshot.push(game);
-      }
+      if (startTimeMs <= now.getTime()) gamesToSnapshot.push(game);
     }
 
     progressCallback?.({
       type: "info",
       timestamp: new Date().toISOString(),
-      message: `Share snapshot job checking ${gamesToSnapshot.length} started games`,
+      message: `Economy V2 snapshot checking ${gamesToSnapshot.length} started games`,
     });
 
     for (const game of gamesToSnapshot) {
       try {
         gamesChecked++;
-        const created = await storage.createSharePayoutSnapshotsForGame(
-          game,
-          SHARE_PAYOUT_BASE_RATE,
-        );
-        snapshotsCreated += created;
+        const created = await ensureGameShareSnapshots(game);
+        snapshotsCreated += created.userSnapshots;
       } catch (err: any) {
         errorCount++;
         progressCallback?.({
@@ -76,12 +58,8 @@ export async function snapshotSharePayouts(
       }
     }
 
-    return {
-      requestCount: gamesChecked,
-      recordsProcessed: snapshotsCreated,
-      errorCount,
-    };
-  } catch (err: any) {
+    return { requestCount: gamesChecked, recordsProcessed: snapshotsCreated, errorCount };
+  } catch {
     return {
       requestCount: gamesChecked,
       recordsProcessed: snapshotsCreated,
