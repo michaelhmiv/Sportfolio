@@ -31,15 +31,14 @@ def clean_routes(t):
     return t
 edit("server/routes.ts", clean_routes)
 
-# Discord portfolio is Singles-only. Remove retired view/stack vocabulary rather than emulate it.
+# Discord portfolio is Singles-only. Remove retired view/stack vocabulary and nothing else.
 def clean_discord_routes(t):
     t = t.replace('  normalizePortfolioView,\n', '')
     t = re.sub(r'^\s*"`/portfolio sport:MLB view:stacked`",\n', '', t, flags=re.M)
     t = re.sub(r'^\s*"`/stack player:<name> amount:50%`",\n', '', t, flags=re.M)
     t = re.sub(r'\n\s*const view = normalizePortfolioView\(getStringOption\(options, "view"\)\);\n\s*if \(!view\) \{\n\s*return buildErrorResponse\("Invalid view filter\. Use one of: all, stacked, regular\."\);\n\s*\}\n', '\n', t)
     t = re.sub(r'\n\s*\.filter\(\(item: any\) => \{\n\s*if \(view === "stacked"\) return isStacked;\n\s*if \(view === "regular"\) return !isStacked;\n\s*return true;\n\s*\}\)', '', t)
-    t = re.sub(r'\n\s*if \(view === "stacked"\)[^\n]*\n', '\n', t)
-    t = re.sub(r'\n\s*if \(view === "regular"\)[^\n]*\n', '\n', t)
+    t = t.replace('`Filter: sport=${sport}, view=${view}, limit=${limit}`', '`Filter: sport=${sport}, limit=${limit}`')
     return t
 edit("server/routes/discord.ts", clean_discord_routes)
 
