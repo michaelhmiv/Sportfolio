@@ -41,6 +41,7 @@ jobs:
           python3 scripts/apply-economy-v2-surface-codemod.py
           python3 scripts/finalize-economy-v2-compile-cleanup.py
           python3 scripts/apply-economy-v2-discord-api-codemod.py
+          python3 scripts/remove-economy-v2-residue.py
 
       - name: Format changed source files
         shell: bash
@@ -64,7 +65,7 @@ jobs:
             exit 1
           fi
           git add -A
-          git commit -m "feat: finalize Economy V2 legacy cleanup"
+          git commit -m "refactor: remove retired Economy V1 residue"
           git fetch origin factory/task-economy-v2-direct-boosts
           git rebase origin/factory/task-economy-v2-direct-boosts
           git push origin HEAD:factory/task-economy-v2-direct-boosts
