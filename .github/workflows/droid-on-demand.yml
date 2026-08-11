@@ -42,6 +42,7 @@ jobs:
           python3 scripts/finalize-economy-v2-compile-cleanup.py
           python3 scripts/apply-economy-v2-discord-api-codemod.py
           python3 scripts/remove-economy-v2-residue.py
+          python3 scripts/repair-economy-v2-residue-tests.py
 
       - name: Format changed source files
         shell: bash
