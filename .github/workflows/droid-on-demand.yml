@@ -34,6 +34,7 @@ jobs:
           python3 scripts/apply-economy-v2-schema-codemod.py
           sed -i 's/"  \/\/ Daily Boosts methods")/"  \/\/ AMM \/ LP methods")/' scripts/apply-economy-v2-dependency-codemod.py
           python3 scripts/apply-economy-v2-dependency-codemod.py
+          python3 scripts/apply-economy-v2-storage-codemod.py
 
       - name: Format changed source files
         shell: bash
@@ -57,7 +58,7 @@ jobs:
             exit 1
           fi
           git add -A
-          git commit -m "feat: implement Economy V2 dependency cleanup"
+          git commit -m "feat: make Economy V2 holdings Singles-only"
           git fetch origin factory/task-economy-v2-direct-boosts
           git rebase origin/factory/task-economy-v2-direct-boosts
           git push origin HEAD:factory/task-economy-v2-direct-boosts
