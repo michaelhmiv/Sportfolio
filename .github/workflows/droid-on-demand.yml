@@ -44,13 +44,13 @@ jobs:
           python3 scripts/remove-economy-v2-residue.py
           python3 scripts/repair-economy-v2-residue-tests.py
           python3 scripts/finalize-economy-v2-dangling.py
+          python3 scripts/cleanup-economy-v2-generated-artifacts.py
 
-      - name: Regenerate governed artifacts and format
+      - name: Regenerate docs and format
         shell: bash
         run: |
           set -euo pipefail
           npm ci --ignore-scripts
-          npm run governance:capabilities:update
           npm run docs:build
           mapfile -t files < <(git diff --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|mjs|json|md)$' || true)
           if [ ${#files[@]} -gt 0 ]; then
@@ -69,7 +69,7 @@ jobs:
             exit 1
           fi
           git add -A
-          git commit -m "refactor: regenerate Economy V2 governed artifacts"
+          git commit -m "refactor: regenerate Economy V2 artifacts"
           git fetch origin factory/task-economy-v2-direct-boosts
           git rebase origin/factory/task-economy-v2-direct-boosts
           git push origin HEAD:factory/task-economy-v2-direct-boosts
