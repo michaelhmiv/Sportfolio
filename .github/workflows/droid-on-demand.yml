@@ -1,4 +1,4 @@
-name: Droid On Demand
+name: Economy V2 Droid Implementation
 
 on:
   issue_comment:
@@ -9,25 +9,61 @@ permissions:
   pull-requests: write
   issues: write
   actions: read
-  id-token: write
 
 jobs:
-  droid:
+  implement:
     if: >-
       github.actor == github.repository_owner &&
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@droid')
+      github.event.issue.number == 450 &&
+      contains(github.event.comment.body, '@economy-v2-implement')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - name: Checkout repository
+      - name: Checkout Economy V2 PR branch
         uses: actions/checkout@v5
         with:
+          ref: factory/task-economy-v2-direct-boosts
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Run Droid Exec
-        uses: Factory-AI/droid-action@4028e0ae3063a9eb5b673271e381bd645102e36f
-        with:
-          factory_api_key: ${{ secrets.FACTORY_API_KEY }}
-          github_token: ${{ github.token }}
+      - name: Install Droid CLI
+        shell: bash
+        run: |
+          curl --retry 5 --retry-delay 2 --retry-all-errors -fsSL https://app.factory.ai/cli | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/droid" --version
+
+      - name: Implement Economy V2
+        shell: bash
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+        run: |
+          set -euo pipefail
+          "$HOME/.local/bin/droid" exec \
+            --output-format text \
+            --skip-permissions-unsafe \
+            --enabled-tools "Read,Grep,Glob,LS,Execute,ApplyPatch,Task,Skill" \
+            -f .factory/tasks/economy-v2-direct-boosts.md \
+            > /tmp/economy-v2-droid.log 2>&1 || {
+              code=$?
+              echo "Droid Economy V2 implementation failed with exit code ${code}."
+              tail -n 80 /tmp/economy-v2-droid.log || true
+              exit "$code"
+            }
+          tail -n 80 /tmp/economy-v2-droid.log || true
+
+      - name: Commit implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Sportfolio Automation"
+          git config user.email "34044957+michaelhmiv@users.noreply.github.com"
+          git status --short
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Droid produced no repository changes."
+            exit 1
+          fi
+          git add -A
+          git commit -m "feat: implement Economy V2"
+          git push origin HEAD:factory/task-economy-v2-direct-boosts
