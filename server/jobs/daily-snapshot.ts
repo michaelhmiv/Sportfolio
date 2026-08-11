@@ -1,21 +1,18 @@
 /**
  * Daily Portfolio Snapshot Job
  *
- * Takes daily snapshots of all users' portfolio metrics for historical tracking:
- * - Calculates current cash balance, portfolio value, and total net worth for each user
- * - Ranks users on cash balance, portfolio value, and net worth leaderboards
- * - Stores snapshots for historical charts and rank change tracking
- *
- * Runs daily at midnight UTC
+ * Takes close snapshots of all users' portfolio metrics for historical tracking.
+ * The completed ET business day is represented by a stable UTC-midnight key so
+ * market and portfolio history share the same close-date convention.
  */
 
 import { storage } from "../storage";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
-import { eq, sql, desc } from "drizzle-orm";
-import { users, holdings, players, portfolioSnapshots } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { portfolioSnapshots } from "@shared/schema";
 import { db } from "../db";
-import { takeMarketSnapshot } from "./market-snapshot";
+import { getPreviousETBusinessDay } from "./market-snapshot";
 
 interface UserPortfolioData {
   userId: string;
@@ -35,191 +32,100 @@ export function buildDailySnapshotPortfolioData(
   }));
 }
 
+function snapshotKeyForDate(date: string): Date {
+  return new Date(`${date}T00:00:00.000Z`);
+}
+
 export async function dailySnapshot(progressCallback?: ProgressCallback): Promise<JobResult> {
-  console.log("[daily_snapshot] Starting daily portfolio snapshot...");
+  const targetDate = getPreviousETBusinessDay();
+  const snapshotDate = snapshotKeyForDate(targetDate);
+  console.log(`[daily_snapshot] Starting portfolio close snapshot for ${targetDate} ET...`);
 
   progressCallback?.({
     type: "info",
     timestamp: new Date().toISOString(),
-    message: "Starting daily portfolio snapshot job",
+    message: `Starting portfolio close snapshot for ${targetDate} ET`,
   });
 
   let snapshotsCreated = 0;
   let errorCount = 0;
 
   try {
-    // Get current timestamp for snapshot (UTC midnight)
-    const now = new Date();
-    const snapshotDate = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
-    );
-
-    console.log(`[daily_snapshot] Taking snapshot for ${snapshotDate.toISOString()}`);
-
-    progressCallback?.({
-      type: "info",
-      timestamp: new Date().toISOString(),
-      message: `Taking snapshot for ${snapshotDate.toISOString()}`,
-    });
-
-    // Step 1: Get all users and calculate their portfolio values using optimized bulk query
-    console.log("[daily_snapshot] Calculating portfolio values for all users...");
-
-    progressCallback?.({
-      type: "info",
-      timestamp: new Date().toISOString(),
-      message: "Calculating portfolio values for all users using bulk SQL query",
-    });
-
-    // Use the optimized storage method that performs a single JOIN query
     const allUsersData = await storage.getAllUsersForRanking();
-
     const userPortfolioData = buildDailySnapshotPortfolioData(allUsersData);
 
-    console.log(
-      `[daily_snapshot] Calculated portfolio values for ${userPortfolioData.length} users`,
-    );
-
-    progressCallback?.({
-      type: "info",
-      timestamp: new Date().toISOString(),
-      message: `Calculated portfolio values for ${userPortfolioData.length} users`,
-    });
-
-    // Step 2: Calculate ranks for each metric
-    console.log("[daily_snapshot] Calculating ranks...");
-
-    progressCallback?.({
-      type: "info",
-      timestamp: new Date().toISOString(),
-      message: "Calculating leaderboard ranks",
-    });
-
-    // Sort by cash balance (descending) and assign ranks
-    const cashRanked = [...userPortfolioData].sort(
-      (a, b) => parseFloat(b.cashBalance) - parseFloat(a.cashBalance),
-    );
     const cashRankMap = new Map<string, number>();
-    cashRanked.forEach((user, index) => {
-      cashRankMap.set(user.userId, index + 1);
-    });
+    [...userPortfolioData]
+      .sort((a, b) => parseFloat(b.cashBalance) - parseFloat(a.cashBalance))
+      .forEach((user, index) => cashRankMap.set(user.userId, index + 1));
 
-    // Sort by portfolio value (descending) and assign ranks
-    const portfolioRanked = [...userPortfolioData].sort(
-      (a, b) => b.portfolioValue - a.portfolioValue,
-    );
     const portfolioRankMap = new Map<string, number>();
-    portfolioRanked.forEach((user, index) => {
-      portfolioRankMap.set(user.userId, index + 1);
-    });
+    [...userPortfolioData]
+      .sort((a, b) => b.portfolioValue - a.portfolioValue)
+      .forEach((user, index) => portfolioRankMap.set(user.userId, index + 1));
 
-    // Sort by total net worth (descending) and assign ranks
-    const netWorthRanked = [...userPortfolioData].sort((a, b) => b.totalNetWorth - a.totalNetWorth);
     const netWorthRankMap = new Map<string, number>();
-    netWorthRanked.forEach((user, index) => {
-      netWorthRankMap.set(user.userId, index + 1);
-    });
+    [...userPortfolioData]
+      .sort((a, b) => b.totalNetWorth - a.totalNetWorth)
+      .forEach((user, index) => netWorthRankMap.set(user.userId, index + 1));
 
-    // Step 3: Insert snapshots for all users (OPTIMIZED: bulk insert)
-    console.log("[daily_snapshot] Inserting snapshots into database (bulk)...");
+    // A rerun for the same completed ET business day replaces that day's close
+    // atomically at the day level instead of creating duplicate history rows.
+    await db.delete(portfolioSnapshots).where(eq(portfolioSnapshots.snapshotDate, snapshotDate));
 
-    progressCallback?.({
-      type: "info",
-      timestamp: new Date().toISOString(),
-      message: "Inserting snapshots into database",
-    });
-
-    // Batch size for bulk inserts to avoid overwhelming the database
     const BATCH_SIZE = 500;
     let processedCount = 0;
-
     for (let i = 0; i < userPortfolioData.length; i += BATCH_SIZE) {
       const batch = userPortfolioData.slice(i, i + BATCH_SIZE);
-
       try {
-        const snapshotValues = batch.map((userData) => ({
-          userId: userData.userId,
-          snapshotDate,
-          cashBalance: userData.cashBalance,
-          portfolioValue: userData.portfolioValue.toFixed(2),
-          totalNetWorth: userData.totalNetWorth.toFixed(2),
-          cashRank: cashRankMap.get(userData.userId) || null,
-          portfolioRank: portfolioRankMap.get(userData.userId) || null,
-          netWorthRank: netWorthRankMap.get(userData.userId) || null,
-        }));
-
-        await db.insert(portfolioSnapshots).values(snapshotValues);
+        await db.insert(portfolioSnapshots).values(
+          batch.map((userData) => ({
+            userId: userData.userId,
+            snapshotDate,
+            cashBalance: userData.cashBalance,
+            portfolioValue: userData.portfolioValue.toFixed(2),
+            totalNetWorth: userData.totalNetWorth.toFixed(2),
+            cashRank: cashRankMap.get(userData.userId) || null,
+            portfolioRank: portfolioRankMap.get(userData.userId) || null,
+            netWorthRank: netWorthRankMap.get(userData.userId) || null,
+          })),
+        );
         snapshotsCreated += batch.length;
         processedCount += batch.length;
-
         progressCallback?.({
           type: "info",
           timestamp: new Date().toISOString(),
-          message: `Inserted ${processedCount}/${userPortfolioData.length} snapshots`,
+          message: `Inserted ${processedCount}/${userPortfolioData.length} portfolio snapshots`,
         });
       } catch (error: any) {
-        console.error(`[daily_snapshot] Failed to insert batch starting at ${i}:`, error.message);
+        console.error(`[daily_snapshot] Failed batch starting at ${i}:`, error.message);
         errorCount += batch.length;
       }
-    }
-
-    console.log(`[daily_snapshot] Created ${snapshotsCreated} portfolio snapshots successfully`);
-
-    progressCallback?.({
-      type: "info",
-      timestamp: new Date().toISOString(),
-      message: `Portfolio snapshots complete: ${snapshotsCreated} created`,
-    });
-
-    // Step 4: Take market-wide snapshot for analytics
-    console.log("[daily_snapshot] Step 4: Taking market snapshot...");
-    progressCallback?.({
-      type: "info",
-      timestamp: new Date().toISOString(),
-      message: "Taking market-wide snapshot for analytics...",
-    });
-
-    try {
-      const marketResult = await takeMarketSnapshot(progressCallback);
-      if (marketResult.errorCount > 0) {
-        console.warn("[daily_snapshot] Market snapshot had errors");
-        errorCount += marketResult.errorCount;
-      } else {
-        console.log("[daily_snapshot] Market snapshot complete");
-      }
-    } catch (marketError: any) {
-      console.error("[daily_snapshot] Market snapshot failed:", marketError.message);
-      errorCount++;
     }
 
     progressCallback?.({
       type: "complete",
       timestamp: new Date().toISOString(),
-      message: `Daily snapshot completed: ${snapshotsCreated} portfolio + market snapshot`,
+      message: `Portfolio close snapshot completed for ${targetDate}: ${snapshotsCreated} rows`,
       data: {
-        success: true,
-        summary: {
-          snapshotsCreated,
-          errors: errorCount,
-        },
+        success: errorCount === 0,
+        summary: { snapshotsCreated, errors: errorCount },
       },
     });
 
     return {
       requestCount: 0,
-      recordsProcessed: snapshotsCreated + 1,
+      recordsProcessed: snapshotsCreated,
       errorCount,
     };
   } catch (error: any) {
     console.error("[daily_snapshot] Fatal error:", error);
-
     progressCallback?.({
       type: "error",
       timestamp: new Date().toISOString(),
       message: `Fatal error: ${error.message}`,
       data: { error: error.message },
     });
-
     return {
       requestCount: 0,
       recordsProcessed: snapshotsCreated,

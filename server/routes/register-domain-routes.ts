@@ -4,6 +4,7 @@ import { registerMlbCollectionAdminRoutes } from "../collections/mlb/admin-route
 import { mlbCatalogAdminService } from "../collections/mlb/catalog-admin-service";
 import { collectionReadService, collectionService } from "../collections/runtime";
 import { registerAccountDeletionRoutes } from "./account-deletion";
+import { registerAnalyticsV2Routes } from "./analytics-v2";
 import { registerAmmRoutes } from "./amm";
 import { registerCliRoutes } from "./cli";
 import { registerDiscordRoutes } from "./discord";
@@ -28,6 +29,9 @@ export function registerDomainRoutes(app: Express): void {
   // intentionally registered independently from the feature-gated MCP endpoint.
   registerPluginOAuthMetadataRoutes(app);
   registerPluginMcpRoutes(app);
+
+  // Public market research is shared by the web analytics terminal and MCP/plugin tools.
+  registerAnalyticsV2Routes(app);
 
   // Collection routes are split by authorization level: users mutate allocations;
   // only admins may preview, publish, or disable catalog content.

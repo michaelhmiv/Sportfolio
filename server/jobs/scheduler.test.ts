@@ -46,6 +46,8 @@ const expectedScheduledJobs = {
   check_milestones: "3-59/15 * * * *",
   refresh_player_metrics: "12-59/15 * * * *",
   refresh_player_volume_24h: "4-59/10 * * * *",
+  market_snapshot: "5 0 * * *",
+  portfolio_snapshot: "10 0 * * *",
   stats_sync_live: "4-59/5 * * * *",
   mlb_roster_sync: "15 4 * * *",
   mlb_schedule_sync: "50 * * * *",
@@ -426,8 +428,8 @@ describe("JobScheduler registration and manual dispatch", () => {
         enabled: true,
       })),
     );
-    expect(scheduler.getConfiguredJobs()).toHaveLength(33);
-    expect(schedulerMocks.schedule).toHaveBeenCalledTimes(33);
+    expect(scheduler.getConfiguredJobs()).toHaveLength(35);
+    expect(schedulerMocks.schedule).toHaveBeenCalledTimes(35);
     for (const [, , options] of schedulerMocks.schedule.mock.calls) {
       expect(options).toEqual({ timezone: "America/New_York" });
     }

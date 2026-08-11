@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Express, Request, Response } from "express";
 import { requireUserApiToken } from "../api-token-auth";
+import { registerMarketResearchTools } from "../mcp/market-research-tools";
 import {
   assertPublicMcpSurfaceIntegrity,
   createDefaultPublicMcpDependencies,
@@ -12,7 +13,7 @@ import {
 
 const MCP_SERVER_INFO = {
   name: "sportfolio-gameplay-mcp",
-  version: "1.0.0",
+  version: "1.1.0",
 } as const;
 
 type McpSession = {
@@ -67,6 +68,7 @@ export async function createSportfolioMcpServer(
   assertPublicMcpSurfaceIntegrity();
   const server = new McpServer(MCP_SERVER_INFO, { capabilities: { logging: {} } });
   await registerPublicMcpSurface(server, { userId, deps });
+  registerMarketResearchTools(server);
   return server;
 }
 
