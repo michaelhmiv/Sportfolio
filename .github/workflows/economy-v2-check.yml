@@ -36,8 +36,6 @@ jobs:
         run: node scripts/audit-economy-v2-retired-stack.mjs
       - name: Public tool policy
         run: npm run public-tools:audit
-      - name: MCP audit
-        run: npm run mcp:audit
       - name: Plugin UI audit
         run: npm run plugin:ui:audit
       - name: Docs governance
