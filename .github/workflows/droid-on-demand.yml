@@ -37,6 +37,8 @@ jobs:
           python3 scripts/apply-economy-v2-storage-finalize.py
           python3 scripts/apply-economy-v2-storage-codemod.py
           python3 scripts/apply-economy-v2-storage-interface-fix.py
+          python3 scripts/apply-economy-v2-bot-codemod.py
+          python3 scripts/apply-economy-v2-surface-codemod.py
 
       - name: Format changed source files
         shell: bash
@@ -60,7 +62,7 @@ jobs:
             exit 1
           fi
           git add -A
-          git commit -m "feat: make Economy V2 holdings Singles-only"
+          git commit -m "feat: remove remaining Economy V2 legacy surfaces"
           git fetch origin factory/task-economy-v2-direct-boosts
           git rebase origin/factory/task-economy-v2-direct-boosts
           git push origin HEAD:factory/task-economy-v2-direct-boosts
