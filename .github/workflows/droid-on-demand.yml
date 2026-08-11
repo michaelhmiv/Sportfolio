@@ -30,3 +30,4 @@ jobs:
         uses: Factory-AI/droid-action@4028e0ae3063a9eb5b673271e381bd645102e36f
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
+          github_token: ${{ github.token }}
