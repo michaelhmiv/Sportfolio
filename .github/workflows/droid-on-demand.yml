@@ -40,6 +40,7 @@ jobs:
           python3 scripts/apply-economy-v2-bot-codemod.py
           python3 scripts/apply-economy-v2-surface-codemod.py
           python3 scripts/finalize-economy-v2-compile-cleanup.py
+          python3 scripts/apply-economy-v2-discord-api-codemod.py
 
       - name: Format changed source files
         shell: bash
