@@ -55,4 +55,6 @@ jobs:
           fi
           git add -A
           git commit -m "feat: implement Economy V2 core"
+          git fetch origin factory/task-economy-v2-direct-boosts
+          git rebase origin/factory/task-economy-v2-direct-boosts
           git push origin HEAD:factory/task-economy-v2-direct-boosts
