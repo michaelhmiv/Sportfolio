@@ -1,236 +1,178 @@
-import { vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const storageMocks = vi.hoisted(() => ({
   getDailyBoostsByStatus: vi.fn(),
   getDailyGameByGameId: vi.fn(),
-  getDailyGamesBySport: vi.fn(),
-  getPlayerGameForDate: vi.fn(),
   getPlayerGameStatsForIdentity: vi.fn(),
   getCommunityBoostCountForPlayerIdentity: vi.fn(),
   getPlayer: vi.fn(),
-  getUser: vi.fn(),
-  updateUserBalance: vi.fn(),
-  createBoostPayout: vi.fn(),
-  updateDailyBoost: vi.fn(),
-  getUserNotificationPreferences: vi.fn(),
-  createPushNotificationEvent: vi.fn(),
-  listActiveUserPushTokens: vi.fn(),
-  updatePushNotificationEvent: vi.fn(),
+}));
+const economyMocks = vi.hoisted(() => ({
+  settleBaseEarningsForGame: vi.fn(),
+  settleDirectShareBoost: vi.fn(),
+}));
+const websocketMocks = vi.hoisted(() => ({ broadcast: vi.fn() }));
+const notificationMocks = vi.hoisted(() => ({
+  sendUserNotification: vi.fn(),
+  notifyBoostSettledPush: vi.fn(),
 }));
 
-const websocketMocks = vi.hoisted(() => ({
-  broadcast: vi.fn(),
+vi.mock("../storage", () => ({ storage: storageMocks }));
+vi.mock("../economy/repository", () => ({
+  settleBaseEarningsForGame: economyMocks.settleBaseEarningsForGame,
+  settleDirectShareBoost: economyMocks.settleDirectShareBoost,
 }));
-
-vi.mock("../storage", () => ({
-  storage: {
-    getDailyBoostsByStatus: storageMocks.getDailyBoostsByStatus,
-    getDailyGameByGameId: storageMocks.getDailyGameByGameId,
-    getDailyGamesBySport: storageMocks.getDailyGamesBySport,
-    getPlayerGameForDate: storageMocks.getPlayerGameForDate,
-    getPlayerGameStatsForIdentity: storageMocks.getPlayerGameStatsForIdentity,
-    getCommunityBoostCountForPlayerIdentity: storageMocks.getCommunityBoostCountForPlayerIdentity,
-    getPlayer: storageMocks.getPlayer,
-    getUser: storageMocks.getUser,
-    updateUserBalance: storageMocks.updateUserBalance,
-    createBoostPayout: storageMocks.createBoostPayout,
-    updateDailyBoost: storageMocks.updateDailyBoost,
-    getUserNotificationPreferences: storageMocks.getUserNotificationPreferences,
-    createPushNotificationEvent: storageMocks.createPushNotificationEvent,
-    listActiveUserPushTokens: storageMocks.listActiveUserPushTokens,
-    updatePushNotificationEvent: storageMocks.updatePushNotificationEvent,
-  },
+vi.mock("../websocket", () => ({ broadcast: websocketMocks.broadcast }));
+vi.mock("../services/notification-dispatcher", () => ({
+  sendUserNotification: notificationMocks.sendUserNotification,
 }));
-
-vi.mock("../websocket", () => ({
-  broadcast: websocketMocks.broadcast,
+vi.mock("../services/push-notification-events", () => ({
+  notifyBoostSettledPush: notificationMocks.notifyBoostSettledPush,
 }));
 
 describe("settleBoosts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    storageMocks.getUserNotificationPreferences.mockResolvedValue([]);
-    storageMocks.createPushNotificationEvent.mockResolvedValue({ id: "event_1" });
-    storageMocks.listActiveUserPushTokens.mockResolvedValue([]);
-    storageMocks.updatePushNotificationEvent.mockResolvedValue(undefined);
+    storageMocks.getPlayer.mockResolvedValue({
+      id: "mlb_1",
+      firstName: "Test",
+      lastName: "Player",
+      team: "ATL",
+    });
+    storageMocks.getCommunityBoostCountForPlayerIdentity.mockResolvedValue(0);
+    notificationMocks.sendUserNotification.mockResolvedValue(undefined);
+    notificationMocks.notifyBoostSettledPush.mockResolvedValue(undefined);
+    economyMocks.settleBaseEarningsForGame.mockResolvedValue({
+      playersSettled: 1,
+      userPayouts: 1,
+      sbIssued: 20,
+    });
   });
 
-  it("repairs legacy NBA gameIds and settles using canonical stats", async () => {
+  it("settles base EPS before crediting only the incremental Boost bonus", async () => {
     storageMocks.getDailyBoostsByStatus.mockResolvedValue([
       {
         id: "boost_1",
         userId: "user_1",
-        playerId: "nba_42",
-        sport: "NBA",
-        slotTier: 2,
-        boostDate: new Date("2026-02-11T05:00:00.000Z"),
-        sharesEntered: 1,
-        shareMultiplier: "2.00",
-        gameId: "184471234",
+        playerId: "mlb_1",
+        sport: "MLB",
+        slotTier: 5,
+        boostDate: new Date("2026-08-11T04:00:00.000Z"),
+        sharesEntered: "4.0000",
+        sharesBurned: "4.0000",
+        gameId: "game_1",
         status: "locked",
       },
     ]);
-
-    // Legacy record exists but would never settle (wrong id/status)
-    storageMocks.getDailyGameByGameId.mockResolvedValue({
-      id: "game_legacy",
-      gameId: "184471234",
-      sport: "NBA",
-      startTime: new Date("2026-02-11T23:00:00.000Z"),
-      status: "scheduled",
-      homeTeam: "BOS",
-      awayTeam: "LAL",
-      date: new Date("2026-02-11T05:00:00.000Z"),
-    });
-
-    storageMocks.getDailyGamesBySport.mockResolvedValue([
-      {
-        id: "game_legacy",
-        gameId: "184471234",
-        sport: "NBA",
-        startTime: new Date("2026-02-11T23:00:00.000Z"),
-        status: "scheduled",
-        homeTeam: "BOS",
-        awayTeam: "LAL",
-        date: new Date("2026-02-11T05:00:00.000Z"),
-      },
-      {
-        id: "game_canonical",
-        gameId: "123456",
-        sport: "NBA",
-        startTime: new Date("2026-02-11T23:00:00.000Z"),
-        status: "completed",
-        homeTeam: "BOS",
-        awayTeam: "LAL",
-        date: new Date("2026-02-11T05:00:00.000Z"),
-      },
-    ]);
-
+    const game = {
+      gameId: "game_1",
+      sport: "MLB",
+      seasonType: "regular",
+      status: "completed",
+    };
+    storageMocks.getDailyGameByGameId.mockResolvedValue(game);
     storageMocks.getPlayerGameStatsForIdentity.mockResolvedValue({
-      id: "stats_1",
-      playerId: "nba_237",
-      gameId: "123456",
-      fantasyPoints: "50",
+      playerId: "mlb_1",
+      gameId: "game_1",
+      fantasyPoints: "12.50",
+      statsJson: {},
     });
-
-    storageMocks.getCommunityBoostCountForPlayerIdentity.mockResolvedValue(0);
-    storageMocks.getPlayer.mockResolvedValue({
-      id: "nba_42",
-      firstName: "Jayson",
-      lastName: "Tatum",
-      team: "BOS",
+    economyMocks.settleDirectShareBoost.mockResolvedValue({
+      settled: true,
+      gameEpsSb: 0.5,
+      baseComponentSb: 2,
+      boostBonusSb: 8,
+      totalEconomicEarningsSb: 10,
+      effectiveMultiplier: 5,
+      sharesBurned: 4,
     });
-    storageMocks.getUser.mockResolvedValue({ id: "user_1", balance: "10.00" });
-    storageMocks.updateUserBalance.mockResolvedValue(undefined);
-    storageMocks.createBoostPayout.mockResolvedValue({ id: "payout_1" });
-    storageMocks.updateDailyBoost.mockResolvedValue(undefined);
 
     const { settleBoosts } = await import("./settle-boosts");
     const result = await settleBoosts();
 
     expect(result.recordsProcessed).toBe(1);
-
-    // Repair gameId to canonical
-    expect(storageMocks.updateDailyBoost).toHaveBeenNthCalledWith(1, "boost_1", {
-      gameId: "123456",
-    });
-
-    expect(storageMocks.getPlayerGameStatsForIdentity).toHaveBeenCalledWith("nba_42", "123456");
-    expect(storageMocks.getCommunityBoostCountForPlayerIdentity).toHaveBeenCalledWith(
-      "NBA",
-      new Date("2026-02-11T05:00:00.000Z"),
-      "nba_42",
-    );
-
-    // Payout settled
-    expect(storageMocks.updateUserBalance).toHaveBeenCalledWith("user_1", "210.00");
-    expect(storageMocks.createBoostPayout).toHaveBeenCalledWith(
-      expect.objectContaining({
-        boostId: "boost_1",
-        userId: "user_1",
-        playerId: "nba_42",
-        fantasyPoints: "50.00",
-        payoutAmount: "200.00",
-        multiplier: 2,
-      }),
-    );
-
-    expect(storageMocks.updateDailyBoost).toHaveBeenNthCalledWith(
-      2,
-      "boost_1",
-      expect.objectContaining({
-        status: "processed",
-        fantasyPoints: "50.00",
-        payout: "200.00",
-      }),
-    );
-
+    expect(economyMocks.settleBaseEarningsForGame).toHaveBeenCalledWith(game);
+    expect(economyMocks.settleDirectShareBoost).toHaveBeenCalledWith("boost_1", 12.5, 0);
     expect(websocketMocks.broadcast).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "boost_settled",
-        userId: "user_1",
         boostId: "boost_1",
-        payout: "200.00",
-        multiplier: 2,
+        payout: "10.00",
+        boostBonus: "8.00",
+        baseComponent: "2.00",
+        sharesBurned: 4,
+        multiplier: 5,
       }),
     );
-  }, 15000);
+  });
 
-  it("settles an NHL boost using the documented simplified Sportfolio fantasy total", async () => {
+  it("applies Community Boost count through the V2 settlement repository", async () => {
     storageMocks.getDailyBoostsByStatus.mockResolvedValue([
       {
-        id: "boost_nhl",
+        id: "boost_community",
         userId: "user_1",
-        playerId: "nhl_8478402",
-        sport: "NHL",
+        playerId: "mlb_1",
+        sport: "MLB",
         slotTier: 3,
-        boostDate: new Date("2026-01-02T05:00:00.000Z"),
-        sharesEntered: 1,
-        shareMultiplier: "2.00",
-        gameId: "nhl_2025020600",
+        boostDate: new Date("2026-08-11T04:00:00.000Z"),
+        sharesBurned: "2.0000",
+        gameId: "game_2",
         status: "locked",
       },
     ]);
     storageMocks.getDailyGameByGameId.mockResolvedValue({
-      id: "game_nhl",
-      gameId: "nhl_2025020600",
-      sport: "NHL",
+      gameId: "game_2",
+      sport: "MLB",
+      seasonType: "regular",
       status: "completed",
-      startTime: new Date("2026-01-02T23:00:00.000Z"),
-      homeTeam: "BOS",
-      awayTeam: "NYR",
-      date: new Date("2026-01-02T05:00:00.000Z"),
     });
     storageMocks.getPlayerGameStatsForIdentity.mockResolvedValue({
-      playerId: "nhl_8478402",
-      gameId: "nhl_2025020600",
-      fantasyPoints: "18.50",
-      statsJson: {
-        scoringEnrichment: { model: "simplified-sportfolio-nhl", status: "not_included" },
+      playerId: "mlb_1",
+      gameId: "game_2",
+      fantasyPoints: "8.00",
+      statsJson: {},
+    });
+    storageMocks.getCommunityBoostCountForPlayerIdentity.mockResolvedValue(2);
+    economyMocks.settleDirectShareBoost.mockResolvedValue({
+      settled: true,
+      gameEpsSb: 0.25,
+      baseComponentSb: 0.5,
+      boostBonusSb: 2,
+      totalEconomicEarningsSb: 2.5,
+      effectiveMultiplier: 5,
+      sharesBurned: 2,
+    });
+
+    const { settleBoosts } = await import("./settle-boosts");
+    await settleBoosts();
+
+    expect(economyMocks.settleDirectShareBoost).toHaveBeenCalledWith("boost_community", 8, 2);
+  });
+
+  it("does not settle a Boost until the game is complete", async () => {
+    storageMocks.getDailyBoostsByStatus.mockResolvedValue([
+      {
+        id: "boost_live",
+        userId: "user_1",
+        playerId: "mlb_1",
+        sport: "MLB",
+        slotTier: 2,
+        boostDate: new Date(),
+        gameId: "game_live",
+        status: "locked",
       },
+    ]);
+    storageMocks.getDailyGameByGameId.mockResolvedValue({
+      gameId: "game_live",
+      sport: "MLB",
+      status: "inprogress",
     });
-    storageMocks.getCommunityBoostCountForPlayerIdentity.mockResolvedValue(0);
-    storageMocks.getUser.mockResolvedValue({ id: "user_1", balance: "10.00" });
-    storageMocks.getPlayer.mockResolvedValue({
-      id: "nhl_8478402",
-      firstName: "Test",
-      lastName: "Skater",
-      team: "BOS",
-    });
-    storageMocks.createBoostPayout.mockResolvedValue({ id: "payout_nhl" });
 
     const { settleBoosts } = await import("./settle-boosts");
     const result = await settleBoosts();
 
-    expect(result.recordsProcessed).toBe(1);
-    expect(storageMocks.updateUserBalance).toHaveBeenCalledWith("user_1", "121.00");
-    expect(storageMocks.createBoostPayout).toHaveBeenCalledWith(
-      expect.objectContaining({
-        boostId: "boost_nhl",
-        fantasyPoints: "18.50",
-        payoutAmount: "111.00",
-        multiplier: 3,
-      }),
-    );
-  }, 15000);
+    expect(result.recordsProcessed).toBe(0);
+    expect(economyMocks.settleBaseEarningsForGame).not.toHaveBeenCalled();
+    expect(economyMocks.settleDirectShareBoost).not.toHaveBeenCalled();
+  });
 });
