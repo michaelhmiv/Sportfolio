@@ -32,3 +32,17 @@ jobs:
         run: npm run check
       - name: Economy V2 unit tests
         run: npx vitest run server/economy/math.test.ts server/jobs/settle-boosts.test.ts server/jobs/settle-share-payouts.test.ts server/jobs/snapshot-share-payouts.test.ts server/boosts/assign-daily-boost.test.ts
+      - name: Retired Stack audit
+        run: node scripts/audit-economy-v2-retired-stack.mjs
+      - name: Public tool policy
+        run: npm run public-tools:audit
+      - name: Capability governance
+        run: npm run governance:capabilities
+      - name: MCP audit
+        run: npm run mcp:audit
+      - name: Plugin UI audit
+        run: npm run plugin:ui:audit
+      - name: Docs governance
+        run: npm run docs:governance
+      - name: Production build
+        run: npm run build
