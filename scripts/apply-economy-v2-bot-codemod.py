@@ -28,11 +28,33 @@ text = text.replace(
 )
 path.write_text(text)
 
-# Remaining bot selectors/engine should never propose the retired action.
-for relative in ["server/bot/player-selector.ts", "server/bot/deterministic-engine.ts"]:
-    path = ROOT / relative
-    text = path.read_text()
-    text = re.sub(r'^.*"stack_shares".*\n', '', text, flags=re.MULTILINE)
-    path.write_text(text)
+# Deterministic engine: remove the complete retired switch case, not individual lines.
+path = ROOT / "server/bot/deterministic-engine.ts"
+text = path.read_text()
+text = re.sub(
+    r'''\n    case "stack_shares": \{[\s\S]*?\n    \}(?=\n    default:)''',
+    '',
+    text,
+    count=1,
+)
+path.write_text(text)
+
+# Player selector: remove both retired guards and the stack token from the combined locked-holding guard.
+path = ROOT / "server/bot/player-selector.ts"
+text = path.read_text()
+text = re.sub(
+    r'''\n    if \(context\.actionType === "stack_shares" && !context\.heldPlayerIds\.has\(playerId\)\) \{\n      continue;[^\n]*\n    \}''',
+    '',
+    text,
+    count=1,
+)
+text = re.sub(
+    r'''\n    if \(context\.actionType === "stack_shares" && availableShares < 4\) \{\n      continue;[^\n]*\n    \}''',
+    '',
+    text,
+    count=1,
+)
+text = text.replace('        context.actionType === "boost_assign" ||\n        context.actionType === "stack_shares") &&', '        context.actionType === "boost_assign") &&')
+path.write_text(text)
 
 print("Economy V2 bot stacking cleanup applied")
