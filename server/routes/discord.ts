@@ -451,7 +451,7 @@ async function handlePortfolio(
   const content = [
     `Balance: ${formatCurrency(parseFloat(user.balance || "0"))}`,
     `Premium: ${user.isPremium ? "active" : "inactive"}`,
-    `Filter: sport=${sport}, view=${view}, limit=${limit}`,
+    `Filter: sport=${sport}, limit=${limit}`,
     `Matching holdings: ${filteredHoldings.length}`,
     `Top holdings:`,
     ...(topHoldings.length > 0 ? topHoldings : ["No player holdings yet."]),
