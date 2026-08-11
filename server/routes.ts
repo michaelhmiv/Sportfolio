@@ -842,7 +842,7 @@ async function buildUserLiveEarningsSummary(params: {
       if ((player.sport || "").toUpperCase() !== String(game.sport || "").toUpperCase())
         return false;
       if (player.team !== game.homeTeam && player.team !== game.awayTeam) return false;
-      return getPerformanceEarningUnits(holding) > 0;
+      return parseLiveEarningsNumber(holding.quantity) > 0;
     })
     .reduce((map: Map<string, any>, entry: any) => {
       const holding = entry?.holding ?? entry;
@@ -859,7 +859,7 @@ async function buildUserLiveEarningsSummary(params: {
         liveByNameAndTeam.get(getLiveEarningsNameTeamKey(playerName, player?.team)) || 0;
       const fantasyPoints = fantasyPointsById || fantasyPointsByName;
       const quantity = parseLiveEarningsNumber(holding.quantity);
-      const effectiveShares = getPerformanceEarningUnits(holding);
+      const effectiveShares = quantity;
 
       const existing = map.get(playerId);
       if (!existing) {
