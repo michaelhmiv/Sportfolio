@@ -6,6 +6,7 @@ import {
   evaluateGameplayCapabilityParity,
   getPublicMcpToolFixtures,
 } from "./public-tool-registry";
+import { getMarketResearchToolNames } from "./market-research-tools";
 import { startMockMcpHttpServer } from "./testing";
 
 type OpenClient = {
@@ -183,7 +184,12 @@ describe("sportfolio MCP server", () => {
         arguments: {},
       });
 
-      expect(tools.tools).toHaveLength(buildPublicMcpToolRegistry().length);
+      expect(tools.tools).toHaveLength(
+        buildPublicMcpToolRegistry().length + getMarketResearchToolNames().length,
+      );
+      expect(tools.tools.map((entry) => entry.name)).toEqual(
+        expect.arrayContaining(getMarketResearchToolNames()),
+      );
       expect(tools.tools.map((entry) => entry.name)).not.toContain("create_api_token");
       expect(prompts.prompts.map((entry) => entry.name)).toEqual(
         expect.arrayContaining(["find_boost_candidates", "stage_trade"]),

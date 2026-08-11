@@ -867,7 +867,7 @@ export default function Analytics() {
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">
-                          {pair.player1Name} ↔ {pair.player2Name}
+                          {pair.player1Name} vs {pair.player2Name}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Pearson · {pair.sampleCount} aligned daily observations

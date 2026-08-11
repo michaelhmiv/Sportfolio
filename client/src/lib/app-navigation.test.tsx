@@ -15,13 +15,7 @@ describe("shared application navigation", () => {
 
     expect(new Set(ids).size).toBe(ids.length);
     expect(new Set(paths).size).toBe(paths.length);
-    expect(MOBILE_NAV_ITEM_IDS).toEqual([
-      "dashboard",
-      "pools",
-      "boosts",
-      "portfolio",
-      "collections",
-    ]);
+    expect(MOBILE_NAV_ITEM_IDS).toEqual(["dashboard", "pools", "boosts", "portfolio", "analytics"]);
   });
 
   it("provides the same labels and icons to desktop and mobile consumers", () => {
