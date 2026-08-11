@@ -26,11 +26,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Apply deterministic Economy V2 codemod
+      - name: Apply deterministic Economy V2 codemods
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/apply-economy-v2-codemod.py
+          python3 scripts/apply-economy-v2-schema-codemod.py
 
       - name: Format changed source files
         shell: bash
@@ -54,7 +55,7 @@ jobs:
             exit 1
           fi
           git add -A
-          git commit -m "feat: implement Economy V2 core"
+          git commit -m "feat: implement Economy V2 cleanup"
           git fetch origin factory/task-economy-v2-direct-boosts
           git rebase origin/factory/task-economy-v2-direct-boosts
           git push origin HEAD:factory/task-economy-v2-direct-boosts
