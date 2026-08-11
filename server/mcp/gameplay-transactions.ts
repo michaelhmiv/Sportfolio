@@ -136,6 +136,12 @@ function assertAction(action: GameplayAction) {
         throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
       }
       break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
     case "scout_set_count":
       assertScoutTargetCount(action.targetCount);
       break;
@@ -212,10 +218,8 @@ async function actionSummary(action: GameplayAction): Promise<string> {
         .map((entry) => `${entry.label}=${entry.targetCount}`)
         .join(", ")}.`;
     }
-    case "holdings_stack_shares":
-      return `Stack ${action.sharesToStack} shares of ${await playerLabel(action.playerId)}.`;
     case "daily_boost_assign":
-      return `Assign ${await playerLabel(action.playerId)} to the ${action.slotTier}x daily boost slot for ${action.boostDate}.`;
+      return `Commit ${action.shares} Singles of ${await playerLabel(action.playerId)} to the ${action.slotTier}x daily boost slot for ${action.boostDate}; the shares burn when the game begins.`;
     case "daily_boost_remove":
       return `Remove daily boost ${action.boostId}.`;
     case "community_boost_create":

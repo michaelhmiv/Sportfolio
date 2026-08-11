@@ -615,14 +615,13 @@ function actionFromPreviewRequest(
       return { actionType: "pool_remove_liquidity", playerId, lpShares: Number(args.lpShares) };
     case "preview_scout_adjustment":
       return { actionType: "scout_set_count", playerId, targetCount: Number(args.targetCount) };
-    case "preview_stack_shares":
-      return { actionType: "holdings_stack_shares", playerId, sharesToStack: Number(args.shares) };
     case "preview_daily_boost_assign":
       return {
         actionType: "daily_boost_assign",
         playerId,
         sport,
-        slotTier: Number(args.slotTier) as 2 | 3 | 4 | 5,
+        slotTier: Number(args.slotTier) as 2 | 3 | 5 | 7 | 10,
+        shares: Number(args.shares),
         boostDate,
       };
     case "preview_community_boost_create":

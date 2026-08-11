@@ -109,7 +109,6 @@ import {
 import { ensureUserApiTokenSchema } from "./api-token-auth";
 import { getLeaderboardReadResponse } from "./leaderboards-read-service";
 import { getBotRuntimeStatus, getBotStats, runBotEngineTick } from "./bot/bot-engine";
-import { buildStackSharesResponsePayload } from "./lib/stack-shares-response";
 import {
   getCanonicalPlayerMarkets,
   getCanonicalPlayerMarket,
@@ -9427,96 +9426,6 @@ ${items}
       res.status(500).json({ error: error.message });
     }
   });
-
-  // ============================================
-  // STACK SHARES ROUTES
-  // ============================================
-
-  const handleStackShares = async (req: any, res: any) => {
-    try {
-      const userId = getUserId(req);
-      const { playerId, sharesToStack } = req.body;
-
-      // Validate input
-      if (!playerId) {
-        return res.status(400).json({ error: "playerId is required" });
-      }
-
-      const shares = parseInt(sharesToStack);
-      if (isNaN(shares) || shares < 4) {
-        return res.status(400).json({ error: "Minimum 4 shares required to stack" });
-      }
-
-      if (shares % 2 !== 0) {
-        return res.status(400).json({ error: "Share count must be even" });
-      }
-
-      const result = await storage.stackShares(userId, playerId, shares);
-      const holdingInfo = await storage.getHoldingMultiplierState(userId, playerId);
-      const player = await storage.getPlayer(playerId);
-      res.json(
-        buildStackSharesResponsePayload({
-          sharesStacked: result.sharesStacked,
-          multiplier: result.multiplier,
-          newMultiplier: result.newMultiplier,
-          effectiveSharesBurned: result.effectiveSharesBurned,
-          holding: holdingInfo,
-          player: player
-            ? {
-                id: player.id,
-                firstName: player.firstName,
-                lastName: player.lastName,
-                team: player.team,
-              }
-            : null,
-        }),
-      );
-    } catch (error: any) {
-      console.error("[holdings/stack-shares] Error:", error);
-      res.status(400).json({ error: error.message });
-    }
-  };
-
-  app.post("/api/holdings/stack-shares", isAuthenticated, handleStackShares);
-
-  // Get holding with multiplier info for a specific player
-  const handleHoldingMultiplierState = async (req: any, res: any) => {
-    try {
-      const userId = getUserId(req);
-      const { playerId } = req.params;
-
-      const holdingInfo = await storage.getHoldingMultiplierState(userId, playerId);
-
-      if (!holdingInfo) {
-        return res.json({
-          hasHolding: false,
-          quantity: 0,
-          availableShares: 0,
-          effectiveShares: 0,
-          multiplier: "0.00",
-          hasStackedShare: false,
-          canStackShares: false,
-          maxStackable: 0,
-        });
-      }
-
-      res.json({
-        hasHolding: true,
-        ...holdingInfo,
-        canStackShares: holdingInfo.canStackShares,
-        maxStackable: holdingInfo.maxStackable,
-      });
-    } catch (error: any) {
-      console.error("[holdings/multiplier-state] Error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  };
-
-  app.get(
-    "/api/holdings/:playerId/multiplier-state",
-    isAuthenticated,
-    handleHoldingMultiplierState,
-  );
 
   // ============================================
   // DAILY BOOSTS ROUTES

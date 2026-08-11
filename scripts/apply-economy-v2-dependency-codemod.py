@@ -35,7 +35,7 @@ for token in [
 ]:
     text = text.replace(token, "")
 # Interface Stack contract sits before the Daily Boost contract.
-text = remove_between(text, "  // Multiplier / Stack Shares methods", "  // Daily Boosts methods")
+text = remove_between(text, "  // Multiplier / Stack Shares methods", "  // AMM / LP methods")
 # Implementation Stack contract runs through the old multiplier-state helper and ends at AMM/LP.
 text = remove_between(text, "  // Stack Shares methods", "  // AMM / LP Methods")
 # Interface contracts for old payout/lock helpers.

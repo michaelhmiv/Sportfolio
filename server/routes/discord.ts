@@ -762,67 +762,6 @@ async function handleSell(ctx: DiscordCommandContext, options: DiscordCommandOpt
   );
 }
 
-async function handleStack(
-  ctx: DiscordCommandContext,
-  options: DiscordCommandOption[] | undefined,
-) {
-  const linked = await requireLinkedUser(ctx);
-  if (!linked.ok) {
-    return linked.response;
-  }
-
-  if (!isMutationAllowed(ctx.roles, getDiscordRuntimeConfig().mutationRoleId)) {
-    return buildErrorResponse(
-      "You do not have permission to run mutation commands in this server.",
-    );
-  }
-
-  const playerInput = getStringOption(options, "player");
-  const amountInput = getAmountOptionInput(options, "amount", "shares");
-
-  if (!playerInput || !amountInput) {
-    return buildErrorResponse("`player` and `amount` are required.");
-  }
-
-  const player = await resolvePlayerFromInput(playerInput);
-  if (!player) {
-    return buildErrorResponse("Player not found.");
-  }
-
-  const regularAvailableShares = await getRegularAvailableSharesForPlayer(
-    linked.link.userId,
-    player.id,
-  );
-  const resolvedAmount = resolveAmountInput({
-    rawInput: amountInput,
-    baseAmount: regularAvailableShares,
-    kind: "evenWhole",
-    minimum: 4,
-  });
-  if (!resolvedAmount) {
-    return buildErrorResponse(
-      "Invalid `amount`. Use a positive number, a percentage like `50%`, or `max` (minimum 4 and even).",
-    );
-  }
-
-  const shares = Math.floor(resolvedAmount.value);
-  if (shares > regularAvailableShares) {
-    return buildErrorResponse(
-      `Requested shares exceed regular available shares (${Math.floor(regularAvailableShares)}).`,
-    );
-  }
-
-  const stackResult = await storage.stackShares(linked.link.userId, player.id, shares);
-  return buildEphemeralResponse(
-    [
-      `Input: ${resolvedAmount.input} -> Stacked ${shares} shares of ${player.firstName} ${player.lastName}.`,
-      `Regular available shares: ${Math.floor(regularAvailableShares)}`,
-      `New multiplier: ${stackResult.newMultiplier}x`,
-      `Effective shares burned: ${stackResult.effectiveSharesBurned}`,
-    ].join("\n"),
-  );
-}
-
 async function handleBoost(
   ctx: DiscordCommandContext,
   options: DiscordCommandOption[] | undefined,
@@ -956,7 +895,7 @@ async function handleBoost(
       sport,
       slotTier,
       boostDate: startOfDay,
-      sharesEntered: 1,
+      sharesEntered: "1",
       shareMultiplier,
       shareSourceType,
       gameId: game.gameId,
@@ -990,7 +929,7 @@ async function handleBoost(
         : allBoosts.filter((boost) => String(boost.sport || "").toUpperCase() === sport);
 
     const rows = boosts.slice(0, 8).map((boost) => {
-      return `${boost.id}: ${boost.status} | ${boost.sport} | slot ${boost.slotTier}x | multiplier ${boost.shareMultiplier}`;
+      return `${boost.id}: ${boost.status} | ${boost.sport} | slot ${boost.slotTier}x | multiplier ${boost.sharesEntered}`;
     });
 
     return buildEphemeralResponse(
