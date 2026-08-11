@@ -1,0 +1,31 @@
+name: Droid On Demand
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+jobs:
+  droid:
+    if: >-
+      github.actor == github.repository_owner &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@droid')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Run Droid Exec
+        uses: Factory-AI/droid-action@4028e0ae3063a9eb5b673271e381bd645102e36f
+        with:
+          factory_api_key: ${{ secrets.FACTORY_API_KEY }}
