@@ -1,7 +1,6 @@
 export const USER_ACTIVITY_CATEGORIES = [
   "market",
   "scout",
-  "stacking",
   "boosts",
   "community",
   "liquidity",
@@ -14,7 +13,6 @@ export type UserActivityCategory = (typeof USER_ACTIVITY_CATEGORIES)[number];
 export const DEFAULT_ACTIVITY_FEED_CATEGORIES: UserActivityCategory[] = [
   "market",
   "scout",
-  "stacking",
   "boosts",
   "community",
   "liquidity",
@@ -40,12 +38,9 @@ export interface UserActivityMetadata {
   shares?: number;
   sharesClaimed?: number;
   sharesConsumed?: number;
-  multiplierAfter?: number;
-  multiplierDelta?: number;
   payoutAmount?: string;
   slotTier?: number;
   sport?: string;
-  shareSourceType?: string;
   daysGranted?: number;
   premiumExpiresAtAfter?: string;
   reason?: string;

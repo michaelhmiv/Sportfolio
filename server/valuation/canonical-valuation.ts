@@ -1,13 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import {
-  holdings,
-  holdingsLocks,
-  lpPositions,
-  playerMultipliers,
-  playerPools,
-  players,
-  users,
-} from "@shared/schema";
+import { holdings, holdingsLocks, lpPositions, playerPools, players, users } from "@shared/schema";
 import { db } from "../db";
 
 export const VALUATION_VERSION = "amm_liquid_v2";
@@ -34,12 +26,9 @@ export type CanonicalPlayerPosition = {
   playerId: string;
   player: Record<string, unknown>;
   holdingId: string | null;
-  stackId: string | null;
   singles: number;
   lockedSingles: number;
   availableSingles: number;
-  stackPower: number;
-  gameplayPower: number;
   averageCostBasis: number;
   costBasis: number;
   marketStatus: MarketStatus;
@@ -78,8 +67,6 @@ export type CanonicalPortfolioValuation = {
   unpricedPositionCount: number;
   unpricedSingles: number;
   totalSingles: number;
-  totalStackPower: number;
-  totalGameplayPower: number;
   positions: CanonicalPlayerPosition[];
   lpPositions: CanonicalLpPosition[];
   warnings: string[];
@@ -94,8 +81,6 @@ export type CanonicalPortfolioTotals = Pick<
   | "portfolioValue"
   | "netWorth"
   | "totalSingles"
-  | "totalStackPower"
-  | "totalGameplayPower"
   | "pricedPositionCount"
   | "unpricedPositionCount"
   | "unpricedSingles"
@@ -122,13 +107,6 @@ type HoldingLike = {
   avgCostBasis: unknown;
   totalCostBasis: unknown;
   lockedSingles?: unknown;
-  player: PlayerLike;
-};
-
-type MultiplierLike = {
-  id: string;
-  playerId: string;
-  multiplier: unknown;
   player: PlayerLike;
 };
 
@@ -188,8 +166,6 @@ export function getCanonicalPortfolioTotals(
     portfolioValue: valuation.portfolioValue,
     netWorth: valuation.netWorth,
     totalSingles: valuation.totalSingles,
-    totalStackPower: valuation.totalStackPower,
-    totalGameplayPower: valuation.totalGameplayPower,
     pricedPositionCount: valuation.pricedPositionCount,
     unpricedPositionCount: valuation.unpricedPositionCount,
     unpricedSingles: valuation.unpricedSingles,
@@ -296,15 +272,11 @@ export function calculateCanonicalPortfolio(input: {
   userId: string;
   cashBalance: number;
   holdings: HoldingLike[];
-  multipliers: MultiplierLike[];
   lpPositions?: LpLike[];
   markets: Map<string, CanonicalPlayerMarket>;
 }): CanonicalPortfolioValuation {
   const warnings: string[] = [];
-  const positionsByPlayer = new Map<
-    string,
-    { holding?: HoldingLike; multiplier?: MultiplierLike; player: PlayerLike }
-  >();
+  const positionsByPlayer = new Map<string, { holding?: HoldingLike; player: PlayerLike }>();
 
   for (const holding of input.holdings) {
     if (positionsByPlayer.get(holding.assetId)?.holding) {
@@ -314,16 +286,6 @@ export function calculateCanonicalPortfolio(input: {
       ...positionsByPlayer.get(holding.assetId),
       holding,
       player: holding.player,
-    });
-  }
-  for (const multiplier of input.multipliers) {
-    if (positionsByPlayer.get(multiplier.playerId)?.multiplier) {
-      warnings.push(`Duplicate Stack Power position loaded for player ${multiplier.playerId}.`);
-    }
-    positionsByPlayer.set(multiplier.playerId, {
-      ...positionsByPlayer.get(multiplier.playerId),
-      multiplier,
-      player: multiplier.player,
     });
   }
 
@@ -337,7 +299,6 @@ export function calculateCanonicalPortfolio(input: {
     warnings.push(...market.warnings);
     const singles = Math.max(0, finite(row.holding?.quantity));
     const lockedSingles = Math.min(singles, Math.max(0, finite(row.holding?.lockedSingles)));
-    const stackPower = Math.max(0, finite(row.multiplier?.multiplier));
     const costBasis = Math.max(0, finite(row.holding?.totalCostBasis));
     const averageCostBasis =
       singles > 0 ? finite(row.holding?.avgCostBasis, costBasis / singles) : 0;
@@ -347,12 +308,9 @@ export function calculateCanonicalPortfolio(input: {
       playerId,
       player: row.player,
       holdingId: row.holding?.id || null,
-      stackId: row.multiplier?.id || null,
       singles,
       lockedSingles,
       availableSingles: Math.max(0, singles - lockedSingles),
-      stackPower,
-      gameplayPower: singles + stackPower,
       averageCostBasis,
       costBasis,
       marketStatus: market.marketStatus,
@@ -427,8 +385,6 @@ export function calculateCanonicalPortfolio(input: {
       0,
     ),
     totalSingles: positions.reduce((total, position) => total + position.singles, 0),
-    totalStackPower: positions.reduce((total, position) => total + position.stackPower, 0),
-    totalGameplayPower: positions.reduce((total, position) => total + position.gameplayPower, 0),
     positions,
     lpPositions: canonicalLpPositions,
     warnings: Array.from(new Set(warnings)),
@@ -474,7 +430,7 @@ export async function getCanonicalPlayerMarket(
 export async function getCanonicalPortfolioValuation(
   userId: string,
 ): Promise<CanonicalPortfolioValuation | null> {
-  const [userRows, holdingRows, multiplierRows, lpRows] = await Promise.all([
+  const [userRows, holdingRows, lpRows] = await Promise.all([
     db.select().from(users).where(eq(users.id, userId)).limit(1),
     db
       .select({
@@ -500,16 +456,6 @@ export async function getCanonicalPortfolioValuation(
       .groupBy(holdings.id, players.id),
     db
       .select({
-        id: playerMultipliers.id,
-        playerId: playerMultipliers.playerId,
-        multiplier: playerMultipliers.multiplier,
-        player: players,
-      })
-      .from(playerMultipliers)
-      .innerJoin(players, eq(playerMultipliers.playerId, players.id))
-      .where(eq(playerMultipliers.userId, userId)),
-    db
-      .select({
         id: lpPositions.id,
         playerId: lpPositions.playerId,
         lpShares: lpPositions.lpShares,
@@ -525,7 +471,6 @@ export async function getCanonicalPortfolioValuation(
   if (!user) return null;
   const playerIds = [
     ...holdingRows.map((row) => row.assetId),
-    ...multiplierRows.map((row) => row.playerId),
     ...lpRows.map((row) => row.playerId),
   ];
   const markets = await getCanonicalPlayerMarkets(playerIds);
@@ -533,7 +478,6 @@ export async function getCanonicalPortfolioValuation(
     userId,
     cashBalance: finite(user.balance),
     holdings: holdingRows,
-    multipliers: multiplierRows,
     lpPositions: lpRows,
     markets,
   });

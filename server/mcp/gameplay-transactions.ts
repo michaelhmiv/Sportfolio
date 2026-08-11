@@ -30,12 +30,12 @@ export type GameplayAction =
   | { actionType: "pool_zap_add_shares"; playerId: string; shares: number }
   | { actionType: "pool_zap_add_sb"; playerId: string; sb: number }
   | { actionType: "pool_remove_liquidity"; playerId: string; lpShares: number }
-  | { actionType: "holdings_stack_shares"; playerId: string; sharesToStack: number }
   | {
       actionType: "daily_boost_assign";
       playerId: string;
       sport: string;
-      slotTier: 2 | 3 | 4 | 5;
+      slotTier: 2 | 3 | 5 | 7 | 10;
+      shares: number;
       boostDate: string;
     }
   | { actionType: "daily_boost_remove"; boostId: string; boostDate: string }
@@ -124,13 +124,76 @@ function assertAction(action: GameplayAction) {
     case "pool_remove_liquidity":
       assertPositive(action.lpShares, "lpShares");
       break;
-    case "holdings_stack_shares":
-      if (
-        !Number.isInteger(action.sharesToStack) ||
-        action.sharesToStack < 4 ||
-        action.sharesToStack % 2 !== 0
-      ) {
-        throw new Error("sharesToStack must be an even integer of at least 4");
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
+      }
+      break;
+    case "daily_boost_assign":
+      assertPositive(action.shares, "shares");
+      if (![2, 3, 5, 7, 10].includes(action.slotTier)) {
+        throw new Error("slotTier must be one of 2, 3, 5, 7, or 10");
       }
       break;
     case "scout_set_count":
@@ -209,10 +272,8 @@ async function actionSummary(action: GameplayAction): Promise<string> {
         .map((entry) => `${entry.label}=${entry.targetCount}`)
         .join(", ")}.`;
     }
-    case "holdings_stack_shares":
-      return `Stack ${action.sharesToStack} shares of ${await playerLabel(action.playerId)}.`;
     case "daily_boost_assign":
-      return `Assign ${await playerLabel(action.playerId)} to the ${action.slotTier}x daily boost slot for ${action.boostDate}.`;
+      return `Commit ${action.shares} Singles of ${await playerLabel(action.playerId)} to the ${action.slotTier}x daily boost slot for ${action.boostDate}; the shares burn when the game begins.`;
     case "daily_boost_remove":
       return `Remove daily boost ${action.boostId}.`;
     case "community_boost_create":
@@ -304,16 +365,13 @@ async function executeDefault(userId: string, action: GameplayAction): Promise<u
       if (!result.success) throw new Error(result.error || "Failed to remove liquidity");
       return withPlayer(result, action.playerId);
     }
-    case "holdings_stack_shares": {
-      const result = await storage.stackShares(userId, action.playerId, action.sharesToStack);
-      return withPlayer(result, action.playerId);
-    }
     case "daily_boost_assign": {
       const result = await assignDailyBoostWithValidation({
         userId,
         playerId: action.playerId,
         sport: action.sport,
         slotTier: action.slotTier,
+        shares: action.shares,
         etDate: action.boostDate,
       });
       return withPlayer(result, action.playerId);

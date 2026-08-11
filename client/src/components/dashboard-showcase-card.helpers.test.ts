@@ -66,7 +66,6 @@ function buildEligiblePlayer(
     hasStackedShare: overrides.hasStackedShare ?? false,
     regularShares: overrides.regularShares ?? 1,
     availableRegularShares: overrides.availableRegularShares ?? 1,
-    stackedShares: overrides.stackedShares ?? 0,
     gameId: overrides.gameId ?? "game-1",
     gameStartTime: overrides.gameStartTime ?? "2026-03-09T19:00:00.000Z",
     hasGameToday: overrides.hasGameToday ?? true,
@@ -170,7 +169,6 @@ describe("dashboard showcase exposure helpers", () => {
         buildEligiblePlayer({
           playerId: "player-2",
           isAlreadyBoosted: true,
-          stackedShares: 0,
           player: {
             id: "player-2",
             firstName: "Nikola",
@@ -350,7 +348,6 @@ describe("dashboard showcase exposure helpers", () => {
             sport: "NASCAR",
             position: null,
           } as any,
-          stackedShares: 2,
         }),
       ],
       slateDrivers,
@@ -371,7 +368,6 @@ describe("dashboard showcase exposure helpers", () => {
             sport: "NASCAR",
             position: null,
           } as any,
-          stackedShares: 2,
         }),
       ],
       slateDrivers,

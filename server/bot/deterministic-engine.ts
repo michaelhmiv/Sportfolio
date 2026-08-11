@@ -289,7 +289,6 @@ function filterActionAttemptOrder(
       case "pool_create":
       case "pool_add_liquidity":
       case "boost_assign":
-      case "stack_shares":
         return totalAvailableShares >= 1;
       case "buy":
         return state.balance >= state.profile.minOrderSb;
@@ -449,17 +448,6 @@ async function buildFeasibleActionParams(
       return availableShares >= 1
         ? { params: calculateActionParams(actionType, target, state.profile) }
         : null;
-    case "stack_shares": {
-      if (availableShares < 4) {
-        return null;
-      }
-      // Stack the max even amount at ~60% of available shares
-      const targetStack = Math.floor(availableShares * 0.6);
-      // Round down to nearest even number (minimum 4)
-      const sharesToStack = Math.max(4, targetStack - (targetStack % 2));
-      if (sharesToStack < 4) return null;
-      return { params: { shares: sharesToStack } };
-    }
     default:
       return null;
   }
@@ -623,10 +611,10 @@ function getCoverageFallbackPriority(stage: BotStage): ActionType[] {
     case "scouting":
       return ["scout_assign"];
     case "accumulating":
-      return ["stack_shares", "buy", "scout_assign", "scout_rebalance"];
+      return ["boost_assign", "buy", "scout_assign", "scout_rebalance"];
     case "pool_building":
       return [
-        "stack_shares",
+        "boost_assign",
         "pool_create",
         "buy",
         "pool_add_liquidity",
@@ -636,7 +624,7 @@ function getCoverageFallbackPriority(stage: BotStage): ActionType[] {
       ];
     case "steady_state":
       return [
-        "stack_shares",
+        "boost_assign",
         "pool_create",
         "buy",
         "pool_add_liquidity",

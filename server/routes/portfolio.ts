@@ -42,9 +42,8 @@ export function buildPortfolioApiPayload(input: {
   const playerPositions = valuation.positions.map((position) => {
     const pool = poolDataMap.get(position.playerId);
     return {
-      id: position.holdingId || position.stackId || `position:${position.playerId}`,
+      id: position.holdingId || `position:${position.playerId}`,
       holdingId: position.holdingId,
-      stackId: position.stackId,
       assetType: "player",
       assetId: position.playerId,
       quantity: position.singles.toFixed(4),
@@ -68,10 +67,8 @@ export function buildPortfolioApiPayload(input: {
       lockedQuantity: position.lockedSingles,
       availableQuantity: position.availableSingles,
       singles: position.singles,
-      stackPower: position.stackPower,
-      gameplayPower: position.gameplayPower,
-      effectiveShares: position.gameplayPower.toFixed(2),
-      totalPlayerEffectiveShares: position.gameplayPower.toFixed(2),
+      effectiveShares: position.singles.toFixed(4),
+      totalPlayerEffectiveShares: position.singles.toFixed(4),
       isCanonicalPosition: true as const,
       globalScoutCount: globalScoutMap.get(position.playerId) || 0,
     };
@@ -94,8 +91,6 @@ export function buildPortfolioApiPayload(input: {
     lpMarketValue: portfolioTotals.lpMarketValue.toFixed(2),
     netWorth: portfolioTotals.netWorth.toFixed(2),
     totalSingles: portfolioTotals.totalSingles,
-    totalStackPower: portfolioTotals.totalStackPower,
-    totalGameplayPower: portfolioTotals.totalGameplayPower,
     pricedPositionCount: portfolioTotals.pricedPositionCount,
     unpricedPositionCount: portfolioTotals.unpricedPositionCount,
     unpricedSingles: portfolioTotals.unpricedSingles,

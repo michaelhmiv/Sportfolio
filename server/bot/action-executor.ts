@@ -109,8 +109,6 @@ async function executeRaw(
         return await executePoolSell(botUserId, player, params);
       case "boost_assign":
         return await executeBoostAssign(botUserId, player, params);
-      case "stack_shares":
-        return await executeStackShares(botUserId, player, params);
       default:
         return {
           ...base,
@@ -297,13 +295,16 @@ async function executeBoostAssign(
   player: PlayerCandidate,
   params: ActionParams,
 ): Promise<ActionResult> {
-  const slotTier = params.slotTier || 4;
+  const requestedTier = params.slotTier || 5;
+  const slotTier = [2, 3, 5, 7, 10].includes(requestedTier) ? requestedTier : 5;
+  const shares = Math.max(0.0001, params.shares || 1);
 
   try {
-    const { shareMultiplier, shareSourceType } = await assignDailyBoostWithValidation({
+    const result = await assignDailyBoostWithValidation({
       userId: botUserId,
       playerId: player.playerId,
       slotTier,
+      shares,
       sport: player.sport,
       etDate: new Date(),
     });
@@ -315,8 +316,7 @@ async function executeBoostAssign(
       success: true,
       details: {
         slotTier,
-        shareMultiplier,
-        shareSourceType,
+        sharesCommitted: result.sharesCommitted,
       },
     };
   } catch (error: any) {
@@ -327,49 +327,6 @@ async function executeBoostAssign(
       success: false,
       details: { slotTier },
       errorMessage: error?.message || "Boost assignment failed",
-    };
-  }
-}
-
-async function executeStackShares(
-  botUserId: string,
-  player: PlayerCandidate,
-  params: ActionParams,
-): Promise<ActionResult> {
-  const sharesToStack = Math.floor(params.shares || 4);
-  if (sharesToStack < 4 || sharesToStack % 2 !== 0) {
-    return {
-      actionType: "stack_shares",
-      playerId: player.playerId,
-      playerName: player.playerName,
-      success: false,
-      details: { sharesToStack },
-      errorMessage: `Invalid share count: ${sharesToStack} (need >=4, even)`,
-    };
-  }
-
-  try {
-    const result = await storage.stackShares(botUserId, player.playerId, sharesToStack);
-    return {
-      actionType: "stack_shares",
-      playerId: player.playerId,
-      playerName: player.playerName,
-      success: true,
-      details: {
-        sharesStacked: sharesToStack,
-        newMultiplier: result.newMultiplier,
-        multiplier: result.multiplier,
-        effectiveSharesBurned: result.effectiveSharesBurned,
-      },
-    };
-  } catch (error: any) {
-    return {
-      actionType: "stack_shares",
-      playerId: player.playerId,
-      playerName: player.playerName,
-      success: false,
-      details: { sharesToStack },
-      errorMessage: error?.message || "Stack failed",
     };
   }
 }
@@ -409,8 +366,13 @@ export function calculateActionParams(
       return { sbAmount };
     case "sell":
       return { shares: Math.max(1, Math.floor(Math.random() * 3) + 1) };
-    case "boost_assign":
-      return { slotTier: Math.floor(Math.random() * 4) + 2 }; // 2-5
+    case "boost_assign": {
+      const boostTiers = [2, 3, 5, 7, 10] as const;
+      return {
+        slotTier: boostTiers[Math.floor(Math.random() * boostTiers.length)],
+        shares: Math.max(1, Math.floor(Math.random() * 5) + 1),
+      };
+    }
     default:
       return {};
   }

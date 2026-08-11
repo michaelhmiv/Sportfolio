@@ -1,13 +1,15 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 
 export interface BoostSettleCeremonyData {
   playerName: string;
   playerTeam: string;
   slotTier: number;
-  shareMultiplier: number;
-  totalMultiplier: number;
+  effectiveMultiplier: number;
   sharesBurned: number;
   payout: string;
+  boostBonus: string;
+  baseComponent: string;
+  gameEps: string;
   fantasyPoints: number;
 }
 
@@ -16,45 +18,39 @@ interface CeremonyState {
   data: BoostSettleCeremonyData | null;
 }
 
-/**
- * Hook for the global boost-settle ceremony.
- *
- * Call `handleBoostSettled(wsPayload)` when the WebSocket delivers a
- * `boost_settled` event. The hook opens the ceremony overlay only when
- * the payload includes a player name (i.e. the server enriched it).
- */
 export function useBoostSettleCeremony() {
   const [state, setState] = useState<CeremonyState>({ isShowing: false, data: null });
 
   const handleBoostSettled = useCallback(
     (payload: {
       payout: string;
+      boostBonus?: string;
+      baseComponent?: string;
+      gameEps?: string;
       fantasyPoints: number;
       multiplier: number;
       slotTier?: number;
-      shareMultiplier?: number;
       sharesBurned?: number;
       playerFirstName?: string;
       playerLastName?: string;
       playerTeam?: string;
     }) => {
-      const playerFirstName = payload.playerFirstName?.trim() ?? "";
-      const playerLastName = payload.playerLastName?.trim() ?? "";
-      const playerName = [playerFirstName, playerLastName].filter(Boolean).join(" ");
-
-      // Skip ceremony if missing both player name and payout amount
+      const playerName = [payload.playerFirstName?.trim(), payload.playerLastName?.trim()]
+        .filter(Boolean)
+        .join(" ");
       if (!playerName && !payload.payout) return;
-
       setState({
         isShowing: true,
         data: {
           playerName: playerName || "your player",
           playerTeam: payload.playerTeam ?? "",
           slotTier: payload.slotTier ?? payload.multiplier,
-          shareMultiplier: payload.shareMultiplier ?? 1,
-          totalMultiplier: payload.multiplier,
-          sharesBurned: payload.sharesBurned ?? 1,
+          effectiveMultiplier: payload.multiplier,
+          sharesBurned: payload.sharesBurned ?? 0,
           payout: payload.payout,
+          boostBonus: payload.boostBonus ?? "0.00",
+          baseComponent: payload.baseComponent ?? "0.00",
+          gameEps: payload.gameEps ?? "0.00000000",
           fantasyPoints: payload.fantasyPoints,
         },
       });
@@ -62,13 +58,6 @@ export function useBoostSettleCeremony() {
     [],
   );
 
-  const closeCeremony = useCallback(() => {
-    setState({ isShowing: false, data: null });
-  }, []);
-
-  return {
-    ...state,
-    handleBoostSettled,
-    closeCeremony,
-  };
+  const closeCeremony = useCallback(() => setState({ isShowing: false, data: null }), []);
+  return { ...state, handleBoostSettled, closeCeremony };
 }

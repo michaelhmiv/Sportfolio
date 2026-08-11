@@ -1342,19 +1342,6 @@
     },
     {
       "kind": "tool",
-      "name": "stage_stack_shares",
-      "auth": "oauth",
-      "readOnly": false,
-      "destructive": false,
-      "openWorld": false,
-      "outputSchema": "plugin-envelope-v1",
-      "resourceUri": null,
-      "domain": "portfolio",
-      "sportClassification": "none",
-      "source": "public_registry:tool"
-    },
-    {
-      "kind": "tool",
       "name": "update_profile_image",
       "auth": "oauth",
       "readOnly": false,

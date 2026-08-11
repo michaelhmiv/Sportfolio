@@ -4,8 +4,6 @@ import {
   playerIdAliases,
   playerMarketMetrics,
   holdings,
-  playerMultipliers,
-  playerMultiplierEvents,
   holdingsLocks,
   balanceLocks,
   orders,
@@ -56,10 +54,8 @@ import {
   type PlayerIdAlias,
   type InsertPlayerIdAlias,
   type Holding,
-  type PlayerMultiplier,
   type HoldingsLock,
   type InsertHoldingsLock,
-  type InsertPlayerMultiplierEvent,
   type BalanceLock,
   type Trade,
   type Vesting,
@@ -180,8 +176,6 @@ export interface PlayerFinancialMetrics {
 
 export interface HoldingSummary extends Holding {
   effectiveShares: string;
-  multiplier: string;
-  isStackedShare: boolean;
 }
 
 export interface HoldingWithPlayerSummary extends HoldingSummary {
@@ -195,17 +189,6 @@ export interface BoostEligibleHolding extends HoldingWithPlayerSummary {
   gameDbStatus: string | null;
   gameHomeScore: number | null;
   gameAwayScore: number | null;
-}
-
-export interface HoldingMultiplierState {
-  quantity: number;
-  availableShares: number;
-  effectiveShares: number;
-  multiplier: string;
-  hasStackedShare: boolean;
-  canStackShares: boolean;
-  maxStackable: number;
-  tradeableShares: number;
 }
 
 export interface IStorage {
@@ -333,11 +316,6 @@ export interface IStorage {
     quantity: number,
     avgCost: string,
   ): Promise<void>;
-  getPlayerShareBreakdown(
-    userId: string,
-    playerId: string,
-  ): Promise<{ regular: Holding | null; stacked: HoldingSummary[] }>;
-  getTotalEffectiveShares(userId: string, playerId: string): Promise<number>;
   getUserCommunityBoostShares(userId: string): Promise<number>;
 
   // Batch sentiment logic
@@ -736,19 +714,8 @@ export interface IStorage {
   deleteDailyBoost(boostId: string): Promise<void>;
   getBoostPayoutHistory(userId: string, limit?: number): Promise<BoostPayout[]>;
   createBoostPayout(payout: InsertBoostPayout): Promise<BoostPayout>;
-  createSharePayoutSnapshotsForGame(
-    game: Pick<DailyGame, "gameId" | "sport" | "homeTeam" | "awayTeam">,
-    baseRate: string,
-  ): Promise<number>;
   getPendingSharePayouts(limit?: number): Promise<SharePayout[]>;
-  processSharePayoutCredit(
-    payoutId: string,
-    userId: string,
-    fantasyPoints: string,
-    payoutAmount: string,
-  ): Promise<boolean>;
   createSharePayout(payout: InsertSharePayout): Promise<SharePayout>;
-  lockBoostShares(boostId: string): Promise<void>;
   unlockBoostShares(boostId: string): Promise<void>;
   ensureHoldingConsistency(holdingId: string): Promise<void>;
   getPlayerGameForDate(playerId: string, sport: string, date: Date): Promise<DailyGame | undefined>;
@@ -774,22 +741,6 @@ export interface IStorage {
     userId: string,
   ): Promise<{ earnedMinutes: number; nextDistribution: Date; perPlayer?: Record<string, number> }>;
 
-  // Multiplier / Stack Shares methods
-  stackShares(
-    userId: string,
-    playerId: string,
-    rawShareCount: number,
-  ): Promise<{
-    newMultiplier: string;
-    sharesStacked: number;
-    multiplier: string;
-    effectiveSharesBurned: number;
-  }>;
-  getHoldingMultiplierState(
-    userId: string,
-    playerId: string,
-  ): Promise<HoldingMultiplierState | undefined>;
-
   // AMM / LP methods
   getPlayerPool(playerId: string): Promise<any>;
   getLpPosition(playerId: string, userId: string): Promise<any>;
@@ -810,36 +761,13 @@ function toHoldingNumber(value: unknown): number {
 }
 
 function buildHoldingSummary(holding: Holding): HoldingSummary {
-  return {
-    ...holding,
-    effectiveShares: holding.quantity,
-    multiplier: "1.00",
-    isStackedShare: false,
-  };
-}
-
-function buildStackedShareSummary(multiplier: PlayerMultiplier): HoldingSummary {
-  const multiplierValue = Math.max(0, Number(multiplier.multiplier || 0));
-  return {
-    id: multiplier.id,
-    userId: multiplier.userId,
-    assetType: "player",
-    assetId: multiplier.playerId,
-    quantity: "1",
-    effectiveShares: toFixedString(multiplierValue, 2),
-    multiplier: toFixedString(multiplierValue, 2),
-    isStackedShare: true,
-    avgCostBasis: multiplier.avgCostBasis,
-    totalCostBasis: multiplier.totalCostBasis,
-    lastUpdated: multiplier.updatedAt,
-  };
+  return { ...holding, effectiveShares: holding.quantity };
 }
 
 const LEGACY_ACTIVITY_CATEGORIES: UserActivityCategory[] = ["market", "scout"];
 const PENDING_ACTIVITY_STATUSES = new Set(["pending", "active", "locked"]);
 const GAMEPLAY_ACTIVITY_CATEGORIES = new Set<UserActivityCategory>([
   "scout",
-  "stacking",
   "boosts",
   "community",
   "payouts",
@@ -879,50 +807,6 @@ export class DeletedUserSyncError extends Error {
 }
 
 export class DatabaseStorage implements IStorage {
-  private async getPlayerMultiplier(
-    userId: string,
-    playerId: string,
-    tx: typeof db = db,
-  ): Promise<PlayerMultiplier | undefined> {
-    const identity = await loadPlayerIdentityContext(tx, playerId);
-    const rows = await tx
-      .select()
-      .from(playerMultipliers)
-      .where(
-        and(
-          eq(playerMultipliers.userId, userId),
-          buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
-        ),
-      )
-      .orderBy(
-        desc(
-          sql<number>`CASE WHEN ${playerMultipliers.playerId} = ${identity.canonicalId} THEN 1 ELSE 0 END`,
-        ),
-        desc(playerMultipliers.multiplier),
-        desc(playerMultipliers.updatedAt),
-      )
-      .limit(1);
-    return rows[0] || undefined;
-  }
-
-  private async getPlayerMultiplierMap(
-    userId: string,
-    playerIds?: string[],
-    tx: typeof db = db,
-  ): Promise<Map<string, PlayerMultiplier>> {
-    const conditions = [eq(playerMultipliers.userId, userId)];
-    if (playerIds && playerIds.length > 0) {
-      conditions.push(inArray(playerMultipliers.playerId, playerIds));
-    }
-
-    const rows = await tx
-      .select()
-      .from(playerMultipliers)
-      .where(and(...conditions));
-
-    return new Map(rows.map((row) => [row.playerId, row]));
-  }
-
   private async getRegularAvailableShares(
     userId: string,
     assetId: string,
@@ -2699,15 +2583,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserHoldings(userId: string): Promise<HoldingSummary[]> {
-    const [baseHoldings, multiplierRows] = await Promise.all([
-      db.select().from(holdings).where(eq(holdings.userId, userId)),
-      db.select().from(playerMultipliers).where(eq(playerMultipliers.userId, userId)),
-    ]);
-
-    return [
-      ...baseHoldings.map(buildHoldingSummary),
-      ...multiplierRows.map(buildStackedShareSummary),
-    ];
+    const baseHoldings = await db.select().from(holdings).where(eq(holdings.userId, userId));
+    return baseHoldings.map(buildHoldingSummary);
   }
 
   // Batched version: fetch multiple holdings for specific assets in ONE query
@@ -2739,45 +2616,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserHoldingsWithPlayers(userId: string): Promise<any[]> {
-    const [holdingRows, multiplierRows] = await Promise.all([
-      db
-        .select({
-          holding: holdings,
-          player: players,
-          totalLocked: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)`,
-        })
-        .from(holdings)
-        .leftJoin(players, and(eq(holdings.assetType, "player"), eq(holdings.assetId, players.id)))
-        .leftJoin(
-          holdingsLocks,
-          and(
-            eq(holdingsLocks.userId, holdings.userId),
-            eq(holdingsLocks.assetId, holdings.assetId),
-            eq(holdingsLocks.assetType, holdings.assetType),
-          ),
-        )
-        .where(eq(holdings.userId, userId))
-        .groupBy(holdings.id, players.id),
-      db
-        .select({
-          multiplier: playerMultipliers,
-          player: players,
-        })
-        .from(playerMultipliers)
-        .innerJoin(players, eq(playerMultipliers.playerId, players.id))
-        .where(eq(playerMultipliers.userId, userId)),
-    ]);
+    const holdingRows = await db
+      .select({
+        holding: holdings,
+        player: players,
+        totalLocked: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)`,
+      })
+      .from(holdings)
+      .leftJoin(players, and(eq(holdings.assetType, "player"), eq(holdings.assetId, players.id)))
+      .leftJoin(
+        holdingsLocks,
+        and(
+          eq(holdingsLocks.userId, holdings.userId),
+          eq(holdingsLocks.assetId, holdings.assetId),
+          eq(holdingsLocks.assetType, holdings.assetType),
+        ),
+      )
+      .where(eq(holdings.userId, userId))
+      .groupBy(holdings.id, players.id);
 
-    const syntheticRows = multiplierRows.map((row) => ({
-      holding: buildStackedShareSummary(row.multiplier),
-      player: row.player,
-      totalLocked: 0,
-      hasStackedShare: true,
-      multiplier: row.multiplier.multiplier,
-      effectiveShares: row.multiplier.multiplier,
+    return holdingRows.map((row) => ({
+      ...row,
+      holding: buildHoldingSummary(row.holding),
     }));
-
-    return [...holdingRows, ...syntheticRows];
   }
 
   async updateHolding(
@@ -2949,12 +2810,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAvailableShares(userId: string, assetType: string, assetId: string): Promise<number> {
     if (assetType === "player") {
-      const [regularAvailable, multiplier] = await Promise.all([
-        this.getRegularAvailableShares(userId, assetId),
-        this.getPlayerMultiplier(userId, assetId),
-      ]);
-
-      return regularAvailable + (multiplier ? 1 : 0);
+      return this.getRegularAvailableShares(userId, assetId);
     }
 
     const result = await db
@@ -3925,72 +3781,6 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
-    if (typeSet.has("stacking")) {
-      activityTasks.push(
-        (async () => {
-          const stackEvents = await db
-            .select({
-              id: playerMultiplierEvents.id,
-              occurredAt: playerMultiplierEvents.createdAt,
-              playerId: playerMultiplierEvents.playerId,
-              playerFirstName: players.firstName,
-              playerLastName: players.lastName,
-              playerTeam: players.team,
-              sharesConsumed: playerMultiplierEvents.sharesConsumed,
-              multiplierDelta: playerMultiplierEvents.multiplierDelta,
-              multiplierAfter: playerMultiplierEvents.multiplierAfter,
-            })
-            .from(playerMultiplierEvents)
-            .innerJoin(players, eq(playerMultiplierEvents.playerId, players.id))
-            .where(
-              and(
-                eq(playerMultiplierEvents.userId, userId),
-                eq(playerMultiplierEvents.eventType, "stack_shares"),
-              ),
-            )
-            .orderBy(desc(playerMultiplierEvents.createdAt))
-            .limit(fetchWindow);
-
-          return stackEvents.map((event) => {
-            const sharesConsumed = Number(event.sharesConsumed || 0);
-            const multiplierDelta = Number(event.multiplierDelta || 0);
-            const multiplierAfter = Number(event.multiplierAfter || 0);
-            const playerName = `${event.playerFirstName} ${event.playerLastName}`.trim();
-
-            return {
-              id: `stack-${event.id}`,
-              timestamp: toActivityTimestamp(event.occurredAt),
-              category: "stacking",
-              type: "stack_shares",
-              title: "Added to stack",
-              description: `Stacked ${sharesConsumed} singles into ${multiplierAfter.toFixed(2)}x on ${playerName}`,
-              shareDelta: -sharesConsumed,
-              status: "processed",
-              entity: {
-                kind: "player",
-                id: event.playerId,
-                label: playerName,
-                secondaryLabel: event.playerTeam || undefined,
-                href: `/player/${event.playerId}`,
-              },
-              context: {
-                summary: `${sharesConsumed} singles -> +${multiplierDelta.toFixed(2)}x`,
-                stackLevelAfter: multiplierAfter,
-              },
-              metadata: {
-                playerId: event.playerId,
-                playerName,
-                playerTeam: event.playerTeam,
-                sharesConsumed,
-                multiplierDelta,
-                multiplierAfter,
-              },
-            } satisfies UserActivityItem;
-          });
-        })(),
-      );
-    }
-
     if (typeSet.has("boosts")) {
       activityTasks.push(
         (async () => {
@@ -4006,8 +3796,7 @@ export class DatabaseStorage implements IStorage {
                 slotTier: dailyBoosts.slotTier,
                 sport: dailyBoosts.sport,
                 status: dailyBoosts.status,
-                shareMultiplier: dailyBoosts.shareMultiplier,
-                shareSourceType: dailyBoosts.shareSourceType,
+                sharesEntered: dailyBoosts.sharesEntered,
                 boostDate: dailyBoosts.boostDate,
               })
               .from(dailyBoosts)
@@ -4038,10 +3827,7 @@ export class DatabaseStorage implements IStorage {
 
           const boostItems = boostEntries.map((boost) => {
             const playerName = `${boost.playerFirstName} ${boost.playerLastName}`.trim();
-            const sourceLabel =
-              boost.shareSourceType === "stacked"
-                ? `${toHoldingNumber(boost.shareMultiplier).toFixed(2)}x stacked share`
-                : "single share";
+            const sourceLabel = `${toHoldingNumber(boost.sharesEntered).toFixed(4)} Singles`;
 
             return {
               id: `boost-entry-${boost.id}`,
@@ -4069,7 +3855,7 @@ export class DatabaseStorage implements IStorage {
                 playerTeam: boost.playerTeam,
                 slotTier: boost.slotTier,
                 sport: boost.sport,
-                shareSourceType: boost.shareSourceType,
+                shares: toHoldingNumber(boost.sharesEntered),
               },
             } satisfies UserActivityItem;
           });
@@ -5708,29 +5494,16 @@ export class DatabaseStorage implements IStorage {
     const totalSharesScouted = Math.floor(parseFloat(totalScoutedResult[0]?.total || "0"));
 
     // Total shares in economy (all holdings)
-    const totalHoldingsResult: any = await db.execute(sql`
-      SELECT
-        COALESCE(SUM(effective_shares), 0)::text AS total
-      FROM (
-        SELECT ${holdings.quantity}::numeric AS effective_shares
-        FROM ${holdings}
-        WHERE ${holdings.assetType} = 'player'
-          AND ${holdings.quantity}::numeric > 0
-
-        UNION ALL
-
-        SELECT ${playerMultipliers.multiplier}::numeric AS effective_shares
-        FROM ${playerMultipliers}
-        WHERE ${playerMultipliers.multiplier} > 0
-      ) player_positions
-    `);
-    const totalHoldingsRows = totalHoldingsResult?.rows ?? totalHoldingsResult;
-    const totalSharesInEconomy = parseInt(totalHoldingsRows[0]?.total || "0");
+    const [totalHoldingsResult] = await db
+      .select({ total: sql<string>`COALESCE(SUM(CAST(${holdings.quantity} AS NUMERIC)), 0)` })
+      .from(holdings)
+      .where(and(eq(holdings.assetType, "player"), gt(holdings.quantity, "0")));
+    const totalSharesInEconomy = Math.floor(toHoldingNumber(totalHoldingsResult?.total));
 
     // Total shares burned = shares used in Daily Boosts that have started processing.
     const totalBurnedBoostsResult = await db
       .select({
-        total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`.as("total"),
+        total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesBurned}), 0)`.as("total"),
       })
       .from(dailyBoosts)
       .where(inArray(dailyBoosts.status, ["locked", "processed"]));
@@ -5765,7 +5538,7 @@ export class DatabaseStorage implements IStorage {
 
       const periodBurnedBoostsResult = await db
         .select({
-          total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`.as("total"),
+          total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesBurned}), 0)`.as("total"),
         })
         .from(dailyBoosts)
         .where(
@@ -5833,7 +5606,7 @@ export class DatabaseStorage implements IStorage {
     const burnedByDate = await db
       .select({
         date: sql<string>`DATE(${dailyBoosts.boostDate})`.as("date"),
-        shares: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`.as("shares"),
+        shares: sql<string>`COALESCE(SUM(${dailyBoosts.sharesBurned}), 0)`.as("shares"),
       })
       .from(dailyBoosts)
       .where(
@@ -6846,32 +6619,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllHoldingsWithPlayers(userId: string): Promise<HoldingWithPlayerSummary[]> {
-    const [regularHoldings, multiplierRows] = await Promise.all([
-      db
-        .select()
-        .from(holdings)
-        .innerJoin(players, eq(holdings.assetId, players.id))
-        .where(and(eq(holdings.userId, userId), eq(holdings.assetType, "player"))),
-      db
-        .select({
-          multiplier: playerMultipliers,
-          player: players,
-        })
-        .from(playerMultipliers)
-        .innerJoin(players, eq(playerMultipliers.playerId, players.id))
-        .where(eq(playerMultipliers.userId, userId)),
-    ]);
+    const rows = await db
+      .select()
+      .from(holdings)
+      .innerJoin(players, eq(holdings.assetId, players.id))
+      .where(and(eq(holdings.userId, userId), eq(holdings.assetType, "player")));
 
-    return [
-      ...regularHoldings.map((row) => ({
-        ...buildHoldingSummary(row.holdings),
-        player: row.players,
-      })),
-      ...multiplierRows.map((row) => ({
-        ...buildStackedShareSummary(row.multiplier),
-        player: row.player,
-      })),
-    ];
+    return rows.map((row) => ({
+      ...buildHoldingSummary(row.holdings),
+      player: row.players,
+    }));
   }
 
   async getEligiblePlayersForBoost(
@@ -6884,27 +6641,17 @@ export class DatabaseStorage implements IStorage {
     const dateStr = getGameDay(date);
     const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
-    const [regularHoldings, multiplierRows] = await Promise.all([
-      db
-        .select()
-        .from(holdings)
-        .innerJoin(players, eq(holdings.assetId, players.id))
-        .where(
-          and(
-            eq(holdings.userId, userId),
-            eq(holdings.assetType, "player"),
-            eq(players.sport, sport),
-          ),
+    const regularHoldings = await db
+      .select()
+      .from(holdings)
+      .innerJoin(players, eq(holdings.assetId, players.id))
+      .where(
+        and(
+          eq(holdings.userId, userId),
+          eq(holdings.assetType, "player"),
+          eq(players.sport, sport),
         ),
-      db
-        .select({
-          multiplier: playerMultipliers,
-          player: players,
-        })
-        .from(playerMultipliers)
-        .innerJoin(players, eq(playerMultipliers.playerId, players.id))
-        .where(and(eq(playerMultipliers.userId, userId), eq(players.sport, sport))),
-    ]);
+      );
 
     // Get canonical games today for this sport using startTime (consistent with dashboard)
     // (Deduped to avoid legacy MySportsFeeds gameIds causing settlement joins to miss.)
@@ -6983,30 +6730,6 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
-    for (const row of multiplierRows) {
-      const holding = buildStackedShareSummary(row.multiplier);
-      const player = row.player;
-      const teamGame = teamGameMap.get(player.team);
-
-      if (!teamGame) continue;
-
-      const isBoosted = boostedPlayerIds.has(player.id);
-      const availableShares = 1;
-
-      if (availableShares <= 0 && !isBoosted) continue;
-
-      result.push({
-        ...holding,
-        player,
-        availableShares,
-        gameId: teamGame.gameId,
-        gameStartTime: teamGame.startTime,
-        gameDbStatus: teamGame.status,
-        gameHomeScore: teamGame.homeScore,
-        gameAwayScore: teamGame.awayScore,
-      });
-    }
-
     return result;
   }
 
@@ -7045,49 +6768,6 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async createSharePayoutSnapshotsForGame(
-    game: Pick<DailyGame, "gameId" | "sport" | "homeTeam" | "awayTeam">,
-    baseRate: string,
-  ): Promise<number> {
-    const result: any = await db.execute(sql`
-      WITH earning_positions AS (
-        SELECT
-          ${playerMultipliers.userId} AS user_id,
-          ${playerMultipliers.playerId} AS player_id,
-          ${playerMultipliers.multiplier}::numeric AS earning_units
-        FROM ${playerMultipliers}
-        INNER JOIN ${players} ON ${players.id} = ${playerMultipliers.playerId}
-        WHERE ${playerMultipliers.multiplier}::numeric > 0
-          AND ${playerMultipliers.userId} <> 'market_maker'
-          AND UPPER(${players.sport}) = ${game.sport.toUpperCase()}
-          AND (${players.team} = ${game.homeTeam} OR ${players.team} = ${game.awayTeam})
-      )
-      INSERT INTO ${sharePayouts} (
-        user_id,
-        player_id,
-        game_id,
-        earning_units,
-        earning_model,
-        base_rate,
-        status
-      )
-      SELECT
-        earning_positions.user_id,
-        earning_positions.player_id,
-        ${game.gameId},
-        ROUND(SUM(COALESCE(earning_positions.earning_units, 0)), 2)::numeric(12, 2),
-        'effective_shares',
-        ${baseRate}::numeric,
-        'pending'
-      FROM earning_positions
-      GROUP BY earning_positions.user_id, earning_positions.player_id
-      HAVING SUM(COALESCE(earning_positions.earning_units, 0)) > 0
-      ON CONFLICT (user_id, player_id, game_id) DO NOTHING;
-    `);
-
-    return typeof result?.rowCount === "number" ? result.rowCount : 0;
-  }
-
   async getPendingSharePayouts(limit: number = 1000): Promise<SharePayout[]> {
     return await db
       .select()
@@ -7095,238 +6775,6 @@ export class DatabaseStorage implements IStorage {
       .where(eq(sharePayouts.status, "pending"))
       .orderBy(asc(sharePayouts.createdAt))
       .limit(limit);
-  }
-
-  async processSharePayoutCredit(
-    payoutId: string,
-    userId: string,
-    fantasyPoints: string,
-    payoutAmount: string,
-  ): Promise<boolean> {
-    return await db.transaction(async (tx) => {
-      const [pendingPayout] = await tx
-        .select()
-        .from(sharePayouts)
-        .where(and(eq(sharePayouts.id, payoutId), eq(sharePayouts.status, "pending")))
-        .for("update");
-
-      if (!pendingPayout) return false;
-
-      const [user] = await tx
-        .select({ balance: users.balance })
-        .from(users)
-        .where(eq(users.id, userId))
-        .for("update");
-
-      if (!user) return false;
-
-      const newBalance = (parseFloat(user.balance) + parseFloat(payoutAmount)).toFixed(2);
-
-      await tx.update(users).set({ balance: newBalance }).where(eq(users.id, userId));
-
-      await tx
-        .update(sharePayouts)
-        .set({
-          status: "processed",
-          fantasyPoints,
-          payoutAmount,
-          processedAt: new Date(),
-        })
-        .where(eq(sharePayouts.id, payoutId));
-
-      return true;
-    });
-  }
-
-  async lockBoostShares(boostId: string): Promise<void> {
-    await db.transaction(async (tx) => {
-      const [boost] = await tx
-        .select()
-        .from(dailyBoosts)
-        .where(eq(dailyBoosts.id, boostId))
-        .for("update");
-      if (!boost) throw new Error(`Boost ${boostId} not found`);
-
-      const identity = await loadPlayerIdentityContext(tx, boost.playerId);
-      const canonicalPlayerId = identity.canonicalId;
-
-      if (boost.sharesEntered !== 1) {
-        console.error(
-          `[BOOST] Refusing to burn shares for boost ${boostId}: sharesEntered=${boost.sharesEntered} (expected 1)`,
-        );
-        await tx
-          .update(dailyBoosts)
-          .set({ status: "cancelled" })
-          .where(eq(dailyBoosts.id, boostId));
-        return;
-      }
-
-      const snapshotMultiplier = Math.max(1, toHoldingNumber(boost.shareMultiplier ?? "1"));
-      const sourceType =
-        boost.shareSourceType === "stacked" || snapshotMultiplier > 1 ? "stacked" : "regular";
-
-      if (sourceType === "stacked") {
-        const multiplierRows = await tx
-          .select()
-          .from(playerMultipliers)
-          .where(
-            and(
-              eq(playerMultipliers.userId, boost.userId),
-              buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
-            ),
-          )
-          .orderBy(asc(playerMultipliers.id))
-          .for("update");
-        const [multiplierRow] = [...multiplierRows].sort((left, right) => {
-          const canonicalPreference =
-            Number(right.playerId === canonicalPlayerId) -
-            Number(left.playerId === canonicalPlayerId);
-          if (canonicalPreference !== 0) return canonicalPreference;
-
-          const multiplierPreference = Number(right.multiplier) - Number(left.multiplier);
-          if (multiplierPreference !== 0) return multiplierPreference;
-
-          const updatedPreference =
-            new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
-          if (updatedPreference !== 0) return updatedPreference;
-
-          return left.id.localeCompare(right.id);
-        });
-
-        if (!multiplierRow) {
-          throw new Error(
-            `No stacked share found for user ${boost.userId} player ${boost.playerId} (${identity.allIds.join(", ")})`,
-          );
-        }
-
-        const burnedMultiplier = Math.max(0, Number(multiplierRow.multiplier || 0));
-
-        await tx.delete(playerMultipliers).where(eq(playerMultipliers.id, multiplierRow.id));
-        await tx.insert(playerMultiplierEvents).values({
-          userId: boost.userId,
-          playerId: canonicalPlayerId,
-          eventType: "boost_burn",
-          sharesConsumed: 1,
-          effectiveSharesBurned: burnedMultiplier,
-          multiplierDelta: -burnedMultiplier,
-          multiplierAfter: 0,
-          consumedTotalCostBasis: multiplierRow.totalCostBasis,
-          retainedTotalCostBasis: "0.00",
-          boostId,
-        } satisfies InsertPlayerMultiplierEvent);
-        await tx
-          .update(players)
-          .set({
-            totalShares: sql`GREATEST(${players.totalShares} - ${burnedMultiplier}, 0)`,
-            lastUpdated: new Date(),
-          })
-          .where(eq(players.id, canonicalPlayerId));
-        await tx
-          .update(dailyBoosts)
-          .set({
-            playerId: canonicalPlayerId,
-            status: "locked",
-            shareMultiplier: toFixedString(burnedMultiplier, 2),
-            shareSourceType: "stacked",
-          })
-          .where(eq(dailyBoosts.id, boostId));
-
-        console.log(
-          `[BOOST] Burned stacked share of player ${canonicalPlayerId} from user ${boost.userId} (${burnedMultiplier.toFixed(2)} effective shares removed)`,
-        );
-        return;
-      }
-
-      const holdingsRows = await tx
-        .select()
-        .from(holdings)
-        .where(
-          and(
-            eq(holdings.userId, boost.userId),
-            eq(holdings.assetType, "player"),
-            buildIdentityMatchSql(holdings.assetId, identity.allIds),
-          ),
-        )
-        .orderBy(asc(holdings.id))
-        .for("update");
-      const lockRows = await tx
-        .select()
-        .from(holdingsLocks)
-        .where(
-          and(
-            eq(holdingsLocks.userId, boost.userId),
-            eq(holdingsLocks.assetType, "player"),
-            buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds),
-          ),
-        )
-        .orderBy(asc(holdingsLocks.id))
-        .for("update");
-      const lockedByAssetId = new Map<string, number>();
-      for (const lockRow of lockRows) {
-        lockedByAssetId.set(
-          lockRow.assetId,
-          (lockedByAssetId.get(lockRow.assetId) ?? 0) + Number(lockRow.lockedQuantity || 0),
-        );
-      }
-      const sharesToBurn = 1;
-      const holdingSelection = pickRegularBoostHolding({
-        holdingsRows,
-        canonicalPlayerId,
-        lockedByAssetId,
-        sharesToBurn,
-      });
-
-      if (!holdingSelection) {
-        throw new Error(
-          `No unlocked regular holding found for user ${boost.userId} player ${boost.playerId} (${identity.allIds.join(", ")})`,
-        );
-      }
-
-      const { holding } = holdingSelection;
-      const newQuantity = parseFloat(holding.quantity) - sharesToBurn;
-      if (newQuantity < 0) {
-        throw new Error(`Cannot burn ${sharesToBurn} shares - only ${holding.quantity} available`);
-      }
-
-      const avgCostParsed = parseFloat(holding.avgCostBasis);
-      const avgCostNormalized = isNaN(avgCostParsed) ? "0.0000" : avgCostParsed.toFixed(4);
-      const totalCost = (parseFloat(avgCostNormalized) * newQuantity).toFixed(2);
-
-      if (newQuantity <= 0) {
-        await tx.delete(holdings).where(eq(holdings.id, holding.id));
-      } else {
-        await tx
-          .update(holdings)
-          .set({
-            quantity: newQuantity.toString(),
-            avgCostBasis: avgCostNormalized,
-            totalCostBasis: totalCost,
-            lastUpdated: new Date(),
-          })
-          .where(eq(holdings.id, holding.id));
-      }
-
-      await tx
-        .update(players)
-        .set({
-          totalShares: sql`GREATEST(${players.totalShares} - 1, 0)`,
-          lastUpdated: new Date(),
-        })
-        .where(eq(players.id, canonicalPlayerId));
-      await tx
-        .update(dailyBoosts)
-        .set({
-          playerId: canonicalPlayerId,
-          status: "locked",
-          shareMultiplier: "1.00",
-          shareSourceType: "regular",
-        })
-        .where(eq(dailyBoosts.id, boostId));
-
-      console.log(
-        `[BOOST] Burned 1 regular share of player ${canonicalPlayerId} from user ${boost.userId} (holding ${holding.id}: ${holding.quantity} -> ${newQuantity}, locked=${holdingSelection.lockedQuantity}, available=${holdingSelection.availableQuantity})`,
-      );
-    });
   }
 
   async unlockBoostShares(boostId: string): Promise<void> {
@@ -7401,6 +6849,14 @@ export class DatabaseStorage implements IStorage {
         };
       }),
     );
+  }
+
+  async getUserCommunityBoostShares(userId: string): Promise<number> {
+    const [row] = await db
+      .select({ total: sql<string>`COALESCE(SUM(CAST(${holdings.quantity} AS NUMERIC)), 0)` })
+      .from(holdings)
+      .where(and(eq(holdings.userId, userId), eq(holdings.assetType, "community")));
+    return toHoldingNumber(row?.total);
   }
 
   async getCommunityBoostCountForPlayerIdentity(
@@ -7645,267 +7101,6 @@ export class DatabaseStorage implements IStorage {
       console.error("[getScoutStatus] Query failed:", err.message);
       throw err;
     }
-  }
-
-  // Stack Shares methods
-  // Stacking burns half the effective share count and creates/updates one stacked-share multiplier.
-  async stackShares(
-    userId: string,
-    playerId: string,
-    rawShareCount: number,
-  ): Promise<{
-    newMultiplier: string;
-    sharesStacked: number;
-    multiplier: string;
-    effectiveSharesBurned: number;
-  }> {
-    if (rawShareCount < 4) {
-      throw new Error("Minimum 4 shares required to stack");
-    }
-    if (rawShareCount % 2 !== 0) {
-      throw new Error("Share count must be even");
-    }
-
-    const multiplierGained = rawShareCount / 2;
-    const effectiveSharesBurned = rawShareCount - multiplierGained;
-
-    return await db.transaction(async (tx) => {
-      const identity = await loadPlayerIdentityContext(tx, playerId);
-      const canonicalPlayerId = identity.canonicalId;
-      const regularHoldings = await tx
-        .select()
-        .from(holdings)
-        .where(
-          and(
-            eq(holdings.userId, userId),
-            eq(holdings.assetType, "player"),
-            buildIdentityMatchSql(holdings.assetId, identity.allIds),
-          ),
-        )
-        .orderBy(asc(holdings.id))
-        .for("update");
-
-      if (regularHoldings.length === 0) {
-        throw new Error("No regular shares found to stack");
-      }
-
-      const lockRows = await tx
-        .select()
-        .from(holdingsLocks)
-        .where(
-          and(
-            eq(holdingsLocks.userId, userId),
-            eq(holdingsLocks.assetType, "player"),
-            buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds),
-          ),
-        )
-        .orderBy(asc(holdingsLocks.id))
-        .for("update");
-      const lockedShares = lockRows.reduce(
-        (sum, lock) => sum + Number(lock.lockedQuantity || 0),
-        0,
-      );
-      const totalHeld = regularHoldings.reduce(
-        (sum, holding) => sum + Number(holding.quantity || 0),
-        0,
-      );
-      const availableShares = totalHeld - lockedShares;
-
-      if (availableShares + 1e-9 < rawShareCount) {
-        throw new Error(`Only ${availableShares} shares available (${lockedShares} locked)`);
-      }
-
-      let remainingToConsume = rawShareCount;
-      let consumedTotalCostBasis = 0;
-      for (const regularHolding of regularHoldings) {
-        if (remainingToConsume <= 1e-9) break;
-        const currentQuantity = Number(regularHolding.quantity || 0);
-        const consumedFromHolding = Math.min(currentQuantity, remainingToConsume);
-        if (consumedFromHolding <= 0) continue;
-
-        const avgCostBasis = toHoldingNumber(regularHolding.avgCostBasis);
-        consumedTotalCostBasis += avgCostBasis * consumedFromHolding;
-        const newRegularQuantity = currentQuantity - consumedFromHolding;
-        const newRegularTotalCostBasis = avgCostBasis * newRegularQuantity;
-        if (newRegularQuantity <= 1e-9) {
-          await tx.delete(holdings).where(eq(holdings.id, regularHolding.id));
-        } else {
-          await tx
-            .update(holdings)
-            .set({
-              quantity: newRegularQuantity.toString(),
-              totalCostBasis: newRegularTotalCostBasis.toFixed(2),
-              lastUpdated: new Date(),
-            })
-            .where(eq(holdings.id, regularHolding.id));
-        }
-        remainingToConsume -= consumedFromHolding;
-      }
-      if (remainingToConsume > 1e-9) {
-        throw new Error("Unable to consume the requested identity-equivalent shares");
-      }
-
-      const consumedAvgCostBasis = consumedTotalCostBasis / rawShareCount;
-      const retainedTotalCostBasis = consumedTotalCostBasis * (multiplierGained / rawShareCount);
-
-      const multiplierRows = await tx
-        .select()
-        .from(playerMultipliers)
-        .where(
-          and(
-            eq(playerMultipliers.userId, userId),
-            buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
-          ),
-        )
-        .orderBy(asc(playerMultipliers.id))
-        .for("update");
-      const existingMultiplier =
-        multiplierRows.find((row) => row.playerId === canonicalPlayerId) || multiplierRows[0];
-
-      let multiplierAfter = multiplierGained;
-      if (existingMultiplier) {
-        const existingMultiplierTotal = multiplierRows.reduce(
-          (sum, row) => sum + Number(row.multiplier || 0),
-          0,
-        );
-        const existingTotalCostBasis = multiplierRows.reduce(
-          (sum, row) => sum + toHoldingNumber(row.totalCostBasis),
-          0,
-        );
-        multiplierAfter = existingMultiplierTotal + multiplierGained;
-        const nextTotalCostBasis = existingTotalCostBasis + retainedTotalCostBasis;
-        const nextAvgCostBasis =
-          multiplierAfter > 0 ? nextTotalCostBasis / multiplierAfter : consumedAvgCostBasis;
-        const duplicateIds = multiplierRows
-          .filter((row) => row.id !== existingMultiplier.id)
-          .map((row) => row.id);
-        if (duplicateIds.length > 0) {
-          await tx.delete(playerMultipliers).where(inArray(playerMultipliers.id, duplicateIds));
-        }
-        await tx
-          .update(playerMultipliers)
-          .set({
-            playerId: canonicalPlayerId,
-            multiplier: multiplierAfter,
-            avgCostBasis: nextAvgCostBasis.toFixed(4),
-            totalCostBasis: nextTotalCostBasis.toFixed(2),
-            updatedAt: new Date(),
-          })
-          .where(eq(playerMultipliers.id, existingMultiplier.id));
-      } else {
-        await tx.insert(playerMultipliers).values({
-          userId,
-          playerId: canonicalPlayerId,
-          multiplier: multiplierGained,
-          avgCostBasis: toFixedString(consumedAvgCostBasis, 4),
-          totalCostBasis: retainedTotalCostBasis.toFixed(2),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      }
-
-      await tx.insert(playerMultiplierEvents).values({
-        userId,
-        playerId: canonicalPlayerId,
-        eventType: "stack_shares",
-        sharesConsumed: rawShareCount,
-        effectiveSharesBurned,
-        multiplierDelta: multiplierGained,
-        multiplierAfter,
-        consumedTotalCostBasis: consumedTotalCostBasis.toFixed(2),
-        retainedTotalCostBasis: retainedTotalCostBasis.toFixed(2),
-      } satisfies InsertPlayerMultiplierEvent);
-      await tx
-        .update(players)
-        .set({
-          totalShares: sql`GREATEST(${players.totalShares} - ${effectiveSharesBurned}, 0)`,
-          lastUpdated: new Date(),
-        })
-        .where(eq(players.id, canonicalPlayerId));
-
-      console.log(
-        `[stackShares] User ${userId} stacked ${rawShareCount} shares of ${canonicalPlayerId} into 1 stacked share at ${multiplierAfter.toFixed(2)}x`,
-      );
-
-      return {
-        newMultiplier: multiplierAfter.toFixed(2),
-        sharesStacked: rawShareCount,
-        multiplier: multiplierAfter.toFixed(2),
-        effectiveSharesBurned,
-      };
-    });
-  }
-
-  // Get regular + stacked-share view for a player.
-  async getPlayerShareBreakdown(
-    userId: string,
-    playerId: string,
-  ): Promise<{
-    regular: typeof holdings.$inferSelect | null;
-    stacked: HoldingSummary[];
-  }> {
-    const [regular, multiplier] = await Promise.all([
-      this.getRegularHolding(userId, "player", playerId),
-      this.getPlayerMultiplier(userId, playerId),
-    ]);
-    const stacked = multiplier ? [buildStackedShareSummary(multiplier)] : [];
-
-    return { regular: regular ?? null, stacked };
-  }
-
-  // Get effective shares for a player (regular shares + stacked multiplier).
-  async getTotalEffectiveShares(userId: string, playerId: string): Promise<number> {
-    const [regular, multiplier] = await Promise.all([
-      this.getRegularHolding(userId, "player", playerId),
-      this.getPlayerMultiplier(userId, playerId),
-    ]);
-
-    return toHoldingNumber(regular?.quantity) + Number(multiplier?.multiplier || 0);
-  }
-
-  // Get user's community boost shares (from holdings table)
-  async getUserCommunityBoostShares(userId: string): Promise<number> {
-    const [holding] = await db
-      .select()
-      .from(holdings)
-      .where(
-        and(
-          eq(holdings.userId, userId),
-          eq(holdings.assetType, "community"),
-          eq(holdings.assetId, "community"),
-        ),
-      );
-    return holding ? parseFloat(holding.quantity) : 0;
-  }
-
-  // Get holding multiplier state for a specific player.
-  async getHoldingMultiplierState(
-    userId: string,
-    playerId: string,
-  ): Promise<HoldingMultiplierState | undefined> {
-    const [regularHolding, multiplier] = await Promise.all([
-      this.getRegularHolding(userId, "player", playerId),
-      this.getPlayerMultiplier(userId, playerId),
-    ]);
-
-    if (!regularHolding && !multiplier) return undefined;
-
-    const tradeableShares = await this.getRegularAvailableShares(userId, playerId);
-    const regularQuantity = toHoldingNumber(regularHolding?.quantity);
-    const multiplierValue = Number(multiplier?.multiplier || 0);
-    const effectiveShares = regularQuantity + multiplierValue;
-    const maxStackable = Math.floor(tradeableShares / 2) * 2;
-
-    return {
-      quantity: regularQuantity,
-      availableShares: tradeableShares,
-      effectiveShares,
-      multiplier: multiplierValue.toFixed(2),
-      hasStackedShare: multiplierValue > 0,
-      canStackShares: tradeableShares >= 4,
-      maxStackable,
-      tradeableShares,
-    };
   }
 
   // AMM / LP Methods

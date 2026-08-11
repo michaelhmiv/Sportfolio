@@ -956,75 +956,6 @@ export const holdings = pgTable(
   }),
 );
 
-// Player multipliers table - one non-tradeable stacked-share record per user/player
-export const playerMultipliers = pgTable(
-  "player_multipliers",
-  {
-    id: varchar("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    userId: varchar("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    playerId: varchar("player_id")
-      .notNull()
-      .references(() => players.id, { onDelete: "cascade" }),
-    multiplier: integer("multiplier").notNull(),
-    avgCostBasis: decimal("avg_cost_basis", { precision: 10, scale: 4 })
-      .notNull()
-      .default("0.0000"),
-    totalCostBasis: decimal("total_cost_basis", { precision: 20, scale: 2 })
-      .notNull()
-      .default("0.00"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    userPlayerIdx: uniqueIndex("player_multiplier_user_player_idx").on(
-      table.userId,
-      table.playerId,
-    ),
-    playerIdx: index("player_multiplier_player_idx").on(table.playerId),
-  }),
-);
-
-// Immutable ledger for stacked-share lifecycle changes
-export const playerMultiplierEvents = pgTable(
-  "player_multiplier_events",
-  {
-    id: varchar("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    userId: varchar("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    playerId: varchar("player_id")
-      .notNull()
-      .references(() => players.id, { onDelete: "cascade" }),
-    eventType: text("event_type").notNull(), // stack_shares, boost_burn, migration_backfill
-    sharesConsumed: integer("shares_consumed").notNull().default(0),
-    effectiveSharesBurned: integer("effective_shares_burned").notNull().default(0),
-    multiplierDelta: integer("multiplier_delta").notNull().default(0),
-    multiplierAfter: integer("multiplier_after").notNull().default(0),
-    consumedTotalCostBasis: decimal("consumed_total_cost_basis", { precision: 20, scale: 2 })
-      .notNull()
-      .default("0.00"),
-    retainedTotalCostBasis: decimal("retained_total_cost_basis", { precision: 20, scale: 2 })
-      .notNull()
-      .default("0.00"),
-    boostId: varchar("boost_id"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    userPlayerCreatedIdx: index("player_multiplier_event_user_player_created_idx").on(
-      table.userId,
-      table.playerId,
-      table.createdAt,
-    ),
-    eventTypeIdx: index("player_multiplier_event_type_idx").on(table.eventType),
-  }),
-);
-
 // Holdings locks table - tracks reserved/locked shares to prevent double-spending
 // Available shares = holdings.quantity - SUM(holdings_locks.lockedQuantity)
 export const holdingsLocks = pgTable(
@@ -2231,8 +2162,7 @@ export const newsFeed = pgTable(
   }),
 );
 
-// Daily Boosts table - daily multiplier-based payouts
-// Users select 4 players from their holdings each day for performance multipliers
+// Daily Boosts table - direct-share one-game multiplier strategy.
 export const dailyBoosts = pgTable(
   "daily_boosts",
   {
@@ -2245,20 +2175,22 @@ export const dailyBoosts = pgTable(
     playerId: varchar("player_id")
       .notNull()
       .references(() => players.id),
-    sport: text("sport").notNull(), // "NBA" or "NFL"
-    slotTier: integer("slot_tier").notNull(), // 2, 3, 4, or 5 (multiplier value)
-    boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
-    sharesEntered: integer("shares_entered").notNull(), // Shares used for calculation
-    shareMultiplier: decimal("share_multiplier", { precision: 10, scale: 2 })
-      .notNull()
-      .default("1.00"),
-    shareSourceType: text("share_source_type").notNull().default("regular"), // regular or stacked
-    gameId: text("game_id"), // API game ID for the player's game
-    status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
-    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
-    payout: decimal("payout", { precision: 20, scale: 2 }), // Calculated payout
+    sport: text("sport").notNull(),
+    slotTier: integer("slot_tier").notNull(), // exactly 2, 3, 5, 7, or 10
+    boostDate: timestamp("boost_date").notNull(),
+    sharesEntered: decimal("shares_entered", { precision: 20, scale: 4 }).notNull(),
+    sharesBurned: decimal("shares_burned", { precision: 20, scale: 4 }).notNull().default("0"),
+    gameId: text("game_id"),
+    status: text("status").notNull().default("active"),
+    fantasyPoints: decimal("fantasy_points", { precision: 12, scale: 4 }),
+    gameEpsSb: decimal("game_eps_sb", { precision: 24, scale: 8 }),
+    baseComponentSb: decimal("base_component_sb", { precision: 20, scale: 4 }),
+    boostBonusSb: decimal("boost_bonus_sb", { precision: 20, scale: 4 }),
+    totalEconomicEarningsSb: decimal("total_economic_earnings_sb", { precision: 20, scale: 4 }),
+    payout: decimal("payout", { precision: 20, scale: 2 }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-    processedAt: timestamp("processed_at"), // When payout was credited
+    lockedAt: timestamp("locked_at"),
+    processedAt: timestamp("processed_at"),
   },
   (table) => ({
     userDateIdx: index("boost_user_date_idx").on(table.userId, table.boostDate),
@@ -2270,11 +2202,11 @@ export const dailyBoosts = pgTable(
     statusIdx: index("boost_status_idx").on(table.status),
     playerIdx: index("boost_player_idx").on(table.playerId),
     gameIdx: index("boost_game_idx").on(table.gameId),
+    slotTierCheck: check("daily_boosts_slot_tier_check", sql`${table.slotTier} IN (2,3,5,7,10)`),
+    sharesCheck: check("daily_boosts_shares_entered_check", sql`${table.sharesEntered} > 0`),
   }),
 );
 
-// Boost payouts table - immutable ledger for audit trail
-// Records every payout calculation for transparency
 export const boostPayouts = pgTable(
   "boost_payouts",
   {
@@ -2290,21 +2222,27 @@ export const boostPayouts = pgTable(
     playerId: varchar("player_id")
       .notNull()
       .references(() => players.id),
-    sharesUsed: integer("shares_used").notNull(),
-    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull(),
-    multiplier: integer("multiplier").notNull(), // 2, 3, 4, or 5
-    payoutAmount: decimal("payout_amount", { precision: 20, scale: 2 }).notNull(),
+    gameId: text("game_id").notNull(),
+    sharesUsed: decimal("shares_used", { precision: 20, scale: 4 }).notNull(),
+    fantasyPoints: decimal("fantasy_points", { precision: 12, scale: 4 }).notNull(),
+    multiplier: integer("multiplier").notNull(),
+    gameEpsSb: decimal("game_eps_sb", { precision: 24, scale: 8 }).notNull(),
+    baseComponentSb: decimal("base_component_sb", { precision: 20, scale: 4 }).notNull(),
+    boostBonusSb: decimal("boost_bonus_sb", { precision: 20, scale: 4 }).notNull(),
+    totalEconomicEarningsSb: decimal("total_economic_earnings_sb", {
+      precision: 20,
+      scale: 4,
+    }).notNull(),
+    payoutAmount: decimal("payout_amount", { precision: 20, scale: 4 }).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
-    userIdx: index("boost_payout_user_idx").on(table.userId),
-    boostIdx: index("boost_payout_boost_idx").on(table.boostId),
-    createdAtIdx: index("boost_payout_created_idx").on(table.createdAt),
+    userIdx: index("boost_payout_user_idx").on(table.userId, table.createdAt),
+    playerGameIdx: index("boost_payout_player_game_idx").on(table.playerId, table.gameId),
+    boostIdx: uniqueIndex("boost_payout_boost_unique_idx").on(table.boostId),
   }),
 );
 
-// Share payouts table - immutable ledger for game-based holder earnings
-// Records payouts for user/player/game snapshots settled after game completion
 export const sharePayouts = pgTable(
   "share_payouts",
   {
@@ -2318,26 +2256,91 @@ export const sharePayouts = pgTable(
       .notNull()
       .references(() => players.id),
     gameId: text("game_id").notNull(),
-    earningUnits: decimal("earning_units", { precision: 12, scale: 2 }).notNull().default("0.00"),
-    earningModel: text("earning_model").notNull().default("multiplier_only"),
-    baseRate: decimal("base_rate", { precision: 10, scale: 4 }).notNull().default("1.0000"),
-    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }),
-    payoutAmount: decimal("payout_amount", { precision: 20, scale: 2 }),
-    status: text("status").notNull().default("pending"), // pending, processed, cancelled, voided
+    eligibleShares: decimal("eligible_shares", { precision: 20, scale: 4 }).notNull(),
+    fantasyPoints: decimal("fantasy_points", { precision: 12, scale: 4 }),
+    gameEpsSb: decimal("game_eps_sb", { precision: 24, scale: 8 }),
+    payoutAmount: decimal("payout_amount", { precision: 20, scale: 4 }),
+    status: text("status").notNull().default("pending"),
     voidReason: text("void_reason"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     processedAt: timestamp("processed_at"),
   },
   (table) => ({
     userIdx: index("share_payout_user_idx").on(table.userId),
-    gameIdx: index("share_payout_game_idx").on(table.gameId),
-    statusIdx: index("share_payout_status_idx").on(table.status),
-    createdAtIdx: index("share_payout_created_idx").on(table.createdAt),
+    gameStatusIdx: index("share_payout_game_status_idx").on(table.gameId, table.status),
+    playerGameIdx: index("share_payout_player_game_idx").on(table.playerId, table.gameId),
     userPlayerGameIdx: uniqueIndex("share_payout_user_player_game_idx").on(
       table.userId,
       table.playerId,
       table.gameId,
     ),
+  }),
+);
+
+export const playerGameEarnings = pgTable(
+  "player_game_earnings",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    gameId: text("game_id").notNull(),
+    sport: text("sport").notNull(),
+    economyVersion: text("economy_version").notNull(),
+    seasonPhase: text("season_phase").notNull(),
+    economyClass: text("economy_class").notNull(),
+    seasonTargetSb: decimal("season_target_sb", { precision: 20, scale: 4 }).notNull(),
+    benchmarkFantasyPoints: decimal("benchmark_fantasy_points", {
+      precision: 20,
+      scale: 4,
+    }).notNull(),
+    totalEligibleShares: decimal("total_eligible_shares", { precision: 24, scale: 4 })
+      .notNull()
+      .default("0"),
+    fantasyPoints: decimal("fantasy_points", { precision: 12, scale: 4 }),
+    sbPerFantasyPoint: decimal("sb_per_fantasy_point", { precision: 24, scale: 8 }),
+    basePoolSb: decimal("base_pool_sb", { precision: 24, scale: 4 }),
+    gameEpsSb: decimal("game_eps_sb", { precision: 24, scale: 8 }),
+    status: text("status").notNull().default("snapshotted"),
+    snapshottedAt: timestamp("snapshotted_at").notNull().defaultNow(),
+    processedAt: timestamp("processed_at"),
+  },
+  (table) => ({
+    playerGameIdx: uniqueIndex("player_game_earnings_unique").on(table.playerId, table.gameId),
+    gameStatusIdx: index("player_game_earnings_game_status_idx").on(table.gameId, table.status),
+    phaseCreatedIdx: index("player_game_earnings_phase_created_idx").on(
+      table.seasonPhase,
+      table.snapshottedAt,
+    ),
+  }),
+);
+
+export const economyEvents = pgTable(
+  "economy_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    eventType: text("event_type").notNull(),
+    userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+    playerId: varchar("player_id").references(() => players.id, { onDelete: "set null" }),
+    gameId: text("game_id"),
+    sbDelta: decimal("sb_delta", { precision: 24, scale: 4 }).notNull().default("0"),
+    sharesDelta: decimal("shares_delta", { precision: 24, scale: 4 }).notNull().default("0"),
+    metadata: jsonb("metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    typeCreatedIdx: index("economy_events_type_created_idx").on(table.eventType, table.createdAt),
+    playerCreatedIdx: index("economy_events_player_created_idx").on(
+      table.playerId,
+      table.createdAt,
+    ),
+    userCreatedIdx: index("economy_events_user_created_idx").on(table.userId, table.createdAt),
   }),
 );
 
@@ -2377,8 +2380,6 @@ export const communityBoosts = pgTable(
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   holdings: many(holdings),
-  playerMultipliers: many(playerMultipliers),
-  playerMultiplierEvents: many(playerMultiplierEvents),
   orders: many(orders),
   blogPosts: many(blogPosts),
   portfolioSnapshots: many(portfolioSnapshots),
@@ -2442,8 +2443,6 @@ export const portfolioSnapshotsRelations = relations(portfolioSnapshots, ({ one 
 
 export const playersRelations = relations(players, ({ many }) => ({
   holdings: many(holdings),
-  playerMultipliers: many(playerMultipliers),
-  playerMultiplierEvents: many(playerMultiplierEvents),
   orders: many(orders),
   trades: many(trades),
   gameStats: many(playerGameStats),
@@ -2455,28 +2454,6 @@ export const holdingsRelations = relations(holdings, ({ one }) => ({
   user: one(users, {
     fields: [holdings.userId],
     references: [users.id],
-  }),
-}));
-
-export const playerMultipliersRelations = relations(playerMultipliers, ({ one }) => ({
-  user: one(users, {
-    fields: [playerMultipliers.userId],
-    references: [users.id],
-  }),
-  player: one(players, {
-    fields: [playerMultipliers.playerId],
-    references: [players.id],
-  }),
-}));
-
-export const playerMultiplierEventsRelations = relations(playerMultiplierEvents, ({ one }) => ({
-  user: one(users, {
-    fields: [playerMultiplierEvents.userId],
-    references: [users.id],
-  }),
-  player: one(players, {
-    fields: [playerMultiplierEvents.playerId],
-    references: [players.id],
   }),
 }));
 
@@ -2584,17 +2561,6 @@ export const insertHoldingSchema = createInsertSchema(holdings).omit({
   lastUpdated: true,
 });
 
-export const insertPlayerMultiplierSchema = createInsertSchema(playerMultipliers).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertPlayerMultiplierEventSchema = createInsertSchema(playerMultiplierEvents).omit({
-  id: true,
-  createdAt: true,
-});
-
 export const insertHoldingsLockSchema = createInsertSchema(holdingsLocks).omit({
   id: true,
   createdAt: true,
@@ -2685,12 +2651,6 @@ export type InsertPlayerMarketMetrics = z.infer<typeof insertPlayerMarketMetrics
 
 export type Holding = typeof holdings.$inferSelect;
 export type InsertHolding = z.infer<typeof insertHoldingSchema>;
-
-export type PlayerMultiplier = typeof playerMultipliers.$inferSelect;
-export type InsertPlayerMultiplier = z.infer<typeof insertPlayerMultiplierSchema>;
-
-export type PlayerMultiplierEvent = typeof playerMultiplierEvents.$inferSelect;
-export type InsertPlayerMultiplierEvent = z.infer<typeof insertPlayerMultiplierEventSchema>;
 
 export type HoldingsLock = typeof holdingsLocks.$inferSelect;
 export type InsertHoldingsLock = z.infer<typeof insertHoldingsLockSchema>;
@@ -2968,6 +2928,21 @@ export const insertSharePayoutSchema = createInsertSchema(sharePayouts).omit({
 
 export type SharePayout = typeof sharePayouts.$inferSelect;
 export type InsertSharePayout = z.infer<typeof insertSharePayoutSchema>;
+
+export const insertPlayerGameEarningsSchema = createInsertSchema(playerGameEarnings).omit({
+  id: true,
+  snapshottedAt: true,
+  processedAt: true,
+});
+export type PlayerGameEarnings = typeof playerGameEarnings.$inferSelect;
+export type InsertPlayerGameEarnings = z.infer<typeof insertPlayerGameEarningsSchema>;
+
+export const insertEconomyEventSchema = createInsertSchema(economyEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type EconomyEvent = typeof economyEvents.$inferSelect;
+export type InsertEconomyEvent = z.infer<typeof insertEconomyEventSchema>;
 
 // Community boosts schemas and types
 export const insertCommunityBoostSchema = createInsertSchema(communityBoosts).omit({

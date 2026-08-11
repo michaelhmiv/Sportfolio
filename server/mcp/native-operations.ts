@@ -171,10 +171,10 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
       const playerId = text(args.playerId);
       if (!playerId) throw new Error("playerId is required");
       await requirePlayer(playerId);
-      const [market, availableShares, breakdown] = await Promise.all([
+      const [market, availableShares, holding] = await Promise.all([
         getCanonicalPlayerMarket(playerId),
         storage.getAvailableShares(input.userId, "player", playerId),
-        storage.getPlayerShareBreakdown(input.userId, playerId),
+        storage.getHolding(input.userId, "player", playerId),
       ]);
       return {
         playerId,
@@ -186,7 +186,13 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
         liquidSharesOutstanding: market?.liquidSharesOutstanding || 0,
         marketCap: market?.marketCap ?? null,
         availableShares,
-        breakdown,
+        holding: holding
+          ? {
+              quantity: holding.quantity,
+              avgCostBasis: holding.avgCostBasis,
+              totalCostBasis: holding.totalCostBasis,
+            }
+          : null,
       };
     }
     case "get_watchlists":
@@ -203,11 +209,6 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
       const playerId = text(args.playerId);
       if (!playerId) throw new Error("playerId is required");
       return storage.getPlayerWatchlists(input.userId, playerId);
-    }
-    case "get_holding_multiplier_state": {
-      const playerId = text(args.playerId);
-      if (!playerId) throw new Error("playerId is required");
-      return storage.getHoldingMultiplierState(input.userId, playerId);
     }
     case "get_daily_boost_state":
       return storage.getDailyBoostsAllSports(input.userId, targetDate(args.date));

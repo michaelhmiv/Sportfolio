@@ -1,4 +1,5 @@
 import { hasGameStartedForBoost } from "@shared/game-status";
+import { BOOST_SLOT_MULTIPLIERS, isBoostSlotMultiplier } from "../economy/config";
 import { getETDayBoundaries, getGameDay, getTodayET } from "../lib/time";
 import { storage } from "../storage";
 
@@ -17,30 +18,40 @@ export interface AssignDailyBoostInput {
   playerId: string;
   sport: string;
   slotTier: number;
+  shares: number;
   etDate?: string | Date;
 }
 
 export interface AssignDailyBoostResult {
   boost: Awaited<ReturnType<typeof storage.createDailyBoost>>;
   canonicalPlayerId: string;
-  shareMultiplier: string;
-  shareSourceType: "stacked" | "regular";
+  sharesCommitted: number;
 }
 
 function resolveEtDate(input?: string | Date): string {
-  if (typeof input === "string" && input.trim()) {
-    return input.trim();
-  }
-  if (input instanceof Date) {
-    return getGameDay(input);
-  }
+  if (typeof input === "string" && input.trim()) return input.trim();
+  if (input instanceof Date) return getGameDay(input);
   return getTodayET();
+}
+
+function normalizeShares(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new DailyBoostValidationError("Boost share quantity must be greater than zero.");
+  }
+  return Math.round(value * 10_000) / 10_000;
 }
 
 export async function assignDailyBoostWithValidation(
   input: AssignDailyBoostInput,
 ): Promise<AssignDailyBoostResult> {
   const sportUpper = input.sport.toUpperCase();
+  const shares = normalizeShares(input.shares);
+  if (!isBoostSlotMultiplier(input.slotTier)) {
+    throw new DailyBoostValidationError(
+      `Invalid boost slot. Choose one of ${BOOST_SLOT_MULTIPLIERS.join("x, ")}x.`,
+    );
+  }
+
   const canonicalPlayerId =
     typeof (storage as any).getCanonicalPlayerId === "function"
       ? await (storage as any).getCanonicalPlayerId(input.playerId)
@@ -57,8 +68,8 @@ export async function assignDailyBoostWithValidation(
   if (currentBoosts.some((boost) => boost.playerId === canonicalPlayerId)) {
     throw new DailyBoostValidationError("This player is already in a boost slot");
   }
-  if (currentBoosts.length >= 4) {
-    throw new DailyBoostValidationError("All 4 boost slots are already filled");
+  if (currentBoosts.length >= BOOST_SLOT_MULTIPLIERS.length) {
+    throw new DailyBoostValidationError("All 5 boost slots are already filled");
   }
 
   const game = await storage.getPlayerGameForDate(canonicalPlayerId, sportUpper, targetDate);
@@ -74,39 +85,11 @@ export async function assignDailyBoostWithValidation(
     "player",
     canonicalPlayerId,
   );
-  if (availableShares < 1) {
+  if (availableShares + 1e-9 < shares) {
     throw new DailyBoostValidationError(
-      `Not enough available shares. You have ${availableShares} available.`,
+      `Not enough available shares. You have ${availableShares.toFixed(4)} available.`,
     );
   }
-
-  const breakdown = await storage.getPlayerShareBreakdown(input.userId, canonicalPlayerId);
-  const candidates = [
-    ...(breakdown.stacked || [])
-      .filter((holding) => Number.parseFloat(holding.quantity) >= 1)
-      .map((holding) => ({
-        multiplier: Number.parseFloat(holding.multiplier || "1"),
-        isStackedShare: true,
-      })),
-    ...(breakdown.regular && Number.parseFloat(breakdown.regular.quantity) >= 1
-      ? [
-          {
-            multiplier: 1,
-            isStackedShare: false,
-          },
-        ]
-      : []),
-  ].sort((left, right) => right.multiplier - left.multiplier);
-
-  const selectedHolding = candidates[0];
-  if (!selectedHolding) {
-    throw new DailyBoostValidationError("No shares available for this player");
-  }
-
-  const shareMultiplier = selectedHolding.multiplier.toFixed(2);
-  const shareSourceType: "stacked" | "regular" = selectedHolding.isStackedShare
-    ? "stacked"
-    : "regular";
 
   const boost = await storage.createDailyBoost({
     userId: input.userId,
@@ -114,16 +97,25 @@ export async function assignDailyBoostWithValidation(
     sport: sportUpper,
     slotTier: input.slotTier,
     boostDate: startOfDay,
-    sharesEntered: 1,
-    shareMultiplier,
-    shareSourceType,
+    sharesEntered: shares as any,
     gameId: game.gameId,
-  });
+  } as any);
 
-  return {
-    boost,
-    canonicalPlayerId,
-    shareMultiplier,
-    shareSourceType,
-  };
+  try {
+    // reserveShares rechecks available quantity transactionally, preventing a simultaneous sell/Boost
+    // from spending the same inventory twice.
+    await storage.reserveShares(
+      input.userId,
+      "player",
+      canonicalPlayerId,
+      "boost",
+      boost.id,
+      shares,
+    );
+  } catch (error) {
+    await storage.deleteDailyBoost(boost.id).catch(() => undefined);
+    throw error;
+  }
+
+  return { boost, canonicalPlayerId, sharesCommitted: shares };
 }

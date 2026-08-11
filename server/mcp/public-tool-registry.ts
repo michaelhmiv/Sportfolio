@@ -615,14 +615,13 @@ function actionFromPreviewRequest(
       return { actionType: "pool_remove_liquidity", playerId, lpShares: Number(args.lpShares) };
     case "preview_scout_adjustment":
       return { actionType: "scout_set_count", playerId, targetCount: Number(args.targetCount) };
-    case "preview_stack_shares":
-      return { actionType: "holdings_stack_shares", playerId, sharesToStack: Number(args.shares) };
     case "preview_daily_boost_assign":
       return {
         actionType: "daily_boost_assign",
         playerId,
         sport,
-        slotTier: Number(args.slotTier) as 2 | 3 | 4 | 5,
+        slotTier: Number(args.slotTier) as 2 | 3 | 5 | 7 | 10,
+        shares: Number(args.shares),
         boostDate,
       };
     case "preview_community_boost_create":
@@ -2475,29 +2474,12 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
       }),
   }),
   defineTool({
-    name: "stage_stack_shares",
-    description: "Stage a Stack Shares action for confirmation.",
-    domain: "portfolio",
-    readOnly: false,
-    inputSchema: stageStackSharesSchema,
-    fixtureArgs: { playerId: "player_1", shares: 4 },
-    execute: (context, args) =>
-      stagePreviewedAction({
-        context,
-        previewToolName: "preview_stack_shares",
-        previewArgs: {
-          playerId: args.playerId,
-          shares: args.shares,
-        },
-      }),
-  }),
-  defineTool({
     name: "stage_daily_boost_assign",
     description: "Stage a daily boost assignment for confirmation.",
     domain: "boosts",
     readOnly: false,
     inputSchema: stageBoostSchema,
-    fixtureArgs: { playerId: "player_1", slotTier: 4, sport: "NBA" },
+    fixtureArgs: { playerId: "player_1", slotTier: 5, shares: 1, sport: "MLB" },
     execute: (context, args) =>
       stagePreviewedAction({
         context,
@@ -2511,7 +2493,7 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     domain: "boosts",
     readOnly: false,
     inputSchema: stageBoostSchema,
-    fixtureArgs: { playerId: "player_1", slotTier: 2, sport: "MLB" },
+    fixtureArgs: { playerId: "player_1", slotTier: 2, shares: 1, sport: "MLB" },
     execute: (context, args) =>
       stagePreviewedAction({
         context,
@@ -3079,7 +3061,6 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     path: "/api/news/unread-count",
     excludedCapabilityId: "news_unread_count_site_only",
   },
-  { method: "POST", path: "/api/holdings/stack-shares", capabilityIds: ["stage_stack_shares"] },
   {
     method: "GET",
     path: "/api/holdings/:playerId/multiplier-state",

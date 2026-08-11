@@ -203,17 +203,6 @@ export function buildDiscordSlashCommandDefinitions() {
           ],
         },
         {
-          type: 3,
-          name: "view",
-          description: "Holding type view",
-          required: false,
-          choices: [
-            { name: "all", value: "all" },
-            { name: "stacked", value: "stacked" },
-            { name: "regular", value: "regular" },
-          ],
-        },
-        {
           type: 4,
           name: "limit",
           description: "Rows to show",
@@ -290,26 +279,6 @@ export function buildDiscordSlashCommandDefinitions() {
           required: false,
           min_value: 0.001,
           max_value: 0.5,
-        },
-      ],
-    },
-    {
-      name: "stack",
-      description: "Stack (condense) shares using existing stack rules",
-      type: 1,
-      options: [
-        {
-          type: 3,
-          name: "player",
-          description: "Player name or id",
-          required: true,
-          autocomplete: true,
-        },
-        {
-          type: 3,
-          name: "amount",
-          description: "Shares to stack (e.g. 4, 50%, max)",
-          required: true,
         },
       ],
     },
@@ -398,9 +367,17 @@ export function buildDiscordSlashCommandDefinitions() {
               choices: [
                 { name: "2x", value: 2 },
                 { name: "3x", value: 3 },
-                { name: "4x", value: 4 },
                 { name: "5x", value: 5 },
+                { name: "7x", value: 7 },
+                { name: "10x", value: 10 },
               ],
+            },
+            {
+              type: 10,
+              name: "shares",
+              description: "Singles to permanently burn when the game begins",
+              required: true,
+              min_value: 0.0001,
             },
             {
               type: 3,

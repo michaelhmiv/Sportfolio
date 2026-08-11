@@ -5,18 +5,16 @@ const storageMocks = vi.hoisted(() => ({
   getDailyBoosts: vi.fn(),
   getPlayerGameForDate: vi.fn(),
   getAvailableShares: vi.fn(),
-  getPlayerShareBreakdown: vi.fn(),
   createDailyBoost: vi.fn(),
+  reserveShares: vi.fn(),
+  deleteDailyBoost: vi.fn(),
 }));
 
-vi.mock("../storage", () => ({
-  storage: storageMocks,
-}));
+vi.mock("../storage", () => ({ storage: storageMocks }));
 
 describe("assignDailyBoostWithValidation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
     storageMocks.getCanonicalPlayerId.mockResolvedValue("canonical_player");
     storageMocks.getDailyBoosts.mockResolvedValue([]);
     storageMocks.getPlayerGameForDate.mockResolvedValue({
@@ -24,83 +22,89 @@ describe("assignDailyBoostWithValidation", () => {
       startTime: new Date(Date.now() + 60 * 60 * 1000),
       status: "scheduled",
     });
-    storageMocks.getAvailableShares.mockResolvedValue(2);
-    storageMocks.getPlayerShareBreakdown.mockResolvedValue({
-      regular: { quantity: "2" },
-      stacked: [{ quantity: "1", multiplier: "3.50" }],
-    });
+    storageMocks.getAvailableShares.mockResolvedValue(12.5);
     storageMocks.createDailyBoost.mockResolvedValue({ id: "boost_1" });
+    storageMocks.reserveShares.mockResolvedValue(undefined);
+    storageMocks.deleteDailyBoost.mockResolvedValue(undefined);
   });
 
-  it("rejects assignment when slot is already occupied", async () => {
+  it("rejects an occupied slot", async () => {
     const { assignDailyBoostWithValidation, DailyBoostValidationError } =
       await import("./assign-daily-boost");
-
     storageMocks.getDailyBoosts.mockResolvedValue([{ slotTier: 5, playerId: "other_player" }]);
 
     await expect(
       assignDailyBoostWithValidation({
         userId: "user_1",
         playerId: "raw_player",
-        sport: "NBA",
+        sport: "MLB",
         slotTier: 5,
-        etDate: "2026-05-29",
+        shares: 2,
+        etDate: "2026-08-11",
       }),
     ).rejects.toBeInstanceOf(DailyBoostValidationError);
   });
 
-  it("creates a boost with canonical player id and selected share source", async () => {
+  it("creates and reserves an arbitrary positive Singles quantity", async () => {
     const { assignDailyBoostWithValidation } = await import("./assign-daily-boost");
-
     const result = await assignDailyBoostWithValidation({
       userId: "user_1",
       playerId: "raw_player",
-      sport: "NBA",
-      slotTier: 5,
-      etDate: "2026-05-29",
+      sport: "MLB",
+      slotTier: 10,
+      shares: 3.25,
+      etDate: "2026-08-11",
     });
 
-    expect(storageMocks.createDailyBoost).toHaveBeenCalledTimes(1);
-    expect(storageMocks.createDailyBoost.mock.calls[0][0]).toMatchObject({
-      userId: "user_1",
-      playerId: "canonical_player",
-      sport: "NBA",
-      slotTier: 5,
-      sharesEntered: 1,
-      shareMultiplier: "3.50",
-      shareSourceType: "stacked",
-      gameId: "game_1",
+    expect(storageMocks.createDailyBoost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        playerId: "canonical_player",
+        sport: "MLB",
+        slotTier: 10,
+        sharesEntered: 3.25,
+        gameId: "game_1",
+      }),
+    );
+    expect(storageMocks.reserveShares).toHaveBeenCalledWith(
+      "user_1",
+      "player",
+      "canonical_player",
+      "boost",
+      "boost_1",
+      3.25,
+    );
+    expect(result).toMatchObject({
+      canonicalPlayerId: "canonical_player",
+      sharesCommitted: 3.25,
     });
-
-    expect(result.canonicalPlayerId).toBe("canonical_player");
-    expect(result.shareSourceType).toBe("stacked");
-    expect(result.shareMultiplier).toBe("3.50");
   });
 
-  it("falls back to a regular share when no stacked share is available", async () => {
-    const { assignDailyBoostWithValidation } = await import("./assign-daily-boost");
+  it("rejects unavailable quantities and retired 4x slots", async () => {
+    const { assignDailyBoostWithValidation, DailyBoostValidationError } =
+      await import("./assign-daily-boost");
 
-    storageMocks.getPlayerShareBreakdown.mockResolvedValue({
-      regular: { quantity: "2" },
-      stacked: [],
-    });
+    await expect(
+      assignDailyBoostWithValidation({
+        userId: "user_1",
+        playerId: "raw_player",
+        sport: "MLB",
+        slotTier: 4,
+        shares: 1,
+        etDate: "2026-08-11",
+      }),
+    ).rejects.toBeInstanceOf(DailyBoostValidationError);
 
-    const result = await assignDailyBoostWithValidation({
-      userId: "user_1",
-      playerId: "raw_player",
-      sport: "NBA",
-      slotTier: 4,
-      etDate: "2026-05-29",
-    });
-
-    expect(storageMocks.createDailyBoost).toHaveBeenCalledTimes(1);
-    expect(storageMocks.createDailyBoost.mock.calls[0][0]).toMatchObject({
-      playerId: "canonical_player",
-      slotTier: 4,
-      shareMultiplier: "1.00",
-      shareSourceType: "regular",
-    });
-    expect(result.shareSourceType).toBe("regular");
-    expect(result.shareMultiplier).toBe("1.00");
+    storageMocks.getAvailableShares.mockResolvedValue(1.5);
+    await expect(
+      assignDailyBoostWithValidation({
+        userId: "user_1",
+        playerId: "raw_player",
+        sport: "MLB",
+        slotTier: 7,
+        shares: 2,
+        etDate: "2026-08-11",
+      }),
+    ).rejects.toBeInstanceOf(DailyBoostValidationError);
   });
 });

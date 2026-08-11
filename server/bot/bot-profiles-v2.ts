@@ -16,8 +16,7 @@ export type ActionType =
   | "pool_add_liquidity"
   | "buy"
   | "sell"
-  | "boost_assign"
-  | "stack_shares";
+  | "boost_assign";
 
 export interface BotEnginePolicy {
   marketActionTypes: ActionType[];
@@ -40,14 +39,7 @@ export interface BotEnginePolicy {
 }
 
 export const BOT_ENGINE_POLICY: BotEnginePolicy = {
-  marketActionTypes: [
-    "pool_create",
-    "pool_add_liquidity",
-    "buy",
-    "sell",
-    "boost_assign",
-    "stack_shares",
-  ],
+  marketActionTypes: ["pool_create", "pool_add_liquidity", "buy", "sell", "boost_assign"],
   lookbackHours: {
     playerCooldown: 24,
     sportMix: 24,
@@ -139,10 +131,8 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
       "pool_add_liquidity",
       "buy",
       "sell",
-      "stack_shares",
     ],
     actionWeights: {
-      stack_shares: 30,
       pool_create: 25,
       pool_add_liquidity: 15,
       buy: 10,
@@ -170,10 +160,8 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
       "buy",
       "sell",
       "boost_assign",
-      "stack_shares",
     ],
     actionWeights: {
-      stack_shares: 25,
       buy: 25,
       sell: 15,
       pool_create: 10,
@@ -194,16 +182,8 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
     maxOrderSb: 80,
     scoutTargetCount: 4,
     scoutRotationHours: 48,
-    allowedActions: [
-      "scout_assign",
-      "scout_rebalance",
-      "pool_create",
-      "buy",
-      "sell",
-      "stack_shares",
-    ],
+    allowedActions: ["scout_assign", "scout_rebalance", "pool_create", "buy", "sell"],
     actionWeights: {
-      stack_shares: 25,
       buy: 25,
       sell: 15,
       scout_assign: 15,
@@ -230,10 +210,8 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
       "buy",
       "sell",
       "boost_assign",
-      "stack_shares",
     ],
     actionWeights: {
-      stack_shares: 30,
       boost_assign: 20,
       buy: 20,
       sell: 10,
@@ -254,16 +232,8 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
     maxOrderSb: 60,
     scoutTargetCount: 10,
     scoutRotationHours: 72,
-    allowedActions: [
-      "scout_assign",
-      "scout_rebalance",
-      "pool_create",
-      "pool_add_liquidity",
-      "buy",
-      "stack_shares",
-    ],
+    allowedActions: ["scout_assign", "scout_rebalance", "pool_create", "pool_add_liquidity", "buy"],
     actionWeights: {
-      stack_shares: 35,
       scout_assign: 20,
       pool_create: 20,
       pool_add_liquidity: 10,
@@ -306,7 +276,7 @@ export function getStageAllowedActions(stage: BotStage): ActionType[] {
     case "scouting":
       return ["scout_assign"];
     case "accumulating":
-      return ["scout_assign", "scout_rebalance", "buy", "stack_shares"];
+      return ["scout_assign", "scout_rebalance", "buy", "boost_assign"];
     case "pool_building":
       return [
         "scout_assign",
@@ -315,7 +285,6 @@ export function getStageAllowedActions(stage: BotStage): ActionType[] {
         "pool_add_liquidity",
         "buy",
         "sell",
-        "stack_shares",
       ];
     case "steady_state":
       return [
@@ -326,7 +295,6 @@ export function getStageAllowedActions(stage: BotStage): ActionType[] {
         "buy",
         "sell",
         "boost_assign",
-        "stack_shares",
       ];
   }
 }

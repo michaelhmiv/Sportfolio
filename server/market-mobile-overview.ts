@@ -414,7 +414,6 @@ type HoldingContext = {
 
 type HoldingAggregation = {
   regularShares: number;
-  stackedShares: number;
   bestShareMultiplier: number;
 };
 
@@ -627,22 +626,11 @@ async function buildHoldingContextMap(
 
     const current = grouped.get(holding.player.id) || {
       regularShares: 0,
-      stackedShares: 0,
       bestShareMultiplier: 1,
     };
     const quantity = toNumber(holding.quantity);
-    const multiplier = toNumber(holding.multiplier || "1");
-
-    if (holding.isStackedShare) {
-      current.stackedShares += quantity;
-    } else {
-      current.regularShares += quantity;
-    }
-
-    current.bestShareMultiplier = Math.max(
-      current.bestShareMultiplier,
-      holding.isStackedShare && quantity >= 1 ? multiplier : 1,
-    );
+    current.regularShares += quantity;
+    current.bestShareMultiplier = 1;
     grouped.set(holding.player.id, current);
   }
 
@@ -658,7 +646,7 @@ async function buildHoldingContextMap(
     const availableRegularShares = Math.max(0, context.regularShares - locked);
 
     result.set(playerId, {
-      availableShares: availableRegularShares + context.stackedShares,
+      availableShares: availableRegularShares,
       bestShareMultiplier: context.bestShareMultiplier,
     });
   }

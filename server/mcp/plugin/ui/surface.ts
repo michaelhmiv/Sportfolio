@@ -212,7 +212,8 @@ async function renderPlayerMarket(
     financialMetrics,
     stats,
     recentGames,
-    holdingState,
+    holding,
+    availableShares,
     availableBalance,
     lp,
     canonicalMarket,
@@ -222,9 +223,8 @@ async function renderPlayerMarket(
     safe(storage.getPlayerFinancialMetrics(playerId), null),
     safe(storage.getPlayerSeasonStatsFromLogs(playerId), null),
     safe(storage.getPlayerRecentGamesFromLogs(playerId, 5), []),
-    userId
-      ? safe(storage.getHoldingMultiplierState(userId, playerId), null)
-      : Promise.resolve(null),
+    userId ? safe(storage.getHolding(userId, "player", playerId), null) : Promise.resolve(null),
+    userId ? safe(storage.getAvailableShares(userId, "player", playerId), 0) : Promise.resolve(0),
     userId ? safe(storage.getAvailableBalance(userId), 0) : Promise.resolve(0),
     userId ? safe(getLpPosition(playerId, userId), null) : Promise.resolve(null),
     safe(getCanonicalPlayerMarket(playerId), null),
@@ -249,7 +249,7 @@ async function renderPlayerMarket(
   const percentageChange =
     absoluteChange == null || !openingPrice ? null : (absoluteChange / openingPrice) * 100;
   const poolInitialized = canonicalMarket?.poolInitialized || false;
-  const holding = record(holdingState);
+  const holdingRecord = record(holding);
   const lpRecord = record(lp);
 
   return sanitizePresentation("player_market", {
@@ -286,12 +286,10 @@ async function renderPlayerMarket(
     recentGames: array(recentGames).slice(0, 5),
     userHolding: userId
       ? {
-          quantity: numberValue(holding.quantity),
-          availableShares: numberValue(holding.availableShares),
-          effectiveShares: numberValue(holding.effectiveShares),
-          multiplier: stringValue(holding.multiplier, "1.0"),
-          hasStackedShare: holding.hasStackedShare === true,
-          tradeableShares: numberValue(holding.tradeableShares || holding.availableShares),
+          quantity: numberValue(holdingRecord.quantity),
+          availableShares: numberValue(availableShares),
+          avgCostBasis: numberValue(holdingRecord.avgCostBasis),
+          totalCostBasis: numberValue(holdingRecord.totalCostBasis),
         }
       : null,
     availableBalance: userId ? availableBalance : null,
@@ -353,8 +351,6 @@ export function buildPortfolioViewData(
         singles: position.singles,
         lockedSingles: position.lockedSingles,
         availableShares: position.availableSingles,
-        stackPower: position.stackPower,
-        gameplayPower: position.gameplayPower,
         marketStatus: position.marketStatus,
         marketPrice: position.marketPrice,
         currentPrice: position.marketPrice,
@@ -530,7 +526,7 @@ async function renderLiquidity(
   const [pool, position, holding, availableBalance, canonicalMarket] = await Promise.all([
     safe(getPool(playerId), null),
     safe(getLpPosition(playerId, userId), null),
-    safe(storage.getHoldingMultiplierState(userId, playerId), null),
+    safe(storage.getHolding(userId, "player", playerId), null),
     safe(storage.getAvailableBalance(userId), 0),
     safe(getCanonicalPlayerMarket(playerId), null),
   ]);

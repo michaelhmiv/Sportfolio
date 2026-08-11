@@ -59,8 +59,7 @@ function makeGame(
 
 function makeHoldingSummary(
   player: Player,
-  overrides: Partial<HoldingWithPlayerSummary> &
-    Pick<HoldingWithPlayerSummary, "id" | "userId" | "isStackedShare">,
+  overrides: Partial<HoldingWithPlayerSummary> & Pick<HoldingWithPlayerSummary, "id" | "userId">,
 ): HoldingWithPlayerSummary {
   return {
     id: overrides.id,
@@ -69,8 +68,6 @@ function makeHoldingSummary(
     assetId: player.id,
     quantity: overrides.quantity || "2",
     effectiveShares: overrides.effectiveShares || overrides.quantity || "2",
-    multiplier: overrides.multiplier || "1.00",
-    isStackedShare: overrides.isStackedShare,
     avgCostBasis: overrides.avgCostBasis || "10.00",
     totalCostBasis: overrides.totalCostBasis || "20.00",
     lastUpdated: overrides.lastUpdated || new Date("2026-03-08T00:00:00.000Z"),
@@ -228,7 +225,6 @@ describe("buildMobileMarketOverview", () => {
         quantity: "1",
         multiplier: "3.00",
         effectiveShares: "3.00",
-        isStackedShare: true,
       }),
     ],
     getDailyBoostsAllSports: async () => [],

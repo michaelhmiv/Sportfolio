@@ -3,7 +3,6 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Clock3,
   Crown,
-  Database,
   Droplets,
   Loader2,
   Search,
@@ -46,7 +45,6 @@ import {
 const CATEGORY_OPTIONS: Array<{ value: PortfolioActivityCategoryFilter; label: string }> = [
   { value: "all", label: "All" },
   { value: "market", label: "Market" },
-  { value: "stacking", label: "Stacking" },
   { value: "boosts", label: "Boosts" },
   { value: "payouts", label: "Payouts" },
   { value: "liquidity", label: "Liquidity" },
@@ -65,7 +63,6 @@ const FOCUS_OPTIONS: Array<{ value: PortfolioActivityFocusFilter; label: string 
 const CATEGORY_LABELS: Record<UserActivityCategory, string> = {
   market: "Market",
   scout: "Scout",
-  stacking: "Stacking",
   boosts: "Boosts",
   community: "Community",
   liquidity: "Liquidity",
@@ -77,8 +74,6 @@ function getCategoryIcon(category: UserActivityCategory) {
   switch (category) {
     case "market":
       return ShoppingCart;
-    case "stacking":
-      return Database;
     case "boosts":
       return Trophy;
     case "liquidity":
@@ -99,8 +94,6 @@ function getCategoryTone(category: UserActivityCategory) {
   switch (category) {
     case "market":
       return "border-category-market/20 bg-category-market/10 text-category-market";
-    case "stacking":
-      return "border-category-stacking/20 bg-category-stacking/10 text-category-stacking";
     case "boosts":
       return "border-category-boost/20 bg-category-boost/10 text-category-boost";
     case "liquidity":

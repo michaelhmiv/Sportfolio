@@ -60,7 +60,6 @@ import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
 import { setupAuth, isAuthenticated, optionalAuth } from "./auth/runtime-auth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
-import { getPerformanceEarningUnits } from "./lib/performance-earnings";
 import { buildGameStatsPayload } from "./game-stats-response";
 import { getGameBoxscore } from "./game-boxscores";
 import { buildMlbGameplaySignals, type MlbGameplaySignal } from "./mlb-gameplay-signals";
@@ -109,7 +108,6 @@ import {
 import { ensureUserApiTokenSchema } from "./api-token-auth";
 import { getLeaderboardReadResponse } from "./leaderboards-read-service";
 import { getBotRuntimeStatus, getBotStats, runBotEngineTick } from "./bot/bot-engine";
-import { buildStackSharesResponsePayload } from "./lib/stack-shares-response";
 import {
   getCanonicalPlayerMarkets,
   getCanonicalPlayerMarket,
@@ -844,7 +842,7 @@ async function buildUserLiveEarningsSummary(params: {
       if ((player.sport || "").toUpperCase() !== String(game.sport || "").toUpperCase())
         return false;
       if (player.team !== game.homeTeam && player.team !== game.awayTeam) return false;
-      return getPerformanceEarningUnits(holding) > 0;
+      return parseLiveEarningsNumber(holding.quantity) > 0;
     })
     .reduce((map: Map<string, any>, entry: any) => {
       const holding = entry?.holding ?? entry;
@@ -861,7 +859,7 @@ async function buildUserLiveEarningsSummary(params: {
         liveByNameAndTeam.get(getLiveEarningsNameTeamKey(playerName, player?.team)) || 0;
       const fantasyPoints = fantasyPointsById || fantasyPointsByName;
       const quantity = parseLiveEarningsNumber(holding.quantity);
-      const effectiveShares = getPerformanceEarningUnits(holding);
+      const effectiveShares = quantity;
 
       const existing = map.get(playerId);
       if (!existing) {
@@ -1727,7 +1725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
 
       currentBoosts.forEach((boost) => boostedPlayerIds.add(boost.playerId));
-      boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
+      boostSlotsRemaining = Math.max(0, 5 - currentBoosts.length);
 
       const eligibleByGame = new Map<string, typeof eligiblePlayers>();
       eligiblePlayers.forEach((player) => {
@@ -1741,13 +1739,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Each holding row represents a distinct share with its own multiplier/effective-share state.
         // We show individual shares because only ONE share can be placed in a boost slot
         const topMultiplierPlayers = [...playersForGame]
-          .sort((a, b) => parseFloat(b.multiplier || "0") - parseFloat(a.multiplier || "0"))
+          .sort((a, b) => 0)
           .slice(0, 2)
           .map((player) => ({
             playerId: player.player.id,
             name: `${player.player.firstName} ${player.player.lastName}`,
             team: player.player.team,
-            multiplier: parseFloat(player.multiplier || "0"),
+            multiplier: 1,
             availableShares: Number(player.availableShares || 0),
             totalShares: Number(player.effectiveShares || player.quantity || 0),
             isBoosted: boostedPlayerIds.has(player.player.id),
@@ -1768,7 +1766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         playersForGame.forEach((player) => {
           const playerId = player.player.id;
-          const multiplier = parseFloat(player.multiplier || "0");
+          const multiplier = 1;
           const availableShares = Number(player.availableShares || 0);
           const totalShares = Number(player.effectiveShares || player.quantity || 0);
           const existing = ownedPlayersById.get(playerId);
@@ -1814,7 +1812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           playerId,
           name: `${holding.player.firstName} ${holding.player.lastName}`,
           team: holding.player.team,
-          multiplier: parseFloat(holding.multiplier || "0"),
+          multiplier: 1,
           availableShares: 0,
           totalShares,
           isBoosted: boostedPlayerIds.has(playerId),
@@ -3186,10 +3184,8 @@ ${items}
           currentPrice: position.marketPrice?.toFixed(2) ?? null,
         },
         quantity: position.singles.toFixed(2),
-        effectiveShares: position.gameplayPower.toFixed(2),
+        effectiveShares: position.singles.toFixed(2),
         singles: position.singles,
-        stackPower: position.stackPower,
-        gameplayPower: position.gameplayPower,
         value: position.marketValue?.toFixed(2) ?? null,
         pnl: position.unrealizedChange?.toFixed(2) ?? null,
         pnlPercent: position.unrealizedChangePercent?.toFixed(2) ?? null,
@@ -3511,7 +3507,7 @@ ${items}
           storage.getAllHoldingsWithPlayers(userId),
         ]);
 
-        boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
+        boostSlotsRemaining = Math.max(0, 5 - currentBoosts.length);
         const boostedPlayerIds = new Set(currentBoosts.map((boost) => boost.playerId));
 
         userHoldings = eligiblePlayers.map((holding) => ({
@@ -3520,7 +3516,6 @@ ${items}
           team: holding.player.team,
           availableShares: holding.availableShares,
           totalShares: parseFloat(holding.effectiveShares || holding.quantity) || 0,
-          multiplier: parseFloat(holding.multiplier) || 0,
           isBoosted: boostedPlayerIds.has(holding.player.id),
           gameId: holding.gameId,
         }));
@@ -9429,96 +9424,6 @@ ${items}
   });
 
   // ============================================
-  // STACK SHARES ROUTES
-  // ============================================
-
-  const handleStackShares = async (req: any, res: any) => {
-    try {
-      const userId = getUserId(req);
-      const { playerId, sharesToStack } = req.body;
-
-      // Validate input
-      if (!playerId) {
-        return res.status(400).json({ error: "playerId is required" });
-      }
-
-      const shares = parseInt(sharesToStack);
-      if (isNaN(shares) || shares < 4) {
-        return res.status(400).json({ error: "Minimum 4 shares required to stack" });
-      }
-
-      if (shares % 2 !== 0) {
-        return res.status(400).json({ error: "Share count must be even" });
-      }
-
-      const result = await storage.stackShares(userId, playerId, shares);
-      const holdingInfo = await storage.getHoldingMultiplierState(userId, playerId);
-      const player = await storage.getPlayer(playerId);
-      res.json(
-        buildStackSharesResponsePayload({
-          sharesStacked: result.sharesStacked,
-          multiplier: result.multiplier,
-          newMultiplier: result.newMultiplier,
-          effectiveSharesBurned: result.effectiveSharesBurned,
-          holding: holdingInfo,
-          player: player
-            ? {
-                id: player.id,
-                firstName: player.firstName,
-                lastName: player.lastName,
-                team: player.team,
-              }
-            : null,
-        }),
-      );
-    } catch (error: any) {
-      console.error("[holdings/stack-shares] Error:", error);
-      res.status(400).json({ error: error.message });
-    }
-  };
-
-  app.post("/api/holdings/stack-shares", isAuthenticated, handleStackShares);
-
-  // Get holding with multiplier info for a specific player
-  const handleHoldingMultiplierState = async (req: any, res: any) => {
-    try {
-      const userId = getUserId(req);
-      const { playerId } = req.params;
-
-      const holdingInfo = await storage.getHoldingMultiplierState(userId, playerId);
-
-      if (!holdingInfo) {
-        return res.json({
-          hasHolding: false,
-          quantity: 0,
-          availableShares: 0,
-          effectiveShares: 0,
-          multiplier: "0.00",
-          hasStackedShare: false,
-          canStackShares: false,
-          maxStackable: 0,
-        });
-      }
-
-      res.json({
-        hasHolding: true,
-        ...holdingInfo,
-        canStackShares: holdingInfo.canStackShares,
-        maxStackable: holdingInfo.maxStackable,
-      });
-    } catch (error: any) {
-      console.error("[holdings/multiplier-state] Error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  };
-
-  app.get(
-    "/api/holdings/:playerId/multiplier-state",
-    isAuthenticated,
-    handleHoldingMultiplierState,
-  );
-
-  // ============================================
   // DAILY BOOSTS ROUTES
   // ============================================
 
@@ -9731,82 +9636,34 @@ ${items}
         allHoldings.map((holding) => holding.player.id),
       );
 
-      // Aggregate holdings by playerId to avoid duplicates when user has multiple holding rows
-      // (e.g., regular shares + stacked shares for the same player)
-      const playerHoldingsMap = new Map<string, typeof allHoldings>();
-      for (const holding of allHoldings) {
-        if (!holding.player) continue;
-        const existing = playerHoldingsMap.get(holding.player.id);
-        if (existing) {
-          existing.push(holding);
-        } else {
-          playerHoldingsMap.set(holding.player.id, [holding]);
-        }
-      }
+      const result = allHoldings
+        .filter((holding) => holding.player)
+        .map((holding) => {
+          const player = holding.player!;
+          const teamGame = teamGameMap.get(player.team);
+          const quantity = parseFloat(holding.quantity || "0") || 0;
+          const totalLocked = lockedQuantities.get(player.id) || 0;
+          const availableShares = Math.max(0, quantity - totalLocked);
+          const gameStatus = getMarketplaceGameStatus(teamGame);
 
-      const result = Array.from(playerHoldingsMap.entries()).map(([playerId, holdings]) => {
-        const player = holdings[0].player;
-        const teamGame = teamGameMap.get(player.team);
-        const totalLocked = lockedQuantities.get(player.id) || 0;
-
-        // Aggregate share counts across all holding rows
-        let regularShares = 0;
-        let stackedShares = 0;
-        let availableShares = 0;
-        let totalEffectiveShares = 0;
-        let bestShareMultiplier = 1; // Default to 1 (regular share)
-
-        for (const holding of holdings) {
-          const qty = parseFloat(holding.quantity);
-          const multiplier = parseFloat(holding.multiplier || "1");
-          if (holding.isStackedShare) {
-            stackedShares += qty;
-          } else {
-            regularShares += qty;
-          }
-          totalEffectiveShares += parseFloat(holding.effectiveShares || holding.quantity || "0");
-
-          // Track the best (highest) share multiplier among holdings with at least 1 share.
-          if (qty >= 1 && multiplier > bestShareMultiplier) {
-            bestShareMultiplier = multiplier;
-          }
-        }
-
-        // Tradeable availability only applies to regular shares; stacked shares count as one
-        // boost-eligible share each and are not locked via holdings_locks.
-        availableShares = Math.max(0, regularShares - totalLocked) + stackedShares;
-        const effectiveShares = totalEffectiveShares.toFixed(2);
-
-        const gameStartTime = teamGame?.startTime;
-        const hasGameToday = !!teamGame;
-        const gameDbStatus = teamGame?.status || "scheduled";
-        const gameStatus = getMarketplaceGameStatus(teamGame);
-
-        return {
-          holdingId: holdings[0].id,
-          playerId: player.id,
-          player: player,
-          sport: player.sport,
-          availableShares,
-          regularShares,
-          availableRegularShares: Math.max(0, regularShares - totalLocked),
-          stackedShares,
-          effectiveShares,
-          multiplier: bestShareMultiplier.toFixed(2),
-          bestShareMultiplier,
-          totalShares: totalEffectiveShares.toFixed(2),
-          hasStackedShare: stackedShares > 0,
-          gameId: teamGame?.gameId || null,
-          gameStartTime: gameStartTime || null,
-          hasGameToday,
-          gameStatus,
-          gameDbStatus,
-          isAlreadyBoosted: boostedPlayerIds.has(player.id),
-          communityBoostCount: communityBoostMap.get(player.id) || 0,
-          hasCommunityBoost: communityBoostMap.has(player.id),
-          userPremiumShares,
-        };
-      });
+          return {
+            holdingId: holding.id,
+            playerId: player.id,
+            player,
+            sport: player.sport,
+            availableShares,
+            totalShares: quantity.toFixed(4),
+            gameId: teamGame?.gameId || null,
+            gameStartTime: teamGame?.startTime || null,
+            hasGameToday: Boolean(teamGame),
+            gameStatus,
+            gameDbStatus: teamGame?.status || "scheduled",
+            isAlreadyBoosted: boostedPlayerIds.has(player.id),
+            communityBoostCount: communityBoostMap.get(player.id) || 0,
+            hasCommunityBoost: communityBoostMap.has(player.id),
+            userPremiumShares,
+          };
+        });
 
       res.json({
         date: dateStr,
@@ -9859,9 +9716,7 @@ ${items}
         player: ep.player,
         availableShares: ep.availableShares,
         effectiveShares: ep.effectiveShares,
-        multiplier: ep.multiplier,
         totalShares: ep.effectiveShares,
-        hasStackedShare: ep.isStackedShare,
         gameId: ep.gameId,
         gameStartTime: ep.gameStartTime,
         isAlreadyBoosted: boostedPlayerIds.has(ep.player.id),
@@ -9902,28 +9757,22 @@ ${items}
       }
 
       const tierNum = parseInt(slotTier);
-      if (![2, 3, 4, 5].includes(tierNum)) {
-        return res.status(400).json({ error: "slotTier must be 2, 3, 4, or 5" });
+      if (![2, 3, 5, 7, 10].includes(tierNum)) {
+        return res.status(400).json({ error: "slotTier must be 2, 3, 5, 7, or 10" });
       }
 
-      const shares = parseInt(sharesEntered);
+      const shares = Number(sharesEntered);
       if (shares <= 0) {
         return res.status(400).json({ error: "sharesEntered must be positive" });
       }
 
-      // Verify only 1 share is entered per boost slot.
-      if (shares !== 1) {
-        return res.status(400).json({
-          error: `Only 1 share can be placed in a boost slot. You entered ${shares} shares. Use Stack Shares to roll more multiplier into a single share.`,
-        });
-      }
-
       const dateStr = resolveEtDateOrToday(date);
-      const { boost, canonicalPlayerId, shareMultiplier } = await assignDailyBoostWithValidation({
+      const { boost, canonicalPlayerId, sharesCommitted } = await assignDailyBoostWithValidation({
         userId,
         playerId,
         sport,
         slotTier: tierNum,
+        shares,
         etDate: dateStr,
       });
 
@@ -9940,7 +9789,7 @@ ${items}
           boostId: boost.id,
           playerId: canonicalPlayerId,
           slotTier: String(tierNum),
-          shareMultiplier,
+          sharesCommitted: sharesCommitted.toFixed(4),
         },
         dedupeKey: `boost_assigned:${boost.id}`,
       }).catch((error) => {
@@ -10056,13 +9905,8 @@ ${items}
           }
         }
 
-        const parsedShareMultiplier = Number(boost.shareMultiplier ?? 1);
-        const effectivePower = Number.isFinite(parsedShareMultiplier) ? parsedShareMultiplier : 1;
-        const parsedSlotTier = Number(boost.slotTier ?? 0);
-        const slotTierMultiplier = Number.isFinite(parsedSlotTier) ? parsedSlotTier : 0;
-        const estimatedPayoutValue = effectivePower * liveFantasyPoints * slotTierMultiplier;
-        const estimatedPayout = Number.isFinite(estimatedPayoutValue)
-          ? estimatedPayoutValue.toFixed(2)
+        const estimatedPayout = boost.totalEconomicEarningsSb
+          ? Number(boost.totalEconomicEarningsSb).toFixed(2)
           : "0.00";
 
         return {

@@ -25,7 +25,7 @@ const joey = {
 };
 
 describe("canonical AMM valuation", () => {
-  it("prices Joey's initialized zero-trade pool and excludes Stack Power from value", () => {
+  it("prices Joey's initialized zero-trade pool and excludes non-liquid legacy inventory from value", () => {
     const market = resolveCanonicalPlayerMarket({
       player: joey,
       pool: { shares: "5", playMoney: "50", lpSharesTotal: "10" },
@@ -64,8 +64,6 @@ describe("canonical AMM valuation", () => {
       singles: 60,
       lockedSingles: 10,
       availableSingles: 50,
-      stackPower: 600,
-      gameplayPower: 660,
       marketValue: 600,
     });
     expect(valuation).toMatchObject({
@@ -175,7 +173,7 @@ describe("canonical AMM valuation", () => {
     expect(market.marketCap).toBe(650);
   });
 
-  it("supports fractional Singles and multiple players without valuing Stack Power", () => {
+  it("supports fractional Singles and multiple players without valuing non-liquid legacy inventory", () => {
     const secondPlayer = { id: "mlb_1", firstName: "Ada", lastName: "Ace", sport: "MLB" };
     const joeyMarket = resolveCanonicalPlayerMarket({
       player: joey,
@@ -221,7 +219,6 @@ describe("canonical AMM valuation", () => {
       singles: 10.5,
       lockedSingles: 4.25,
       availableSingles: 6.25,
-      stackPower: 500,
       marketValue: 105,
     });
     expect(valuation).toMatchObject({
@@ -248,8 +245,6 @@ describe("canonical AMM valuation", () => {
     expect(valuation.positions).toHaveLength(1);
     expect(valuation.positions[0]).toMatchObject({
       singles: 0,
-      stackPower: 600,
-      gameplayPower: 600,
       marketValue: 0,
     });
     expect(valuation.portfolioValue).toBe(0);
