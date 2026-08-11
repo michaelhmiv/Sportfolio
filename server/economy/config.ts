@@ -1,3 +1,5 @@
+// Economy V2 intentionally keeps monetary policy centralized: the two season targets below are
+// the primary payout controls; sport/position differences are calibration data, not extra faucets.
 export const ECONOMY_VERSION = "economy-v2" as const;
 export const REGULAR_SEASON_TARGET_SB = 10_000;
 export const POSTSEASON_TARGET_SB = 10_000;
@@ -122,7 +124,11 @@ export function resolveEconomySeasonPhase(input: SeasonPhaseInput): EconomySeaso
   if (/PRESEASON|PRE-SEASON|EXHIBITION|SPRING TRAINING|SPRING_TRAINING/.test(combined)) {
     return "preseason";
   }
-  if (/POSTSEASON|POST-SEASON|PLAYOFF|WILD CARD|DIVISION|CHAMPIONSHIP|WORLD SERIES|SUPER BOWL/.test(combined)) {
+  if (
+    /POSTSEASON|POST-SEASON|PLAYOFF|WILD CARD|DIVISION|CHAMPIONSHIP|WORLD SERIES|SUPER BOWL/.test(
+      combined,
+    )
+  ) {
     return "postseason";
   }
   return "regular";
