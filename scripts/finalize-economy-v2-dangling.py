@@ -23,8 +23,13 @@ def clean_activity_tab(t):
     return t
 edit("client/src/components/portfolio-activity-tab.tsx", clean_activity_tab)
 
-# Deleted legacy payout helper must have no import remaining.
-edit("server/routes.ts", lambda t: t.replace('import { getPerformanceEarningUnits } from "./lib/performance-earnings";\n', ''))
+# Deleted legacy payout helper must have no import or calls remaining. Direct Singles quantity is the V2 earning unit.
+def clean_routes(t):
+    t = t.replace('import { getPerformanceEarningUnits } from "./lib/performance-earnings";\n', '')
+    t = t.replace('return getPerformanceEarningUnits(holding) > 0;', 'return parseLiveEarningsNumber(holding.quantity) > 0;')
+    t = t.replace('const effectiveShares = getPerformanceEarningUnits(holding);', 'const effectiveShares = quantity;')
+    return t
+edit("server/routes.ts", clean_routes)
 
 # Discord portfolio is Singles-only. Remove retired view/stack vocabulary rather than emulate it.
 def clean_discord_routes(t):
@@ -33,6 +38,8 @@ def clean_discord_routes(t):
     t = re.sub(r'^\s*"`/stack player:<name> amount:50%`",\n', '', t, flags=re.M)
     t = re.sub(r'\n\s*const view = normalizePortfolioView\(getStringOption\(options, "view"\)\);\n\s*if \(!view\) \{\n\s*return buildErrorResponse\("Invalid view filter\. Use one of: all, stacked, regular\."\);\n\s*\}\n', '\n', t)
     t = re.sub(r'\n\s*\.filter\(\(item: any\) => \{\n\s*if \(view === "stacked"\) return isStacked;\n\s*if \(view === "regular"\) return !isStacked;\n\s*return true;\n\s*\}\)', '', t)
+    t = re.sub(r'\n\s*if \(view === "stacked"\)[^\n]*\n', '\n', t)
+    t = re.sub(r'\n\s*if \(view === "regular"\)[^\n]*\n', '\n', t)
     return t
 edit("server/routes/discord.ts", clean_discord_routes)
 
