@@ -1,77 +1,80 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const storageMocks = vi.hoisted(() => ({
-  getDailyGames: vi.fn(),
-  createSharePayoutSnapshotsForGame: vi.fn(),
-}));
+const storageMocks = vi.hoisted(() => ({ getDailyGames: vi.fn() }));
+const economyMocks = vi.hoisted(() => ({ ensureGameShareSnapshots: vi.fn() }));
 
-vi.mock("../storage", () => ({
-  storage: {
-    getDailyGames: storageMocks.getDailyGames,
-    createSharePayoutSnapshotsForGame: storageMocks.createSharePayoutSnapshotsForGame,
-  },
+vi.mock("../storage", () => ({ storage: storageMocks }));
+vi.mock("../economy/repository", () => ({
+  ensureGameShareSnapshots: economyMocks.ensureGameShareSnapshots,
 }));
 
 describe("snapshotSharePayouts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.resetModules();
-    delete process.env.STACKED_SHARE_PAYOUT_CUTOVER_AT;
+    economyMocks.ensureGameShareSnapshots.mockResolvedValue({
+      playersSnapshotted: 1,
+      userSnapshots: 3,
+    });
   });
 
-  it("snapshots started games with the fixed base rate", async () => {
+  it("snapshots eligible ownership for games that have begun", async () => {
     storageMocks.getDailyGames.mockResolvedValue([
       {
         gameId: "game_1",
-        sport: "NBA",
-        homeTeam: "BOS",
-        awayTeam: "LAL",
+        sport: "MLB",
+        homeTeam: "ATL",
+        awayTeam: "WSH",
+        seasonType: "regular",
         status: "inprogress",
         startTime: new Date(Date.now() - 5 * 60 * 1000),
       },
     ]);
-    storageMocks.createSharePayoutSnapshotsForGame.mockResolvedValue(3);
 
     const { snapshotSharePayouts } = await import("./snapshot-share-payouts");
     const result = await snapshotSharePayouts();
 
     expect(result.recordsProcessed).toBe(3);
-    expect(storageMocks.createSharePayoutSnapshotsForGame).toHaveBeenCalledWith(
+    expect(economyMocks.ensureGameShareSnapshots).toHaveBeenCalledWith(
       expect.objectContaining({ gameId: "game_1" }),
-      "1.0000",
     );
   });
 
-  it("skips games that started before the configured cutover", async () => {
+  it("ignores future, cancelled, and preseason games without legacy cutovers", async () => {
     const now = Date.now();
-    process.env.STACKED_SHARE_PAYOUT_CUTOVER_AT = new Date(now - 60 * 60 * 1000).toISOString();
     storageMocks.getDailyGames.mockResolvedValue([
       {
-        gameId: "before_cutover",
-        sport: "NBA",
-        homeTeam: "NYK",
-        awayTeam: "BOS",
-        status: "inprogress",
-        startTime: new Date(now - 2 * 60 * 60 * 1000),
+        gameId: "future",
+        sport: "NFL",
+        homeTeam: "CAR",
+        awayTeam: "ATL",
+        seasonType: "regular",
+        status: "scheduled",
+        startTime: new Date(now + 60 * 60 * 1000),
       },
       {
-        gameId: "after_cutover",
-        sport: "NBA",
-        homeTeam: "DEN",
-        awayTeam: "LAL",
+        gameId: "cancelled",
+        sport: "MLB",
+        homeTeam: "ATL",
+        awayTeam: "NYM",
+        seasonType: "regular",
+        status: "cancelled",
+        startTime: new Date(now - 60 * 1000),
+      },
+      {
+        gameId: "preseason",
+        sport: "NFL",
+        homeTeam: "CAR",
+        awayTeam: "ATL",
+        seasonType: "preseason",
         status: "inprogress",
-        startTime: new Date(now - 30 * 60 * 1000),
+        startTime: new Date(now - 60 * 1000),
       },
     ]);
-    storageMocks.createSharePayoutSnapshotsForGame.mockResolvedValue(1);
 
     const { snapshotSharePayouts } = await import("./snapshot-share-payouts");
-    await snapshotSharePayouts();
+    const result = await snapshotSharePayouts();
 
-    expect(storageMocks.createSharePayoutSnapshotsForGame).toHaveBeenCalledTimes(1);
-    expect(storageMocks.createSharePayoutSnapshotsForGame).toHaveBeenCalledWith(
-      expect.objectContaining({ gameId: "after_cutover" }),
-      "1.0000",
-    );
+    expect(result.recordsProcessed).toBe(0);
+    expect(economyMocks.ensureGameShareSnapshots).not.toHaveBeenCalled();
   });
 });
