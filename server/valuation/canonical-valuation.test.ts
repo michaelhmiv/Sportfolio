@@ -25,7 +25,7 @@ const joey = {
 };
 
 describe("canonical AMM valuation", () => {
-  it("prices Joey's initialized zero-trade pool and excludes non-liquid legacy inventory from value", () => {
+  it("prices Joey's initialized zero-trade pool from liquid Singles only", () => {
     const market = resolveCanonicalPlayerMarket({
       player: joey,
       pool: { shares: "5", playMoney: "50", lpSharesTotal: "10" },
@@ -45,7 +45,6 @@ describe("canonical AMM valuation", () => {
           player: joey,
         },
       ],
-      multipliers: [{ id: "stack-1", playerId: joey.id, multiplier: 600, player: joey }],
       markets: new Map([[joey.id, market]]),
     });
 
@@ -68,8 +67,6 @@ describe("canonical AMM valuation", () => {
     });
     expect(valuation).toMatchObject({
       totalSingles: 60,
-      totalStackPower: 600,
-      totalGameplayPower: 660,
       singlesMarketValue: 600,
       lpMarketValue: 0,
       portfolioValue: 600,
@@ -119,7 +116,6 @@ describe("canonical AMM valuation", () => {
           player: joey,
         },
       ],
-      multipliers: [],
       markets: new Map([[joey.id, market]]),
     });
     expect(market).toMatchObject({
@@ -160,7 +156,6 @@ describe("canonical AMM valuation", () => {
       userId: "lp-owner",
       cashBalance: 0,
       holdings: [],
-      multipliers: [],
       lpPositions: [{ id: "lp-1", playerId: joey.id, lpShares: 2, player: joey, pool }],
       markets: new Map([[joey.id, market]]),
     });
@@ -173,7 +168,7 @@ describe("canonical AMM valuation", () => {
     expect(market.marketCap).toBe(650);
   });
 
-  it("supports fractional Singles and multiple players without valuing non-liquid legacy inventory", () => {
+  it("supports fractional Singles and multiple players", () => {
     const secondPlayer = { id: "mlb_1", firstName: "Ada", lastName: "Ace", sport: "MLB" };
     const joeyMarket = resolveCanonicalPlayerMarket({
       player: joey,
@@ -207,7 +202,6 @@ describe("canonical AMM valuation", () => {
           player: secondPlayer,
         },
       ],
-      multipliers: [{ id: "stack-joey", playerId: joey.id, multiplier: 500, player: joey }],
       markets: new Map([
         [joey.id, joeyMarket],
         [secondPlayer.id, secondMarket],
@@ -225,40 +219,31 @@ describe("canonical AMM valuation", () => {
       singlesMarketValue: 116.25,
       portfolioValue: 116.25,
       netWorth: 141.25,
-      totalStackPower: 500,
+      totalSingles: 12.75,
     });
   });
 
-  it("keeps Stack-only inventory owned but at zero liquid portfolio value", () => {
-    const market = resolveCanonicalPlayerMarket({
-      player: joey,
-      pool: { shares: 5, playMoney: 50 },
-      liquidUserShares: 0,
-    });
+  it("returns cash-only value when there are no liquid positions", () => {
     const valuation = calculateCanonicalPortfolio({
-      userId: "stack-only",
+      userId: "cash-only",
       cashBalance: 12,
       holdings: [],
-      multipliers: [{ id: "stack-1", playerId: joey.id, multiplier: 600, player: joey }],
-      markets: new Map([[joey.id, market]]),
+      markets: new Map(),
     });
-    expect(valuation.positions).toHaveLength(1);
-    expect(valuation.positions[0]).toMatchObject({
-      singles: 0,
-      marketValue: 0,
-    });
+    expect(valuation.positions).toHaveLength(0);
     expect(valuation.portfolioValue).toBe(0);
     expect(valuation.netWorth).toBe(12);
+    expect(valuation.totalSingles).toBe(0);
   });
 
-  it("does not preserve liquid value when Singles are converted through stacking mechanics", () => {
+  it("changes liquid portfolio value when the Singles balance changes", () => {
     const market = resolveCanonicalPlayerMarket({
       player: joey,
       pool: { shares: 5, playMoney: 50 },
       liquidUserShares: 10,
     });
     const before = calculateCanonicalPortfolio({
-      userId: "stacking-owner",
+      userId: "singles-owner",
       cashBalance: 0,
       holdings: [
         {
@@ -270,24 +255,26 @@ describe("canonical AMM valuation", () => {
           player: joey,
         },
       ],
-      multipliers: [],
       markets: new Map([[joey.id, market]]),
     });
     const after = calculateCanonicalPortfolio({
-      userId: "stacking-owner",
+      userId: "singles-owner",
       cashBalance: 0,
-      holdings: [],
-      multipliers: [{ id: "stack-1", playerId: joey.id, multiplier: 5, player: joey }],
+      holdings: [
+        {
+          id: "holding-1",
+          assetId: joey.id,
+          quantity: 5,
+          avgCostBasis: 10,
+          totalCostBasis: 50,
+          player: joey,
+        },
+      ],
       markets: new Map([[joey.id, market]]),
     });
 
-    expect(before).toMatchObject({ portfolioValue: 100, totalGameplayPower: 10 });
-    expect(after).toMatchObject({
-      portfolioValue: 0,
-      totalSingles: 0,
-      totalStackPower: 5,
-      totalGameplayPower: 5,
-    });
+    expect(before).toMatchObject({ portfolioValue: 100, totalSingles: 10 });
+    expect(after).toMatchObject({ portfolioValue: 50, totalSingles: 5 });
   });
 
   it("warns when duplicate source rows would violate one-position-per-player", () => {
@@ -308,7 +295,6 @@ describe("canonical AMM valuation", () => {
       userId: "duplicate-owner",
       cashBalance: 0,
       holdings: [holding, { ...holding, id: "holding-2" }],
-      multipliers: [],
       markets: new Map([[joey.id, market]]),
     });
     expect(valuation.positions).toHaveLength(1);

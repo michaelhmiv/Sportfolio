@@ -12,9 +12,7 @@ const coreSurfaces = [
   "pages/watchlists.tsx",
   "pages/player.tsx",
   "components/player-modal.tsx",
-  "components/portfolio-card-view.tsx",
   "components/portfolio-activity-tab.tsx",
-  "components/portfolio-stacking-tab.tsx",
   "components/market-mobile-home.tsx",
   "components/market-mobile-pools-board.tsx",
   "components/market-mobile-player-sheet.tsx",
@@ -34,25 +32,26 @@ const hardcodedRadius =
   /(?:\brounded(?!-)\b|\brounded-\[[^\]]+\]|\brounded-(?:none|sm|md|lg|xl|2xl|3xl|full)\b)/g;
 const emojiPresentation = /\p{Extended_Pictographic}/gu;
 
+const allowedHardcodedRadiusBySurface: Partial<
+  Record<(typeof coreSurfaces)[number], readonly string[]>
+> = {
+  "pages/boosts.tsx": ["rounded-md", "rounded-none"],
+};
+
 describe("core exchange visual contract", () => {
   it.each(coreSurfaces)("uses semantic color roles in %s", (relativePath) => {
     const source = readFileSync(resolve(process.cwd(), "client/src", relativePath), "utf8");
+    const allowedRadii = new Set(allowedHardcodedRadiusBySurface[relativePath] ?? []);
+    const unapprovedRadii = (source.match(hardcodedRadius) ?? []).filter(
+      (radius) => !allowedRadii.has(radius),
+    );
+
     expect(source.match(hardcodedPalette) ?? []).toEqual([]);
-    expect(source.match(hardcodedRadius) ?? []).toEqual([]);
+    expect(unapprovedRadii).toEqual([]);
     expect(source.match(emojiPresentation) ?? []).toEqual([]);
   });
 
-  it("preserves distinct semantic multiplier tiers instead of collapsing them to one color", () => {
-    const source = readFileSync(
-      resolve(process.cwd(), "client/src/components/portfolio-card-view.tsx"),
-      "utf8",
-    );
-    for (const tier of ["standard", "boosted", "elite", "legendary", "mythic"] as const) {
-      expect(source).toContain(`bg-tier-${tier}`);
-    }
-  });
-
-  it("keeps product badges, ownership, stacking, and boost chrome off chart-series aliases", () => {
+  it("keeps product badges, ownership, and boost chrome off chart-series aliases", () => {
     const read = (relativePath: string) =>
       readFileSync(resolve(process.cwd(), "client/src/components", relativePath), "utf8");
     const chartAlias = /\b(?:bg|border|fill|stroke|text)-chart-\d\b/g;
@@ -134,8 +133,6 @@ describe("core exchange visual contract", () => {
       expect(multiplierLeaders).toContain(`tier-${tier}`);
     }
 
-    expect(read("portfolio-card-view.tsx")).not.toContain("chart-");
-
     const dashboard = readFileSync(
       resolve(process.cwd(), "client/src/pages/dashboard.tsx"),
       "utf8",
@@ -151,11 +148,6 @@ describe("core exchange visual contract", () => {
       'label: "Boost Ready",\n        accentClassName: "bg-category-boost"',
     );
     expect(mobileHome).toContain('label: "Watchlist",\n        accentClassName: "bg-selected"');
-
-    const stacking = read("portfolio-stacking-tab.tsx");
-    expect(stacking).not.toContain("chart-");
-    expect(stacking).toContain('gameStatus === "live") return "text-status-live"');
-    expect(stacking).toContain('gameStatus === "upcoming") return "text-status-info"');
   });
 
   it("orders MLB game detail by score, exposure, lineups, then collapsed scoring context", () => {

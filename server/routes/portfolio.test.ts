@@ -78,7 +78,6 @@ describe("GET /api/portfolio canonical contract", () => {
           player: unpriced,
         },
       ],
-      multipliers: [{ id: "stack-joey", playerId: joey.id, multiplier: 600, player: joey }],
       markets: new Map([
         [joey.id, joeyMarket],
         [unpriced.id, unpricedMarket],
@@ -124,8 +123,6 @@ describe("GET /api/portfolio canonical contract", () => {
         lpMarketValue: "0.00",
         netWorth: "1500.00",
         totalSingles: 63,
-        totalStackPower: 600,
-        totalGameplayPower: 663,
         pricedPositionCount: 1,
         unpricedPositionCount: 1,
         unpricedSingles: 3,
