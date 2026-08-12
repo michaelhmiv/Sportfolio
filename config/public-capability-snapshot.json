@@ -393,19 +393,6 @@
     },
     {
       "kind": "tool",
-      "name": "get_holding_multiplier_state",
-      "auth": "oauth",
-      "readOnly": true,
-      "destructive": false,
-      "openWorld": false,
-      "outputSchema": "plugin-envelope-v1",
-      "resourceUri": null,
-      "domain": "portfolio",
-      "sportClassification": "none",
-      "source": "public_registry:tool"
-    },
-    {
-      "kind": "tool",
       "name": "get_holdings",
       "auth": "oauth",
       "readOnly": true,
