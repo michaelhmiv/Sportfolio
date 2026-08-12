@@ -5,7 +5,13 @@ server/public
 vite.config.ts.*
 *.tar.gz
 *.tgz
+.agent-dev.log
 .codex-agent-dev.log
+debug_output*.txt
+tsc_errors*.txt
+pr_comments*.json
+pr_review*.json
+.firebase-test-trigger
 tmp/
 .claude/worktrees/
 vendor/mlb-mcp/
