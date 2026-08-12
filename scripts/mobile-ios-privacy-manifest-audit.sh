@@ -14,6 +14,10 @@ roots=(
   "mobile/ios/App"
 )
 
+if [[ -d "${HOME:-}/Library/Developer/Xcode/DerivedData" ]]; then
+  roots+=("$HOME/Library/Developer/Xcode/DerivedData")
+fi
+
 if [[ -n "${IOS_PRIVACY_SCAN_ROOTS:-}" ]]; then
   IFS=':' read -r -a extra_roots <<< "$IOS_PRIVACY_SCAN_ROOTS"
   for root in "${extra_roots[@]}"; do
