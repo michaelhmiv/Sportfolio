@@ -10,7 +10,7 @@ lastReviewedAt: 2026-08-11
 
 ## Current Assessment
 
-Sportfolio has a functional Capacitor iOS application, signed-build/TestFlight automation, App Store listing automation, native rewarded ads, native passwordless authentication handoff, account deletion, and App Review metadata in the repository.
+Sportfolio has a functional Capacitor iOS application, signed-build/TestFlight automation, App Store listing automation, native rewarded ads, native passwordless authentication handoff, account deletion, profile-safety controls, and App Review metadata in the repository.
 
 The iOS release path is no longer a greenfield or platform-parity project. The main release risk is keeping the live web-backed application, App Store declarations, third-party privacy disclosures, review access, and generated listing synchronized at the exact moment a build is submitted.
 
@@ -58,6 +58,18 @@ Current release contract:
 - the Support page provides `Report an ad` for inappropriate or age-inappropriate ads;
 - the app retains limited recent ad diagnostic context on-device so a report can identify the relevant response/network adapter when available.
 
+## Public Profile Content / UGC
+
+Sportfolio exposes user-selected public profile elements, including usernames and profile images, so the App Store age-rating declaration now sets `userGeneratedContent: true`.
+
+Signed-in users can:
+
+- report objectionable profile content for moderation review;
+- block another user's public profile from their own account;
+- unblock that profile later.
+
+Profile reports persist the reporting user, reported account, reason/details, and a snapshot of the reported username/profile-image reference. Blocks are persisted and the public-profile endpoint hides a blocked user's profile content from the blocker.
+
 ## App Store Age Rating
 
 Committed automated declarations live at:
@@ -67,6 +79,7 @@ Committed automated declarations live at:
 Current automated values intentionally include:
 
 - `advertising: true`
+- `userGeneratedContent: true`
 - `gambling: false`
 - `gamblingSimulated: NONE`
 
@@ -83,7 +96,7 @@ Fastlane now requires App Review contact information rather than silently skippi
 - `APP_STORE_REVIEW_CONTACT_EMAIL`
 - `APP_STORE_REVIEW_CONTACT_PHONE`
 
-The committed review notes describe only current behavior: virtual currency, passwordless review access, core gameplay, rewarded ads/reporting, account deletion, the iOS commerce boundary, and native integrations. Future-tense statements about unfinished IAP work are prohibited by the iOS doctor.
+The committed review notes describe only current behavior: virtual currency, passwordless review access, core gameplay, rewarded ads/reporting, public-profile safety controls, account deletion, the iOS commerce boundary, and native integrations. Future-tense statements about unfinished IAP work are prohibited by the iOS doctor.
 
 ## Privacy Manifest / SDK Gate
 
@@ -93,9 +106,9 @@ The audit also reports whether Google Mobile Ads/User Messaging Platform manifes
 
 ## CI Coverage
 
-`iOS PR CI` now triggers for the full `client/src/**` surface, relevant shared/native-auth/rewarded-ad backend code, iOS workflows, App Store scripts, and iOS documentation.
+`iOS App Review CI` is the active macOS/Xcode review gate. It triggers for the full `client/src/**` surface, relevant shared/native-auth/profile-safety/rewarded-ad backend code, migrations, iOS workflows, App Store scripts, and iOS documentation.
 
-The iOS PR job performs:
+The iOS review job performs:
 
 1. current Xcode selection/version verification;
 2. dependency install;
@@ -112,7 +125,7 @@ The signed TestFlight lane performs the privacy-manifest audit after the App Sto
 `iOS App Store Listing` intentionally does not submit the app for review. Before it can update App Store Connect, it now requires explicit confirmation that the operator has reviewed:
 
 - App Privacy;
-- the current age-rating questionnaire, including Advertising and the July 2026 Social Media questions;
+- the current age-rating questionnaire, including Advertising, UGC, and the July 2026 Social Media questions;
 - passwordless reviewer access and production-backend health;
 - the Accessibility Nutrition Label.
 
@@ -125,7 +138,7 @@ The workflow runs the repository readiness doctor before applying App Store decl
 These cannot be truthfully certified from repository state alone and remain final release actions:
 
 1. Confirm App Privacy answers match the final build/Xcode privacy report.
-2. Confirm the current age-rating questionnaire, including the new Social Media fields.
+2. Confirm the current age-rating questionnaire, including UGC and the new Social Media fields.
 3. Confirm Accessibility Nutrition Label answers.
 4. Confirm App Review contact information and reviewer access.
 5. Confirm storefront availability and screenshot presentation.
@@ -139,4 +152,4 @@ Use `docs/ios-publish-readiness-v1-checklist.md` as the operational release chec
 
 ## Bottom Line
 
-The native build/signing/upload path is established. Current readiness work is primarily release governance: ensuring today's production experience is tested, declarations match actual app behavior, advertising/privacy requirements are represented accurately, and App Store Connect-only answers are explicitly reconfirmed immediately before submission.
+The native build/signing/upload path is established. Current readiness work is primarily release governance: ensuring today's production experience is tested, declarations match actual app behavior, advertising/privacy/UGC requirements are represented accurately, and App Store Connect-only answers are explicitly reconfirmed immediately before submission.
