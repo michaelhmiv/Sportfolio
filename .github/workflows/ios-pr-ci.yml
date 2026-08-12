@@ -20,7 +20,9 @@ on:
       - "scripts/ios-app-store-screenshots.mjs"
       - "client/src/**"
       - "shared/**"
+      - "migrations/**"
       - "server/auth/**"
+      - "server/profile/**"
       - "server/routes/mobile-**"
       - "server/services/rewarded-scout-boost*"
 
