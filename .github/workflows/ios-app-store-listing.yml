@@ -13,6 +13,26 @@ on:
         required: true
         default: "iPhone 16 Pro Max"
         type: string
+      app_privacy_confirmed:
+        description: "I confirmed App Store Connect App Privacy matches the current app, including rewarded advertising"
+        required: true
+        default: false
+        type: boolean
+      age_rating_confirmed:
+        description: "I confirmed the current age-rating questionnaire, including Advertising and the July 2026 Social Media questions"
+        required: true
+        default: false
+        type: boolean
+      review_access_confirmed:
+        description: "I tested passwordless email sign-in/new-account access for an Apple reviewer and the production backend is healthy"
+        required: true
+        default: false
+        type: boolean
+      accessibility_confirmed:
+        description: "I reviewed the current Accessibility Nutrition Label answers in App Store Connect"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -35,10 +55,19 @@ jobs:
       IOS_APP_STORE_SCREENSHOT_DIR: ${{ github.workspace }}/mobile/ios/App/fastlane/screenshots/en-US
       IOS_APP_STORE_SCREENSHOT_SIMULATORS: ${{ inputs.simulator_names }}
       IOS_BUNDLE_ID: com.sportfoliomarket.app
+      IOS_PRIVACY_MANIFEST_REPORT: tmp/ios-app-store-privacy-manifests.txt
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
+      - name: Select current App Store Xcode toolchain
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Verify active Xcode version
+        run: xcodebuild -version
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -49,24 +78,62 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate App Store Connect secrets
+      - name: Validate manual App Store review gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=0
+          if [ "${{ inputs.app_privacy_confirmed }}" != "true" ]; then
+            echo "::error::Confirm the App Privacy questionnaire before syncing listing data."
+            failures=1
+          fi
+          if [ "${{ inputs.age_rating_confirmed }}" != "true" ]; then
+            echo "::error::Confirm the current age-rating questionnaire, including Advertising and Social Media capability answers."
+            failures=1
+          fi
+          if [ "${{ inputs.review_access_confirmed }}" != "true" ]; then
+            echo "::error::Verify Apple-review passwordless sign-in/new-account access and production backend health."
+            failures=1
+          fi
+          if [ "${{ inputs.accessibility_confirmed }}" != "true" ]; then
+            echo "::error::Confirm the Accessibility Nutrition Label before syncing listing data."
+            failures=1
+          fi
+          exit "$failures"
+
+      - name: Validate App Store Connect and App Review secrets
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.APP_STORE_REVIEW_CONTACT_FIRST_NAME }}
+          APP_STORE_REVIEW_CONTACT_LAST_NAME: ${{ secrets.APP_STORE_REVIEW_CONTACT_LAST_NAME }}
+          APP_STORE_REVIEW_CONTACT_EMAIL: ${{ secrets.APP_STORE_REVIEW_CONTACT_EMAIL }}
+          APP_STORE_REVIEW_CONTACT_PHONE: ${{ secrets.APP_STORE_REVIEW_CONTACT_PHONE }}
         run: |
+          set -euo pipefail
           required=(
             APP_STORE_CONNECT_KEY_ID
             APP_STORE_CONNECT_ISSUER_ID
             APP_STORE_CONNECT_API_KEY_BASE64
+            APP_STORE_REVIEW_CONTACT_FIRST_NAME
+            APP_STORE_REVIEW_CONTACT_LAST_NAME
+            APP_STORE_REVIEW_CONTACT_EMAIL
+            APP_STORE_REVIEW_CONTACT_PHONE
           )
 
           for name in "${required[@]}"; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing required App Store Connect secret ${name}"
+              echo "::error::Missing required App Store/App Review secret ${name}"
               exit 1
             fi
           done
+
+      - name: Sync Capacitor iOS
+        run: npm run mobile:sync:ios
+
+      - name: Run iOS and App Store readiness doctor
+        run: npm run mobile:ios:doctor
 
       - name: Apply App Store submission declarations
         env:
@@ -74,12 +141,6 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
         run: npm run mobile:ios:app-store-prep -- --apply
-
-      - name: Sync Capacitor iOS
-        run: npm run mobile:sync:ios
-
-      - name: Run iOS guardrail doctor
-        run: npm run mobile:ios:doctor
 
       - name: Build unsigned iOS simulator app
         shell: bash
@@ -95,6 +156,11 @@ jobs:
               CODE_SIGNING_ALLOWED=NO
           ) 2>&1 | tee "${IOS_BUILD_LOG}"
 
+      - name: Audit iOS privacy manifests
+        env:
+          IOS_PRIVACY_SCAN_ROOTS: ${{ env.IOS_DERIVED_DATA }}
+        run: bash scripts/mobile-ios-privacy-manifest-audit.sh
+
       - name: Capture App Store screenshots
         timeout-minutes: 25
         run: node scripts/ios-app-store-screenshots.mjs
@@ -108,12 +174,16 @@ jobs:
         working-directory: mobile/ios/App
         run: bundle install --path vendor/bundle
 
-      - name: Upload listing metadata and screenshots
+      - name: Upload listing metadata, App Review information, and screenshots
         working-directory: mobile/ios/App
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.APP_STORE_REVIEW_CONTACT_FIRST_NAME }}
+          APP_STORE_REVIEW_CONTACT_LAST_NAME: ${{ secrets.APP_STORE_REVIEW_CONTACT_LAST_NAME }}
+          APP_STORE_REVIEW_CONTACT_EMAIL: ${{ secrets.APP_STORE_REVIEW_CONTACT_EMAIL }}
+          APP_STORE_REVIEW_CONTACT_PHONE: ${{ secrets.APP_STORE_REVIEW_CONTACT_PHONE }}
         run: |
           set -euo pipefail
           bundle exec fastlane ios app_store_listing_ci \
@@ -129,6 +199,7 @@ jobs:
           if-no-files-found: warn
           path: |
             ${{ env.IOS_BUILD_LOG }}
+            ${{ env.IOS_PRIVACY_MANIFEST_REPORT }}
             ${{ env.IOS_APP_STORE_ARTIFACT_DIR }}
             mobile/ios/App/fastlane/metadata
             mobile/ios/App/fastlane/screenshots
