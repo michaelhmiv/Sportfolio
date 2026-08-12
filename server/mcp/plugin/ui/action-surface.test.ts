@@ -83,6 +83,7 @@ describe("Sportfolio generic action review presentation", () => {
     });
     expect(entry.resourceUri).toBe("ui://sportfolio/action-review/v1.html");
     expect(entry.fixtureArgs.transactionId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(entry.description.toLowerCase()).not.toContain("stack");
   });
 
   it("does not register when the global or action-review UI flag is disabled", async () => {
@@ -181,6 +182,7 @@ describe("Sportfolio generic action review presentation", () => {
 
   it("renders completed status and sanitizes transaction-load failures", async () => {
     const fixture = fakeServer();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     await registerActionPluginUiSurface(fixture.server, {
       auth: { userId: "user_1" },
     } as any);
@@ -202,25 +204,50 @@ describe("Sportfolio generic action review presentation", () => {
       data: { confirmationRequired: false, status: "completed" },
     });
 
-    vi.mocked(getGameplayTransaction).mockRejectedValueOnce(new Error("Transaction not found"));
+    vi.mocked(getGameplayTransaction).mockRejectedValueOnce(
+      new Error("database password and internal stack"),
+    );
     const failed = await tool?.handler({ transactionId });
     expect(failed).toMatchObject({
       isError: true,
-      content: [{ type: "text", text: "Transaction not found" }],
+      content: [
+        {
+          type: "text",
+          text: "Sportfolio could not load this staged action. It may have expired or is no longer available.",
+        },
+      ],
       structuredContent: {
         view: "action_review",
         data: {
           code: "plugin_ui_action_review_failed",
-          message: "Transaction not found",
+          message:
+            "Sportfolio could not load this staged action. It may have expired or is no longer available.",
         },
       },
     });
+    expect(JSON.stringify(failed)).not.toContain("database password");
+    expect(consoleError).toHaveBeenCalledWith(
+      "Sportfolio action review lookup failed",
+      expect.objectContaining({
+        tool: "render_action_review",
+        userId: "user_1",
+        transactionId,
+        errorType: "Error",
+        errorMessage: "database password and internal stack",
+      }),
+    );
 
     vi.mocked(getGameplayTransaction).mockRejectedValueOnce("unknown failure");
     const unknownFailure = await tool?.handler({ transactionId });
     expect(unknownFailure).toMatchObject({
       isError: true,
-      content: [{ type: "text", text: "Sportfolio could not load this action." }],
+      content: [
+        {
+          type: "text",
+          text: "Sportfolio could not load this staged action. It may have expired or is no longer available.",
+        },
+      ],
     });
+    consoleError.mockRestore();
   });
 });
