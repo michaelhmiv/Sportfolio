@@ -19,6 +19,15 @@ const sections = [
     ],
   },
   {
+    id: "public-profiles-and-safety",
+    title: "Public Profiles and Safety Controls",
+    body: [
+      "If your Sportfolio profile is public, other users may see user-selected profile information such as your username, profile image, and eligible public trophy-case content. You can change supported profile visibility settings from your account controls.",
+      "Signed-in users can report public profile content for moderation review and can block another user's public profile from their own account. A profile report stores the reporting user, the reported account, the selected reason, optional report details, and a snapshot of the reported username and profile-image reference so the report can be investigated even if the profile later changes.",
+      "A block records the relationship between the blocking account and blocked account and is used to hide that user's public profile content from the blocker. Blocks can be removed by the blocking user.",
+    ],
+  },
+  {
     id: "connected-ai-app",
     title: "ChatGPT and Codex App",
     body: [
@@ -69,7 +78,7 @@ const sections = [
     id: "rights-and-controls",
     title: "Your Rights and Controls",
     body: [
-      "You may access or modify available profile information through account settings or supported connected-app tools, revoke connected applications, and request deletion through the dedicated Delete Account page.",
+      "You may access or modify available profile information through account settings or supported connected-app tools, change supported public-profile visibility, report or block public profiles, revoke connected applications, and request deletion through the dedicated Delete Account page.",
       "For other privacy requests, contact Sportfolio support. We may need to verify your identity before fulfilling a request.",
     ],
   },
@@ -86,7 +95,7 @@ const sections = [
     title: "Data Retention",
     body: [
       "We retain account and gameplay data while an account remains active and as reasonably necessary to provide historical activity, resolve disputes, enforce agreements, meet legal obligations, and maintain platform integrity.",
-      "Pending action records, transaction history, audit records, and account-change records may be retained as reasonably necessary to prevent duplicate execution, investigate errors or abuse, and preserve gameplay integrity.",
+      "Pending action records, transaction history, audit records, profile-safety reports and blocks, and account-change records may be retained as reasonably necessary to prevent duplicate execution, investigate errors or abuse, preserve safety controls, and maintain gameplay integrity.",
       "Account deletion remains subject to legitimate legal, security, fraud-prevention, backup, and record-retention requirements.",
     ],
   },
@@ -125,7 +134,7 @@ export default function Privacy() {
           {section.id === "contact" ? (
             <p>
               Questions about this policy, data access, connected applications, advertising, ad
-              reports, or account deletion may be sent to{" "}
+              reports, profile safety, or account deletion may be sent to{" "}
               <a
                 className="font-medium text-brand underline underline-offset-4"
                 href={`mailto:${SPORTFOLIO_SUPPORT_EMAIL}`}
