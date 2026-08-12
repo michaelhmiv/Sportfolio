@@ -10,7 +10,8 @@ Core review path
 2. Open Portfolio to review holdings and virtual portfolio value.
 3. Open Scouts to assign scouts. On iOS, the optional rewarded-ad scout boost can temporarily increase scout capacity. Rewarded-ad requests are configured as non-personalized. Users can report inappropriate or age-inappropriate ads from Support > Report an ad.
 4. Open Boosts, Leaderboards, Watchlists, and other game surfaces to review live sports-driven strategy features.
-5. Account deletion can be initiated from the in-app account settings/deletion flow.
+5. Public profiles can contain user-selected usernames and profile images. From Support > Profile safety, a signed-in user can report objectionable profile content and block or unblock another profile. Blocking hides that user's public profile content from the blocker. Reports are stored for moderation review with the reported profile context.
+6. Account deletion can be initiated from the in-app account settings/deletion flow.
 
 iOS commerce boundary
 - The submitted iOS version does not expose external checkout or external purchase-sync controls for digital goods.
