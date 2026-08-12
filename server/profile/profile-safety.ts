@@ -1,5 +1,3 @@
-import { pool } from "../db";
-
 export const profileReportReasons = [
   "inappropriate_profile",
   "harassment",
@@ -16,7 +14,13 @@ type ProfileSafetyTarget = {
   profileImageUrl: string | null;
 };
 
+async function getPool() {
+  const { pool } = await import("../db");
+  return pool;
+}
+
 async function resolveTargetByUsername(username: string): Promise<ProfileSafetyTarget | null> {
+  const pool = await getPool();
   const result = await pool.query<{
     id: string;
     username: string | null;
@@ -66,6 +70,7 @@ export async function reportUserProfile(input: {
   if (!target) throw targetNotFound();
   assertNotSelf(input.reporterUserId, target.id);
 
+  const pool = await getPool();
   await pool.query(
     `INSERT INTO user_profile_reports (
        reporter_user_id,
@@ -96,6 +101,7 @@ export async function blockUserProfile(input: {
   if (!target) throw targetNotFound();
   assertNotSelf(input.blockerUserId, target.id);
 
+  const pool = await getPool();
   await pool.query(
     `INSERT INTO user_profile_blocks (blocker_user_id, blocked_user_id)
      VALUES ($1, $2)
@@ -114,6 +120,7 @@ export async function unblockUserProfile(input: {
   if (!target) throw targetNotFound();
   assertNotSelf(input.blockerUserId, target.id);
 
+  const pool = await getPool();
   await pool.query(
     `DELETE FROM user_profile_blocks
       WHERE blocker_user_id = $1
@@ -135,6 +142,7 @@ export async function getUserProfileBlockStatus(input: {
     return { blocked: false, blockedUserId: target.id, username: target.username };
   }
 
+  const pool = await getPool();
   const result = await pool.query<{ blocked: boolean }>(
     `SELECT EXISTS (
        SELECT 1
@@ -158,6 +166,7 @@ export async function isProfileBlockedForViewer(
 ): Promise<boolean> {
   if (!viewerUserId || viewerUserId === requestedUserId) return false;
 
+  const pool = await getPool();
   const result = await pool.query<{ blocked: boolean }>(
     `SELECT EXISTS (
        SELECT 1
