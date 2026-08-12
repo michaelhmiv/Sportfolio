@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
 
+env:
+  NODE_ENV: test
+  DEV_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_plugin_ci
+
 jobs:
   regenerate:
     runs-on: ubuntu-latest
