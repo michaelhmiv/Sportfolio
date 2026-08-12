@@ -25,6 +25,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           registry = Path('server/mcp/public-tool-registry.ts')
           text = registry.read_text()
@@ -33,24 +34,24 @@ jobs:
               'fixtureArgs: { section: "gameplay", slug: "sports-and-slates" },',
               1,
           )
-          retired_tool = '''  defineTool({
-            name: "get_holding_multiplier_state",
-            description: "Read holding multiplier and available share state for a player.",
-            domain: "portfolio",
-            readOnly: true,
-            inputSchema: playerIdSchema,
-            fixtureArgs: { playerId: "player_1" },
-            execute: (context, args) => executeReadTool(context, "get_holding_multiplier_state", args),
-          }),
-          '''
-          text = text.replace(retired_tool, '', 1)
-          retired_route = '''  {
-            method: "GET",
-            path: "/api/holdings/:playerId/multiplier-state",
-            capabilityIds: ["get_holding_multiplier_state"],
-          },
-          '''
-          text = text.replace(retired_route, '', 1)
+          text, tool_count = re.subn(
+              r'\s*defineTool\(\{\s*name: "get_holding_multiplier_state",.*?\}\),',
+              '',
+              text,
+              count=1,
+              flags=re.S,
+          )
+          text, route_count = re.subn(
+              r'\s*\{\s*method: "GET",\s*path: "/api/holdings/:playerId/multiplier-state",\s*capabilityIds: \["get_holding_multiplier_state"\],\s*\},',
+              '',
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if tool_count != 1 or route_count != 1:
+              raise SystemExit(f'Expected to remove one multiplier tool and route, got tool={tool_count} route={route_count}')
+          if 'get_holding_multiplier_state' in text or '/api/holdings/:playerId/multiplier-state' in text:
+              raise SystemExit('Multiplier-state residue remains in public-tool-registry.ts')
           registry.write_text(text)
 
           market = Path('server/market-mobile-overview.test.ts')
