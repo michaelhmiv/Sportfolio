@@ -1,31 +1,27 @@
-# Apple Sign In Metadata (Non-Secret)
+# Apple Sign In Metadata — Retired
 
-Last updated: 2026-05-28
-Owner: Sportfolio iOS/Auth
+Last reviewed: 2026-08-11
+Status: retired
+Owner: Sportfolio Auth
 
-## Purpose
+## Current State
 
-This document tracks non-secret Apple Sign in configuration values used by Sportfolio.
-Do not store private key files (`.p8`) or generated Apple client secrets in this repository.
+Sportfolio no longer uses the former Supabase-backed Sign in with Apple configuration described by earlier versions of this document.
 
-## Current Configuration
+Current public authentication is Sportfolio-owned passwordless email sign-in. Native iOS authentication uses the one-time email flow and the `sportfolio://auth/callback` handoff implemented by the current native-auth stack.
 
-- Apple Team ID: `R42LWFBXBH`
-- Apple Services ID (Client ID): `com.sportfolio.auth`
-- Active Apple Key ID: `T46N2W9CLV`
-- Supabase Project Ref: `xolfyrbtkmwgllrazcfh`
-- Supabase Callback URL: `https://xolfyrbtkmwgllrazcfh.supabase.co/auth/v1/callback`
-- Supabase Domain (for Apple Services ID): `xolfyrbtkmwgllrazcfh.supabase.co`
+Do not use this document as an instruction to restore Supabase, Apple OAuth credentials, an Apple Services ID, or a Sign in with Apple provider. Those components are not part of the current public authentication architecture.
 
-## Rotation / Maintenance
+## App Store Implication
 
-- Apple OAuth client secret expires every 6 months for OAuth-based Sign in with Apple.
-- Create a calendar reminder at least 2 weeks before expiration to rotate:
-  - Apple Sign in key (`.p8`) if needed
-  - Supabase Apple provider client secret (JWT)
-- After rotation, verify login using a private/incognito browser session.
+The current iOS release should be reviewed and tested against the passwordless email flow documented in:
 
-## Storage Policy
+- `docs/ios-publish-readiness-v1-checklist.md`
+- `docs/ios-readiness-audit.md`
+- `mobile/ios/App/fastlane/metadata/review_information/notes.txt`
 
-- Keep `.p8` files in a secure secret manager or encrypted vault.
-- Keep generated client secrets in secret stores only (not Git, not docs, not issue comments).
+If Sportfolio intentionally adds a qualifying third-party/social login method in the future, reevaluate Apple's current login-service requirements at that time and create new configuration documentation from the then-current implementation.
+
+## Secret Policy
+
+Do not commit Apple private keys (`.p8`), generated OAuth client secrets, App Store Connect private keys, signing certificate passwords, magic-link tokens, or other authentication credentials to this repository.
