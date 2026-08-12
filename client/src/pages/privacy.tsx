@@ -30,6 +30,16 @@ const sections = [
     ],
   },
   {
+    id: "rewarded-advertising",
+    title: "Rewarded Advertising",
+    body: [
+      "Sportfolio's native mobile apps may offer optional rewarded ads through Google Mobile Ads. A user may choose to watch a rewarded ad to receive a temporary virtual gameplay benefit, such as additional scout capacity. The reward is optional and is not a cash prize or redeemable item.",
+      "For the current rewarded scout boost flow, Sportfolio requests non-personalized ad serving. Google and participating advertising providers may still process information needed to deliver, measure, secure, and prevent abuse of ads, such as device or network information, approximate location derived from network information, diagnostics, and ad interactions, subject to their applicable privacy practices.",
+      "After a rewarded ad is shown, Sportfolio may retain limited ad diagnostic context on the device, such as the ad response identifier, mediation adapter name, platform, and time shown. This context is used to help identify an ad if the user chooses Support > Report an ad. It is not used by Sportfolio to build an advertising profile.",
+      "Users can report inappropriate or age-inappropriate ads through the in-app Support page. Reports may include the available ad diagnostic context so Sportfolio can investigate the ad with the advertising provider.",
+    ],
+  },
+  {
     id: "logging-and-retention",
     title: "Operational Logging and Retention",
     body: [
@@ -51,7 +61,7 @@ const sections = [
     id: "third-party-services",
     title: "Third-Party Services",
     body: [
-      "Sportfolio uses service providers for authentication, hosting, databases, monitoring, payments, communications, sports data, and connected-app delivery. These providers process information subject to their own terms and our applicable agreements with them.",
+      "Sportfolio uses service providers for authentication, hosting, databases, monitoring, payments, communications, advertising, sports data, and connected-app delivery. These providers process information subject to their own terms and our applicable agreements with them.",
       "Public sports information may originate from third-party or unofficial sports data sources and may be delayed, incomplete, or corrected after publication.",
     ],
   },
@@ -67,7 +77,7 @@ const sections = [
     id: "cookies-and-storage",
     title: "Cookies and Local Storage",
     body: [
-      "Sportfolio uses cookies, local storage, and similar technologies to maintain authentication sessions, preserve preferences, support native and web functionality, and protect the service.",
+      "Sportfolio uses cookies, local storage, and similar technologies to maintain authentication sessions, preserve preferences, support native and web functionality, retain limited rewarded-ad report context, and protect the service.",
       "Disabling required storage may prevent authentication, OAuth consent, or other essential features from working.",
     ],
   },
@@ -107,15 +117,15 @@ export default function Privacy() {
     <DocumentShell
       title="Privacy Policy"
       summary="How Sportfolio collects, uses, shares, retains, and safeguards account and gameplay information."
-      effectiveDate="August 6, 2026"
+      effectiveDate="August 11, 2026"
       sections={sections}
     >
       {sections.map((section) => (
         <DocumentSection key={section.id} id={section.id} title={section.title}>
           {section.id === "contact" ? (
             <p>
-              Questions about this policy, data access, connected applications, or account deletion
-              may be sent to{" "}
+              Questions about this policy, data access, connected applications, advertising, ad
+              reports, or account deletion may be sent to{" "}
               <a
                 className="font-medium text-brand underline underline-offset-4"
                 href={`mailto:${SPORTFOLIO_SUPPORT_EMAIL}`}
