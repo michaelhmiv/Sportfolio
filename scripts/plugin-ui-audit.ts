@@ -1,5 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import {
   buildAllPluginPresentationCatalog,
   getAllPluginUiResourceUris,
@@ -58,50 +57,30 @@ const widgetEntryMatch = buildScript.match(
 if (!widgetEntryMatch) {
   errors.push("Unable to resolve the ChatGPT widget source entrypoint from build-plugin-ui.mjs.");
 }
-for (const required of [
-  'format: "esm"',
-  "splitting: true",
-  "client/public/assets/plugin-ui",
-  'chunkNames: "chunks/[name]-[hash]"',
-]) {
+for (const required of ['format: "esm"', "splitting: false", "write: false", "inlineModule"]) {
   if (!buildScript.includes(required)) {
-    errors.push(`Plugin UI build is missing split-bundle requirement: ${required}.`);
+    errors.push(`Plugin UI build is missing self-contained bundle requirement: ${required}.`);
   }
 }
-
-const loaderBytes = Buffer.byteLength(SPORTFOLIO_WIDGET_HTML_TEMPLATE, "utf8");
-if (loaderBytes > 10_000) {
-  errors.push(`Plugin UI loader is ${loaderBytes} bytes; budget is 10,000 bytes.`);
-}
-if (!SPORTFOLIO_WIDGET_HTML_TEMPLATE.includes('<script type="module" src="')) {
-  errors.push("Plugin UI loader must defer the React application to an external ESM asset.");
+if (buildScript.includes("client/public/assets/plugin-ui") || buildScript.includes("splitting: true")) {
+  errors.push("Plugin UI build must not depend on externally hosted split JavaScript assets.");
 }
 
-const assetRoot = "client/public/assets/plugin-ui";
-const assetFiles: string[] = [];
-function collectAssets(directory: string) {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) collectAssets(path);
-    else assetFiles.push(path);
-  }
+const widgetBytes = Buffer.byteLength(SPORTFOLIO_WIDGET_HTML_TEMPLATE, "utf8");
+if (widgetBytes > 500_000) {
+  errors.push(`Plugin UI resource is ${widgetBytes} bytes; budget is 500,000 bytes.`);
 }
-collectAssets(assetRoot);
-if (assetFiles.length < 2) {
-  errors.push("Plugin UI split build must emit an entry module plus at least one lazy chunk.");
+if (!SPORTFOLIO_WIDGET_HTML_TEMPLATE.includes('<script type="module">')) {
+  errors.push("Plugin UI resource must inline its ESM application module.");
 }
-const entryAsset = assetFiles.find((path) => /sportfolio-widget-[^/]+\.js$/.test(path));
-if (!entryAsset) {
-  errors.push("Plugin UI split build did not emit a hashed Sportfolio entry module.");
-} else {
-  const entryBytes = statSync(entryAsset).size;
-  if (entryBytes > 30_000) {
-    errors.push(`Plugin UI entry module is ${entryBytes} bytes; budget is 30,000 bytes.`);
-  }
+if (/<script[^>]+src=/i.test(SPORTFOLIO_WIDGET_HTML_TEMPLATE)) {
+  errors.push("Plugin UI resource must not require an external JavaScript bootstrap.");
 }
 
+const entrySource = widgetEntryMatch ? readFileSync(widgetEntryMatch[0], "utf8") : "";
+const hostSource = readFileSync("client/src/plugin-ui/openai-host.ts", "utf8");
 const widgetSources = [
-  widgetEntryMatch ? readFileSync(widgetEntryMatch[0], "utf8") : "",
+  entrySource,
   readFileSync("client/src/plugin-ui/sportfolio-widget-v2.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-sports-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-action-widget.tsx", "utf8"),
@@ -109,7 +88,7 @@ const widgetSources = [
   readFileSync("client/src/plugin-ui/sportfolio-gameplay-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-overview-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/action-review-panel.tsx", "utf8"),
-  readFileSync("client/src/plugin-ui/openai-host.ts", "utf8"),
+  hostSource,
 ].join("\n");
 
 for (const required of [
@@ -138,6 +117,21 @@ for (const required of [
 ]) {
   if (!widgetSources.includes(required)) {
     errors.push(`Widget source is missing required bridge or action contract: ${required}.`);
+  }
+}
+
+for (const required of ["subscribeHostMessages", "routeSnapshot", "viewFromToolOutput"]) {
+  if (!entrySource.includes(required)) {
+    errors.push(`Widget entrypoint is missing delayed-result routing contract: ${required}.`);
+  }
+}
+for (const required of [
+  "bridgeSnapshot.toolOutput = params",
+  "applyBridgeMessage",
+  "initializePromise",
+]) {
+  if (!hostSource.includes(required)) {
+    errors.push(`OpenAI host bridge is missing cached MCP state contract: ${required}.`);
   }
 }
 
@@ -194,5 +188,5 @@ if (errors.length) {
 }
 
 console.log(
-  `Plugin UI audit passed: ${catalog.length} presentation tools share one ${loaderBytes}-byte loader across ${assetFiles.length} split asset(s).`,
+  `Plugin UI audit passed: ${catalog.length} presentation tools share one self-contained ${widgetBytes}-byte MCP App resource.`,
 );
