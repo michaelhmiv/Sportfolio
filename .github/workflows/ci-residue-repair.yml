@@ -1,0 +1,67 @@
+name: CI Residue Repair
+
+on:
+  push:
+    branches: [fix/plugin-ui-runtime-rendering-20260811]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/plugin-ui-runtime-rendering-20260811
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Repair stale Economy V1 fixtures
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          registry = Path('server/mcp/public-tool-registry.ts')
+          text = registry.read_text()
+          old = 'fixtureArgs: { section: "gameplay", slug: "stacking-shares-and-boosts" },'
+          new = 'fixtureArgs: { section: "gameplay", slug: "sports-and-slates" },'
+          if old in text:
+              text = text.replace(old, new, 1)
+              registry.write_text(text)
+
+          market = Path('server/market-mobile-overview.test.ts')
+          text = market.read_text()
+          text = text.replace('''        quantity: "1",\n        multiplier: "3.00",\n        effectiveShares: "3.00",''', '''        quantity: "1",\n        effectiveShares: "1.00",''')
+          text = text.replace('''    getTotalLockedQuantity: async (_userId, _assetType, assetId) => (assetId === "p3" ? 1 : 0),\n    getBatchTotalLockedQuantities: async (_userId, _assetType, assetIds) =>\n      new Map(assetIds.map((assetId) => [assetId, assetId === "p3" ? 1 : 0])),''', '''    getTotalLockedQuantity: async () => 0,\n    getBatchTotalLockedQuantities: async (_userId, _assetType, assetIds) =>\n      new Map(assetIds.map((assetId) => [assetId, 0])),''')
+          text = text.replace('expect(personalBoost?.bestShareMultiplier).toBe(3);', 'expect(personalBoost?.bestShareMultiplier).toBe(1);')
+          market.write_text(text)
+          PY
+          npx prettier --write server/mcp/public-tool-registry.ts server/market-mobile-overview.test.ts
+      - name: Run previously failing contracts
+        run: >-
+          npx vitest run
+          server/nfl/preseason-gating.contract.test.ts
+          server/mcp/public-surface-coverage.test.ts
+          server/mcp/native-operations.holdings.test.ts
+          server/mcp/mcp-server.test.ts
+          server/mcp/gameplay-transactions.test.ts
+          server/jobs/lock-boost-shares.test.ts
+          server/market-mobile-overview.test.ts
+          server/discord-command-utils.test.ts
+      - name: Commit verified repairs
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain -- server/mcp/public-tool-registry.ts server/market-mobile-overview.test.ts)" ]; then
+            echo "No residue changes required."
+            exit 0
+          fi
+          git config user.name "Sportfolio Automation"
+          git config user.email "34044957+michaelhmiv@users.noreply.github.com"
+          git add server/mcp/public-tool-registry.ts server/market-mobile-overview.test.ts
+          git commit -m "test(economy): remove remaining V1 fixture residue"
+          git push origin HEAD:fix/plugin-ui-runtime-rendering-20260811
