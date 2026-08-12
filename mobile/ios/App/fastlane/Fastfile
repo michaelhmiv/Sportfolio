@@ -104,8 +104,12 @@ platform :ios do
       }
     )
 
+    privacy_audit_script = File.expand_path("../../../scripts/mobile-ios-privacy-manifest-audit.sh", Dir.pwd)
+    UI.user_error!("Missing iOS privacy-manifest audit script: #{privacy_audit_script}") unless File.file?(privacy_audit_script)
+    sh("bash", privacy_audit_script)
+
     if skip_upload
-      UI.important("skip_upload=true, signed IPA built without TestFlight upload.")
+      UI.important("skip_upload=true, signed IPA built and privacy-audited without TestFlight upload.")
       next
     end
 
