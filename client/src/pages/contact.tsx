@@ -1,11 +1,12 @@
-import { Bug, Lightbulb, Mail, MessageCircle, ShieldAlert } from "lucide-react";
+import { Bug, Flag, Lightbulb, Mail, MessageCircle, ShieldAlert } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { Link } from "wouter";
 import { EditorialSection, PageHero, SurfaceLayout } from "@/components/surface-layout";
 import { Button } from "@/components/ui/button";
+import { buildAdReportMailto } from "@/lib/ad-report";
 import { SPORTFOLIO_DISCORD_INVITE, SPORTFOLIO_SUPPORT_EMAIL } from "@/lib/community-links";
 
-const channels = [
+const baseChannels = [
   {
     icon: SiDiscord,
     title: "Community and quick questions",
@@ -36,12 +37,25 @@ const channels = [
 ] as const;
 
 export default function Contact() {
+  const channels = [
+    ...baseChannels,
+    {
+      icon: Flag,
+      title: "Report an ad",
+      description:
+        "Report any inappropriate or age-inappropriate rewarded ad. Sportfolio includes the latest available ad diagnostic context in the email when possible.",
+      action: "Report an ad",
+      href: buildAdReportMailto(SPORTFOLIO_SUPPORT_EMAIL),
+      external: true,
+    },
+  ] as const;
+
   return (
     <SurfaceLayout kind="public">
       <PageHero
         eyebrow="Sportfolio support"
         title="Get the issue to the right place."
-        description="Choose the channel that matches your request so account problems, bug reports, and gameplay questions can be handled with the right context."
+        description="Choose the channel that matches your request so account problems, ad concerns, bug reports, and gameplay questions can be handled with the right context."
         icon={<MessageCircle className="h-4 w-4" aria-hidden="true" />}
       />
 
@@ -49,7 +63,7 @@ export default function Contact() {
         title="Support channels"
         description="Do not post passwords, sign-in links, OAuth codes, access tokens, or payment credentials in Discord or email."
       >
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {channels.map(({ icon: Icon, title, description, action, href, external }) => (
             <article
               key={title}
@@ -81,7 +95,7 @@ export default function Contact() {
       </EditorialSection>
 
       <EditorialSection title="What to include" className="bg-surface">
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="grid gap-8 md:grid-cols-3">
           <div className="flex gap-4">
             <Bug className="mt-1 h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
             <div>
@@ -90,6 +104,17 @@ export default function Contact() {
                 Include the page, approximate time, device or browser, what you expected, and what
                 happened. Screenshots are useful when they do not expose private account
                 information.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <Flag className="mt-1 h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+            <div>
+              <h3 className="font-bold text-content-strong">For an ad report</h3>
+              <p className="mt-2 leading-7 text-content-muted">
+                Explain why the ad was inappropriate or age-inappropriate and include a screenshot
+                if available. The report link adds recent rewarded-ad diagnostic identifiers when
+                the app has them so the ad can be traced with the provider.
               </p>
             </div>
           </div>
@@ -108,9 +133,9 @@ export default function Contact() {
 
       <EditorialSection title="Response expectations">
         <p className="max-w-3xl leading-7 text-content-muted">
-          Sportfolio aims to respond to direct support requests within 24 to 48 hours. Service-wide
-          incidents and authentication failures are prioritized ahead of general questions and
-          feature requests.
+          Sportfolio aims to respond to direct support requests within 24 to 48 hours. Reports of
+          inappropriate or age-inappropriate ads, service-wide incidents, and authentication
+          failures are prioritized ahead of general questions and feature requests.
         </p>
       </EditorialSection>
     </SurfaceLayout>
