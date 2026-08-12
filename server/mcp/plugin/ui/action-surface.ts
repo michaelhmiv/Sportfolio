@@ -46,7 +46,7 @@ export function buildActionPluginPresentationCatalog() {
       name: "render_action_review",
       title: "Review Sportfolio action",
       description:
-        "Render the exact pending Sportfolio gameplay transaction identified by a server-issued transactionId with Confirm and Cancel controls. Use this for staged market, scouting, boost, liquidity, stacking, and community-boost actions.",
+        "Render the exact pending Sportfolio gameplay transaction identified by a server-issued transactionId with Confirm and Cancel controls. Use this for staged market, scouting, boost, liquidity, and community-boost actions.",
       view: "action_review" as const,
       access: "oauth" as const,
       featureFlag: "PLUGIN_UI_ACTION_REVIEW_V2_ENABLED",
@@ -136,8 +136,8 @@ export async function registerActionPluginUiSurface(
         }) as any;
       }
 
+      const transactionId = String(args?.transactionId || "");
       try {
-        const transactionId = String(args?.transactionId || "");
         const transaction = await getGameplayTransaction(context.auth.userId, transactionId);
         const structuredContent = sanitizeActionReview({
           transactionId,
@@ -160,14 +160,21 @@ export async function registerActionPluginUiSurface(
           structuredContent,
         } as any;
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Sportfolio could not load this action.";
+        console.error("Sportfolio action review lookup failed", {
+          tool: "render_action_review",
+          userId: context.auth.userId,
+          transactionId,
+          errorType: error instanceof Error ? error.name : typeof error,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        const safeMessage =
+          "Sportfolio could not load this staged action. It may have expired or is no longer available.";
         return {
           isError: true,
-          content: [{ type: "text" as const, text: message }],
+          content: [{ type: "text" as const, text: safeMessage }],
           structuredContent: sanitizeActionReview({
             code: "plugin_ui_action_review_failed",
-            message,
+            message: safeMessage,
           }),
         } as any;
       }
