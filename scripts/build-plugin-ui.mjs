@@ -26,13 +26,14 @@ const result = await build({
   },
 });
 
-const javascript = result.outputFiles.find((file) => file.path.endsWith(".js"));
+const javascript =
+  result.outputFiles.find((file) => file.path.endsWith(".js")) ?? result.outputFiles[0];
 if (!javascript) {
   throw new Error("The Sportfolio plugin UI build did not emit a JavaScript module.");
 }
 
-// Prevent user-controlled/source strings in the bundle from ever terminating
-// the containing script tag when the module is embedded in the HTML resource.
+// Prevent source strings in the bundle from terminating the containing script
+// tag when the module is embedded in the HTML resource.
 const inlineModule = javascript.text.replace(/<\/script/gi, "<\\/script");
 const html = `<!doctype html>
 <html lang="en">
