@@ -28,11 +28,30 @@ jobs:
 
           registry = Path('server/mcp/public-tool-registry.ts')
           text = registry.read_text()
-          old = 'fixtureArgs: { section: "gameplay", slug: "stacking-shares-and-boosts" },'
-          new = 'fixtureArgs: { section: "gameplay", slug: "sports-and-slates" },'
-          if old in text:
-              text = text.replace(old, new, 1)
-              registry.write_text(text)
+          text = text.replace(
+              'fixtureArgs: { section: "gameplay", slug: "stacking-shares-and-boosts" },',
+              'fixtureArgs: { section: "gameplay", slug: "sports-and-slates" },',
+              1,
+          )
+          retired_tool = '''  defineTool({
+            name: "get_holding_multiplier_state",
+            description: "Read holding multiplier and available share state for a player.",
+            domain: "portfolio",
+            readOnly: true,
+            inputSchema: playerIdSchema,
+            fixtureArgs: { playerId: "player_1" },
+            execute: (context, args) => executeReadTool(context, "get_holding_multiplier_state", args),
+          }),
+          '''
+          text = text.replace(retired_tool, '', 1)
+          retired_route = '''  {
+            method: "GET",
+            path: "/api/holdings/:playerId/multiplier-state",
+            capabilityIds: ["get_holding_multiplier_state"],
+          },
+          '''
+          text = text.replace(retired_route, '', 1)
+          registry.write_text(text)
 
           market = Path('server/market-mobile-overview.test.ts')
           text = market.read_text()
