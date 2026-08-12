@@ -11,6 +11,8 @@ const MARKET_PORTFOLIO_VIEWS = new Set(["player_market", "portfolio"]);
 const GAMEPLAY_VIEWS = new Set(["scouting", "boosts", "watchlist"]);
 const OVERVIEW_VIEWS = new Set(["dashboard", "collections", "rankings"]);
 
+export const WIDGET_HYDRATION_TIMEOUT_MS = 12_000;
+
 type Surface = "action" | "sports" | "market-portfolio" | "gameplay" | "overview" | "legacy";
 
 export function viewFromToolOutput(value: unknown): string {
@@ -55,6 +57,13 @@ function clearBootstrapStatus(): void {
 
 let selectedSurface: Surface | null = null;
 let loadingSurface: Promise<unknown> | null = null;
+let hydrationTimer: number | null = null;
+
+function clearHydrationTimer(): void {
+  if (hydrationTimer == null) return;
+  window.clearTimeout(hydrationTimer);
+  hydrationTimer = null;
+}
 
 function importSurface(surface: Surface): Promise<unknown> {
   switch (surface) {
@@ -77,11 +86,12 @@ function loadView(view: string): void {
   const surface = surfaceForView(view);
   if (!surface || selectedSurface) return;
   selectedSurface = surface;
+  clearHydrationTimer();
   clearBootstrapStatus();
   loadingSurface = importSurface(surface).catch((error) => {
     console.error("Sportfolio widget failed to load", error);
-    showBootstrapStatus("Sportfolio could not load this interactive view.", true);
-    throw error;
+    showBootstrapStatus("Sportfolio could not load this interactive view. Please try the action again.", true);
+    return null;
   });
 }
 
@@ -89,8 +99,25 @@ function routeSnapshot(): void {
   loadView(viewFromToolOutput(getHostSnapshot().toolOutput));
 }
 
+function startHydrationTimeout(): void {
+  clearHydrationTimer();
+  hydrationTimer = window.setTimeout(() => {
+    hydrationTimer = null;
+    if (selectedSurface) return;
+    const output = getHostSnapshot().toolOutput;
+    const hasOutput = Object.keys(asRecord(output)).length > 0;
+    showBootstrapStatus(
+      hasOutput
+        ? "Sportfolio received a response that cannot be displayed here. Ask ChatGPT to reopen the action review."
+        : "Sportfolio did not receive the data needed to display this card. Please try the action again.",
+      true,
+    );
+  }, WIDGET_HYDRATION_TIMEOUT_MS);
+}
+
 showBootstrapStatus("Loading Sportfolio…");
 routeSnapshot();
+if (!selectedSurface) startHydrationTimeout();
 
 subscribeHostMessages((message: JsonRecord) => {
   if (
@@ -103,7 +130,8 @@ subscribeHostMessages((message: JsonRecord) => {
 
 void initializeMcpApp().then(() => {
   // Some hosts populate compatibility globals as part of initialization rather than
-  // before the iframe starts. Re-check after initialization without racing a fallback.
+  // before the iframe starts. Re-check after initialization while retaining a bounded
+  // fallback so a malformed/missing result cannot leave the card loading forever.
   routeSnapshot();
 });
 
