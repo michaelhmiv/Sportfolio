@@ -1,220 +1,142 @@
 ---
 title: Sportfolio iPhone Readiness Audit
-summary: Current state of the Capacitor iOS shell, what is testable now on iPhone, and the remaining Apple-specific platform gaps.
-status: draft
+summary: Current App Store readiness state for the Sportfolio Capacitor iOS app and its release automation.
+status: active
 owner: product-engineering
-lastReviewedAt: 2026-05-14
+lastReviewedAt: 2026-08-11
 ---
 
 # Sportfolio iPhone Readiness Audit
 
-## Summary
+## Current Assessment
 
-Sportfolio already has a real Capacitor iOS app shell checked into the repo under `mobile/ios`. This is not a greenfield Apple app effort. The current iPhone app is best understood as a native shell around the existing React product, with several native integrations already wired.
+Sportfolio has a functional Capacitor iOS application, signed-build/TestFlight automation, App Store listing automation, native rewarded ads, native passwordless authentication handoff, account deletion, and App Review metadata in the repository.
 
-The main readiness risks are not around app existence. They are around platform parity. Core product navigation and account flows are largely positioned to work in an iPhone shell, but several mobile monetization and notification flows remain Android-only today.
+The iOS release path is no longer a greenfield or platform-parity project. The main release risk is keeping the live web-backed application, App Store declarations, third-party privacy disclosures, review access, and generated listing synchronized at the exact moment a build is submitted.
 
-## Source Of Truth Reviewed
+## Proven Release Infrastructure
 
-- `capacitor.config.ts`
-- `mobile/README.md`
-- `mobile/ios/App/App.xcodeproj/project.pbxproj`
-- `mobile/ios/App/App/Info.plist`
-- `mobile/ios/App/App/AppDelegate.swift`
-- `scripts/mobile-ios-doctor.mjs`
-- `.github/workflows/ios-pr-ci.yml`
-- `client/src/App.tsx`
-- `client/src/lib/native-runtime.ts`
-- `client/src/lib/native-platform.ts`
-- `client/src/lib/native-network.ts`
-- `client/src/lib/native-share.ts`
-- `client/src/lib/haptics.ts`
-- `client/src/components/mobile-push-manager.tsx`
-- `client/src/components/mobile-push-card.tsx`
-- `client/src/lib/mobile-push.ts`
-- `client/src/pages/premium.tsx`
-- `client/src/hooks/use-rewarded-scout-boost.ts`
-- `server/routes/mobile-push-notifications.ts`
+- The iOS project is checked in under `mobile/ios/App`.
+- The production App Store bundle identifier is `com.sportfoliomarket.app`.
+- GitHub Actions can build a signed App Store IPA and upload it to App Store Connect/TestFlight.
+- A prior recovery build, `2026.6.3 (400019)`, successfully archived, uploaded, and completed App Store Connect processing on 2026-06-03.
+- The App Store listing workflow subsequently completed successfully on `main` on 2026-06-05.
+- Current workflows use the latest stable Xcode runner; the iOS doctor enforces Xcode 26+ on macOS.
 
-## Confirmed Native iOS Foundation
+## Current Runtime Architecture
 
-- Capacitor is configured with an iOS target at `mobile/ios`.
-- A checked-in Xcode project exists at `mobile/ios/App/App.xcodeproj`.
-- The app has a launch screen, app icon assets, and native app delegate.
-- OAuth deep linking is already wired around `sportfolio://auth/callback`.
-- The React app already branches for native runtime behavior and specifically handles iOS keyboard resizing.
-- A macOS GitHub Actions workflow already runs iOS sync, doctor checks, and an unsigned simulator build.
+Sportfolio's native shell loads the configured hosted application URL. Production release workflows use:
 
-## What Is Testable On iPhone Right Now
+- `https://www.sportfolio.market`
 
-These areas appear positioned for real iPhone-shell testing once the app is synced and opened from macOS/Xcode:
+Because most of the product experience is delivered by the hosted React application, a previously processed binary is not sufficient evidence that the current reviewer experience is healthy. Material client/runtime changes must trigger iOS CI, and a fresh simulator/TestFlight smoke test is required before submission.
 
-- Auth callback and deep-link return flow.
-- App shell startup, splash behavior, and status-bar management.
-- Native-safe API and websocket routing through the shared runtime helpers.
-- Core browsing and gameplay surfaces that are not Android-gated:
-  - dashboard
-  - player pages
-  - portfolio
-  - boosts
-  - leaderboards
-  - news
-  - watchlists
-- Native haptics wrapper behavior.
-- Native share-sheet behavior.
-- Offline/network-state handling through Capacitor network APIs.
-- Route transitions, bottom navigation, and safe-area-aware shell layout.
+## Authentication
 
-## Works Now In The Current Codebase
+Current authentication is Sportfolio-owned passwordless email sign-in, not the old Supabase/Apple OAuth design.
 
-These areas already have repo evidence that they are intentionally supported in the iOS shell:
+Native flow:
 
-- Capacitor shell bootstrapping and iOS project structure.
-- iOS local-dev server targeting via `CAP_SERVER_URL=http://localhost:5000`.
-- Native auth URL-open handling in `client/src/App.tsx`.
-- iOS status bar handling and keyboard resize behavior.
-- Native share support through `@capacitor/share`.
-- Native haptic support through `@capacitor/haptics`.
-- Native network monitoring through `@capacitor/network`.
-- CI guardrails for iOS sync and simulator build.
+1. User requests a one-time email sign-in link.
+2. Sportfolio sends the link through the current auth/mail stack.
+3. The native app receives the `sportfolio://auth/callback` handoff.
+4. The handoff is exchanged for the native Sportfolio session.
 
-## Needs macOS And Xcode, Not New Product Code
+The old documentation requiring Supabase configuration and Sign in with Apple has been retired. Review readiness now depends on verifying that a reviewer-controlled email can create/sign in to an account and complete the callback flow against production.
 
-These are blocked by Apple tooling or host OS, not by missing repo architecture:
+## Rewarded Advertising
 
-- Running `npm run mobile:ios` and opening the project in Xcode.
-- Building the iOS app locally.
-- Installing the native app to a connected iPhone.
-- Signing the app with an Apple team/profile.
-- Validating any device-only iOS behavior on real hardware.
+Native iOS rewarded scout boosts are implemented through Google Mobile Ads.
 
-This Windows environment can inspect, lint, and document the iOS app surface, but it cannot complete the real native build/install loop.
+Current release contract:
 
-## Needs Actual Implementation
+- rewarded ads are optional;
+- requests use the current non-personalized mode;
+- rewards affect virtual gameplay only;
+- App Store age-rating automation declares `Advertising = Yes`;
+- the privacy policy explicitly describes rewarded advertising and related provider processing;
+- the Support page provides `Report an ad` for inappropriate or age-inappropriate ads;
+- the app retains limited recent ad diagnostic context on-device so a report can identify the relevant response/network adapter when available.
 
-### Push notifications
+## App Store Age Rating
 
-Push exists in dependencies and the iOS Swift package includes the Capacitor push plugin, but the shipped product logic is still Android-specific:
+Committed automated declarations live at:
 
-- `client/src/lib/mobile-push.ts` exposes `isAndroidNativePushSupported()`.
-- `client/src/components/mobile-push-manager.tsx` only registers and syncs Android pushes.
-- `client/src/components/mobile-push-card.tsx` is explicitly labeled Android-only.
-- `server/routes/mobile-push-notifications.ts` rejects non-Android registration with `Only android platform is supported`.
+- `mobile/ios/app-store-submission-defaults.json`
 
-Implication:
+Current automated values intentionally include:
 
-- Apple push is not a finished product flow today, even if the lower-level plugin dependency is present.
-- iOS support needs both client work and backend contract changes, plus Apple Push Notification capability setup.
+- `advertising: true`
+- `gambling: false`
+- `gamblingSimulated: NONE`
 
-### In-app purchases
+Apple added Social Media capability questions to the age-rating questionnaire in July 2026. The current App Store Connect API `ageRatingDeclaration` surface used by Sportfolio does not automate that new field, so the repository explicitly records the intended manual answer and the listing workflow requires a manual age-rating confirmation before it can run.
 
-Premium purchase flows are currently split between web checkout and Android Play Billing:
+Current intended Social Media answer is `No`: Sportfolio does not provide a social feed or controls to repost, like, comment on, react to, or amplify user content. Reconfirm the live questionnaire before review.
 
-- `client/src/pages/premium.tsx` only shows native purchase/restore flows on Android.
-- The native billing library is `client/src/lib/android-play-billing.ts`.
-- Backend verification is Google Play specific.
-- iOS-native clients now hard-block external premium/community checkout endpoints and Whop sync calls to avoid App Review payment-policy violations before Apple IAP is implemented.
+## App Review Information
 
-Implication:
+Fastlane now requires App Review contact information rather than silently skipping it. Required GitHub secrets:
 
-- There is no Apple in-app purchase path in the repo today.
-- iOS currently ships with purchase flows intentionally disabled rather than routing users to external checkout from inside the app.
-- Shipping a true iPhone app with native premium purchasing would require StoreKit/App Store purchase implementation and corresponding backend verification logic.
+- `APP_STORE_REVIEW_CONTACT_FIRST_NAME`
+- `APP_STORE_REVIEW_CONTACT_LAST_NAME`
+- `APP_STORE_REVIEW_CONTACT_EMAIL`
+- `APP_STORE_REVIEW_CONTACT_PHONE`
 
-### Rewarded ads
+The committed review notes describe only current behavior: virtual currency, passwordless review access, core gameplay, rewarded ads/reporting, account deletion, the iOS commerce boundary, and native integrations. Future-tense statements about unfinished IAP work are prohibited by the iOS doctor.
 
-Rewarded scout boosts are explicitly Android-only today:
+## Privacy Manifest / SDK Gate
 
-- `client/src/hooks/use-rewarded-scout-boost.ts` throws if not on Android.
-- The UX and availability logic assume Android runtime support.
+The repository does not invent an app-level `PrivacyInfo.xcprivacy` declaration without evidence. Instead, macOS CI scans dependency and Xcode build products for actual privacy manifests, validates each plist, and requires identifiable Capacitor and Cordova manifests because Apple lists those SDKs among commonly used SDKs subject to privacy-manifest/signature requirements.
 
-Implication:
+The audit also reports whether Google Mobile Ads/User Messaging Platform manifests are identifiable and requires the final Xcode privacy report to be reconciled with App Store Connect App Privacy answers before review.
 
-- This feature would need an Apple-specific ads decision:
-  - implement an iOS ad path,
-  - replace the feature on iPhone,
-  - or hide it entirely on Apple builds.
+## CI Coverage
 
-## Current iOS Gaps In Native Project Configuration
+`iOS PR CI` now triggers for the full `client/src/**` surface, relevant shared/native-auth/rewarded-ad backend code, iOS workflows, App Store scripts, and iOS documentation.
 
-The current repo does not yet show evidence of several Apple-specific capabilities:
+The iOS PR job performs:
 
-- No generated `mobile/ios/App/App/capacitor.config.json` is present in this worktree before sync.
-- `npm run mobile:ios:doctor` currently fails because that generated file is missing.
-- No iOS entitlements file is checked in.
-- No `aps-environment` entitlement is visible.
-- No Associated Domains capability is visible.
-- No StoreKit or Apple purchase-specific native code is visible.
-- The Xcode project currently uses `PRODUCT_BUNDLE_IDENTIFIER = com.sportfoliomarket.app`, while Capacitor app identity is `sportfolio.market`.
-- No Apple signing team is committed in project config, which is normal for shared repos but still means real device build setup remains open.
+1. current Xcode selection/version verification;
+2. dependency install;
+3. production Capacitor iOS sync;
+4. expanded iOS/App Store readiness doctor;
+5. iOS-specific rewarded-ad/reporting tests;
+6. unsigned simulator build;
+7. privacy-manifest audit.
 
-## Current Audit Split
+The signed TestFlight lane performs the privacy-manifest audit after the App Store archive is built and before any TestFlight upload.
 
-### Works now in iPhone shell
+## Listing Workflow Safety Gates
 
-- Capacitor iOS shell exists.
-- Native auth callback handling exists.
-- Native layout/runtime helpers exist.
-- Core non-Android-gated product pages should be testable in a synced iOS shell.
-- Native sharing, haptics, keyboard resizing, and network monitoring are already wired.
+`iOS App Store Listing` intentionally does not submit the app for review. Before it can update App Store Connect, it now requires explicit confirmation that the operator has reviewed:
 
-### Needs macOS/Xcode only
+- App Privacy;
+- the current age-rating questionnaire, including Advertising and the July 2026 Social Media questions;
+- passwordless reviewer access and production-backend health;
+- the Accessibility Nutrition Label.
 
-- Syncing and generating iOS native config for this worktree.
-- Opening/building the app in Xcode.
-- Running the app on a connected iPhone.
-- Provisioning/signing and Apple developer configuration.
+It also requires App Store Connect API credentials and all App Review contact secrets.
 
-### Needs implementation
+The workflow runs the repository readiness doctor before applying App Store declaration API writes, then builds the simulator app, audits privacy manifests, captures screenshots, and uploads metadata/review information/screenshots with Fastlane precheck violations treated as errors.
 
-- iOS push registration, permission UX, backend acceptance, and APNs capability setup.
-- Apple in-app purchases for premium/native monetization.
-- iOS equivalent for rewarded ads, or explicit feature removal/hiding.
-- Final bundle-id/signing/product identity alignment for App Store submission.
+## Remaining App Store Connect-Only Steps
 
-## Current Command Findings
+These cannot be truthfully certified from repository state alone and remain final release actions:
 
-### `npm run mobile:ios:doctor`
+1. Confirm App Privacy answers match the final build/Xcode privacy report.
+2. Confirm the current age-rating questionnaire, including the new Social Media fields.
+3. Confirm Accessibility Nutrition Label answers.
+4. Confirm App Review contact information and reviewer access.
+5. Confirm storefront availability and screenshot presentation.
+6. Select the exact tested processed TestFlight build for the App Store version.
+7. Check Resolution Center for unresolved Apple messages.
+8. Submit the selected build for review.
 
-Observed result in this worktree:
+## Release Sequence
 
-- Pass: required Xcode project files exist.
-- Pass: `Info.plist` contains the `sportfolio` URL scheme.
-- Pass: `client/src/App.tsx` still handles auth callback deep links.
-- Fail: `mobile/ios/App/App/capacitor.config.json` is missing.
-- Warn: Xcode validation cannot run on Windows.
-
-Interpretation:
-
-- The native project is present and structurally valid.
-- This checkout has not yet been freshly synced for iOS.
-- The current blocker is expected for a Windows audit pass and does not indicate that the iOS app is absent.
-
-## Recommended Next Steps
-
-### Phase 1: First usable iPhone shell
-
-- Sync the app on a macOS machine with `npm run mobile:sync:ios:dev` or `npm run mobile:sync:prod`.
-- Open in Xcode and validate launch, sign-in, deep-link return, browsing, websocket updates, share, and haptics on a real iPhone.
-- Fix any shell-specific layout or safe-area regressions found on actual hardware.
-
-### Phase 2: Apple product boundary decisions
-
-- Decide whether the first iPhone release should:
-  - ship without push and native purchases,
-  - ship with web-only premium purchase fallback,
-  - or wait for Apple-native purchase/push support.
-- Decide whether rewarded ads should be implemented for iOS, replaced with a different entitlement path, or hidden.
-
-### Phase 3: Apple-native parity work
-
-- Add iOS push lifecycle support and backend acceptance.
-- Add Apple in-app purchase flow and backend verification.
-- Align bundle identifier, signing, and App Store metadata.
-- Add iPhone QA coverage to the release checklist once real device testing is available.
+Use `docs/ios-publish-readiness-v1-checklist.md` as the operational release checklist. The intended sequence is PR CI -> simulator QA -> signed TestFlight dry run -> current TestFlight upload -> listing workflow with manual confirmations -> final App Store Connect reconciliation -> submit for review.
 
 ## Bottom Line
 
-Sportfolio is not starting from zero on Apple. The repo already contains a real iOS app shell with meaningful native integration work behind it.
-
-The shortest path to an Apple app is to treat the current iOS shell as an MVP wrapper for the existing product, then deliberately close the remaining Apple-specific product gaps. The most important missing pieces are push, native purchases, rewarded-ad strategy, and final Apple project configuration on a macOS/Xcode machine.
+The native build/signing/upload path is established. Current readiness work is primarily release governance: ensuring today's production experience is tested, declarations match actual app behavior, advertising/privacy requirements are represented accurately, and App Store Connect-only answers are explicitly reconfirmed immediately before submission.
