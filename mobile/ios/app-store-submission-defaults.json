@@ -2,7 +2,7 @@
   "bundleId": "com.sportfoliomarket.app",
   "contentRightsDeclaration": "USES_THIRD_PARTY_CONTENT",
   "ageRatingDeclaration": {
-    "advertising": false,
+    "advertising": true,
     "ageAssurance": false,
     "alcoholTobaccoOrDrugUseOrReferences": "NONE",
     "contests": "NONE",
@@ -25,5 +25,11 @@
     "violenceCartoonOrFantasy": "NONE",
     "violenceRealistic": "NONE",
     "violenceRealisticProlongedGraphicOrSadistic": "NONE"
+  },
+  "manualAgeRatingReview": {
+    "socialMedia": false,
+    "socialMediaDisabledForUsersUnder13": false,
+    "reason": "Sportfolio does not provide a social feed or user controls to repost, like, comment on, react to, or amplify user-generated content. Reconfirm this answer in the current App Store Connect questionnaire before submission; Apple added social-media questions in July 2026 and requires responses for submissions beginning September 2026.",
+    "appStoreConnectApiAutomated": false
   }
 }
