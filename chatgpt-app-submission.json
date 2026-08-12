@@ -1052,18 +1052,6 @@
         "destructive_justification": "Only creates a reviewable pending action; the underlying gameplay operation is not applied until a separate confirmed finalizer runs."
       }
     },
-    "stage_stack_shares": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Creates a pending portfolio action preview for later confirmation and therefore changes workflow state without finalizing the gameplay operation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Only creates a reviewable pending action; the underlying gameplay operation is not applied until a separate confirmed finalizer runs."
-      }
-    },
     "update_profile_image": {
       "annotations": {
         "readOnlyHint": false,
