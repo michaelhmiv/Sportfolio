@@ -2,7 +2,6 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@shared/schema";
 import { ensurePasswordlessAuthSchema } from "./auth/ensure-auth-schema";
-import { ensureProfileSafetySchema } from "./profile/ensure-profile-safety-schema";
 
 // Determine which database to use based on environment
 const isProduction = process.env.NODE_ENV === "production";
@@ -36,7 +35,6 @@ export const pool = new Pool({
 });
 
 await ensurePasswordlessAuthSchema(pool);
-await ensureProfileSafetySchema(pool);
 
 // Advisory locks must not consume clients from the application query pool while
 // the locked job performs its normal database work. A separate, deliberately
