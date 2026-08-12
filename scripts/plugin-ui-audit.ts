@@ -62,7 +62,10 @@ for (const required of ['format: "esm"', "splitting: false", "write: false", "in
     errors.push(`Plugin UI build is missing self-contained bundle requirement: ${required}.`);
   }
 }
-if (buildScript.includes("client/public/assets/plugin-ui") || buildScript.includes("splitting: true")) {
+if (
+  buildScript.includes("client/public/assets/plugin-ui") ||
+  buildScript.includes("splitting: true")
+) {
   errors.push("Plugin UI build must not depend on externally hosted split JavaScript assets.");
 }
 

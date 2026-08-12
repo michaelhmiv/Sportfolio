@@ -21,6 +21,7 @@ New lifecycle:
 Ordinary Singles are again productive assets and receive base performance earnings.
 
 Remove Stack Power from all active code and user-facing behavior:
+
 - no stacking action
 - no 2:1 conversion action
 - no Stack Power balance/position
@@ -47,6 +48,7 @@ Therefore migrate existing live `player_multipliers.multiplier` to Singles at ex
 Do NOT restore 2 Singles per Power. That would resurrect previously burned supply.
 
 For each user/player:
+
 - merge migrated quantity into the normal `holdings` row
 - preserve the retained Stack cost basis when merging, with a correct weighted average cost basis
 - do not create SB
@@ -57,6 +59,7 @@ For each user/player:
 Because the owner authorized destructive cleanup and there are no meaningful users, legacy active/locked Boost rows and legacy pending Stack payout rows may be cancelled/voided/cleared during cutover rather than supporting a long compatibility window. Prefer a simple deterministic migration over long-lived dual-economy code.
 
 After conversion, drop/retire active schema/runtime dependencies on:
+
 - `player_multipliers`
 - `player_multiplier_events`
 - Stack-specific payout columns/semantics
@@ -67,6 +70,7 @@ Do not edit old numbered migration history to pretend Stack never existed. Add a
 ### 3. Scouting is unchanged
 
 Keep the existing global fixed scouting issuance semantics unchanged:
+
 - approximately 60 Singles per actively scouted player per hour globally
 - split among scouts
 - total issuance for a player does not scale with number of users
@@ -132,6 +136,7 @@ Create one centralized, typed, versioned economy configuration module. Do NOT sc
 Use the following launch-v1 benchmark denominators as provisional canonical values unless the existing repository has clearly superior already-computed historical values that can be justified and tested. Keep them in one config so future recalibration is a one-file/versioned change.
 
 Regular-season historical FP benchmarks:
+
 - MLB_HITTER: 1000
 - MLB_STARTING_PITCHER: 750
 - MLB_RELIEVER: 350
@@ -147,6 +152,7 @@ Regular-season historical FP benchmarks:
 - NASCAR_TRUCKS: 2000
 
 Postseason historical FP benchmarks:
+
 - MLB_HITTER: 140
 - MLB_STARTING_PITCHER: 100
 - MLB_RELIEVER: 60
@@ -168,6 +174,7 @@ Add an offline/admin calibration script that can analyze historical `player_game
 ### 7. Season phase
 
 Centralize season phase classification:
+
 - preseason/exhibition -> no base earnings and no Boost payout
 - regular season -> regular target + regular benchmark
 - postseason/playoffs -> postseason target + postseason benchmark
@@ -187,6 +194,7 @@ Daily Boost slots become exactly:
 One slot of each tier per user's applicable daily Boost cycle, preserving existing overall daily-slot behavior unless code clearly supports another established rule.
 
 A user chooses:
+
 - player
 - slot tier
 - any positive quantity of available Singles
@@ -198,6 +206,7 @@ Before confirmation, show a clear permanent-burn warning.
 Before game start, committed shares remain locked/unavailable according to the existing staged/lock model and may be removed/reassigned only according to existing pre-lock rules.
 
 When a valid game starts:
+
 - ensure pre-burn earnings snapshot exists
 - atomically burn exactly the committed Singles
 - mark Boost locked
@@ -228,6 +237,7 @@ Therefore the Boost settlement job must credit ONLY the incremental bonus:
 This prevents double-crediting the 1x base component.
 
 Store/report enough ledger detail to distinguish:
+
 - shares burned
 - slot multiplier
 - game EPS
@@ -250,6 +260,7 @@ Remove any Stack-specific assumptions from community Boost logic/docs/tools.
 Refactor schema cleanly for v2. Prefer explicit immutable player-game earnings metadata over overloading old fields.
 
 A good shape is:
+
 - one player/game earnings record containing economy version, season phase, economic class, target, benchmark FP, total eligible shares, fantasy points once available, base pool, EPS, status/timestamps
 - per-user share payout snapshots/rows containing eligible shares and credited base payout
 - Boost ledger containing share quantity burned, multiplier, EPS/base component, incremental bonus, total economic earnings
@@ -261,6 +272,7 @@ Retire obsolete fields such as `base_rate=1`, `earning_units`, Stack earning mod
 ### 12. Current legacy rows may be cleared
 
 Because there are no meaningful users, migration may deliberately:
+
 - cancel/clear current legacy daily Boost rows and their locks before new constraints
 - void/clear pending legacy share payouts
 - clear legacy Boost payout history if necessary for a clean schema cutover
@@ -270,8 +282,9 @@ Do not spend large amounts of code maintaining old in-flight economics. Preserve
 ### 13. AMM / valuation / LP
 
 Do NOT change canonical AMM pricing from the recent valuation work:
+
 - spot = playMoneyReserve/shareReserve
-- x*y=k behavior remains
+- x\*y=k behavior remains
 - existing trade fees/burn remain
 - user-created liquidity remains
 
@@ -288,6 +301,7 @@ Extend the current Analytics rebuild with an Economy view/section that is compac
 Track/report as data allows:
 
 SB:
+
 - total circulating/user SB supply using the repository's canonical accounting boundaries
 - SB per active user
 - base performance SB issued
@@ -299,12 +313,14 @@ SB:
 - rolling 7/30/90-day issuance and annualized net inflation where meaningful
 
 Shares:
+
 - Scout Singles issued
 - Singles committed/burned by Boosts
 - net share issuance
 - burn/issuance ratio
 
 Boosts:
+
 - utilization by tier
 - shares burned by tier
 - base component vs bonus
@@ -312,6 +328,7 @@ Boosts:
 - sport/class distribution
 
 Normalization:
+
 - base issuance by sport/class
 - regular-season vs postseason issuance
 - current economy version/targets/benchmark config visible to admin/analytics where appropriate
@@ -323,6 +340,7 @@ Add warning semantics around sustained annualized net SB growth >20% and critica
 Update all relevant web/mobile-responsive surfaces.
 
 Boost page must become much simpler:
+
 - show five slots 2x/3x/5x/7x/10x
 - choose player
 - choose quantity of Singles
@@ -333,6 +351,7 @@ Boost page must become much simpler:
 - no Stack controls, Stack balances, stacking helpers, or Stack terminology
 
 Portfolio/player surfaces:
+
 - only Singles + LP holdings
 - base earnings/performance earnings context where useful
 - recent/season regular/postseason earnings may be displayed without turning the game into an overly complex finance simulator
@@ -346,6 +365,7 @@ This is mandatory and must be complete.
 Remove active Stack tools and fields, including `stage_stack_shares` and any Stack-specific action type/summary/presentation behavior.
 
 Update daily Boost staged action to accept direct share quantity:
+
 - resolved player
 - slot tier
 - quantity/shares
@@ -353,6 +373,7 @@ Update daily Boost staged action to accept direct share quantity:
 Keep the existing staged transaction -> review -> explicit confirmation architecture. Do not allow the widget/client to authoritatively calculate or execute destructive actions.
 
 Update:
+
 - `server/mcp/gameplay-transactions.ts`
 - native operations
 - public tool registry
@@ -387,6 +408,7 @@ Regenerate/update all governed snapshots deliberately so governance checks pass 
 The current `docs/wiki/gameplay/stacking-shares-and-boosts.md` becomes materially wrong. Remove/replace it.
 
 Create/update clear published docs for at least:
+
 - Player Earnings
 - How Earnings Are Normalized
 - Regular Season vs Playoffs
@@ -396,6 +418,7 @@ Create/update clear published docs for at least:
 - FAQ entries
 
 User-facing explanations should emphasize:
+
 - a benchmark-quality regular season is calibrated to 10,000 SB
 - postseason is a separate 10,000-SB benchmark earning season
 - actual payouts depend on actual fantasy performance
@@ -413,6 +436,7 @@ Update docs manifests/generated docs, plugin docs, onboarding/tooltips/help link
 Remove `stack_shares` / Stack strategy from bots.
 
 If bots use Boosts, adapt their strategy to choose:
+
 - player
 - slot
 - quantity/risk amount of Singles
@@ -424,6 +448,7 @@ Keep automated behavior bounded and deterministic enough for tests. Bot behavior
 Search and update any downstream consumer that refers to Stack, Stack Power, old share-payout semantics, or old Boost payout fields.
 
 Examples may include:
+
 - notifications/push events
 - activity feed
 - digest
@@ -440,6 +465,7 @@ Do not leave a hidden old-economy path alive.
 Add an idempotent production-safe migration command/script for Economy V2 that can be executed during Railway pre-deploy on both web and worker.
 
 Requirements:
+
 - PostgreSQL advisory lock or equivalent so web+worker can invoke concurrently safely
 - transactional where practical
 - safe to rerun
@@ -463,6 +489,7 @@ The deployment operator will remove that Railway environment variable after roll
 ### 22. Economy simulator/calibration tooling
 
 Add a permanent simulator script for Economy V2 that can model at minimum:
+
 - active users
 - active scouted players
 - share issuance
@@ -485,6 +512,7 @@ Add a historical benchmark calibration/report script as described above.
 Add/update tests for all of the following.
 
 Economy math:
+
 - benchmark-quality regular season ~= 10,000 SB
 - benchmark-quality postseason ~= 10,000 SB
 - target scales all classes proportionally
@@ -494,6 +522,7 @@ Economy math:
 - class mappings
 
 Base pool/EPS:
+
 - 50 vs 500 vs 50,000 shares changes EPS but NOT player game base pool
 - all user base payouts reconcile to the game base pool within deterministic rounding tolerance
 - zero eligible shares -> no mint
@@ -502,6 +531,7 @@ Base pool/EPS:
 - post-lock purchases cannot claim a started game's base payout
 
 Boosts:
+
 - exact allowed slots 2/3/5/7/10
 - any valid positive available quantity
 - cannot commit more available shares than owned
@@ -519,6 +549,7 @@ Boosts:
 - Community Boost interaction
 
 Migration:
+
 - 1 Power -> 1 Single
 - never 2 Power-equivalent Singles
 - SB delta = 0
@@ -528,12 +559,14 @@ Migration:
 - rerun safe
 
 Cross-surface:
+
 - web/API/MCP/plugin all report same holdings/Boost semantics
 - no Stack fields in active responses
 - no Stack tool discovery
 - staged Boost review requires confirmation and shows burn quantity
 
 Performance:
+
 - preserve/better the recent batched share payout settlement behavior; do not reintroduce per-row game/stats N+1 reads
 - add a regression/performance-oriented test around large shareholder snapshots if feasible
 
@@ -542,6 +575,7 @@ Performance:
 Add or extend a retired-runtime/surface audit so active production code cannot accidentally reintroduce old Stack concepts.
 
 Flag active references such as:
+
 - `stage_stack_shares`
 - `stackPower` / `stack_power`
 - `player_multipliers`
@@ -556,6 +590,7 @@ Do not globally ban the ordinary English word "stack" where it has unrelated tec
 ### 25. Validation commands
 
 Before finishing, run and fix failures from as many of these as the environment supports:
+
 - `npm run check`
 - `npm run lint`
 - `npm run format:check` (run formatter as needed)

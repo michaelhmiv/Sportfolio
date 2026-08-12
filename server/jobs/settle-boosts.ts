@@ -68,7 +68,8 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         totalBonusIssued += result.boostBonusSb;
         const player = await storage.getPlayer(boost.playerId);
         requestCount++;
-        const playerName = `${player?.firstName ?? ""} ${player?.lastName ?? ""}`.trim() || "Player";
+        const playerName =
+          `${player?.firstName ?? ""} ${player?.lastName ?? ""}`.trim() || "Player";
 
         broadcast({
           type: "boost_settled",

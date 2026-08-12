@@ -21,13 +21,17 @@ const avgBoostMultiplier = numberArg(
 );
 const avgBaseEpsOnBurnedShare = numberArg("avg-base-eps", 0.5);
 const regularBenchmarkPlayerEquivalents = numberArg("regular-benchmark-player-equivalents", 500);
-const postseasonBenchmarkPlayerEquivalents = numberArg("postseason-benchmark-player-equivalents", 100);
+const postseasonBenchmarkPlayerEquivalents = numberArg(
+  "postseason-benchmark-player-equivalents",
+  100,
+);
 const ammSbBurnRate = numberArg("amm-sb-burn-rate", 0.05);
 
 const scoutSinglesPerPlayerYear = 60 * 24 * 365;
 const scoutSinglesIssued = scoutedPlayers * scoutSinglesPerPlayerYear;
 const boostSharesBurned = scoutSinglesIssued * boostBurnRate;
-const boostBonusSb = boostSharesBurned * avgBaseEpsOnBurnedShare * Math.max(0, avgBoostMultiplier - 1);
+const boostBonusSb =
+  boostSharesBurned * avgBaseEpsOnBurnedShare * Math.max(0, avgBoostMultiplier - 1);
 const regularBaseSb = regularBenchmarkPlayerEquivalents * REGULAR_SEASON_TARGET_SB;
 const postseasonBaseSb = postseasonBenchmarkPlayerEquivalents * POSTSEASON_TARGET_SB;
 const openingSbSupply = users * startingSbPerUser;

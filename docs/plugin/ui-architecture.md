@@ -30,23 +30,23 @@ Legacy semantic URI constants such as `ui://sportfolio/scouting/v1.html` remain 
 
 ## Registered views
 
-| Presentation tool | View | Purpose |
-| --- | --- | --- |
-| `render_player_market` | `player_market` | Player identity, AMM market, bounded history, holding context, quotes, and staged trading |
-| `render_trade_preview` | `trade_preview` | Compatibility staged-trade review |
-| `render_portfolio` | `portfolio` | Connected Singles/LP portfolio and allocation |
-| `render_market_movers` | `market_movers` | Gainers, decliners, volume, trade activity, and watchlist movers |
-| `render_liquidity_position` | `liquidity` | AMM pool and connected LP position |
-| `render_score_slate` | `score_slate` | Compact schedule and scores |
-| `render_live_event` | `live_event` | One resolved live event with optional PiP |
-| `render_game_insights` | `game_insights` | Connected holding/boost exposure across a slate |
-| `render_action_review` | `action_review` | Exact staged action review with Confirm/Cancel controls |
-| `render_scouting` | `scouting` | Scout status, assignments, capacity, and opportunities |
-| `render_boosts` | `boosts` | Daily Boost slots, candidates, active boosts, history, and community state |
-| `render_watchlist` | `watchlist` | Connected watchlists |
-| `render_dashboard` | `dashboard` | Account snapshot and progress |
-| `render_collections` | `collections` | Collection progress and detail |
-| `render_rankings` | `rankings` | Canonical Sportfolio rankings |
+| Presentation tool           | View            | Purpose                                                                                   |
+| --------------------------- | --------------- | ----------------------------------------------------------------------------------------- |
+| `render_player_market`      | `player_market` | Player identity, AMM market, bounded history, holding context, quotes, and staged trading |
+| `render_trade_preview`      | `trade_preview` | Compatibility staged-trade review                                                         |
+| `render_portfolio`          | `portfolio`     | Connected Singles/LP portfolio and allocation                                             |
+| `render_market_movers`      | `market_movers` | Gainers, decliners, volume, trade activity, and watchlist movers                          |
+| `render_liquidity_position` | `liquidity`     | AMM pool and connected LP position                                                        |
+| `render_score_slate`        | `score_slate`   | Compact schedule and scores                                                               |
+| `render_live_event`         | `live_event`    | One resolved live event with optional PiP                                                 |
+| `render_game_insights`      | `game_insights` | Connected holding/boost exposure across a slate                                           |
+| `render_action_review`      | `action_review` | Exact staged action review with Confirm/Cancel controls                                   |
+| `render_scouting`           | `scouting`      | Scout status, assignments, capacity, and opportunities                                    |
+| `render_boosts`             | `boosts`        | Daily Boost slots, candidates, active boosts, history, and community state                |
+| `render_watchlist`          | `watchlist`     | Connected watchlists                                                                      |
+| `render_dashboard`          | `dashboard`     | Account snapshot and progress                                                             |
+| `render_collections`        | `collections`   | Collection progress and detail                                                            |
+| `render_rankings`           | `rankings`      | Canonical Sportfolio rankings                                                             |
 
 ## Runtime flow
 

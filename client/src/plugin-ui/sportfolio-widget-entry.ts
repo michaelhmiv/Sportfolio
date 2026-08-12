@@ -93,7 +93,10 @@ showBootstrapStatus("Loading Sportfolio…");
 routeSnapshot();
 
 subscribeHostMessages((message: JsonRecord) => {
-  if (message.method === "ui/notifications/tool-result" || message.method === "openai:set_globals") {
+  if (
+    message.method === "ui/notifications/tool-result" ||
+    message.method === "openai:set_globals"
+  ) {
     routeSnapshot();
   }
 });
