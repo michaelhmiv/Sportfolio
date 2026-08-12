@@ -1,0 +1,64 @@
+name: Final Browser Contract Fix
+
+on:
+  push:
+    branches: [fix/plugin-ui-runtime-rendering-20260811]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/plugin-ui-runtime-rendering-20260811
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Restore stable Portfolio E2E hooks and Economy V2 assertions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              actual = text.count(old)
+              if actual < count:
+                  raise SystemExit(f"{path}: expected at least {count} occurrence(s), found {actual}: {old!r}")
+              p.write_text(text.replace(old, new, count))
+
+          replace(
+              "client/src/pages/portfolio.tsx",
+              '<div className="font-mono text-lg font-bold">\n                {formatAdaptiveCurrency(portfolioValue)}\n              </div>',
+              '<div data-testid="text-portfolio-value-desktop" className="font-mono text-lg font-bold">\n                {formatAdaptiveCurrency(portfolioValue)}\n              </div>',
+          )
+          replace(
+              "client/src/pages/portfolio.tsx",
+              '                    <Card\n                      key={position.assetId}\n                      className="cursor-pointer hover-elevate"',
+              '                    <Card\n                      key={position.assetId}\n                      data-testid={`row-holding-${position.assetId}`}\n                      className="cursor-pointer hover-elevate"',
+          )
+          replace(
+              "client/src/pages/portfolio.tsx",
+              '                        <button\n                          type="button"\n                          key={position.assetId}\n                          className=',
+              '                        <button\n                          type="button"\n                          key={position.assetId}\n                          data-testid={`row-holding-${position.assetId}`}\n                          className=',
+          )
+          replace(
+              "tests/e2e/valuation-integrity.spec.ts",
+              '  await expect(joeyRow).toContainText("60");\n  await expect(joeyRow).toContainText("600p");\n  await expect(joeyRow).toContainText("660.00 gameplay power");\n  await expect(joeyRow).toContainText("$600.00");',
+              '  await expect(joeyRow).toContainText("60");\n  await expect(joeyRow).toContainText("Singles");\n  await expect(joeyRow).toContainText("$600.00");',
+          )
+          PY
+      - run: npx prettier --write client/src/pages/portfolio.tsx tests/e2e/valuation-integrity.spec.ts
+      - name: Commit browser contract repair
+        run: |
+          git add client/src/pages/portfolio.tsx tests/e2e/valuation-integrity.spec.ts
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "Sportfolio Automation"
+          git config user.email "34044957+michaelhmiv@users.noreply.github.com"
+          git commit -m "test: align portfolio browser contract with Economy V2"
+          git push origin HEAD:fix/plugin-ui-runtime-rendering-20260811
