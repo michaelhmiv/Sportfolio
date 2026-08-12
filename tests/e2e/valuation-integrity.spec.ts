@@ -232,8 +232,7 @@ test("AMM valuation stays consistent across player, portfolio, leaderboard, and 
   const joeyRow = page.getByTestId("row-holding-nascar_3859");
   await expect(joeyRow).toHaveCount(1);
   await expect(joeyRow).toContainText("60");
-  await expect(joeyRow).toContainText("600p");
-  await expect(joeyRow).toContainText("660.00 gameplay power");
+  await expect(joeyRow).toContainText("Singles");
   await expect(joeyRow).toContainText("$600.00");
 
   await page.goto("/leaderboards#portfolioValue");

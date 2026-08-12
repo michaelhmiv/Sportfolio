@@ -225,7 +225,10 @@ export default function Portfolio() {
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Portfolio
               </div>
-              <div className="font-mono text-lg font-bold">
+              <div
+                data-testid="text-portfolio-value-desktop"
+                className="font-mono text-lg font-bold"
+              >
                 {formatAdaptiveCurrency(portfolioValue)}
               </div>
             </CardContent>
@@ -335,6 +338,7 @@ export default function Portfolio() {
                   return (
                     <Card
                       key={position.assetId}
+                      data-testid={`row-holding-${position.assetId}`}
                       className="cursor-pointer hover-elevate"
                       onClick={() => {
                         setSelectedPlayerId(position.assetId);
@@ -399,6 +403,7 @@ export default function Portfolio() {
                         <button
                           type="button"
                           key={position.assetId}
+                          data-testid={`row-holding-${position.assetId}`}
                           className="grid w-full grid-cols-[1fr_auto] items-center gap-3 p-3 text-left hover:bg-muted/40 sm:grid-cols-[minmax(180px,1fr)_100px_100px_110px]"
                           onClick={() => {
                             setSelectedPlayerId(position.assetId);
