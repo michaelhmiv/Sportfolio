@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDiscordSport, parseAmountInput, resolveAmountInput } from "./discord-command-utils";
+import {
+  normalizeDiscordSport,
+  parseAmountInput,
+  resolveAmountInput,
+} from "./discord-command-utils";
 
 describe("discord-command-utils", () => {
   it("normalizes supported sport filters", () => {
