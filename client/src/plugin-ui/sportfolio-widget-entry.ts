@@ -13,7 +13,13 @@ const OVERVIEW_VIEWS = new Set(["dashboard", "collections", "rankings"]);
 
 export const WIDGET_HYDRATION_TIMEOUT_MS = 12_000;
 
-type Surface = "action" | "sports" | "market-portfolio" | "gameplay" | "overview" | "legacy";
+type Surface =
+  | "action"
+  | "sports"
+  | "market-portfolio"
+  | "gameplay"
+  | "overview"
+  | "legacy";
 
 export function viewFromToolOutput(value: unknown): string {
   const root = asRecord(value);
@@ -90,7 +96,10 @@ function loadView(view: string): void {
   clearBootstrapStatus();
   loadingSurface = importSurface(surface).catch((error) => {
     console.error("Sportfolio widget failed to load", error);
-    showBootstrapStatus("Sportfolio could not load this interactive view. Please try the action again.", true);
+    showBootstrapStatus(
+      "Sportfolio could not load this interactive view. Please try the action again.",
+      true,
+    );
     return null;
   });
 }
