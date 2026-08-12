@@ -1,70 +1,123 @@
 # iOS Publish Readiness Checklist (v1: iPhone + US)
 
-Launch scope (decision-locked):
+Last reviewed: 2026-08-11
 
-- iPhone only binary support
-- US-only storefront at first submission
+Launch scope:
+
+- iPhone-only binary support
+- US-only storefront for first submission
 - Paid premium purchases disabled on iOS
-- Rewarded AdMob scout boost enabled (non-personalized requests)
+- Rewarded Google Mobile Ads scout boost enabled with non-personalized requests
 - In-app account deletion initiation available
-- Sign in with Apple included
+- Sportfolio-owned passwordless email authentication; no third-party social login is required
 
-## Code/Repo Checks
+## Code / Repo Gates
 
-- `mobile/ios/App/App.xcodeproj/project.pbxproj` uses `TARGETED_DEVICE_FAMILY = 1`
-- Login supports Apple OAuth in `client/src/hooks/useAuth.tsx` and `client/src/pages/Login.tsx`
-- iOS profile picture flow uses library-only upload and does not expose a `capture="user"` camera path
-- Account deletion APIs exist:
-  - `GET /api/account/deletion/status`
-  - `POST /api/account/deletion/request`
-  - `POST /api/account/deletion/cancel`
-- Account deletion processor starts at server boot (`server/index.ts`)
-- Rewarded scout boosts support native iOS + Android adapter path
-- iOS external premium checkout remains blocked
+- `mobile/ios/App/App.xcodeproj/project.pbxproj` uses `TARGETED_DEVICE_FAMILY = 1`.
+- Native passwordless sign-in uses a one-time email link and `sportfolio://auth/callback` handoff.
+- iOS profile picture flow remains library-only unless native camera behavior is intentionally re-reviewed.
+- Account deletion endpoints and the in-app deletion flow remain available.
+- Rewarded scout boosts support the native iOS adapter and use non-personalized ad requests.
+- The Support page exposes `Report an ad` for inappropriate or age-inappropriate rewarded ads.
+- Rewarded-ad reports can include the latest available ad response identifier and mediation adapter context.
+- iOS external checkout and external purchase-sync controls for digital goods remain unavailable.
+- `npm run mobile:ios:doctor` passes after a production iOS sync.
+- `bash scripts/mobile-ios-privacy-manifest-audit.sh` passes after an iOS build.
 
-## Supabase (Auth) Setup
+## Authentication Review Path
 
-1. In Supabase Auth providers, enable `Apple`.
-2. Configure redirect URLs:
-   - `sportfolio://auth/callback`
-   - `https://www.sportfolio.market/auth/callback`
-3. Store Apple client ID/team/key values in secure environment variables used by Supabase.
+Sportfolio currently uses its own passwordless account system rather than Supabase/Apple OAuth.
 
-## Apple Developer + App Store Connect
+Before every App Review submission:
 
-1. Apple Developer:
-   - Enable `Sign in with Apple` capability on the app identifier.
-   - Ensure signing certificates/profiles are valid for TestFlight/App Store.
-2. App Store Connect:
-   - Keep availability to `United States` only for first launch.
-   - Complete App Privacy and Accessibility Nutrition Label sections.
-   - Reconfirm age rating responses and keep simulated gambling at `NONE` for this virtual-currency build.
-   - Add review notes with test credentials and sign-in/deletion/rewarded-ad steps.
-   - Upload iPhone screenshot sets only.
+1. Request a magic link from a fresh email address that the tester can access.
+2. Open the one-time link and confirm the native app receives the `sportfolio://auth/callback` handoff.
+3. Confirm a new account can be created during review without staff intervention.
+4. Confirm sign-out and a second sign-in work.
+5. Confirm the production backend at `https://www.sportfolio.market` is healthy.
 
-## AdMob Setup
+The old Supabase + Sign in with Apple checklist is retired. Do not reintroduce it unless Sportfolio again offers a qualifying third-party/social login option.
 
-1. Configure app IDs:
-   - Android: `ADMOB_APP_ID_ANDROID`
-   - iOS: `ADMOB_APP_ID_IOS`
-2. Configure rewarded ad units:
-   - `ADMOB_REWARDED_SCOUT_AD_UNIT_ID_ANDROID`
-   - `ADMOB_REWARDED_SCOUT_AD_UNIT_ID_IOS`
-3. Keep SSV callback target:
-   - `https://www.sportfolio.market/api/mobile/rewarded-scout-boost/admob/ssv`
-4. Ensure non-personalized ad request mode remains enabled for the rewarded flow.
+## Apple Developer / Toolchain
 
-## CI / Release
+- Use Xcode 26 or later for current App Store uploads.
+- Keep the App Store distribution certificate and `com.sportfoliomarket.app` provisioning profile valid.
+- The TestFlight workflow verifies that the provisioning profile bundle ID matches the expected app identifier.
 
-1. Run `iOS App Store Listing` on `main` and verify metadata/screenshots sync.
-2. Run `iOS TestFlight` with `skip_upload=true`, then `skip_upload=false`.
-3. Validate build appears in TestFlight and submit the tested build to review.
+## App Store Connect Manual Gates
+
+Before running `iOS App Store Listing`, confirm all workflow gates explicitly:
+
+1. **App Privacy**
+   - Reconcile the App Privacy questionnaire with the current privacy policy and final Xcode privacy report.
+   - Include applicable data practices from Google Mobile Ads/User Messaging Platform and other integrated SDKs.
+   - Do not declare cross-app tracking unless the submitted build actually performs tracking that requires ATT.
+2. **Age Rating**
+   - `Advertising = Yes` because the iOS app contains optional rewarded video ads.
+   - `Gambling = No` and `Simulated Gambling = None` for the current virtual-currency game.
+   - Reconfirm the July 2026 Social Media capability questions manually in App Store Connect. The committed default is `Social Media = No` because Sportfolio does not provide a social feed or controls to repost, like, comment on, react to, or amplify user content.
+3. **Accessibility Nutrition Label**
+   - Reconfirm the current answers in App Store Connect against the submitted build.
+4. **Review Access**
+   - Verify passwordless sign-in/new-account access using an email address the reviewer can access.
+   - Verify the production backend is healthy.
+5. **App Review Contact Information**
+   - Configure these GitHub secrets before the listing workflow can upload review information:
+     - `APP_STORE_REVIEW_CONTACT_FIRST_NAME`
+     - `APP_STORE_REVIEW_CONTACT_LAST_NAME`
+     - `APP_STORE_REVIEW_CONTACT_EMAIL`
+     - `APP_STORE_REVIEW_CONTACT_PHONE`
+6. **Screenshots / Availability**
+   - Keep first-launch availability to the intended US storefront scope.
+   - Upload only screenshot sets supported by the submitted iPhone device family.
+
+## App Review Notes
+
+The committed notes under `mobile/ios/App/fastlane/metadata/review_information/notes.txt` must remain factual for the submitted version. They should cover:
+
+- virtual currency only; no real-money wagering, cash-out, or redeemable prizes;
+- passwordless email sign-in and new-account review access;
+- core Market, Portfolio, Scouts, Boosts, Leaderboards, and Watchlists review path;
+- optional rewarded ads and the `Support > Report an ad` path;
+- account deletion;
+- iOS commerce boundary (no external checkout/purchase sync);
+- relevant native integrations.
+
+Do not include future-tense language such as “being finalized,” “coming soon,” or other statements that advertise unfinished functionality.
+
+## Rewarded Advertising / AdMob
+
+1. Configure the iOS AdMob app ID and rewarded ad unit.
+2. Keep the SSV callback target at the production rewarded-scout endpoint.
+3. Keep non-personalized request mode enabled for the current rewarded flow.
+4. Test both successful reward completion and early ad dismissal.
+5. Test `Support > Report an ad` after viewing an ad and confirm the generated report includes available diagnostic identifiers.
+6. Reconcile Google Mobile Ads/User Messaging Platform behavior with App Privacy and the privacy policy before review.
+
+## CI / Release Sequence
+
+1. Open a PR and require `iOS PR CI / ios-validate` to pass for any `client/src/**`, iOS, native-auth, or rewarded-ad-impacting change.
+2. `iOS PR CI` must:
+   - sync the production Capacitor shell;
+   - pass the expanded App Store readiness doctor;
+   - pass iOS-specific unit tests;
+   - build the iOS simulator app;
+   - validate required Capacitor/Cordova privacy manifests.
+3. Run `iOS Simulator QA` against `https://www.sportfolio.market` and inspect screenshots/logs.
+4. Run `iOS TestFlight` with `skip_upload=true` for a signed archive dry run. The Fastlane lane blocks before upload if the privacy-manifest audit fails.
+5. Run `iOS TestFlight` with `skip_upload=false` to upload the exact current `main` candidate.
+6. Confirm the processed build appears in TestFlight and smoke-test it.
+7. Run `iOS App Store Listing` only after all four manual confirmation inputs are true. The workflow uploads metadata, screenshots, declarations, and App Review information but intentionally does not submit for review.
+8. In App Store Connect, select the tested processed build, review the final App Privacy/Age Rating/Accessibility/Review Information values, and submit that build for Apple review.
 
 ## Validation Commands
 
-Run from repo root:
+From repo root:
 
 1. `npm run check`
 2. `npm run lint`
 3. `npm run test:run`
 4. `npm run format:check`
+5. `CAP_SERVER_URL=https://www.sportfolio.market npm run mobile:sync:ios`
+6. `npm run mobile:ios:doctor`
+7. `bash scripts/mobile-ios-privacy-manifest-audit.sh` (after an iOS build on macOS)
