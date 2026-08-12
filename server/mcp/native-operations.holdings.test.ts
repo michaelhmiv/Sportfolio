@@ -26,7 +26,7 @@ describe("native get_holdings", () => {
     expect(result.every((row) => row.player.sport === "NASCAR")).toBe(true);
   });
 
-  it("returns explicit canonical totals from get_portfolio_summary", async () => {
+  it("returns explicit canonical Singles-only totals from get_portfolio_summary", async () => {
     vi.spyOn(canonicalValuation, "getCanonicalPortfolioValuation").mockResolvedValue({
       valuationVersion: "amm_liquid_v2",
       userId: "user-1",
@@ -40,8 +40,6 @@ describe("native get_holdings", () => {
       unpricedPositionCount: 0,
       unpricedSingles: 0,
       totalSingles: 60,
-      totalStackPower: 600,
-      totalGameplayPower: 660,
       positions: [{ playerId: "nascar_3859" }],
       lpPositions: [{ id: "lp-1" }],
       warnings: [],
@@ -57,22 +55,23 @@ describe("native get_holdings", () => {
       valuationVersion: "amm_liquid_v2",
       availableBalance: 850,
       totalSingles: 60,
-      totalStackPower: 600,
-      totalGameplayPower: 660,
       singlesMarketValue: 600,
       lpMarketValue: 20,
       portfolioValue: 620,
       netWorth: 1520,
     });
     expect(result).not.toHaveProperty("totalQuantity");
+    expect(result).not.toHaveProperty("totalStackPower");
+    expect(result).not.toHaveProperty("totalGameplayPower");
   });
 
   it("returns liquid share supply and AMM market cap from get_player_shares_info", async () => {
     vi.spyOn(storage, "getPlayer").mockResolvedValue({ id: "nascar_3859" } as any);
     vi.spyOn(storage, "getAvailableShares").mockResolvedValue(50);
-    vi.spyOn(storage, "getPlayerShareBreakdown").mockResolvedValue({
-      regular: { quantity: "60" },
-      stacked: [{ multiplier: "600" }],
+    vi.spyOn(storage, "getHolding").mockResolvedValue({
+      quantity: "60",
+      avgCostBasis: "4",
+      totalCostBasis: "240",
     } as any);
     vi.spyOn(canonicalValuation, "getCanonicalPlayerMarket").mockResolvedValue({
       playerId: "nascar_3859",
@@ -103,6 +102,11 @@ describe("native get_holdings", () => {
       liquidSharesOutstanding: 105,
       marketCap: 1050,
       availableShares: 50,
+      holding: {
+        quantity: "60",
+        avgCostBasis: "4",
+        totalCostBasis: "240",
+      },
     });
   });
 });
