@@ -14,6 +14,8 @@ const REQUIRED_FILES = [
   "client/src/pages/privacy.tsx",
   "client/src/pages/contact.tsx",
   "client/src/hooks/use-rewarded-scout-boost.ts",
+  "server/profile/profile-safety.ts",
+  "migrations/0070_profile_safety.sql",
 ];
 
 const REQUIRED_PLUGIN_KEYS = ["SplashScreen", "StatusBar", "Keyboard"];
@@ -25,6 +27,7 @@ const REVIEW_NOTES_PATH = "mobile/ios/App/fastlane/metadata/review_information/n
 const PRIVACY_POLICY_PATH = "client/src/pages/privacy.tsx";
 const CONTACT_PATH = "client/src/pages/contact.tsx";
 const REWARDED_SCOUT_HOOK_PATH = "client/src/hooks/use-rewarded-scout-boost.ts";
+const PROFILE_SAFETY_PATH = "server/profile/profile-safety.ts";
 const MINIMUM_APP_STORE_XCODE_MAJOR = 26;
 
 function readJson(relativePath) {
@@ -167,6 +170,14 @@ function main() {
       printPass("App Store age rating correctly declares advertising=true.");
     }
 
+    if (ageRating.userGeneratedContent !== true) {
+      fail(
+        "App Store age rating must declare userGeneratedContent=true because public profiles contain user-selected usernames and profile images.",
+      );
+    } else {
+      printPass("App Store age rating correctly declares user-generated public profile content.");
+    }
+
     if (ageRating.gambling !== false || ageRating.gamblingSimulated !== "NONE") {
       fail("Current virtual-currency build must keep real gambling=false and simulated gambling=NONE.");
     } else {
@@ -175,14 +186,14 @@ function main() {
 
     const manualAgeRatingReview = submissionDefaults?.manualAgeRatingReview;
     if (
-      typeof manualAgeRatingReview?.socialMedia !== "boolean" ||
+      manualAgeRatingReview?.socialMedia !== false ||
       manualAgeRatingReview?.appStoreConnectApiAutomated !== false
     ) {
       fail(
-        "App Store submission defaults must document the manual social-media age-rating review because the current App Store Connect API schema does not expose that July 2026 questionnaire field.",
+        "App Store submission defaults must explicitly record Social Media=false as a manual age-rating review because the current App Store Connect API schema does not expose that July 2026 questionnaire field.",
       );
     } else {
-      printPass("Manual social-media age-rating review is explicitly tracked.");
+      printPass("Manual Social Media=false age-rating review is explicitly tracked.");
       printWarn(
         "Reconfirm the Social Media capability answer in App Store Connect before review; Apple requires the new response for submissions beginning September 2026.",
       );
@@ -210,12 +221,15 @@ function main() {
       "new-account registration is available during review",
       "does not expose external checkout",
       "support > report an ad",
+      "profile safety",
       "account deletion",
     ]);
     if (missingReviewFragments.length > 0) {
       fail(`App Review notes are missing required review guidance: ${missingReviewFragments.join(", ")}`);
     } else {
-      printPass("App Review notes describe current authentication, commerce boundaries, ad reporting, and deletion flow.");
+      printPass(
+        "App Review notes describe current authentication, commerce boundaries, ad reporting, profile safety, and deletion flow.",
+      );
     }
   } catch (error) {
     fail(`Could not validate ${REVIEW_NOTES_PATH}: ${error instanceof Error ? error.message : String(error)}`);
@@ -229,11 +243,15 @@ function main() {
       "report an ad",
       "age-inappropriate",
       "ad response identifier",
+      "public profile",
+      "block",
     ]);
     if (missingPrivacyFragments.length > 0) {
-      fail(`Privacy policy is missing rewarded-ad disclosure details: ${missingPrivacyFragments.join(", ")}`);
+      fail(
+        `Privacy policy is missing rewarded-ad/profile-safety disclosure details: ${missingPrivacyFragments.join(", ")}`,
+      );
     } else {
-      printPass("Privacy policy explicitly discloses rewarded advertising and ad-report diagnostics.");
+      printPass("Privacy policy explicitly discloses rewarded advertising and public-profile safety controls.");
     }
   } catch (error) {
     fail(`Could not validate ${PRIVACY_POLICY_PATH}: ${error instanceof Error ? error.message : String(error)}`);
@@ -245,11 +263,17 @@ function main() {
       "report an ad",
       "age-inappropriate",
       "buildAdReportMailto",
+      "profile safety",
+      "/api/profile-safety/report",
+      "/api/profile-safety/block",
+      "block profile",
     ]);
     if (missingContactFragments.length > 0) {
-      fail(`Support page is missing the required ad-reporting path: ${missingContactFragments.join(", ")}`);
+      fail(
+        `Support page is missing required ad/profile reporting and blocking paths: ${missingContactFragments.join(", ")}`,
+      );
     } else {
-      printPass("Support page provides an inappropriate/age-inappropriate ad reporting path.");
+      printPass("Support page provides ad reporting plus user-profile reporting and blocking controls.");
     }
   } catch (error) {
     fail(`Could not validate ${CONTACT_PATH}: ${error instanceof Error ? error.message : String(error)}`);
@@ -265,6 +289,25 @@ function main() {
   } catch (error) {
     fail(
       `Could not validate ${REWARDED_SCOUT_HOOK_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  try {
+    const profileSafety = readText(PROFILE_SAFETY_PATH);
+    const missingSafetyFragments = includesAll(profileSafety, [
+      "user_profile_reports",
+      "user_profile_blocks",
+      "reported_profile_image_url",
+      "isProfileBlockedForViewer",
+    ]);
+    if (missingSafetyFragments.length > 0) {
+      fail(`Profile-safety service is incomplete: ${missingSafetyFragments.join(", ")}`);
+    } else {
+      printPass("Profile-safety service records reports, supports blocking, and filters blocked public profiles.");
+    }
+  } catch (error) {
+    fail(
+      `Could not validate ${PROFILE_SAFETY_PATH}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 
