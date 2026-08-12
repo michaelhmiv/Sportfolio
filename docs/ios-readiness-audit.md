@@ -118,6 +118,8 @@ The iOS review job performs:
 6. unsigned simulator build;
 7. privacy-manifest audit.
 
+Repository-wide Code Validation also enforces Prettier formatting for the release-hardening changes before merge.
+
 The signed TestFlight lane performs the privacy-manifest audit after the App Store archive is built and before any TestFlight upload.
 
 ## Listing Workflow Safety Gates
