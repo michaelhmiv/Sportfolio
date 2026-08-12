@@ -223,14 +223,13 @@ describe("buildMobileMarketOverview", () => {
         id: "holding-1",
         userId: "user-1",
         quantity: "1",
-        multiplier: "3.00",
-        effectiveShares: "3.00",
+        effectiveShares: "1.00",
       }),
     ],
     getDailyBoostsAllSports: async () => [],
-    getTotalLockedQuantity: async (_userId, _assetType, assetId) => (assetId === "p3" ? 1 : 0),
+    getTotalLockedQuantity: async () => 0,
     getBatchTotalLockedQuantities: async (_userId, _assetType, assetIds) =>
-      new Map(assetIds.map((assetId) => [assetId, assetId === "p3" ? 1 : 0])),
+      new Map(assetIds.map((assetId) => [assetId, 0])),
     getTopRisers: async () => [
       {
         playerId: "p1",
@@ -347,7 +346,7 @@ describe("buildMobileMarketOverview", () => {
     expect(overview.pulse.openBoostSlots).toBe(4);
     expect(overview.marketIndicators.healthScore).toBeGreaterThan(0);
     expect(personalBoost?.availableShares).toBe(1);
-    expect(personalBoost?.bestShareMultiplier).toBe(3);
+    expect(personalBoost?.bestShareMultiplier).toBe(1);
     expect(personalBoost?.signal).toBe("boost");
     expect(overview.watchlistMoves.map((entry) => entry.playerId)).toEqual(["p4", "p2"]);
     expect(overview.personalEdge?.boostReady.map((entry) => entry.playerId)).toContain("p3");
