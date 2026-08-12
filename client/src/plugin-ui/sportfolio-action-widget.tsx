@@ -13,8 +13,12 @@ import {
 
 const CSS = `
 :root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--p:light-dark(#fff,#191c23);--p2:light-dark(#f1f3f7,#222630);--t:light-dark(#151821,#f5f7fb);--m:light-dark(#626a79,#a7aebb);--b:light-dark(#dfe3ea,#303642);--a:light-dark(#3157d5,#8da8ff);--r:light-dark(#b42318,#ff8d86)}
-*{box-sizing:border-box}html,body,#root{margin:0;min-height:100%;color:var(--t);background:transparent}button{font:inherit}.shell{padding:8px}.panel{background:var(--p);border:1px solid var(--b);border-radius:18px;padding:15px}.btn{border:1px solid var(--b);background:var(--p2);color:var(--t);border-radius:11px;min-height:39px;padding:8px 12px;cursor:pointer;font-weight:650}.btn.primary{background:var(--a);border-color:transparent;color:light-dark(#fff,#10131a)}.btn:disabled{opacity:.5;cursor:not-allowed}.loading{min-height:130px;display:grid;place-items:center;color:var(--m)}${ACTION_REVIEW_CSS}
+*{box-sizing:border-box}html,body,#root{margin:0;min-height:100%;color:var(--t);background:transparent}button{font:inherit}.shell{padding:8px}.panel{background:var(--p);border:1px solid var(--b);border-radius:18px;padding:15px}.btn{border:1px solid var(--b);background:var(--p2);color:var(--t);border-radius:11px;min-height:39px;padding:8px 12px;cursor:pointer;font-weight:650}.btn.primary{background:var(--a);border-color:transparent;color:light-dark(#fff,#10131a)}.btn:disabled{opacity:.5;cursor:not-allowed}.loading{min-height:130px;display:grid;place-items:center;color:var(--m)}.error{min-height:130px;display:grid;place-items:center;text-align:center;color:var(--r)}${ACTION_REVIEW_CSS}
 `;
+
+export const ACTION_REVIEW_RECOVERY_TIMEOUT_MS = 12_000;
+const ACTION_REVIEW_RECOVERY_ERROR =
+  "The staged Sportfolio action could not be loaded. Please ask ChatGPT to reopen the action review.";
 
 type ActionPayload = {
   view: "action_review";
@@ -22,7 +26,7 @@ type ActionPayload = {
   data: JsonRecord;
 };
 
-function normalize(value: unknown): ActionPayload | null {
+export function normalizeActionReview(value: unknown): ActionPayload | null {
   const root = asRecord(value);
   const structured = asRecord(root.structuredContent);
   const candidate = structured.view === "action_review" ? structured : root;
@@ -34,14 +38,32 @@ function normalize(value: unknown): ActionPayload | null {
   };
 }
 
-function transactionIdFromHost(): string {
-  const input = asRecord(getHostSnapshot().toolInput);
-  return typeof input.transactionId === "string" ? input.transactionId : "";
+function stringTransactionId(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+export function transactionIdFromSnapshot(snapshot = getHostSnapshot()): string {
+  const input = asRecord(snapshot.toolInput);
+  const inputId = stringTransactionId(input.transactionId);
+  if (inputId) return inputId;
+
+  // Recovery only: if a host accidentally mounts a raw stage_* result into the action
+  // resource, use the exact server-issued transaction ID and re-fetch the canonical review.
+  const output = asRecord(snapshot.toolOutput);
+  const structured = asRecord(output.structuredContent);
+  const structuredData = asRecord(structured.data);
+  const outputData = asRecord(output.data);
+  return (
+    stringTransactionId(structured.transactionId) ||
+    stringTransactionId(structuredData.transactionId) ||
+    stringTransactionId(output.transactionId) ||
+    stringTransactionId(outputData.transactionId)
+  );
 }
 
 function App() {
   const [payload, setPayload] = useState<ActionPayload | null>(() =>
-    normalize(getHostSnapshot().toolOutput),
+    normalizeActionReview(getHostSnapshot().toolOutput),
   );
   const [message, setMessage] = useState("");
 
@@ -50,15 +72,21 @@ function App() {
       if (event.method === "openai:set_globals") {
         const params = asRecord(event.params);
         const globals = asRecord(params.globals);
-        const next = normalize(
+        const next = normalizeActionReview(
           globals.toolOutput ?? params.toolOutput ?? getHostSnapshot().toolOutput,
         );
-        if (next) setPayload(next);
+        if (next) {
+          setMessage("");
+          setPayload(next);
+        }
       }
       if (event.method === "ui/notifications/tool-result") {
         const params = asRecord(event.params);
-        const next = normalize(params.result ?? params);
-        if (next) setPayload(next);
+        const next = normalizeActionReview(params.result ?? params);
+        if (next) {
+          setMessage("");
+          setPayload(next);
+        }
       }
     });
     void initializeMcpApp();
@@ -67,24 +95,41 @@ function App() {
 
   useEffect(() => {
     if (payload) return;
-    const transactionId = transactionIdFromHost();
+    const transactionId = transactionIdFromSnapshot();
     if (!transactionId) {
-      setMessage("The staged Sportfolio action could not be identified.");
+      setMessage(
+        "The staged Sportfolio action could not be identified. Please stage the action again.",
+      );
       return;
     }
+
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      if (active) setMessage(ACTION_REVIEW_RECOVERY_ERROR);
+    }, ACTION_REVIEW_RECOVERY_TIMEOUT_MS);
+
     void callTool("render_action_review", { transactionId })
       .then((result) => {
-        const next = normalize(result);
-        if (next) setPayload(next);
-        else setMessage("The staged Sportfolio action could not be loaded.");
+        if (!active) return;
+        window.clearTimeout(timeout);
+        const next = normalizeActionReview(result);
+        if (next) {
+          setMessage("");
+          setPayload(next);
+        } else {
+          setMessage(ACTION_REVIEW_RECOVERY_ERROR);
+        }
       })
-      .catch((error) =>
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : "The staged Sportfolio action could not be loaded.",
-        ),
-      );
+      .catch(() => {
+        if (!active) return;
+        window.clearTimeout(timeout);
+        setMessage(ACTION_REVIEW_RECOVERY_ERROR);
+      });
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
   }, [payload]);
 
   useEffect(() => {
@@ -107,8 +152,14 @@ function App() {
         <div className="panel">
           {payload ? (
             <ActionReviewPanel review={payload.data} closeOnFinalized />
+          ) : message ? (
+            <div className="error" role="alert">
+              {message}
+            </div>
           ) : (
-            <div className="loading">{message || "Loading Sportfolio action…"}</div>
+            <div className="loading" role="status">
+              Loading Sportfolio action…
+            </div>
           )}
         </div>
       </main>
