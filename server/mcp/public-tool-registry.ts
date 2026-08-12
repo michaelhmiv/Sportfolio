@@ -1889,15 +1889,6 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
     execute: (context, args) => executeReadTool(context, "get_player_watchlists", args),
   }),
   defineTool({
-    name: "get_holding_multiplier_state",
-    description: "Read holding multiplier and available share state for a player.",
-    domain: "portfolio",
-    readOnly: true,
-    inputSchema: playerIdSchema,
-    fixtureArgs: { playerId: "player_1" },
-    execute: (context, args) => executeReadTool(context, "get_holding_multiplier_state", args),
-  }),
-  defineTool({
     name: "list_daily_boosts",
     description: "List the user's daily boosts for a requested date.",
     domain: "boosts",
@@ -2246,7 +2237,7 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
       section: z.string().min(1),
       slug: z.string().min(1),
     },
-    fixtureArgs: { section: "gameplay", slug: "stacking-shares-and-boosts" },
+    fixtureArgs: { section: "gameplay", slug: "sports-and-slates" },
     execute: async (context, args) => {
       const section = toStringValue(args.section);
       const slug = toStringValue(args.slug);
@@ -3060,11 +3051,6 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "GET",
     path: "/api/news/unread-count",
     excludedCapabilityId: "news_unread_count_site_only",
-  },
-  {
-    method: "GET",
-    path: "/api/holdings/:playerId/multiplier-state",
-    capabilityIds: ["get_holding_multiplier_state"],
   },
   { method: "GET", path: "/api/daily-boosts/all", capabilityIds: ["list_daily_boosts"] },
   {

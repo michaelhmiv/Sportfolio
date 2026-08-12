@@ -1,3 +1,4 @@
+import { resolveEconomySeasonPhase } from "../economy/config";
 import { settleBaseEarningsForGame, settleDirectShareBoost } from "../economy/repository";
 import { storage } from "../storage";
 import { broadcast } from "../websocket";
@@ -37,6 +38,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         const game = await storage.getDailyGameByGameId(boost.gameId);
         requestCount++;
         if (!game) continue;
+        if (resolveEconomySeasonPhase({ seasonType: game.seasonType }) === "preseason") continue;
         const status = String(game.status || "").toLowerCase();
         if (status !== "completed" && status !== "ended") continue;
 
@@ -68,7 +70,8 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         totalBonusIssued += result.boostBonusSb;
         const player = await storage.getPlayer(boost.playerId);
         requestCount++;
-        const playerName = `${player?.firstName ?? ""} ${player?.lastName ?? ""}`.trim() || "Player";
+        const playerName =
+          `${player?.firstName ?? ""} ${player?.lastName ?? ""}`.trim() || "Player";
 
         broadcast({
           type: "boost_settled",

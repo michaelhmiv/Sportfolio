@@ -55,7 +55,6 @@ const requiredActionTools = [
   "stage_scout_assignment",
   "stage_daily_boost_assign",
   "stage_daily_boost_remove",
-  "stage_stack_shares",
   "stage_lp_add",
   "stage_lp_remove",
   "stage_community_boost_create",

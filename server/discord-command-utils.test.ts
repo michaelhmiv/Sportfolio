@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeDiscordSport,
-  normalizePortfolioView,
   parseAmountInput,
   resolveAmountInput,
 } from "./discord-command-utils";
@@ -11,13 +10,6 @@ describe("discord-command-utils", () => {
     expect(normalizeDiscordSport("mlb")).toBe("MLB");
     expect(normalizeDiscordSport(undefined)).toBe("ALL");
     expect(normalizeDiscordSport("invalid")).toBeNull();
-  });
-
-  it("normalizes portfolio view filters", () => {
-    expect(normalizePortfolioView("stacked")).toBe("stacked");
-    expect(normalizePortfolioView("REGULAR")).toBe("regular");
-    expect(normalizePortfolioView(undefined)).toBe("all");
-    expect(normalizePortfolioView("unknown")).toBeNull();
   });
 
   it("parses absolute, percent, and max amount inputs", () => {
@@ -64,21 +56,6 @@ describe("discord-command-utils", () => {
     });
   });
 
-  it("resolves even-share amounts with even floor behavior", () => {
-    expect(
-      resolveAmountInput({
-        rawInput: "50%",
-        baseAmount: 11,
-        kind: "evenWhole",
-        minimum: 4,
-      }),
-    ).toMatchObject({
-      kind: "percent",
-      value: 4,
-      derivedFromBase: true,
-    });
-  });
-
   it("returns null when resolved values fall below minimums", () => {
     expect(
       resolveAmountInput({
@@ -94,14 +71,6 @@ describe("discord-command-utils", () => {
         baseAmount: 12,
         kind: "whole",
         minimum: 2,
-      }),
-    ).toBeNull();
-    expect(
-      resolveAmountInput({
-        rawInput: "20%",
-        baseAmount: 10,
-        kind: "evenWhole",
-        minimum: 4,
       }),
     ).toBeNull();
   });

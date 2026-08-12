@@ -10,10 +10,11 @@ describe("NFL preseason display-only contract", () => {
     "server/jobs/settle-share-payouts.ts",
     "server/jobs/lock-boost-shares.ts",
     "server/jobs/settle-boosts.ts",
-  ])("guards %s with explicit NFL preseason semantics", (path) => {
+  ])("guards %s with unified Economy V2 preseason semantics", (path) => {
     const source = read(path);
-    expect(source).toContain('from "../nfl/season"');
-    expect(source).toContain("isNflPreseasonGame");
+    expect(source).toContain('from "../economy/config"');
+    expect(source).toContain("resolveEconomySeasonPhase");
+    expect(source).toContain('=== "preseason"');
   });
 
   it("does not hide preseason from the NFL schedule/live provider", () => {

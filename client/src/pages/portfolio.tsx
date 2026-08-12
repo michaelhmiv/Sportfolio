@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ArrowUpDown, Crown, Droplets, LayoutGrid, List, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  ArrowUpDown,
+  Crown,
+  Droplets,
+  LayoutGrid,
+  List,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -123,7 +131,9 @@ export default function Portfolio() {
     const selectedSport = String(sport || "ALL").toUpperCase();
     const rows = (data?.positions || []).filter((position) => {
       if (!position.player) return false;
-      return selectedSport === "ALL" || String(position.player.sport).toUpperCase() === selectedSport;
+      return (
+        selectedSport === "ALL" || String(position.player.sport).toUpperCase() === selectedSport
+      );
     });
 
     const sorted = [...rows].sort((left, right) => {
@@ -212,13 +222,22 @@ export default function Portfolio() {
           </Card>
           <Card>
             <CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Portfolio</div>
-              <div className="font-mono text-lg font-bold">{formatAdaptiveCurrency(portfolioValue)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Portfolio
+              </div>
+              <div
+                data-testid="text-portfolio-value-desktop"
+                className="font-mono text-lg font-bold"
+              >
+                {formatAdaptiveCurrency(portfolioValue)}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Net worth</div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Net worth
+              </div>
               <div className="font-mono text-lg font-bold">{formatAdaptiveCurrency(netWorth)}</div>
             </CardContent>
           </Card>
@@ -226,10 +245,17 @@ export default function Portfolio() {
             <CardContent className="p-3">
               <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
                 <span>P&amp;L</span>
-                {pnl >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                {pnl >= 0 ? (
+                  <TrendingUp className="h-3.5 w-3.5" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5" />
+                )}
               </div>
-              <div className={`font-mono text-lg font-bold ${pnl >= 0 ? "text-positive" : "text-negative"}`}>
-                {pnl >= 0 ? "+" : ""}{formatAdaptiveCurrency(pnl)}
+              <div
+                className={`font-mono text-lg font-bold ${pnl >= 0 ? "text-positive" : "text-negative"}`}
+              >
+                {pnl >= 0 ? "+" : ""}
+                {formatAdaptiveCurrency(pnl)}
               </div>
             </CardContent>
           </Card>
@@ -246,17 +272,24 @@ export default function Portfolio() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>{positions.length} players</span>
-                {data?.totalSingles != null && <span>· {numberValue(data.totalSingles).toLocaleString()} Singles</span>}
+                {data?.totalSingles != null && (
+                  <span>· {numberValue(data.totalSingles).toLocaleString()} Singles</span>
+                )}
               </div>
               <div className="flex items-center gap-2">
-                <Select value={sortField} onValueChange={(value) => setSortField(value as SortField)}>
+                <Select
+                  value={sortField}
+                  onValueChange={(value) => setSortField(value as SortField)}
+                >
                   <SelectTrigger className="h-8 w-[120px] text-xs">
                     <ArrowUpDown className="mr-1 h-3.5 w-3.5" />
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {SORT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -305,6 +338,7 @@ export default function Portfolio() {
                   return (
                     <Card
                       key={position.assetId}
+                      data-testid={`row-holding-${position.assetId}`}
                       className="cursor-pointer hover-elevate"
                       onClick={() => {
                         setSelectedPlayerId(position.assetId);
@@ -319,26 +353,40 @@ export default function Portfolio() {
                               {position.player?.team} · {position.player?.sport}
                             </div>
                           </div>
-                          <Badge variant="outline">{numberValue(position.singles).toLocaleString()} Singles</Badge>
+                          <Badge variant="outline">
+                            {numberValue(position.singles).toLocaleString()} Singles
+                          </Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-xs">
                           <div>
                             <div className="text-muted-foreground">Price</div>
-                            <div className="font-mono">{position.player?.marketPrice == null ? "Unpriced" : formatAdaptiveCurrency(position.player.marketPrice)}</div>
+                            <div className="font-mono">
+                              {position.player?.marketPrice == null
+                                ? "Unpriced"
+                                : formatAdaptiveCurrency(position.player.marketPrice)}
+                            </div>
                           </div>
                           <div>
                             <div className="text-muted-foreground">Value</div>
-                            <div className="font-mono">{position.currentValue == null ? "—" : formatAdaptiveCurrency(numberValue(position.currentValue))}</div>
+                            <div className="font-mono">
+                              {position.currentValue == null
+                                ? "—"
+                                : formatAdaptiveCurrency(numberValue(position.currentValue))}
+                            </div>
                           </div>
                           <div>
                             <div className="text-muted-foreground">P&amp;L</div>
-                            <div className={`font-mono ${currentPnl >= 0 ? "text-positive" : "text-negative"}`}>
-                              {currentPnl >= 0 ? "+" : ""}{formatAdaptiveCurrency(currentPnl)}
+                            <div
+                              className={`font-mono ${currentPnl >= 0 ? "text-positive" : "text-negative"}`}
+                            >
+                              {currentPnl >= 0 ? "+" : ""}
+                              {formatAdaptiveCurrency(currentPnl)}
                             </div>
                           </div>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {numberValue(position.availableQuantity).toLocaleString()} available · {numberValue(position.lockedQuantity).toLocaleString()} committed/locked
+                          {numberValue(position.availableQuantity).toLocaleString()} available ·{" "}
+                          {numberValue(position.lockedQuantity).toLocaleString()} committed/locked
                         </div>
                       </CardContent>
                     </Card>
@@ -355,6 +403,7 @@ export default function Portfolio() {
                         <button
                           type="button"
                           key={position.assetId}
+                          data-testid={`row-holding-${position.assetId}`}
                           className="grid w-full grid-cols-[1fr_auto] items-center gap-3 p-3 text-left hover:bg-muted/40 sm:grid-cols-[minmax(180px,1fr)_100px_100px_110px]"
                           onClick={() => {
                             setSelectedPlayerId(position.assetId);
@@ -363,18 +412,31 @@ export default function Portfolio() {
                         >
                           <div className="min-w-0">
                             <div className="truncate font-medium">{playerName(position)}</div>
-                            <div className="text-xs text-muted-foreground">{position.player?.team} · {position.player?.sport}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {position.player?.team} · {position.player?.sport}
+                            </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-mono text-sm">{numberValue(position.singles).toLocaleString()}</div>
-                            <div className="text-[10px] uppercase text-muted-foreground">Singles</div>
+                            <div className="font-mono text-sm">
+                              {numberValue(position.singles).toLocaleString()}
+                            </div>
+                            <div className="text-[10px] uppercase text-muted-foreground">
+                              Singles
+                            </div>
                           </div>
                           <div className="hidden text-right sm:block">
-                            <div className="font-mono text-sm">{position.currentValue == null ? "—" : formatAdaptiveCurrency(numberValue(position.currentValue))}</div>
+                            <div className="font-mono text-sm">
+                              {position.currentValue == null
+                                ? "—"
+                                : formatAdaptiveCurrency(numberValue(position.currentValue))}
+                            </div>
                             <div className="text-[10px] uppercase text-muted-foreground">Value</div>
                           </div>
-                          <div className={`hidden text-right font-mono text-sm sm:block ${currentPnl >= 0 ? "text-positive" : "text-negative"}`}>
-                            {currentPnl >= 0 ? "+" : ""}{formatAdaptiveCurrency(currentPnl)}
+                          <div
+                            className={`hidden text-right font-mono text-sm sm:block ${currentPnl >= 0 ? "text-positive" : "text-negative"}`}
+                          >
+                            {currentPnl >= 0 ? "+" : ""}
+                            {formatAdaptiveCurrency(currentPnl)}
                           </div>
                         </button>
                       );
@@ -389,7 +451,8 @@ export default function Portfolio() {
                 <div>
                   <div className="font-medium">Want more upside on a game?</div>
                   <div className="text-xs text-muted-foreground">
-                    Commit Singles directly to a Daily Boost. Boosted shares are permanently burned when the game begins.
+                    Commit Singles directly to a Daily Boost. Boosted shares are permanently burned
+                    when the game begins.
                   </div>
                 </div>
                 <Link href="/boosts">
@@ -403,11 +466,18 @@ export default function Portfolio() {
             {lpLoading ? (
               <ShimmerCard lines={6} />
             ) : lpPositions.length === 0 ? (
-              <EmptyState icon="wallet" title="No liquidity positions" description="Provide liquidity to a player pool to see LP positions here." />
+              <EmptyState
+                icon="wallet"
+                title="No liquidity positions"
+                description="Provide liquidity to a player pool to see LP positions here."
+              />
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
                 {lpPositions.map((position) => {
-                  const name = position.player?.name || `${position.player?.firstName || ""} ${position.player?.lastName || ""}`.trim() || position.playerId;
+                  const name =
+                    position.player?.name ||
+                    `${position.player?.firstName || ""} ${position.player?.lastName || ""}`.trim() ||
+                    position.playerId;
                   return (
                     <Card key={position.playerId}>
                       <CardHeader className="pb-2">
@@ -416,9 +486,24 @@ export default function Portfolio() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="grid grid-cols-3 gap-2 text-xs">
-                        <div><div className="text-muted-foreground">Value</div><div className="font-mono">{formatAdaptiveCurrency(numberValue(position.positionValue))}</div></div>
-                        <div><div className="text-muted-foreground">Pool</div><div className="font-mono">{numberValue(position.ownershipPercentage).toFixed(2)}%</div></div>
-                        <div><div className="text-muted-foreground">Fees</div><div className="font-mono">{formatAdaptiveCurrency(numberValue(position.feesEarnedToDate))}</div></div>
+                        <div>
+                          <div className="text-muted-foreground">Value</div>
+                          <div className="font-mono">
+                            {formatAdaptiveCurrency(numberValue(position.positionValue))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Pool</div>
+                          <div className="font-mono">
+                            {numberValue(position.ownershipPercentage).toFixed(2)}%
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Fees</div>
+                          <div className="font-mono">
+                            {formatAdaptiveCurrency(numberValue(position.feesEarnedToDate))}
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   );
@@ -436,7 +521,10 @@ export default function Portfolio() {
           <Link href="/premium">
             <Card className="cursor-pointer border-premium/30 bg-premium/5 hover-elevate">
               <CardContent className="flex items-center justify-between p-3">
-                <div className="flex items-center gap-2"><Crown className="h-4 w-4 text-premium" /><span className="text-sm font-medium">Premium Shares</span></div>
+                <div className="flex items-center gap-2">
+                  <Crown className="h-4 w-4 text-premium" />
+                  <span className="text-sm font-medium">Premium Shares</span>
+                </div>
                 <span className="font-mono font-bold text-premium">{data?.premiumShares || 0}</span>
               </CardContent>
             </Card>

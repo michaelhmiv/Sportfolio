@@ -6,6 +6,7 @@ on:
       - main
       - "plugin/**"
       - "feat/chatgpt-plugin-ui"
+      - "fix/plugin-ui-**"
     paths:
       - "server/mcp/plugin/**"
       - "server/mcp/public-**"
@@ -113,6 +114,10 @@ jobs:
           server/mcp/plugin/adapters.test.ts
           server/mcp/plugin/runtime-guard.test.ts
           server/mcp/plugin/ui/surface.test.ts
+          server/mcp/plugin/ui/shared-resource.test.ts
+          server/mcp/plugin/ui/protocol-resource.test.ts
+          client/src/plugin-ui/openai-host.test.ts
+          client/src/plugin-ui/sportfolio-widget-entry.test.ts
           server/auth/plugin-token-verifier.test.ts
           scripts/plugin-oauth-discovery-check.test.ts
           scripts/plugin-oauth-token-inspect.test.ts

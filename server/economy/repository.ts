@@ -46,19 +46,20 @@ type SnapshotHolding = {
 };
 
 export async function ensureGameShareSnapshots(
-  game: Pick<
-    DailyGame,
-    "gameId" | "sport" | "homeTeam" | "awayTeam" | "seasonType" | "startTime"
-  >,
+  game: Pick<DailyGame, "gameId" | "sport" | "homeTeam" | "awayTeam" | "seasonType" | "startTime">,
   onlyPlayerIds?: string[],
 ): Promise<{ playersSnapshotted: number; userSnapshots: number }> {
   return db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`economy-v2:snapshot:${game.gameId}`}))`);
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${`economy-v2:snapshot:${game.gameId}`}))`,
+    );
 
     const existingResult: any = await tx.execute(sql`
       SELECT player_id FROM player_game_earnings WHERE game_id = ${game.gameId}
     `);
-    const existing = new Set<string>((existingResult.rows || []).map((row: any) => String(row.player_id)));
+    const existing = new Set<string>(
+      (existingResult.rows || []).map((row: any) => String(row.player_id)),
+    );
 
     const holdingsResult: any = onlyPlayerIds?.length
       ? await tx.execute(sql`
@@ -321,10 +322,7 @@ export async function settleBaseEarningsForGame(
 
 export async function lockDirectShareBoost(
   boostId: string,
-  game: Pick<
-    DailyGame,
-    "gameId" | "sport" | "homeTeam" | "awayTeam" | "seasonType" | "startTime"
-  >,
+  game: Pick<DailyGame, "gameId" | "sport" | "homeTeam" | "awayTeam" | "seasonType" | "startTime">,
 ): Promise<{ locked: boolean; sharesBurned: number }> {
   const boostLookup: any = await db.execute(sql`
     SELECT player_id FROM daily_boosts WHERE id = ${boostId} AND status = 'active'

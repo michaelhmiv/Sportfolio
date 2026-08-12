@@ -7,7 +7,7 @@ import {
 } from "./shared-resource";
 
 describe("shared Sportfolio plugin UI resource", () => {
-  it("registers one canonical resource without mutating MCP registration methods", async () => {
+  it("registers one canonical self-contained resource without mutating MCP registration methods", async () => {
     const resources: any[][] = [];
     const registerResource = vi.fn((...args: any[]) => resources.push(args));
     const registerTool = vi.fn();
@@ -33,5 +33,8 @@ describe("shared Sportfolio plugin UI resource", () => {
         },
       },
     });
+    expect(result.contents[0].text).toContain('<script type="module">');
+    expect(result.contents[0].text).not.toMatch(/<script[^>]+src=/i);
+    expect(result.contents[0].text).toContain("ui/notifications/tool-result");
   });
 });

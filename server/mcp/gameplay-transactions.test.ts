@@ -33,7 +33,7 @@ describe("gameplay transactions", () => {
     );
   });
 
-  it("uses public player names instead of canonical ids in staged summaries", async () => {
+  it("uses public player names instead of canonical ids in staged boost summaries", async () => {
     vi.spyOn(storage, "getPlayer").mockResolvedValue({
       id: "nascar_4023",
       firstName: "Ryan",
@@ -47,11 +47,16 @@ describe("gameplay transactions", () => {
       action: {
         actionType: "daily_boost_assign",
         playerId: "nascar_4023",
-        sharesToStack: 4,
+        sport: "NASCAR",
+        slotTier: 5,
+        shares: 4,
+        boostDate: "2026-08-11",
       },
     });
 
-    expect(staged.summary).toBe("Stack 4 shares of Ryan Blaney.");
+    expect(staged.summary).toBe(
+      "Commit 4 Singles of Ryan Blaney to the 5x daily boost slot for 2026-08-11; the shares burn when the game begins.",
+    );
     expect(staged.summary).not.toContain("nascar_4023");
   });
 

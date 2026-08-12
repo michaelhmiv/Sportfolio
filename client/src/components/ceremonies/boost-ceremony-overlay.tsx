@@ -56,7 +56,12 @@ export function BoostCeremonyOverlay({
                   )}
                 </div>
               </div>
-              <Button size="icon" variant="ghost" onClick={onClose}>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={onClose}
+                aria-label="Close boost ceremony"
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>

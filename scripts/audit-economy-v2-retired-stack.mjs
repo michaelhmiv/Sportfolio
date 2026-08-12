@@ -5,7 +5,17 @@ import process from "node:process";
 
 const ROOT = process.cwd();
 const ROOTS = ["client", "server", "shared", "plugins", "config", "docs", "packages"];
-const TEXT_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".md", ".yml", ".yaml"]);
+const TEXT_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".json",
+  ".md",
+  ".yml",
+  ".yaml",
+]);
 const SKIP_PARTS = new Set(["node_modules", "dist", "build", "coverage", ".git"]);
 const FORBIDDEN = [
   /playerMultipliers/g,

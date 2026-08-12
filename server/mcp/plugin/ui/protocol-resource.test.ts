@@ -72,13 +72,13 @@ describe("Sportfolio MCP v2 UI resource contract", () => {
     }
   });
 
-  it("lists one canonical content-addressed resource and reads its MCP App metadata", async () => {
+  it("lists only one Sportfolio UI resource and reads its self-contained MCP App metadata", async () => {
     const resources = await call("resources/list");
-    expect(
-      resources.resources.filter(
-        (resource: any) => resource.uri === SPORTFOLIO_SHARED_UI_RESOURCE_URI,
-      ),
-    ).toHaveLength(1);
+    const sportfolioUiResources = resources.resources.filter((resource: any) =>
+      String(resource.uri || "").startsWith("ui://sportfolio/"),
+    );
+    expect(sportfolioUiResources).toHaveLength(1);
+    expect(sportfolioUiResources[0].uri).toBe(SPORTFOLIO_SHARED_UI_RESOURCE_URI);
     expect(SPORTFOLIO_SHARED_UI_RESOURCE_URI).toMatch(
       /^ui:\/\/sportfolio\/app\/[a-f0-9]{16}\.html$/,
     );
@@ -94,5 +94,7 @@ describe("Sportfolio MCP v2 UI resource contract", () => {
         },
       },
     });
+    expect(resource.contents[0].text).toContain('<script type="module">');
+    expect(resource.contents[0].text).not.toMatch(/<script[^>]+src=/i);
   });
 });

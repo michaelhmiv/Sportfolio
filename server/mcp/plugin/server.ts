@@ -7,14 +7,43 @@ import { registerPluginMarketplaceSurface } from "./registry";
 import { registerActionPluginUiSurface } from "./ui/action-surface";
 import { registerGameplayPluginUiSurface } from "./ui/gameplay-surface";
 import { registerOverviewPluginUiSurface } from "./ui/overview-surface";
-import { registerSharedPluginUiResource } from "./ui/shared-resource";
+import {
+  registerSharedPluginUiResource,
+  SPORTFOLIO_SHARED_UI_RESOURCE_URI,
+} from "./ui/shared-resource";
 import { registerSportsPluginUiSurface } from "./ui/sports-surface";
 import { registerPluginUiSurface } from "./ui/surface";
 
 const PLUGIN_SERVER_INFO = {
   name: "sportfolio-marketplace-plugin",
-  version: "1.3.0",
+  version: "1.4.0",
 } as const;
+
+function canonicalPresentationServer(server: LegacyMcpServer): LegacyMcpServer {
+  return new Proxy(server as any, {
+    get(target, property) {
+      if (property === "registerResource") {
+        return (...args: any[]) => {
+          const uri = args[1];
+          if (
+            typeof uri === "string" &&
+            uri.startsWith("ui://sportfolio/") &&
+            uri !== SPORTFOLIO_SHARED_UI_RESOURCE_URI
+          ) {
+            // Surface modules still own their semantic legacy URI constants for
+            // catalogs/tests, but production advertises exactly one immutable
+            // content-addressed MCP App resource. This prevents stale v1 resource
+            // registrations from competing with current render-tool metadata.
+            return undefined;
+          }
+          return target.registerResource(...args);
+        };
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as LegacyMcpServer;
+}
 
 /**
  * Build the public ChatGPT/plugin server on the MCP v2 implementation so the
@@ -37,17 +66,18 @@ export async function createPluginMcpServer(
   });
   const registrationServer = server as unknown as LegacyMcpServer;
 
-  // All presentation tools use the same generated widget shell. Register it
-  // once and rewrite the surface-specific output templates during registration
-  // so MCP clients do not fetch the same ~165 KB resource for every view.
+  // Register exactly one content-addressed MCP App resource. Every render tool
+  // references this URI and selects its React surface from structuredContent.view.
   registerSharedPluginUiResource(registrationServer);
 
   await registerPluginMarketplaceSurface(registrationServer, context, deps);
   registerMarketResearchTools(registrationServer, { plugin: true });
-  await registerPluginUiSurface(registrationServer, context);
-  await registerSportsPluginUiSurface(registrationServer, context, deps);
-  await registerActionPluginUiSurface(registrationServer, context);
-  await registerGameplayPluginUiSurface(registrationServer, context, deps);
-  await registerOverviewPluginUiSurface(registrationServer, context, deps);
+
+  const presentationServer = canonicalPresentationServer(registrationServer);
+  await registerPluginUiSurface(presentationServer, context);
+  await registerSportsPluginUiSurface(presentationServer, context, deps);
+  await registerActionPluginUiSurface(presentationServer, context);
+  await registerGameplayPluginUiSurface(presentationServer, context, deps);
+  await registerOverviewPluginUiSurface(presentationServer, context, deps);
   return server;
 }

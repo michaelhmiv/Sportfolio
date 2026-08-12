@@ -91,7 +91,9 @@ async function main() {
           p90: percentile(values, 0.9),
         };
       })
-      .sort((a, b) => a.economyClass.localeCompare(b.economyClass) || a.phase.localeCompare(b.phase));
+      .sort(
+        (a, b) => a.economyClass.localeCompare(b.economyClass) || a.phase.localeCompare(b.phase),
+      );
 
     console.log(JSON.stringify({ generatedAt: new Date().toISOString(), report }, null, 2));
     await client.query("ROLLBACK");

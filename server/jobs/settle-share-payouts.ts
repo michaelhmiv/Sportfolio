@@ -1,3 +1,4 @@
+import { resolveEconomySeasonPhase } from "../economy/config";
 import { settleBaseEarningsForGame } from "../economy/repository";
 import { storage } from "../storage";
 import { broadcast } from "../websocket";
@@ -25,6 +26,7 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
         const game = await storage.getDailyGameByGameId(gameId);
         requestCount++;
         if (!game) continue;
+        if (resolveEconomySeasonPhase({ seasonType: game.seasonType }) === "preseason") continue;
         const status = (game.status || "").toLowerCase();
         if (status !== "completed" && status !== "ended") continue;
 

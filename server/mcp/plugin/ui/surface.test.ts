@@ -36,7 +36,7 @@ describe("Sportfolio plugin UI presentation catalog", () => {
     ]);
   });
 
-  it("presents one canonical player position with separate Singles and non-liquid legacy inventory", () => {
+  it("presents one canonical Singles position with its liquid market value", () => {
     const data = buildPortfolioViewData(
       {
         valuationVersion: "amm_liquid_v2",
@@ -51,8 +51,6 @@ describe("Sportfolio plugin UI presentation catalog", () => {
         unpricedPositionCount: 0,
         unpricedSingles: 0,
         totalSingles: 60,
-        totalStackPower: 600,
-        totalGameplayPower: 660,
         warnings: [],
         lpPositions: [],
         positions: [
@@ -65,7 +63,6 @@ describe("Sportfolio plugin UI presentation catalog", () => {
               sport: "NASCAR",
             },
             holdingId: "holding-1",
-            stackId: "stack-1",
             singles: 60,
             lockedSingles: 0,
             availableSingles: 60,
@@ -90,8 +87,8 @@ describe("Sportfolio plugin UI presentation catalog", () => {
     expect(data.summary).toMatchObject({
       totalValue: 600,
       totalSingles: 60,
-      totalStackPower: 600,
-      totalGameplayPower: 660,
+      singlesMarketValue: 600,
+      lpMarketValue: 0,
     });
     const holdings = data.holdings as Array<Record<string, unknown>>;
     expect(holdings).toHaveLength(1);
@@ -117,15 +114,12 @@ describe("Sportfolio plugin UI presentation catalog", () => {
         unpricedPositionCount: 1,
         unpricedSingles: 3,
         totalSingles: 3,
-        totalStackPower: 0,
-        totalGameplayPower: 3,
         warnings: [],
         positions: [
           {
             playerId: "nascar_unpriced",
             player: { id: "nascar_unpriced", firstName: "Casey", lastName: "NoPool" },
             holdingId: "holding-1",
-            stackId: null,
             singles: 3,
             lockedSingles: 0,
             availableSingles: 3,

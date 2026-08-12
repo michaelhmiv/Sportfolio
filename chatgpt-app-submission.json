@@ -236,18 +236,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "get_holding_multiplier_state": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized portfolio information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "get_holdings": {
       "annotations": {
         "readOnlyHint": true,
@@ -1048,18 +1036,6 @@
       },
       "justifications": {
         "read_only_justification": "Creates a pending scouting action preview for later confirmation and therefore changes workflow state without finalizing the gameplay operation.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Only creates a reviewable pending action; the underlying gameplay operation is not applied until a separate confirmed finalizer runs."
-      }
-    },
-    "stage_stack_shares": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Creates a pending portfolio action preview for later confirmation and therefore changes workflow state without finalizing the gameplay operation.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Only creates a reviewable pending action; the underlying gameplay operation is not applied until a separate confirmed finalizer runs."
       }

@@ -7,6 +7,19 @@ import {
 } from "../server/mcp/public-tool-registry";
 import { startMockMcpHttpServer } from "../server/mcp/testing";
 
+function smokeArgs(
+  toolName: string,
+  fixtures: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  // Economy V2 retired the old stacking article. Keep the protocol smoke pinned
+  // to a currently published, stable docs article so it tests transport/tool
+  // execution instead of intentionally requesting removed documentation.
+  if (toolName === "get_doc_article") {
+    return { section: "gameplay", slug: "sports-and-slates" };
+  }
+  return fixtures[toolName] || {};
+}
+
 async function main() {
   const server = await startMockMcpHttpServer();
   const transport = new StreamableHTTPClientTransport(new URL(server.url), {
@@ -31,7 +44,10 @@ async function main() {
     for (const tool of buildPublicMcpToolRegistry()) {
       if (deferred.has(tool.name)) continue;
       try {
-        const result = await client.callTool({ name: tool.name, arguments: fixtures[tool.name] });
+        const result = await client.callTool({
+          name: tool.name,
+          arguments: smokeArgs(tool.name, fixtures),
+        });
         if (result.isError) {
           failures.push({ toolName: tool.name, message: "Tool returned an error result." });
           continue;

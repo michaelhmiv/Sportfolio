@@ -62,7 +62,9 @@ export interface EconomyClassInput {
 }
 
 function normalized(value: unknown): string {
-  return String(value ?? "").trim().toUpperCase();
+  return String(value ?? "")
+    .trim()
+    .toUpperCase();
 }
 
 function statsRecord(value: unknown): Record<string, unknown> {

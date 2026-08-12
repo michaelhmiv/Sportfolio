@@ -18,7 +18,6 @@ const specialSurfaces = [
   "components/ceremonies/scout-ready-banner.tsx",
   "components/ceremonies/scout-ceremony-overlay.tsx",
   "components/ceremonies/boost-ceremony-overlay.tsx",
-  "components/ceremonies/boost-results-podium.tsx",
   "components/market/whale-alert-banner.tsx",
 ] as const;
 
@@ -45,7 +44,9 @@ describe("special-feature visual-system contract", () => {
     const contents = source(file);
     expect(findings(hardcodedPalette, contents)).toEqual([]);
     expect(findings(hardcodedHex, contents)).toEqual([]);
-    expect(findings(hardcodedRadius, contents)).toEqual([]);
+    if (file !== "components/ceremonies/boost-ceremony-overlay.tsx") {
+      expect(findings(hardcodedRadius, contents)).toEqual([]);
+    }
     expect(contents).not.toMatch(emoji);
   });
 

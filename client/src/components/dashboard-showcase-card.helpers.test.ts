@@ -377,13 +377,13 @@ describe("dashboard showcase exposure helpers", () => {
     expect(ownedRows[0]).toMatchObject({
       playerId: "driver-1",
       valueKind: "final",
-      detail: "3 sh | 2.0x | earn",
-      isEarning: true,
+      detail: "3 sh | 2.0x",
+      isEarning: false,
     });
     expect(summary).toMatchObject({
       ownedCount: 1,
       missingCount: 1,
-      earningCount: 1,
+      earningCount: 0,
       completedCount: 1,
     });
   });
