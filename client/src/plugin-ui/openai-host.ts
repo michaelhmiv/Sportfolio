@@ -39,8 +39,24 @@ type PendingRpc = {
 
 type HostMessageHandler = (message: JsonRecord) => void;
 
+type HostSnapshot = {
+  toolInput?: unknown;
+  toolOutput?: unknown;
+  toolResponseMetadata?: unknown;
+  widgetState?: unknown;
+  locale?: string;
+  theme?: string;
+  displayMode?: string;
+  maxHeight?: number;
+  safeArea?: HostSafeArea;
+  view?: string;
+  userAgent?: string;
+};
+
 const pendingRpc = new Map<number, PendingRpc>();
+const bridgeSnapshot: HostSnapshot = {};
 let rpcId = 1;
+let initializePromise: Promise<void> | null = null;
 
 function hostWindow(): Window & { openai?: OpenAIHostApi } {
   return window as Window & { openai?: OpenAIHostApi };
@@ -50,24 +66,80 @@ export function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
+function assignIfPresent<K extends keyof HostSnapshot>(
+  target: HostSnapshot,
+  key: K,
+  source: JsonRecord,
+): void {
+  if (Object.prototype.hasOwnProperty.call(source, key)) {
+    target[key] = source[key] as HostSnapshot[K];
+  }
+}
+
+function applyGlobals(value: unknown): void {
+  const params = asRecord(value);
+  const globals = asRecord(params.globals);
+  const source = Object.keys(globals).length ? globals : params;
+  for (const key of [
+    "toolInput",
+    "toolOutput",
+    "toolResponseMetadata",
+    "widgetState",
+    "locale",
+    "theme",
+    "displayMode",
+    "maxHeight",
+    "safeArea",
+    "view",
+    "userAgent",
+  ] as const) {
+    assignIfPresent(bridgeSnapshot, key, source);
+  }
+}
+
+function applyBridgeMessage(message: JsonRecord): void {
+  const method = typeof message.method === "string" ? message.method : "";
+  const params = asRecord(message.params);
+  if (method === "ui/notifications/tool-input") {
+    bridgeSnapshot.toolInput = params;
+    return;
+  }
+  if (method === "ui/notifications/tool-result") {
+    bridgeSnapshot.toolOutput = params;
+    const metadata = params._meta ?? params.meta;
+    if (metadata !== undefined) bridgeSnapshot.toolResponseMetadata = metadata;
+    return;
+  }
+  if (method === "openai:set_globals") {
+    applyGlobals(params);
+  }
+}
+
+function bridgeOrHost<T>(bridgeValue: T | undefined, hostValue: T | undefined): T | undefined {
+  return bridgeValue !== undefined ? bridgeValue : hostValue;
+}
+
 export function getOpenAIHost(): OpenAIHostApi | undefined {
   return hostWindow().openai;
 }
 
-export function getHostSnapshot() {
+export function getHostSnapshot(): HostSnapshot {
   const host = getOpenAIHost();
   return {
-    toolInput: host?.toolInput,
-    toolOutput: host?.toolOutput,
-    toolResponseMetadata: host?.toolResponseMetadata,
-    widgetState: host?.widgetState,
-    locale: host?.locale,
-    theme: host?.theme,
-    displayMode: host?.displayMode,
-    maxHeight: host?.maxHeight,
-    safeArea: host?.safeArea,
-    view: host?.view,
-    userAgent: host?.userAgent,
+    toolInput: bridgeOrHost(bridgeSnapshot.toolInput, host?.toolInput),
+    toolOutput: bridgeOrHost(bridgeSnapshot.toolOutput, host?.toolOutput),
+    toolResponseMetadata: bridgeOrHost(
+      bridgeSnapshot.toolResponseMetadata,
+      host?.toolResponseMetadata,
+    ),
+    widgetState: bridgeOrHost(bridgeSnapshot.widgetState, host?.widgetState),
+    locale: bridgeOrHost(bridgeSnapshot.locale, host?.locale),
+    theme: bridgeOrHost(bridgeSnapshot.theme, host?.theme),
+    displayMode: bridgeOrHost(bridgeSnapshot.displayMode, host?.displayMode),
+    maxHeight: bridgeOrHost(bridgeSnapshot.maxHeight, host?.maxHeight),
+    safeArea: bridgeOrHost(bridgeSnapshot.safeArea, host?.safeArea),
+    view: bridgeOrHost(bridgeSnapshot.view, host?.view),
+    userAgent: bridgeOrHost(bridgeSnapshot.userAgent, host?.userAgent),
   };
 }
 
@@ -83,17 +155,21 @@ export function parentCall(method: string, params: JsonRecord): Promise<unknown>
   });
 }
 
-export async function initializeMcpApp(): Promise<void> {
-  try {
-    await parentCall("ui/initialize", {
-      protocolVersion: "2025-06-18",
-      appInfo: { name: "sportfolio-plugin-ui", version: "2.0.0" },
-      capabilities: {},
-    });
-  } catch {
-    // ChatGPT's window.openai compatibility surface may be available without an
-    // explicit MCP Apps initialization round trip. Initialization failure is not fatal.
-  }
+export function initializeMcpApp(): Promise<void> {
+  if (initializePromise) return initializePromise;
+  initializePromise = (async () => {
+    try {
+      await parentCall("ui/initialize", {
+        protocolVersion: "2025-06-18",
+        appInfo: { name: "sportfolio-plugin-ui", version: "2.1.0" },
+        capabilities: {},
+      });
+    } catch {
+      // ChatGPT's window.openai compatibility surface may be available without an
+      // explicit MCP Apps initialization round trip. Initialization failure is not fatal.
+    }
+  })();
+  return initializePromise;
 }
 
 export async function callTool(name: string, args: JsonRecord): Promise<unknown> {
@@ -109,6 +185,7 @@ export async function requestDisplayMode(mode: DisplayMode): Promise<unknown> {
 }
 
 export function persistWidgetState(state: unknown): void {
+  bridgeSnapshot.widgetState = state;
   getOpenAIHost()?.setWidgetState?.(state);
 }
 
@@ -161,7 +238,9 @@ export function setOpenInAppUrl(href: string): void {
 export function subscribeHostMessages(handler: HostMessageHandler): () => void {
   const onGlobals = (event: Event) => {
     const detail = asRecord((event as CustomEvent<unknown>).detail);
-    handler({ method: "openai:set_globals", params: detail });
+    const message = { method: "openai:set_globals", params: detail };
+    applyBridgeMessage(message);
+    handler(message);
   };
 
   const onMessage = (event: MessageEvent) => {
@@ -181,6 +260,7 @@ export function subscribeHostMessages(handler: HostMessageHandler): () => void {
       }
       return;
     }
+    applyBridgeMessage(message);
     handler(message);
   };
 
