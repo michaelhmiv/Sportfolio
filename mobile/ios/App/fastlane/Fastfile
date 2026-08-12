@@ -1,6 +1,3 @@
-require "fileutils"
-require "tmpdir"
-
 default_platform(:ios)
 
 platform :ios do
@@ -20,6 +17,32 @@ platform :ios do
       key_content: ENV.fetch("APP_STORE_CONNECT_API_KEY_BASE64"),
       is_key_content_base64: true
     )
+  end
+
+  private_lane :app_review_information_from_env do |options|
+    metadata_path = options[:metadata_path].to_s.strip
+    metadata_path = "fastlane/metadata" if metadata_path.empty?
+
+    required_review_env = %w[
+      APP_STORE_REVIEW_CONTACT_FIRST_NAME
+      APP_STORE_REVIEW_CONTACT_LAST_NAME
+      APP_STORE_REVIEW_CONTACT_EMAIL
+      APP_STORE_REVIEW_CONTACT_PHONE
+    ]
+    required_review_env.each do |name|
+      UI.user_error!("Missing required App Review contact environment variable: #{name}") if ENV[name].to_s.strip.empty?
+    end
+
+    notes_path = File.join(metadata_path, "review_information", "notes.txt")
+    UI.user_error!("Missing App Review notes file: #{notes_path}") unless File.file?(notes_path)
+
+    {
+      first_name: ENV.fetch("APP_STORE_REVIEW_CONTACT_FIRST_NAME"),
+      last_name: ENV.fetch("APP_STORE_REVIEW_CONTACT_LAST_NAME"),
+      email_address: ENV.fetch("APP_STORE_REVIEW_CONTACT_EMAIL"),
+      phone_number: ENV.fetch("APP_STORE_REVIEW_CONTACT_PHONE"),
+      notes: File.read(notes_path, encoding: "UTF-8")
+    }
   end
 
   desc "Build signed iOS IPA and optionally upload to TestFlight"
@@ -112,40 +135,24 @@ platform :ios do
     skip_screenshots = options[:skip_screenshots].to_s == "true"
 
     api_key = app_store_connect_api_key_from_env
-    upload_metadata_path = metadata_path
-    review_contact_env = %w[
-      APP_STORE_REVIEW_CONTACT_FIRST_NAME
-      APP_STORE_REVIEW_CONTACT_LAST_NAME
-      APP_STORE_REVIEW_CONTACT_EMAIL
-      APP_STORE_REVIEW_CONTACT_PHONE
-    ]
-
-    if Dir.exist?(File.join(metadata_path, "review_information")) && review_contact_env.any? { |name| ENV[name].to_s.strip.empty? }
-      UI.important("Skipping fastlane review_information upload because App Review contact env vars are not fully configured.")
-      upload_metadata_path = File.join(Dir.tmpdir, "sportfolio-fastlane-metadata-no-review-information")
-      FileUtils.rm_rf(upload_metadata_path)
-      FileUtils.mkdir_p(upload_metadata_path)
-      Dir.children(metadata_path).each do |entry|
-        next if entry == "review_information"
-
-        FileUtils.cp_r(File.join(metadata_path, entry), File.join(upload_metadata_path, entry))
-      end
-    end
+    review_information = app_review_information_from_env(metadata_path: metadata_path)
 
     deliver(
       api_key: api_key,
       app_identifier: app_identifier,
-      metadata_path: upload_metadata_path,
+      metadata_path: metadata_path,
       screenshots_path: screenshots_path,
+      app_review_information: review_information,
       skip_binary_upload: true,
       skip_metadata: false,
       skip_screenshots: skip_screenshots,
       submit_for_review: false,
       force: true,
       overwrite_screenshots: !skip_screenshots,
-      precheck_include_in_app_purchases: false
+      precheck_include_in_app_purchases: false,
+      precheck_default_rule_level: :error
     )
 
-    UI.success("App Store listing metadata#{skip_screenshots ? "" : " and screenshots"} uploaded without review submission.")
+    UI.success("App Store listing metadata, App Review information#{skip_screenshots ? "" : ", and screenshots"} uploaded without review submission.")
   end
 end
