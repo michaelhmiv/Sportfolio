@@ -1,5 +1,19 @@
-Sportfolio is a virtual-currency sports strategy game. It does not offer real-money gambling, cash-out, or redeemable prizes.
+Sportfolio is a virtual-currency sports strategy game. It does not offer real-money gambling, real-money wagering, cash-out, or redeemable prizes.
 
-Core gameplay lets users trade virtual player shares, assign scouts, and use daily boost slots tied to live game performance. iOS-native builds intentionally disable external checkout and purchase sync flows for digital goods while Apple in-app purchase support is being finalized.
+Reviewer access
+- Sportfolio uses passwordless email sign-in. Enter an email address the reviewer can access and follow the one-time sign-in link delivered by email. No password or third-party social login is required.
+- New-account registration is available during review.
+- Production backend: https://www.sportfolio.market
 
-Reviewer access should use active Sportfolio test credentials supplied in App Store Connect. The backend is available at https://www.sportfolio.market during review.
+Core review path
+1. Open Market to inspect and trade virtual player shares using in-game currency.
+2. Open Portfolio to review holdings and virtual portfolio value.
+3. Open Scouts to assign scouts. On iOS, the optional rewarded-ad scout boost can temporarily increase scout capacity. Rewarded-ad requests are configured as non-personalized. Users can report inappropriate or age-inappropriate ads from Support > Report an ad.
+4. Open Boosts, Leaderboards, Watchlists, and other game surfaces to review live sports-driven strategy features.
+5. Account deletion can be initiated from the in-app account settings/deletion flow.
+
+iOS commerce boundary
+- The submitted iOS version does not expose external checkout or external purchase-sync controls for digital goods.
+- Virtual gameplay can be reviewed without making a real-money purchase.
+
+Native iOS functionality includes native deep-link handoff for passwordless authentication, rewarded ads, haptics, share-sheet integration, keyboard/status-bar handling, and push-notification integration where enabled.
