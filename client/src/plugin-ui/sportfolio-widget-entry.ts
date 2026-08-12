@@ -45,6 +45,14 @@ function showBootstrapStatus(message: string, error = false): void {
   ].join(";");
 }
 
+function clearBootstrapStatus(): void {
+  const root = document.getElementById("root");
+  if (!root) return;
+  root.textContent = "";
+  root.removeAttribute("role");
+  root.removeAttribute("style");
+}
+
 let selectedSurface: Surface | null = null;
 let loadingSurface: Promise<unknown> | null = null;
 
@@ -69,6 +77,7 @@ function loadView(view: string): void {
   const surface = surfaceForView(view);
   if (!surface || selectedSurface) return;
   selectedSurface = surface;
+  clearBootstrapStatus();
   loadingSurface = importSurface(surface).catch((error) => {
     console.error("Sportfolio widget failed to load", error);
     showBootstrapStatus("Sportfolio could not load this interactive view.", true);
