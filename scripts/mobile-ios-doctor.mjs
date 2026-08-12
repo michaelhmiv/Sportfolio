@@ -107,7 +107,11 @@ function main() {
         );
       }
 
-      if (serverUrl && !serverUrl.startsWith("https://") && !serverUrl.startsWith("http://localhost")) {
+      if (
+        serverUrl &&
+        !serverUrl.startsWith("https://") &&
+        !serverUrl.startsWith("http://localhost")
+      ) {
         printWarn(`iOS server.url is not HTTPS or localhost: ${serverUrl}`);
       }
 
@@ -119,7 +123,9 @@ function main() {
         }
       }
     } catch (error) {
-      fail(`Could not read ${IOS_CONFIG_PATH}: ${error instanceof Error ? error.message : String(error)}`);
+      fail(
+        `Could not read ${IOS_CONFIG_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -136,7 +142,9 @@ function main() {
       printPass("Info.plist contains `sportfolio` URL scheme for auth deep links.");
     }
   } catch (error) {
-    fail(`Could not read ${INFO_PLIST_PATH}: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Could not read ${INFO_PLIST_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   try {
@@ -149,7 +157,9 @@ function main() {
       printPass("client/src/App.tsx still handles `sportfolio://auth/callback` deep links.");
     }
   } catch (error) {
-    fail(`Could not read ${APP_TSX_PATH}: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Could not read ${APP_TSX_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   try {
@@ -179,7 +189,9 @@ function main() {
     }
 
     if (ageRating.gambling !== false || ageRating.gamblingSimulated !== "NONE") {
-      fail("Current virtual-currency build must keep real gambling=false and simulated gambling=NONE.");
+      fail(
+        "Current virtual-currency build must keep real gambling=false and simulated gambling=NONE.",
+      );
     } else {
       printPass("App Store gambling declarations match the current virtual-currency build.");
     }
@@ -206,7 +218,12 @@ function main() {
 
   try {
     const reviewNotes = readText(REVIEW_NOTES_PATH);
-    const forbiddenPhrases = ["being finalized", "coming soon", "in development", "credentials supplied"];
+    const forbiddenPhrases = [
+      "being finalized",
+      "coming soon",
+      "in development",
+      "credentials supplied",
+    ];
     const foundForbidden = forbiddenPhrases.filter((phrase) =>
       reviewNotes.toLowerCase().includes(phrase),
     );
@@ -225,14 +242,18 @@ function main() {
       "account deletion",
     ]);
     if (missingReviewFragments.length > 0) {
-      fail(`App Review notes are missing required review guidance: ${missingReviewFragments.join(", ")}`);
+      fail(
+        `App Review notes are missing required review guidance: ${missingReviewFragments.join(", ")}`,
+      );
     } else {
       printPass(
         "App Review notes describe current authentication, commerce boundaries, ad reporting, profile safety, and deletion flow.",
       );
     }
   } catch (error) {
-    fail(`Could not validate ${REVIEW_NOTES_PATH}: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Could not validate ${REVIEW_NOTES_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   try {
@@ -251,10 +272,14 @@ function main() {
         `Privacy policy is missing rewarded-ad/profile-safety disclosure details: ${missingPrivacyFragments.join(", ")}`,
       );
     } else {
-      printPass("Privacy policy explicitly discloses rewarded advertising and public-profile safety controls.");
+      printPass(
+        "Privacy policy explicitly discloses rewarded advertising and public-profile safety controls.",
+      );
     }
   } catch (error) {
-    fail(`Could not validate ${PRIVACY_POLICY_PATH}: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Could not validate ${PRIVACY_POLICY_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   try {
@@ -273,10 +298,14 @@ function main() {
         `Support page is missing required ad/profile reporting and blocking paths: ${missingContactFragments.join(", ")}`,
       );
     } else {
-      printPass("Support page provides ad reporting plus user-profile reporting and blocking controls.");
+      printPass(
+        "Support page provides ad reporting plus user-profile reporting and blocking controls.",
+      );
     }
   } catch (error) {
-    fail(`Could not validate ${CONTACT_PATH}: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Could not validate ${CONTACT_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   try {
@@ -303,7 +332,9 @@ function main() {
     if (missingSafetyFragments.length > 0) {
       fail(`Profile-safety service is incomplete: ${missingSafetyFragments.join(", ")}`);
     } else {
-      printPass("Profile-safety service records reports, supports blocking, and filters blocked public profiles.");
+      printPass(
+        "Profile-safety service records reports, supports blocking, and filters blocked public profiles.",
+      );
     }
   } catch (error) {
     fail(

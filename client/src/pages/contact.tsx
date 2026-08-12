@@ -194,10 +194,15 @@ export default function Contact() {
                 <UserX className="h-5 w-5 text-brand" aria-hidden="true" />
                 <div>
                   <h3 className="font-bold text-content-strong">Choose a profile</h3>
-                  <p className="text-sm text-content-muted">Enter the public Sportfolio username.</p>
+                  <p className="text-sm text-content-muted">
+                    Enter the public Sportfolio username.
+                  </p>
                 </div>
               </div>
-              <label className="mt-5 block text-sm font-medium text-content-strong" htmlFor="safety-username">
+              <label
+                className="mt-5 block text-sm font-medium text-content-strong"
+                htmlFor="safety-username"
+              >
                 Username
               </label>
               <input
@@ -246,7 +251,10 @@ export default function Contact() {
                 </div>
               </div>
 
-              <label className="mt-5 block text-sm font-medium text-content-strong" htmlFor="safety-reason">
+              <label
+                className="mt-5 block text-sm font-medium text-content-strong"
+                htmlFor="safety-reason"
+              >
                 Reason
               </label>
               <select
@@ -264,7 +272,10 @@ export default function Contact() {
                 ))}
               </select>
 
-              <label className="mt-4 block text-sm font-medium text-content-strong" htmlFor="safety-details">
+              <label
+                className="mt-4 block text-sm font-medium text-content-strong"
+                htmlFor="safety-details"
+              >
                 Details (optional)
               </label>
               <textarea
@@ -339,9 +350,9 @@ export default function Contact() {
       <EditorialSection title="Response expectations">
         <p className="max-w-3xl leading-7 text-content-muted">
           Sportfolio aims to respond to direct support requests within 24 to 48 hours. Reports of
-          inappropriate or age-inappropriate ads, objectionable public profile content,
-          service-wide incidents, and authentication failures are prioritized ahead of general
-          questions and feature requests.
+          inappropriate or age-inappropriate ads, objectionable public profile content, service-wide
+          incidents, and authentication failures are prioritized ahead of general questions and
+          feature requests.
         </p>
       </EditorialSection>
     </SurfaceLayout>
