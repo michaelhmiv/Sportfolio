@@ -41,6 +41,12 @@ function validateSubmissionConfig() {
     );
   }
 
+  if (ageRating.userGeneratedContent !== true) {
+    throw new Error(
+      "ageRatingDeclaration.userGeneratedContent must be true because public profiles contain user-selected usernames and profile images.",
+    );
+  }
+
   if (ageRating.gambling !== false || ageRating.gamblingSimulated !== "NONE") {
     throw new Error(
       "The current virtual-currency build must declare gambling=false and gamblingSimulated=NONE.",
@@ -49,11 +55,11 @@ function validateSubmissionConfig() {
 
   const manualAgeRatingReview = config.manualAgeRatingReview;
   if (
-    typeof manualAgeRatingReview?.socialMedia !== "boolean" ||
+    manualAgeRatingReview?.socialMedia !== false ||
     manualAgeRatingReview?.appStoreConnectApiAutomated !== false
   ) {
     throw new Error(
-      "manualAgeRatingReview must document the Social Media questionnaire answer as a manual App Store Connect check.",
+      "manualAgeRatingReview must document Social Media=false as a manual App Store Connect check.",
     );
   }
 
