@@ -156,6 +156,23 @@ jobs:
       - name: Marketplace MCP smoke
         run: npx tsx scripts/plugin-smoke.ts
 
+  live-ui-smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PLUGIN_UI_SMOKE_URL: https://www.sportfolio.market/mcp/plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Live Sportfolio plugin UI smoke
+        run: npm run plugin:ui:live-smoke
+
   production-dependency-security:
     runs-on: ubuntu-latest
     timeout-minutes: 10

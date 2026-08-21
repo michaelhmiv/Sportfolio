@@ -45,6 +45,50 @@ async function main() {
       }
     }
 
+    const presentationTools = listed.tools.filter((tool) => tool.name.startsWith("render_"));
+    if (presentationTools.length !== 15) {
+      throw new Error(`Expected 15 presentation tools, found ${presentationTools.length}.`);
+    }
+    const presentationUris = new Set(
+      presentationTools.map((tool) => (tool._meta as any)?.ui?.resourceUri),
+    );
+    if (presentationUris.size !== 1) {
+      throw new Error(
+        `Presentation tools must share one UI resource: ${JSON.stringify([...presentationUris])}`,
+      );
+    }
+    const sharedResourceUri = [...presentationUris][0];
+    if (!/^ui:\/\/sportfolio\/app\/[a-f0-9]{16}\.html$/.test(sharedResourceUri)) {
+      throw new Error(
+        `Presentation resource must be content-addressed: ${String(sharedResourceUri)}`,
+      );
+    }
+    const resources = await client.listResources();
+    const uiResources = resources.resources.filter((resource) =>
+      String(resource.uri || "").startsWith("ui://sportfolio/app/"),
+    );
+    if (uiResources.length !== 1 || uiResources[0].uri !== sharedResourceUri) {
+      throw new Error(
+        `MCP resources/list did not expose the shared UI resource: ${JSON.stringify(uiResources)}`,
+      );
+    }
+    const sharedResource = await client.readResource({ uri: sharedResourceUri });
+    const sharedContent = sharedResource.contents[0] as
+      | {
+          mimeType?: string;
+          text?: string;
+        }
+      | undefined;
+    if (sharedContent?.mimeType !== "text/html;profile=mcp-app") {
+      throw new Error(`Shared UI resource has an unexpected MIME type: ${sharedContent?.mimeType}`);
+    }
+    if (
+      !sharedContent.text?.includes('<script type="module">') ||
+      /<script[^>]+src=/i.test(sharedContent.text)
+    ) {
+      throw new Error("Shared UI resource must contain one inline module and no external script.");
+    }
+
     for (const publicName of ["search_docs", "search_players", "get_games_today"]) {
       const tool = listed.tools.find((entry) => entry.name === publicName);
       if (!tool) throw new Error(`Missing public plugin tool ${publicName}.`);

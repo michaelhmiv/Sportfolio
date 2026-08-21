@@ -369,7 +369,7 @@ const SPORTS_PRESENTATION_DEFINITIONS: SportsPresentationDefinition[] = [
     featureFlag: "PLUGIN_UI_LIVE_EVENT_ENABLED",
     resourceUri: SPORTFOLIO_SPORTS_UI_RESOURCE_URIS.liveEvent,
     inputSchema: liveEventInputSchema,
-    fixtureArgs: { sport: "mlb", eventId: "game_1" },
+    fixtureArgs: { sport: "mlb", eventId: "mlb_game_1" },
     invoking: "Loading live event state…",
     invoked: "Live event loaded.",
     render: renderLiveEvent,

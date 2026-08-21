@@ -1,10 +1,17 @@
 import { readFileSync } from "node:fs";
-import {
+// The audit imports presentation catalogs, which transitively import the server
+// database module. The audit itself is static and must never require a real
+// database URL or attempt a database connection.
+process.env.NODE_ENV ||= "test";
+process.env.DEV_DATABASE_URL ||= "postgresql://127.0.0.1:5432/sportfolio_plugin_ui_audit";
+
+const {
   buildAllPluginPresentationCatalog,
   getAllPluginUiResourceUris,
   SPORTFOLIO_SHARED_UI_RESOURCE_URI,
-} from "../server/mcp/plugin/ui/catalog";
-import { SPORTFOLIO_WIDGET_HTML_TEMPLATE } from "../server/mcp/plugin/ui/generated-widget";
+} = await import("../server/mcp/plugin/ui/catalog");
+const { SPORTFOLIO_WIDGET_HTML_TEMPLATE } =
+  await import("../server/mcp/plugin/ui/generated-widget");
 
 const errors: string[] = [];
 const catalog = buildAllPluginPresentationCatalog();
@@ -50,6 +57,21 @@ for (const entry of catalog) {
   }
 }
 
+const fixtureExpectations: Record<string, Record<string, unknown>> = {
+  render_player_market: { playerId: "mlb_669022" },
+  render_liquidity_position: { playerId: "mlb_669022" },
+  render_live_event: { eventId: "mlb_game_1" },
+};
+for (const [toolName, expected] of Object.entries(fixtureExpectations)) {
+  const entry = catalog.find((candidate) => candidate.name === toolName);
+  const fixtureArgs = entry?.fixtureArgs as Record<string, unknown> | undefined;
+  for (const [key, value] of Object.entries(expected)) {
+    if (fixtureArgs?.[key] !== value) {
+      errors.push(`${toolName} must use the production-shaped ${key} fixture ${String(value)}.`);
+    }
+  }
+}
+
 const buildScript = readFileSync("scripts/build-plugin-ui.mjs", "utf8");
 const widgetEntryMatch = buildScript.match(
   /client\/src\/plugin-ui\/[A-Za-z0-9._/-]+\.(?:tsx|ts|jsx|js)/,
@@ -91,6 +113,7 @@ const widgetSources = [
   readFileSync("client/src/plugin-ui/sportfolio-gameplay-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/sportfolio-overview-widget.tsx", "utf8"),
   readFileSync("client/src/plugin-ui/action-review-panel.tsx", "utf8"),
+  readFileSync("client/src/plugin-ui/player-avatar.tsx", "utf8"),
   hostSource,
 ].join("\n");
 
@@ -117,6 +140,8 @@ for (const required of [
   '"dashboard"',
   '"collections"',
   '"rankings"',
+  "onError={() => setImageFailed(true)}",
+  'loading="lazy"',
 ]) {
   if (!widgetSources.includes(required)) {
     errors.push(`Widget source is missing required bridge or action contract: ${required}.`);
@@ -180,6 +205,12 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
 };
 if (!packageJson.scripts?.["plugin:ui:build"]?.includes("build-plugin-ui.mjs")) {
   errors.push("package.json must expose plugin:ui:build.");
+}
+if (!packageJson.scripts?.["plugin:ui:harness"]?.includes("plugin-ui-harness.mjs")) {
+  errors.push("package.json must expose plugin:ui:harness.");
+}
+if (!packageJson.scripts?.["plugin:ui:live-smoke"]?.includes("plugin-ui-live-smoke.ts")) {
+  errors.push("package.json must expose plugin:ui:live-smoke.");
 }
 if (!packageJson.scripts?.build?.includes("plugin:ui:build")) {
   errors.push("The production build must build the plugin UI before bundling the server.");

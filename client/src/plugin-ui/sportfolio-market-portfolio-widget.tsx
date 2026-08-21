@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { ACTION_REVIEW_CSS, ActionReviewPanel } from "./action-review-panel";
+import { PlayerAvatar } from "./player-avatar";
 import {
   asRecord,
   callTool,
@@ -71,14 +72,6 @@ function when(value: unknown): string {
   return Number.isNaN(date.getTime())
     ? ""
     : date.toLocaleDateString(getOpenAIHost()?.locale, { month: "short", day: "numeric" });
-}
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }
 function normalize(value: unknown): Payload | null {
   const root = asRecord(value);
@@ -203,14 +196,9 @@ function Stat({
 }
 function Identity({ player }: { player: JsonRecord }) {
   const name = text(player.displayName, "Unknown player");
-  const image = text(player.imageUrl);
   return (
     <div className="row">
-      {image ? (
-        <img className="avatar" src={image} alt="" />
-      ) : (
-        <div className="avatar avatar-fallback">{initials(name)}</div>
-      )}
+      <PlayerAvatar player={player} />
       <div>
         <div className="title">{name}</div>
         <div className="sub">

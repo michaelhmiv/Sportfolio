@@ -71,6 +71,8 @@
     "mcp:smoke": "tsx scripts/mcp-smoke.ts",
     "plugin:ui:build": "node scripts/build-plugin-ui.mjs",
     "plugin:ui:audit": "tsx scripts/plugin-ui-audit.ts",
+    "plugin:ui:harness": "node scripts/plugin-ui-harness.mjs",
+    "plugin:ui:live-smoke": "tsx scripts/plugin-ui-live-smoke.ts",
     "bot:liquidity:report": "tsx scripts/bot-liquidity-spread-report.ts",
     "text:check": "node scripts/check-text-encoding.mjs",
     "redditbot:typecheck": "npm --prefix packages/sportfoliobot run typecheck",
