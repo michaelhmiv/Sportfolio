@@ -11,7 +11,6 @@ import {
   SearchCheck,
   ShoppingCart,
   TrendingDown,
-  TrendingUp,
   Zap,
 } from "lucide-react";
 
@@ -61,7 +60,6 @@ interface MarketSheetPlayer {
 
 interface MarketSheetQuickContext {
   availableShares?: number;
-  bestShareMultiplier?: number;
   isBoostEligible?: boolean;
   scoutCount?: number;
   isWatchlisted?: boolean;
@@ -311,14 +309,6 @@ export function MarketMobilePlayerSheet({
                   Boost Ready
                 </Badge>
               )}
-              {(quickContext?.bestShareMultiplier || 1) > 1 && (
-                <Badge
-                  variant="outline"
-                  className="border-category-stacking/30 bg-category-stacking/10 text-category-stacking"
-                >
-                  Multi {quickContext?.bestShareMultiplier}x
-                </Badge>
-              )}
               {(player.communityBoostCount || 0) > 0 && (
                 <Badge
                   variant="outline"
@@ -431,11 +421,7 @@ export function MarketMobilePlayerSheet({
                       Tonight's Boost Window
                     </div>
                     <p className="mt-1 text-sm text-content">
-                      {quickContext?.availableShares || 0} share
-                      {(quickContext?.availableShares || 0) === 1 ? "" : "s"} available.
-                      {(quickContext?.bestShareMultiplier || 1) > 1
-                        ? ` Best share multiplier is ${quickContext?.bestShareMultiplier}x.`
-                        : " A regular share is ready to burn."}
+                      {quickContext?.availableShares || 0} Singles available for a Daily Boost.
                     </p>
                   </div>
                   <SearchCheck className="mt-0.5 h-4 w-4 text-boost" />

@@ -13,7 +13,6 @@ const coreSurfaces = [
   "pages/player.tsx",
   "components/player-modal.tsx",
   "components/portfolio-activity-tab.tsx",
-  "components/market-mobile-home.tsx",
   "components/market-mobile-pools-board.tsx",
   "components/market-mobile-player-sheet.tsx",
   "components/market-activity-ledger.tsx",
@@ -74,64 +73,57 @@ describe("core exchange visual contract", () => {
       ).toEqual([]);
     }
 
-    for (const relativePath of ["market-mobile-home.tsx", "market-mobile-pools-board.tsx"]) {
-      const source = read(relativePath);
-      expect(source).not.toContain("chart-");
-      const chipMap = source.slice(
-        source.indexOf("function getChipClassName"),
-        source.indexOf("function getFreshnessClassName"),
-      );
-      expect(chipMap).not.toMatch(/(?:chart-|premium|market-negative)/);
-      expect(chipMap).toContain("category-boost");
-      expect(chipMap).toContain("category-scout");
-      expect(chipMap).toContain("category-whale");
-      expect(chipMap).toContain("category-thin-pool");
-      expect(chipMap).toContain("category-momentum");
-    }
-
     const poolsBoard = read("market-mobile-pools-board.tsx");
+    expect(poolsBoard).not.toContain("chart-");
+    const chipMap = poolsBoard.slice(
+      poolsBoard.indexOf("function getChipClassName"),
+      poolsBoard.indexOf("function getFreshnessClassName"),
+    );
+    expect(chipMap).not.toMatch(/(?:chart-|premium|market-negative)/);
+    expect(chipMap).toContain("category-boost");
+    expect(chipMap).toContain("category-scout");
+    expect(chipMap).toContain("category-whale");
+    expect(chipMap).toContain("category-thin-pool");
+    expect(chipMap).toContain("category-momentum");
+
     const compactMap = poolsBoard.slice(
       poolsBoard.indexOf("function getCompactStatusToken"),
       poolsBoard.indexOf("function MarketPlayerCompactRow"),
     );
-    expect(compactMap).not.toMatch(/(?:chart-|premium)/);
-    for (const role of ["boost", "liquidity", "stacking", "community"] as const) {
+    expect(compactMap).not.toMatch(/(?:chart-|premium|category-stacking)/);
+    for (const role of ["boost", "liquidity", "community"] as const) {
       expect(compactMap).toContain(`category-${role}`);
     }
 
     const playerSheet = read("market-mobile-player-sheet.tsx");
     expect(playerSheet).not.toContain("chart-");
+    expect(playerSheet).not.toContain("category-stacking");
     const playerHeader = playerSheet.slice(
       playerSheet.indexOf("{showBoostContext"),
       playerSheet.indexOf("{quickContext?.isWatchlisted"),
     );
     expect(playerHeader).not.toContain("chart-");
-    expect(playerHeader).toContain("category-stacking");
     expect(playerHeader).toContain("category-community");
     expect(playerHeader).toContain("category-momentum");
 
     const modal = read("game-command-center-modal.tsx");
     expect(modal).not.toContain("chart-");
+    expect(modal).not.toContain("category-stacking");
+    expect(modal).not.toContain("Your Multiplier Leaders");
     expect(modal).toContain("category-ownership");
     expect(modal).toContain("aria-pressed={selectedTier === tier}");
+    expect(modal).toContain("const BOOST_SLOT_TIERS = [10, 7, 5, 3, 2] as const");
     expect(modal).not.toMatch(/hover:bg-tier-(?:boosted|elite|legendary|mythic)\//);
 
     const card = read("game-command-center-card.tsx");
+    expect(card).not.toContain("category-stacking");
+    expect(card).not.toContain("Stacked Shares");
     expect(card).toContain("aria-pressed={selectedTier === tier}");
+    expect(card).toContain("const BOOST_SLOT_TIERS = [10, 7, 5, 3, 2] as const");
     expect(card).toContain("aria-label={`Open ${game.awayTeam} at ${game.homeTeam} game details`}");
     expect(card).not.toContain(
       'return (\n    <button\n      type="button"\n      onClick={onOpen}',
     );
-
-    const multiplierLeaders = modal.slice(
-      modal.indexOf("Your Multiplier Leaders"),
-      modal.indexOf("Quick Scout", modal.indexOf("Your Multiplier Leaders")),
-    );
-    expect(multiplierLeaders).not.toContain("chart-");
-    expect(multiplierLeaders).toContain("category-stacking");
-    for (const tier of ["boosted", "elite", "legendary", "mythic"] as const) {
-      expect(multiplierLeaders).toContain(`tier-${tier}`);
-    }
 
     const dashboard = readFileSync(
       resolve(process.cwd(), "client/src/pages/dashboard.tsx"),
@@ -142,12 +134,6 @@ describe("core exchange visual contract", () => {
     );
     expect(dashboard).not.toMatch(/(?:race|game)MarketStateClass[\s\S]{0,350}text-chart-/);
     expect(dashboard).not.toContain("font-mono text-chart-4");
-
-    const mobileHome = read("market-mobile-home.tsx");
-    expect(mobileHome).toContain(
-      'label: "Boost Ready",\n        accentClassName: "bg-category-boost"',
-    );
-    expect(mobileHome).toContain('label: "Watchlist",\n        accentClassName: "bg-selected"');
   });
 
   it("orders MLB game detail by score, exposure, lineups, then collapsed scoring context", () => {

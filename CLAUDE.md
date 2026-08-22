@@ -14,7 +14,7 @@ Current core stack:
 - Better Auth + Resend passwordless authentication
 - Neutral sports adapters under `server/sports/`
 
-Current sports sources are MLB StatsAPI/Baseball Savant, the NHL web API integration, NASCAR schedule/live feeds, and ESPN+nflverse for NFL. Do not use BallDontLie, Supabase, a standalone MLB MCP service, Hermes/agent infrastructure, SMS, or Telnyx as active Sportfolio architecture.
+Current sports sources are MLB StatsAPI/Baseball Savant, the NHL web API integration, NASCAR schedule/live feeds, and ESPN+nflverse for NFL. Use only the current source/provider/auth architecture represented by active code and maintained configuration; do not restore retired integrations from historical commits or migrations.
 
 ## Start with current state
 
@@ -34,6 +34,17 @@ At the beginning of a task:
 - Keep public MCP capabilities compact and governed; do not expose raw provider endpoints.
 - Preserve authentication, authorization, account ownership, staged-write confirmation, and economic invariants.
 - Never log or commit secrets, tokens, private user data, or raw credentials.
+- Remove completed one-shot scripts, generated reports, temporary task contracts, and tracked caches when they are no longer operational inputs.
+
+## Economy V2
+
+Economy V2 is authoritative.
+
+- Player holdings are Singles. There is no separate player stacking or power state in the active economy.
+- Daily Boosts commit a direct quantity of Singles to one configured boost slot.
+- Boosted Singles are reserved before the applicable game and burn according to the current game-boundary/settlement flow.
+- Available shares must continue to respect active locks/reservations.
+- Do not add compatibility routes, tools, fields, tables, copy, or calculations for retired player-share multiplier mechanics.
 
 ## Authentication architecture
 
@@ -47,7 +58,7 @@ Production:
 
 Beta uses `https://beta.sportfolio.market` as its same-origin site/auth origin and intentionally shares the production database. Beta must not run scheduled jobs.
 
-Do not reintroduce Supabase auth/runtime configuration, provider selection, Supabase fallback, a dedicated auth hostname, or password/social login.
+Do not reintroduce fallback auth providers, provider-selection switches, a dedicated auth hostname, password/social login, or removed legacy linking transports.
 
 ## Sports architecture
 
@@ -70,6 +81,7 @@ npm run lint
 npm run test:run
 npm run format:check
 npm run build
+npm run code:dead
 npm run public-tools:audit
 npm run governance:capabilities
 npm run retired-runtime:audit

@@ -49,6 +49,9 @@ type CommandCenterTab = "pre" | "during" | "post";
 
 type InjuryEntry = GameInsightDetailResponse["injuries"][number];
 
+const BOOST_SLOT_TIERS = [10, 7, 5, 3, 2] as const;
+type BoostSlotTier = (typeof BOOST_SLOT_TIERS)[number];
+
 type LivePlayerStats = {
   playerId?: string;
   name: string;
@@ -194,7 +197,6 @@ interface LiveStatsResponse {
       name: string;
       team: string;
       quantity: number;
-      effectiveShares: number;
       fantasyPoints: number;
       estimatedEarnings: number;
     }>;
@@ -311,7 +313,7 @@ function MlbLinescorePanel({
     return null;
   }
 
-  const attendanceLabel = null; // attendance disabled — unreliable data
+  const attendanceLabel = null;
   const decisions = gameState?.decisions;
   const renderDecisionName = (name: string) => {
     if (!resolvePlayerModalId || !onOpenPlayerModal) {
@@ -523,7 +525,7 @@ function MlbLifecycleCard({
   const totalLiveEarnings = liveStats?.userEarnings?.totalEstimatedEarnings || 0;
   const hasMlbTeamContext = Boolean(mlbPregame.teamContexts.away || mlbPregame.teamContexts.home);
   const [scoringExpanded, setScoringExpanded] = useState(false);
-  const attendanceLabel = null; // attendance disabled — unreliable data
+  const attendanceLabel = null;
   const ownershipBadgeLabel = isAuthenticated
     ? isPregame
       ? `${scheduledOwnedPlayers.length} held`
@@ -544,8 +546,8 @@ function MlbLifecycleCard({
     scheduledOwnedPlayers.map((player) => [
       buildNameTeamKey(player.name, player.team),
       {
-        badge: `${player.multiplier.toFixed(1)}x`,
-        detail: `${player.totalShares.toFixed(1)} shares held`,
+        badge: `${player.totalShares.toFixed(1)} Singles`,
+        detail: `${player.availableShares.toFixed(1)} Singles available`,
         tone: "text-category-ownership",
       },
     ]),
@@ -555,7 +557,7 @@ function MlbLifecycleCard({
       buildNameTeamKey(player.name, player.team),
       {
         badge: `$${player.estimatedEarnings.toFixed(2)}`,
-        detail: `${player.fantasyPoints.toFixed(1)} FP • ${player.effectiveShares.toFixed(1)} effective`,
+        detail: `${player.fantasyPoints.toFixed(1)} FP • ${player.quantity.toFixed(1)} Singles`,
         tone: "text-market-positive dark:text-market-positive",
       },
     ]),
@@ -648,7 +650,7 @@ function MlbLifecycleCard({
                       className: "text-category-ownership",
                       label: formatCompactName(player.name),
                     })}
-                    <span className="font-mono">{player.multiplier.toFixed(1)}x</span>
+                    <span className="font-mono">{player.totalShares.toFixed(1)} Singles</span>
                   </Badge>
                 ))}
                 {scheduledOwnedPlayers.length > 4 ? (
@@ -700,7 +702,7 @@ function MlbLifecycleCard({
                     })}
                     <div className="text-[10px] text-muted-foreground">
                       {player.team} • {player.fantasyPoints.toFixed(1)} FP •{" "}
-                      {player.effectiveShares.toFixed(1)} effective
+                      {player.quantity.toFixed(1)} Singles
                     </div>
                   </div>
                   <div className="text-right">
@@ -708,7 +710,7 @@ function MlbLifecycleCard({
                       ${player.estimatedEarnings.toFixed(2)}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                      {player.quantity.toFixed(2)} shares
+                      {player.quantity.toFixed(2)} Singles
                     </div>
                   </div>
                 </div>
@@ -718,8 +720,8 @@ function MlbLifecycleCard({
         ) : (
           <div className="mt-2 text-xs text-muted-foreground">
             {activeTab === "post"
-              ? "No stacked or boosted earning lines were recorded for this matchup."
-              : "No stacked or boosted earning lines are active in this matchup yet."}
+              ? "No earning lines were recorded for this matchup."
+              : "No earning lines are active in this matchup yet."}
           </div>
         )}
       </div>
@@ -1435,7 +1437,7 @@ export function GameCommandCenterModal({
   const [selectedLiveInjury, setSelectedLiveInjury] = useState<InjuryEntry | null>(null);
   const [selectedLivePlayerId, setSelectedLivePlayerId] = useState<string | null>(null);
   const [showBoostSelector, setShowBoostSelector] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<2 | 3 | 4 | 5 | null>(null);
+  const [selectedTier, setSelectedTier] = useState<BoostSlotTier | null>(null);
   const [swapTargetPlayerId, setSwapTargetPlayerId] = useState<string | null>(null);
   const [showMlbAdvanced, setShowMlbAdvanced] = useState(false);
 
@@ -1505,15 +1507,11 @@ export function GameCommandCenterModal({
   }, [liveStats?.userEarnings?.ownedPlayers]);
 
   const liveEarningsByPlayerId = useMemo(() => {
-    const map = new Map<
-      string,
-      { estimatedEarnings: number; quantity: number; effectiveShares: number }
-    >();
+    const map = new Map<string, { estimatedEarnings: number; quantity: number }>();
     liveOwnedPlayers.forEach((player) => {
       const record = {
         estimatedEarnings: player.estimatedEarnings,
         quantity: player.quantity,
-        effectiveShares: player.effectiveShares,
       };
 
       getPlayerIdVariants(player.playerId, liveSport).forEach((id) => {
@@ -1524,10 +1522,7 @@ export function GameCommandCenterModal({
   }, [liveOwnedPlayers, liveSport]);
 
   const liveEarningsByNameTeam = useMemo(() => {
-    const map = new Map<
-      string,
-      { estimatedEarnings: number; quantity: number; effectiveShares: number }
-    >();
+    const map = new Map<string, { estimatedEarnings: number; quantity: number }>();
 
     liveOwnedPlayers.forEach((player) => {
       const key = getPlayerNameTeamKey(player.name, player.team);
@@ -1536,7 +1531,6 @@ export function GameCommandCenterModal({
         map.set(key, {
           estimatedEarnings: player.estimatedEarnings,
           quantity: player.quantity,
-          effectiveShares: player.effectiveShares,
         });
       }
     });
@@ -1642,7 +1636,6 @@ export function GameCommandCenterModal({
     [liveStats?.awayTopPerformers, liveStats?.homeTopPerformers],
   );
 
-  // Split top players by team for Pre-Game tab
   const awayTeamPlayers = useMemo(() => {
     if (!insight?.topPlayers?.fantasy || !game) return [];
     return insight.topPlayers.fantasy.filter((p) => p.team === game.awayTeam).slice(0, 5);
@@ -1654,17 +1647,13 @@ export function GameCommandCenterModal({
   }, [insight?.topPlayers?.fantasy, game]);
 
   const ownedPlayerData = useMemo(() => {
-    const map = new Map<
-      string,
-      { multiplier: number; totalShares: number; availableShares: number }
-    >();
-    const ownedPlayers = userContext?.ownedPlayers || userContext?.topMultiplierPlayers || [];
+    const map = new Map<string, { totalShares: number; availableShares: number }>();
+    const ownedPlayers = userContext?.ownedPlayers || [];
 
     ownedPlayers.forEach((player) => {
       const existing = map.get(player.playerId);
       if (!existing) {
         map.set(player.playerId, {
-          multiplier: player.multiplier,
           totalShares: player.totalShares,
           availableShares: player.availableShares,
         });
@@ -1672,14 +1661,21 @@ export function GameCommandCenterModal({
       }
 
       map.set(player.playerId, {
-        multiplier: Math.max(existing.multiplier, player.multiplier),
         totalShares: Math.max(existing.totalShares, player.totalShares),
         availableShares: Math.max(existing.availableShares, player.availableShares),
       });
     });
 
     return map;
-  }, [userContext?.ownedPlayers, userContext?.topMultiplierPlayers]);
+  }, [userContext?.ownedPlayers]);
+
+  const boostCandidates = useMemo(
+    () =>
+      (userContext?.ownedPlayers || []).filter(
+        (player) => player.availableShares >= 1 && !player.isBoosted,
+      ),
+    [userContext?.ownedPlayers],
+  );
 
   const ownedPlayerIds = useMemo(() => new Set(ownedPlayerData.keys()), [ownedPlayerData]);
 
@@ -1694,7 +1690,6 @@ export function GameCommandCenterModal({
     };
 
     (userContext?.ownedPlayers || []).forEach((player) => addPlayerId(player.playerId));
-    (userContext?.topMultiplierPlayers || []).forEach((player) => addPlayerId(player.playerId));
     (insight?.topPlayers?.fantasy || []).forEach((player) => addPlayerId(player.playerId));
     (insight?.topPlayers?.shares || []).forEach((player) => addPlayerId(player.playerId));
     (insight?.topPlayers?.scouts || []).forEach((player) => addPlayerId(player.playerId));
@@ -1716,7 +1711,6 @@ export function GameCommandCenterModal({
     mlbPregame?.startingLineups.away,
     mlbPregame?.startingLineups.home,
     userContext?.ownedPlayers,
-    userContext?.topMultiplierPlayers,
   ]);
 
   const playerIdByNameTeam = useMemo(() => {
@@ -1778,13 +1772,6 @@ export function GameCommandCenterModal({
         team: player.team,
       }),
     );
-    (userContext?.topMultiplierPlayers || []).forEach((player) =>
-      registerCandidate({
-        playerId: player.playerId,
-        name: player.name,
-        team: player.team,
-      }),
-    );
     liveHomePlayers.forEach((player) =>
       registerCandidate({
         playerId: player.playerId,
@@ -1836,7 +1823,6 @@ export function GameCommandCenterModal({
     mlbPregame?.startingLineups.away,
     mlbPregame?.startingLineups.home,
     userContext?.ownedPlayers,
-    userContext?.topMultiplierPlayers,
     knownPlayerIds,
     liveSport,
   ]);
@@ -1897,7 +1883,6 @@ export function GameCommandCenterModal({
     );
   }, [scoutData?.assignments, swapTargetPlayerId]);
 
-  // Boost assignment mutation
   const assignBoostMutation = useMutation({
     mutationFn: async ({
       playerId,
@@ -1905,7 +1890,7 @@ export function GameCommandCenterModal({
       sharesEntered,
     }: {
       playerId: string;
-      slotTier: number;
+      slotTier: BoostSlotTier;
       sharesEntered: number;
     }) => {
       const res = await apiRequest("POST", "/api/daily-boosts/assign", {
@@ -1918,13 +1903,12 @@ export function GameCommandCenterModal({
       return res.json();
     },
     onSuccess: () => {
-      // Invalidate both the specific game insights and the dashboard list
       queryClient.invalidateQueries({ queryKey: ["/api/games", gameId, "insights"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games/insights"] });
       queryClient.invalidateQueries({ queryKey: ["/api/daily-boosts"] });
       toast({
         title: "Boost Applied!",
-        description: "Your player has been boosted for this game.",
+        description: "One Single was assigned to this game's Boost slot.",
       });
       setShowBoostSelector(false);
       setSelectedTier(null);
@@ -2172,7 +2156,6 @@ export function GameCommandCenterModal({
           </div>
         </DialogHeader>
 
-        {/* MLB lifecycle card renders first (full baseball context) */}
         {liveSport === "MLB" && mlbPregame ? (
           <MlbLifecycleCard
             game={game}
@@ -2201,7 +2184,6 @@ export function GameCommandCenterModal({
               </div>
             ) : (
               <>
-                {/* Compact Leaders Row */}
                 <div className="flex items-center justify-between gap-2 rounded-compact border border-border/60 p-2 text-[11px]">
                   <div className="flex-1 text-center">
                     <div className="text-muted-foreground">FP Leader</div>
@@ -2228,7 +2210,6 @@ export function GameCommandCenterModal({
                   </div>
                 </div>
 
-                {/* Team Rosters - Top 5 by Season Avg Fantasy Points */}
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="rounded-compact border border-border/60 p-3">
                     <div className="mb-2 flex items-center justify-between">
@@ -2299,15 +2280,14 @@ export function GameCommandCenterModal({
                   </div>
                 </div>
 
-                {/* Your Multiplier Leaders - interactive quick-boost view */}
-                <div className="rounded-compact border-2 border-category-stacking/40 bg-category-stacking/5 p-3">
+                <div className="rounded-compact border-2 border-boost/40 bg-boost/5 p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-category-stacking" />
-                      <div className="text-sm font-semibold">Your Multiplier Leaders</div>
-                      {userContext?.topMultiplierPlayers?.length ? (
+                      <Zap className="h-4 w-4 text-boost" />
+                      <div className="text-sm font-semibold">Boost-ready Holdings</div>
+                      {boostCandidates.length ? (
                         <Badge variant="secondary" className="text-[10px] border-border/80">
-                          {userContext.topMultiplierPlayers.length}
+                          {boostCandidates.length}
                         </Badge>
                       ) : null}
                     </div>
@@ -2346,11 +2326,11 @@ export function GameCommandCenterModal({
                     )}
                   </div>
 
-                  {!showBoostSelector && userContext?.topMultiplierPlayers?.length ? (
+                  {!showBoostSelector && boostCandidates.length ? (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {userContext.topMultiplierPlayers.slice(0, 4).map((player, idx) => (
+                      {boostCandidates.slice(0, 4).map((player) => (
                         <Badge
-                          key={`${player.playerId}-${idx}`}
+                          key={player.playerId}
                           variant="outline"
                           className="text-[10px] gap-1.5 border-border/80 px-2 py-1"
                         >
@@ -2361,73 +2341,62 @@ export function GameCommandCenterModal({
                             className: "text-category-ownership font-medium",
                             label: formatName(player.name),
                           })}
-                          <span className="text-category-stacking font-mono">
-                            {player.multiplier.toFixed(1)}x
+                          <span className="font-mono text-boost">
+                            {player.availableShares.toFixed(1)} Singles
                           </span>
                         </Badge>
                       ))}
-                      {userContext.topMultiplierPlayers.length > 4 && (
+                      {boostCandidates.length > 4 && (
                         <Badge
                           variant="outline"
                           className="text-[10px] text-muted-foreground border-border/80"
                         >
-                          +{userContext.topMultiplierPlayers.length - 4}
+                          +{boostCandidates.length - 4}
                         </Badge>
                       )}
                     </div>
                   ) : (
                     !showBoostSelector && (
                       <div className="mt-2 text-xs text-muted-foreground">
-                        No eligible holdings for this matchup
+                        No boost-ready holdings for this matchup
                       </div>
                     )
                   )}
 
                   {showBoostSelector && boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
-                    <div className="mt-3 rounded-compact border-2 border-category-stacking bg-background/80 p-3">
-                      <div className="mb-2 text-[11px] font-medium text-category-stacking">
-                        Select tier & player to boost:
+                    <div className="mt-3 rounded-compact border-2 border-boost/40 bg-background/80 p-3">
+                      <div className="mb-2 text-[11px] font-medium text-boost">
+                        Select a Boost slot and holding. Quick Boost burns one Single.
                       </div>
 
                       <div className="mb-3 flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-medium">Tier:</span>
-                        <div className="flex gap-1">
-                          {([5, 4, 3, 2] as const).map((tier) => {
-                            const selectedTierClass =
-                              tier === 5
-                                ? "border-tier-mythic bg-tier-mythic text-content-inverse hover:brightness-105"
-                                : tier === 4
-                                  ? "border-tier-legendary bg-tier-legendary text-content-inverse hover:brightness-105"
-                                  : tier === 3
-                                    ? "border-tier-elite bg-tier-elite text-content-inverse hover:brightness-105"
-                                    : "border-tier-boosted bg-tier-boosted text-content-inverse hover:brightness-105";
-                            return (
-                              <Button
-                                key={tier}
-                                variant={selectedTier === tier ? "default" : "outline"}
-                                size="sm"
-                                className={`h-7 border-2 px-2.5 text-[11px] font-semibold ${
-                                  selectedTier === tier
-                                    ? selectedTierClass
-                                    : "border-border hover:border-category-stacking"
-                                }`}
-                                onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
-                                aria-pressed={selectedTier === tier}
-                              >
-                                {tier}x
-                              </Button>
-                            );
-                          })}
+                        <span className="text-[10px] text-muted-foreground font-medium">Slot:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {BOOST_SLOT_TIERS.map((tier) => (
+                            <Button
+                              key={tier}
+                              variant={selectedTier === tier ? "default" : "outline"}
+                              size="sm"
+                              className={`h-7 border-2 px-2.5 text-[11px] font-semibold ${
+                                selectedTier === tier
+                                  ? "border-boost bg-boost text-boost-foreground hover:bg-boost/90"
+                                  : "border-border hover:border-boost"
+                              }`}
+                              onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
+                              aria-pressed={selectedTier === tier}
+                            >
+                              {tier}x
+                            </Button>
+                          ))}
                         </div>
                       </div>
 
-                      {userContext?.topMultiplierPlayers &&
-                      userContext.topMultiplierPlayers.length > 0 ? (
+                      {boostCandidates.length > 0 ? (
                         <div className="space-y-1 max-h-40 overflow-y-auto border border-border/60 rounded-control p-1">
-                          {userContext.topMultiplierPlayers.map((player, idx) => (
+                          {boostCandidates.map((player) => (
                             <div
-                              key={`${player.playerId}-${idx}`}
-                              className="flex items-center justify-between rounded-compact bg-muted/30 px-2 py-2 text-xs transition-colors hover:bg-category-stacking/10"
+                              key={player.playerId}
+                              className="flex items-center justify-between rounded-compact bg-muted/30 px-2 py-2 text-xs transition-colors hover:bg-boost/10"
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 {renderModalPlayerName({
@@ -2440,8 +2409,8 @@ export function GameCommandCenterModal({
                                 <span className="text-muted-foreground text-[10px]">
                                   {player.team}
                                 </span>
-                                <span className="text-category-stacking font-mono text-[10px]">
-                                  {player.multiplier.toFixed(1)}x
+                                <span className="font-mono text-[10px] text-boost">
+                                  {player.availableShares.toFixed(1)} Singles
                                 </span>
                               </div>
                               <Button
@@ -2457,8 +2426,8 @@ export function GameCommandCenterModal({
                                   if (selectedTier) {
                                     assignBoostMutation.mutate({
                                       playerId: player.playerId,
-                                      slotTier: selectedTier as number,
-                                      sharesEntered: player.availableShares,
+                                      slotTier: selectedTier,
+                                      sharesEntered: 1,
                                     });
                                   }
                                 }}
@@ -2468,7 +2437,7 @@ export function GameCommandCenterModal({
                                 ) : (
                                   <>
                                     <Zap className="h-3 w-3 mr-1" />
-                                    Boost
+                                    Boost 1
                                   </>
                                 )}
                               </Button>
@@ -2477,14 +2446,13 @@ export function GameCommandCenterModal({
                         </div>
                       ) : (
                         <div className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border/60 rounded-control">
-                          No eligible players to boost
+                          No eligible Singles to boost
                         </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* Quick Scout - mobile-first command center action */}
                 <div className="rounded-compact border-2 border-category-scout/40 bg-category-scout/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -2537,7 +2505,7 @@ export function GameCommandCenterModal({
                                     <>
                                       <span>•</span>
                                       <span className="text-category-ownership font-medium">
-                                        Own {ownedData.multiplier.toFixed(1)}x
+                                        Own {ownedData.totalShares.toFixed(1)} Singles
                                       </span>
                                     </>
                                   ) : null}
@@ -2590,7 +2558,6 @@ export function GameCommandCenterModal({
                   )}
                 </div>
 
-                {/* Injuries - Compact */}
                 <div className="rounded-compact border border-border/60 p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -2827,42 +2794,22 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[840px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
-                                      Player
-                                    </th>
-                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      FP
-                                    </th>
-                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      $
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Pos
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Pass
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Rush
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Rec
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      TD
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      INT
-                                    </th>
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Player</th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Pos</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Pass</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Rush</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Rec</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">TD</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">INT</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned
-                                      ? "bg-category-ownership/10"
-                                      : "bg-card";
+                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
                                     const passLine = `${player.passingCompletions ?? 0}/${player.passingAttempts ?? 0}-${player.passingYards ?? 0}`;
                                     const rushLine = `${player.rushingAttempts ?? 0}/${player.rushingYards ?? 0}`;
                                     const recLine = `${player.receptions ?? 0}/${player.receivingTargets ?? 0}-${player.receivingYards ?? 0}`;
@@ -2872,48 +2819,18 @@ export function GameCommandCenterModal({
                                       (player.receivingTDs ?? 0);
 
                                     return (
-                                      <tr
-                                        key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-category-ownership/5" : ""}
-                                      >
-                                        <td
-                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
-                                        >
-                                          {renderLiveModalPlayerName({
-                                            player,
-                                            team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
-                                            label: formatCompactName(player.name),
-                                          })}
+                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
+                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>
+                                          {renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}
                                         </td>
-                                        <td
-                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
-                                        >
-                                          {(player.fantasyPoints || 0).toFixed(1)}
-                                        </td>
-                                        <td
-                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
-                                        >
-                                          ${earnings.toFixed(2)}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.position || "—"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {passLine}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {rushLine}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {recLine}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {totalTD}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.passingInterceptions ?? 0}
-                                        </td>
+                                        <td className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
+                                        <td className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.position || "—"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{passLine}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{rushLine}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{recLine}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{totalTD}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.passingInterceptions ?? 0}</td>
                                       </tr>
                                     );
                                   })}
@@ -2923,125 +2840,43 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[980px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
-                                      Driver
-                                    </th>
-                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      FP
-                                    </th>
-                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      $
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Run
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Start
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      +/-
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Laps
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Led
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Fast
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Best MPH
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Gap
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Car
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Status
-                                    </th>
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Driver</th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Run</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Start</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">+/-</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Laps</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Led</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Fast</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Best MPH</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Gap</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Car</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Status</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned
-                                      ? "bg-category-ownership/10"
-                                      : "bg-card";
+                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
                                     const positionDiff = Number(player.positionDifferential || 0);
 
                                     return (
-                                      <tr
-                                        key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-category-ownership/5" : ""}
-                                      >
-                                        <td
-                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
-                                        >
-                                          {renderLiveModalPlayerName({
-                                            player,
-                                            team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
-                                            label: formatCompactName(player.name),
-                                          })}
-                                        </td>
-                                        <td
-                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
-                                        >
-                                          {(player.fantasyPoints || 0).toFixed(1)}
-                                        </td>
-                                        <td
-                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
-                                        >
-                                          ${earnings.toFixed(2)}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.runningPosition || "--"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.startingPosition || "--"}
-                                        </td>
-                                        <td
-                                          className={`border-b border-border/40 px-1 py-1.5 text-right font-mono ${
-                                            positionDiff > 0
-                                              ? "text-market-positive"
-                                              : positionDiff < 0
-                                                ? "text-market-negative"
-                                                : ""
-                                          }`}
-                                        >
-                                          {positionDiff > 0 ? "+" : ""}
-                                          {positionDiff}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.lapsCompleted ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.lapsLed ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.fastestLaps ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {typeof player.bestLapSpeed === "number"
-                                            ? player.bestLapSpeed.toFixed(1)
-                                            : "--"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {typeof player.delta === "number"
-                                            ? player.delta.toFixed(1)
-                                            : "--"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          #{player.carNumber || "--"} {player.manufacturer || ""}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right">
-                                          {player.status ||
-                                            (player.isOnTrack === false ? "Off" : "Run")}
-                                        </td>
+                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
+                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>{renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}</td>
+                                        <td className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
+                                        <td className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.runningPosition || "--"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.startingPosition || "--"}</td>
+                                        <td className={`border-b border-border/40 px-1 py-1.5 text-right font-mono ${positionDiff > 0 ? "text-market-positive" : positionDiff < 0 ? "text-market-negative" : ""}`}>{positionDiff > 0 ? "+" : ""}{positionDiff}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.lapsCompleted ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.lapsLed ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.fastestLaps ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{typeof player.bestLapSpeed === "number" ? player.bestLapSpeed.toFixed(1) : "--"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{typeof player.delta === "number" ? player.delta.toFixed(1) : "--"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">#{player.carNumber || "--"} {player.manufacturer || ""}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right">{player.status || (player.isOnTrack === false ? "Off" : "Run")}</td>
                                       </tr>
                                     );
                                   })}
@@ -3051,34 +2886,11 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[720px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-24 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
-                                      Player
-                                    </th>
-                                    <th className="sticky left-24 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      FP
-                                    </th>
-                                    <th className="sticky left-36 z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      $
-                                    </th>
-                                    {[
-                                      "Pos",
-                                      "G",
-                                      "A",
-                                      "PTS",
-                                      "SOG",
-                                      "HIT",
-                                      "BLK",
-                                      "SV",
-                                      "GA",
-                                      "TOI",
-                                      "DEC",
-                                    ].map((label) => (
-                                      <th
-                                        key={label}
-                                        className="border-b border-border/60 px-1 py-1 text-right font-medium"
-                                      >
-                                        {label}
-                                      </th>
+                                    <th className="sticky left-0 z-30 w-24 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Player</th>
+                                    <th className="sticky left-24 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
+                                    <th className="sticky left-36 z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
+                                    {["Pos", "G", "A", "PTS", "SOG", "HIT", "BLK", "SV", "GA", "TOI", "DEC"].map((label) => (
+                                      <th key={label} className="border-b border-border/60 px-1 py-1 text-right font-medium">{label}</th>
                                     ))}
                                   </tr>
                                 </thead>
@@ -3086,67 +2898,23 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned
-                                      ? "bg-category-ownership/10"
-                                      : "bg-card";
+                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
                                     return (
-                                      <tr
-                                        key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-category-ownership/5" : ""}
-                                      >
-                                        <td
-                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
-                                        >
-                                          {renderLiveModalPlayerName({
-                                            player,
-                                            team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
-                                            label: formatCompactName(player.name),
-                                          })}
-                                        </td>
-                                        <td
-                                          className={`sticky left-24 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
-                                        >
-                                          {(player.fantasyPoints || 0).toFixed(1)}
-                                        </td>
-                                        <td
-                                          className={`sticky left-36 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
-                                        >
-                                          ${earnings.toFixed(2)}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.position || "—"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.goals ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.assists ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.points ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.shotsOnGoal ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.hits ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.blockedShots ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.saves ?? "—"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.goalsAgainst ?? "—"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.timeOnIce || "—"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.decision || "—"}
-                                        </td>
+                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
+                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>{renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}</td>
+                                        <td className={`sticky left-24 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
+                                        <td className={`sticky left-36 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.position || "—"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.goals ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.assists ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.points ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.shotsOnGoal ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.hits ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.blockedShots ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.saves ?? "—"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.goalsAgainst ?? "—"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.timeOnIce || "—"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.decision || "—"}</td>
                                       </tr>
                                     );
                                   })}
@@ -3156,128 +2924,47 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[1020px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
-                                      Player
-                                    </th>
-                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      FP
-                                    </th>
-                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      $
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Pos
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      H
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      R
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      RBI
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      HR
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      SB
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      BB
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      K
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      IP
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      P-K
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      ER
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      W
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      SV
-                                    </th>
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Player</th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Pos</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">H</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">R</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">RBI</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">HR</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">SB</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">BB</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">K</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">IP</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">P-K</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">ER</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">W</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">SV</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned
-                                      ? "bg-category-ownership/10"
-                                      : "bg-card";
-
+                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
                                     return (
-                                      <tr
-                                        key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-category-ownership/5" : ""}
-                                      >
-                                        <td
-                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
-                                        >
-                                          {renderLiveModalPlayerName({
-                                            player,
-                                            team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
-                                            label: formatCompactName(player.name),
-                                          })}
-                                        </td>
-                                        <td
-                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
-                                        >
-                                          {(player.fantasyPoints || 0).toFixed(1)}
-                                        </td>
-                                        <td
-                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
-                                        >
-                                          ${earnings.toFixed(2)}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.position || "-"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.hits ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.runs ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.runsBattedIn ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.homeRuns ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.stolenBases ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.walks ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.strikeoutsBatting ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {Number(player.inningsPitched ?? 0).toFixed(1)}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.pitchingStrikeouts ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.earnedRuns ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.wins ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.saves ?? 0}
-                                        </td>
+                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
+                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>{renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}</td>
+                                        <td className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
+                                        <td className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.position || "-"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.hits ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.runs ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.runsBattedIn ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.homeRuns ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.stolenBases ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.walks ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.strikeoutsBatting ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{Number(player.inningsPitched ?? 0).toFixed(1)}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.pitchingStrikeouts ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.earnedRuns ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.wins ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.saves ?? 0}</td>
                                       </tr>
                                     );
                                   })}
@@ -3287,122 +2974,45 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[940px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
-                                      Player
-                                    </th>
-                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      FP
-                                    </th>
-                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
-                                      $
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      Pos
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      MIN
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      PTS
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      REB
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      AST
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      STL
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      BLK
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      TO
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      3PM
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      FG
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      FT
-                                    </th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
-                                      +/-
-                                    </th>
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Player</th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Pos</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">MIN</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">PTS</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">REB</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">AST</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">STL</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">BLK</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">TO</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">3PM</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">FG</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">FT</th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">+/-</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned
-                                      ? "bg-category-ownership/10"
-                                      : "bg-card";
-
+                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
                                     return (
-                                      <tr
-                                        key={`${section.team}-${player.playerId || player.name}`}
-                                        className={owned ? "bg-category-ownership/5" : ""}
-                                      >
-                                        <td
-                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
-                                        >
-                                          {renderLiveModalPlayerName({
-                                            player,
-                                            team: section.team,
-                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
-                                            label: formatCompactName(player.name),
-                                          })}
-                                        </td>
-                                        <td
-                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
-                                        >
-                                          {(player.fantasyPoints || 0).toFixed(1)}
-                                        </td>
-                                        <td
-                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
-                                        >
-                                          ${earnings.toFixed(2)}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.position || "—"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.min || "0"}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.pts ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.reb ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.ast ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.stl ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.blk ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.turnover ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.fg3m ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.fgm ?? 0}/{player.fga ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.ftm ?? 0}/{player.fta ?? 0}
-                                        </td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
-                                          {player.plusMinus ?? 0}
-                                        </td>
+                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
+                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>{renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}</td>
+                                        <td className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
+                                        <td className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.position || "—"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.min || "0"}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.pts ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.reb ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.ast ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.stl ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.blk ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.turnover ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.fg3m ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.fgm ?? 0}/{player.fga ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.ftm ?? 0}/{player.fta ?? 0}</td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.plusMinus ?? 0}</td>
                                       </tr>
                                     );
                                   })}
@@ -3501,7 +3111,7 @@ export function GameCommandCenterModal({
                                   <span>•</span>
                                   <span>{player.fantasyPoints.toFixed(1)} FP</span>
                                   <span>•</span>
-                                  <span>{player.effectiveShares.toFixed(1)} effective</span>
+                                  <span>{player.quantity.toFixed(1)} Singles</span>
                                 </div>
                               </div>
                               <div className="text-right">
@@ -3509,7 +3119,7 @@ export function GameCommandCenterModal({
                                   ${player.estimatedEarnings.toFixed(2)}
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
-                                  {player.quantity.toFixed(2)} shares
+                                  {player.quantity.toFixed(2)} Singles
                                 </div>
                               </div>
                             </div>
@@ -3517,12 +3127,12 @@ export function GameCommandCenterModal({
                         </div>
                       ) : (
                         <div className="mt-2 text-xs text-muted-foreground">
-                          No stacked or boosted earning lines in this matchup yet.
+                          No earning lines in this matchup yet.
                         </div>
                       )}
 
                       <div className="mt-2 text-[10px] text-muted-foreground">
-                        Estimated earnings use stacked-share effective units only.
+                        Estimates reflect the Singles currently earning for this game.
                       </div>
                     </>
                   )}
@@ -3625,7 +3235,7 @@ export function GameCommandCenterModal({
                                 ${player.estimatedEarnings.toFixed(2)}
                               </div>
                               <div className="text-[10px] text-muted-foreground">
-                                {player.quantity.toFixed(2)} shares
+                                {player.quantity.toFixed(2)} Singles
                               </div>
                             </div>
                           </div>
@@ -3633,7 +3243,7 @@ export function GameCommandCenterModal({
                       </div>
                     ) : (
                       <div className="mt-2 text-xs text-muted-foreground">
-                        No stacked or boosted earning lines were active in this matchup.
+                        No earning lines were active in this matchup.
                       </div>
                     )}
                   </div>

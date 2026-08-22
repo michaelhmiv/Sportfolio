@@ -75,7 +75,6 @@ interface EligiblePlayer {
     sport?: string | null;
   };
   availableShares: number;
-  bestShareMultiplier: number;
   isAlreadyBoosted: boolean;
   gameStatus: GameStatus;
 }
@@ -131,7 +130,6 @@ interface MobileMarketSignal {
     | "activity"
     | "portfolio";
   availableShares: number | null;
-  bestShareMultiplier: number | null;
   heatCheckStatus: HeatCheckStatus;
 }
 
@@ -187,13 +185,12 @@ interface MobileMarketOverview {
 
 interface PlayerQuickContext {
   availableShares?: number;
-  bestShareMultiplier?: number;
   isBoostEligible?: boolean;
   scoutCount?: number;
   isWatchlisted?: boolean;
 }
 
-interface MarketMobileHomeProps {
+interface MarketMobilePoolsBoardProps {
   sport: string;
   players: PlayerWithPool[];
   isLoading: boolean;
@@ -694,13 +691,6 @@ function getCompactStatusToken(params: {
     };
   }
 
-  if ((quickContext?.bestShareMultiplier || 1) > 1) {
-    return {
-      label: `x${quickContext?.bestShareMultiplier}`,
-      className: "border-category-stacking/30 bg-category-stacking/10 text-category-stacking",
-    };
-  }
-
   if ((player.communityBoostCount || 0) > 0) {
     return {
       label: `C+${player.communityBoostCount}`,
@@ -799,7 +789,7 @@ export function MarketMobilePoolsBoard({
   totalPages,
   onPageChange,
   onOpenPlayer,
-}: MarketMobileHomeProps) {
+}: MarketMobilePoolsBoardProps) {
   const { isAuthenticated } = useAuth();
   const { shouldPoll, isMobile } = useAppState();
   const { freshnessState, lastMessageAt } = useWebSocket();
@@ -937,7 +927,6 @@ export function MarketMobilePoolsBoard({
 
     return {
       availableShares: signal?.availableShares ?? eligible?.availableShares,
-      bestShareMultiplier: signal?.bestShareMultiplier ?? eligible?.bestShareMultiplier,
       isBoostEligible:
         signal?.signal === "boost" ||
         (!!eligible &&

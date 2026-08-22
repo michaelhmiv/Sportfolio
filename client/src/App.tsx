@@ -379,7 +379,6 @@ export const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/login",
   "/onboarding",
   "/auth/callback",
-  "/power",
   "/boosts",
   "/player/",
   "/portfolio",
@@ -795,7 +794,6 @@ function Router() {
               <Route path="/news" component={News} />
 
               {/* Boosts - requires authentication */}
-              <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
               <Route path="/boosts">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
 
               {/* Protected routes - require authentication, redirect to dashboard if not logged in */}

@@ -1546,19 +1546,19 @@ const stageScoutSchema: RawSchema = {
   playerId: z.string().min(1),
   targetCount: z.number().int().min(0).max(10),
 };
-const stageStackSharesSchema: RawSchema = {
+const stageBoostAssignSchema: RawSchema = {
   playerId: z.string().min(1),
-  shares: z
-    .number()
-    .int()
-    .min(4)
-    .refine((value) => value % 2 === 0, {
-      message: "Stack Shares requires an even share count.",
-    }),
+  slotTier: z.union([z.literal(2), z.literal(3), z.literal(5), z.literal(7), z.literal(10)]),
+  shares: z.number().positive(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  sport: z.string().min(2).max(16).optional(),
 };
-const stageBoostSchema: RawSchema = {
+const stageBoostRemoveSchema: RawSchema = {
   playerId: z.string().min(1),
-  slotTier: z.number().int().positive(),
+  slotTier: z.union([z.literal(2), z.literal(3), z.literal(5), z.literal(7), z.literal(10)]),
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -1775,7 +1775,7 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "get_holdings",
-    description: "List current player holdings, multiplier state, and available shares.",
+    description: "List current player holdings and available shares.",
     domain: "portfolio",
     readOnly: true,
     inputSchema: {
@@ -2466,10 +2466,10 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "stage_daily_boost_assign",
-    description: "Stage a daily boost assignment for confirmation.",
+    description: "Stage a Daily Boost assignment using a direct quantity of Singles for confirmation.",
     domain: "boosts",
     readOnly: false,
-    inputSchema: stageBoostSchema,
+    inputSchema: stageBoostAssignSchema,
     fixtureArgs: { playerId: "player_1", slotTier: 5, shares: 1, sport: "MLB" },
     execute: (context, args) =>
       stagePreviewedAction({
@@ -2480,11 +2480,11 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "stage_daily_boost_remove",
-    description: "Stage a daily boost removal for confirmation.",
+    description: "Stage removal of an active Daily Boost for confirmation.",
     domain: "boosts",
     readOnly: false,
-    inputSchema: stageBoostSchema,
-    fixtureArgs: { playerId: "player_1", slotTier: 2, shares: 1, sport: "MLB" },
+    inputSchema: stageBoostRemoveSchema,
+    fixtureArgs: { playerId: "player_1", slotTier: 2, sport: "MLB" },
     execute: (context, args) =>
       stagePreviewedAction({
         context,
