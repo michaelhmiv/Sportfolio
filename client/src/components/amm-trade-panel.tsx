@@ -44,6 +44,10 @@ interface QuoteData {
   sharesOut?: number;
   sharesIn?: number;
   sbOut?: number;
+  sellerReceives?: number;
+  totalCost?: number;
+  poolFee?: number;
+  burnFee?: number;
   effectivePrice: number;
   currentPrice: number;
   slippagePercent: number;
@@ -61,6 +65,8 @@ const BURN_FEE_PERCENT = 1; // 1% burned
 const LP_FEE_PERCENT = 1; // 1% to LPs
 const TOTAL_FEE_PERCENT = BURN_FEE_PERCENT + LP_FEE_PERCENT; // 2% total
 const SLIPPAGE_SAFETY_BUFFER_PERCENT = 0.05;
+const MIN_SHARE_INCREMENT = 0.0001;
+const SHARE_ROUNDING_EPSILON = 1e-9;
 
 export function AmmTradePanel({
   playerId,
@@ -127,9 +133,12 @@ export function AmmTradePanel({
       const totalCost = sbAmount * (1 + TOTAL_FEE_PERCENT / 100);
       const newPlayMoney = poolPlayMoney + poolReceives;
       const newShares = k / newPlayMoney;
-      const sharesOut = poolShares - newShares;
+      const rawSharesOut = poolShares - newShares;
+      const sharesOut =
+        Math.floor((rawSharesOut + SHARE_ROUNDING_EPSILON) / MIN_SHARE_INCREMENT) *
+        MIN_SHARE_INCREMENT;
 
-      if (sharesOut <= 0 || !isFinite(sharesOut)) {
+      if (sharesOut < MIN_SHARE_INCREMENT || !isFinite(sharesOut)) {
         return Number.POSITIVE_INFINITY;
       }
 
@@ -179,7 +188,7 @@ export function AmmTradePanel({
       if (tradeType === "buy") {
         return rawAmount.toFixed(2);
       }
-      return Math.floor(rawAmount).toString();
+      return rawAmount.toFixed(4);
     },
     [maxAmount, tradeType],
   );
@@ -212,13 +221,7 @@ export function AmmTradePanel({
   // Handle manual input change
   const handleManualInputChange = useCallback(
     (value: string) => {
-      // For selling shares, ensure whole numbers
-      if (tradeType === "sell") {
-        const intValue = Math.floor(parseFloat(value || "0"));
-        setAmount(intValue.toString());
-      } else {
-        setAmount(value);
-      }
+      setAmount(value);
 
       // Update slider to match manual input
       const numValue = parseFloat(value || "0");
@@ -322,11 +325,11 @@ export function AmmTradePanel({
       const previousUser = queryClient.getQueryData<{ balance?: number }>(["/api/user"]);
       const previousHoldings = queryClient.getQueryData(["/api/holdings"]);
 
-      // Optimistically deduct balance (approximate — server confirms exact shares received)
+      // Optimistically deduct the quoted settlement amount; the server remains authoritative.
       if (previousUser?.balance !== undefined) {
         queryClient.setQueryData(["/api/user"], {
           ...previousUser,
-          balance: Math.max(0, previousUser.balance - sbAmount),
+          balance: Math.max(0, previousUser.balance - (quote?.totalCost ?? sbAmount)),
         });
       }
 
@@ -336,7 +339,7 @@ export function AmmTradePanel({
       void hapticSuccess();
       toast({
         title: "Purchase Successful!",
-        description: `Bought ${data.sharesReceived.toFixed(2)} shares at $${data.pricePerShare.toFixed(2)}`,
+        description: `Bought ${data.sharesReceived.toFixed(4)} shares at $${data.pricePerShare.toFixed(2)}`,
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/amm", playerId] });
@@ -349,7 +352,7 @@ export function AmmTradePanel({
       onTradeSuccess?.();
       setLastTradeResult({
         type: "buy",
-        description: `Bought ${data.sharesReceived.toFixed(2)} shares @ $${data.pricePerShare.toFixed(2)}/share`,
+        description: `Bought ${data.sharesReceived.toFixed(4)} shares @ $${data.pricePerShare.toFixed(2)}/share`,
       });
       setTimeout(() => setLastTradeResult(null), 6000);
     },
@@ -389,13 +392,15 @@ export function AmmTradePanel({
       const previousUser = queryClient.getQueryData(["/api/user"]);
       const previousHoldings = queryClient.getQueryData(["/api/holdings"]);
 
-      // Optimistically deduct shares (approximate — server confirms exact SB received)
+      // Optimistically credit the net seller proceeds; the server remains authoritative.
       if (quote?.effectivePrice !== undefined) {
         const currentUser = queryClient.getQueryData<{ balance?: number }>(["/api/user"]);
         if (currentUser?.balance !== undefined) {
           queryClient.setQueryData(["/api/user"], {
             ...currentUser,
-            balance: currentUser.balance + sharesAmount * quote.effectivePrice,
+            balance:
+              currentUser.balance +
+              (quote.sellerReceives ?? quote.sbOut ?? sharesAmount * quote.effectivePrice),
           });
         }
       }
@@ -446,11 +451,12 @@ export function AmmTradePanel({
 
     if (tradeType === "buy") {
       const sbAmount = parseFloat(amount);
-      if (sbAmount > userBalance) {
+      const totalCost = quote.totalCost ?? sbAmount * (1 + TOTAL_FEE_PERCENT / 100);
+      if (totalCost > userBalance) {
         void hapticError();
         toast({
           title: "Insufficient Balance",
-          description: `You need $${sbAmount.toFixed(2)} but only have $${userBalance.toFixed(2)}`,
+          description: `You need $${totalCost.toFixed(2)} but only have $${userBalance.toFixed(2)}`,
           variant: "destructive",
         });
         return;
@@ -480,14 +486,19 @@ export function AmmTradePanel({
     if (!amount || parseFloat(amount) <= 0) return null;
 
     const amountNum = parseFloat(amount);
-    const burnFee = amountNum * (BURN_FEE_PERCENT / 100);
-    const lpFee = amountNum * (LP_FEE_PERCENT / 100);
+    const burnFee =
+      tradeType === "buy"
+        ? (quote?.burnFee ?? amountNum * (BURN_FEE_PERCENT / 100))
+        : (quote?.burnFee ?? 0);
+    const lpFee =
+      tradeType === "buy"
+        ? (quote?.poolFee ?? amountNum * (LP_FEE_PERCENT / 100))
+        : (quote?.poolFee ?? 0);
 
     return {
       burnFee,
       lpFee,
       totalFee: burnFee + lpFee,
-      netAmount: amountNum - burnFee - lpFee,
     };
   };
 
@@ -546,7 +557,7 @@ export function AmmTradePanel({
           <span className="text-xs text-muted-foreground">
             {tradeType === "buy"
               ? `Balance: $${userBalance.toFixed(2)}`
-              : `Owned: ${Math.floor(userShares)} shares`}
+              : `Owned: ${userShares.toLocaleString(undefined, { maximumFractionDigits: 4 })} shares`}
           </span>
         </div>
 
@@ -594,12 +605,12 @@ export function AmmTradePanel({
           <Input
             id="manual-amount"
             type="number"
-            inputMode={tradeType === "buy" ? "decimal" : "numeric"}
+            inputMode="decimal"
             placeholder={tradeType === "buy" ? "100" : "10"}
             value={amount}
             onChange={(e) => handleManualInputChange(e.target.value)}
-            min={tradeType === "buy" ? 0.01 : 1}
-            step={tradeType === "buy" ? 0.01 : 1}
+            min={tradeType === "buy" ? 0.01 : MIN_SHARE_INCREMENT}
+            step={tradeType === "buy" ? 0.01 : MIN_SHARE_INCREMENT}
             className="flex-1"
             disabled={!isPoolInitialized}
           />
@@ -620,7 +631,8 @@ export function AmmTradePanel({
           tradeType === "sell" &&
           parseFloat(amount) > userShares && (
             <p className="text-xs text-destructive">
-              Exceeds your {Math.floor(userShares)} available shares
+              Exceeds your {userShares.toLocaleString(undefined, { maximumFractionDigits: 4 })}{" "}
+              available shares
             </p>
           )}
       </div>
@@ -640,11 +652,13 @@ export function AmmTradePanel({
           <div className="text-center pb-3 border-b border-border/50">
             <div className="text-3xl font-bold text-foreground">
               {tradeType === "buy"
-                ? Math.floor(quote.sharesOut || 0).toLocaleString()
-                : `$${quote.sbOut?.toFixed(2)}`}
+                ? (quote.sharesOut || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })
+                : `$${(quote.sellerReceives ?? quote.sbOut ?? 0).toFixed(2)}`}
             </div>
             <div className="text-sm text-muted-foreground">
-              {tradeType === "buy" ? "Shares You'll Receive" : "SportsBucks You'll Receive"}
+              {tradeType === "buy"
+                ? "Shares You'll Receive"
+                : "SportsBucks You'll Receive (after fees)"}
             </div>
           </div>
 
@@ -658,11 +672,7 @@ export function AmmTradePanel({
                   <Flame className="w-4 h-4 text-orange-500" />
                   <span>Burn Fee ({BURN_FEE_PERCENT}%)</span>
                 </div>
-                <span className="text-muted-foreground">
-                  {tradeType === "buy"
-                    ? `$${fees.burnFee.toFixed(2)}`
-                    : `${(fees.burnFee / quote.effectivePrice).toFixed(4)} shares`}
-                </span>
+                <span className="text-muted-foreground">{`${fees.burnFee.toFixed(2)} SB`}</span>
               </div>
 
               <div className="flex justify-between items-center text-sm">
@@ -670,20 +680,12 @@ export function AmmTradePanel({
                   <Droplets className="w-4 h-4 text-blue-500" />
                   <span>LP Fee ({LP_FEE_PERCENT}%)</span>
                 </div>
-                <span className="text-muted-foreground">
-                  {tradeType === "buy"
-                    ? `$${fees.lpFee.toFixed(2)}`
-                    : `${(fees.lpFee / quote.effectivePrice).toFixed(4)} shares`}
-                </span>
+                <span className="text-muted-foreground">{`${fees.lpFee.toFixed(2)} SB`}</span>
               </div>
 
               <div className="flex justify-between items-center text-sm font-medium pt-1 border-t border-dashed">
                 <span>Total Fees ({TOTAL_FEE_PERCENT}%)</span>
-                <span>
-                  {tradeType === "buy"
-                    ? `$${fees.totalFee.toFixed(2)}`
-                    : `${(fees.totalFee / quote.effectivePrice).toFixed(4)} shares`}
-                </span>
+                <span>{`${fees.totalFee.toFixed(2)} SB`}</span>
               </div>
             </div>
           )}
@@ -694,7 +696,10 @@ export function AmmTradePanel({
               <div className="text-xs text-muted-foreground mb-1">Pool Liquidity</div>
               <div className="flex gap-2 text-xs">
                 <div className="bg-muted px-2 py-1 rounded flex-1 text-center">
-                  <span className="font-medium">{poolData.shares?.toLocaleString() || "N/A"}</span>
+                  <span className="font-medium">
+                    {poolData.shares?.toLocaleString(undefined, { maximumFractionDigits: 4 }) ||
+                      "N/A"}
+                  </span>
                   <div className="text-muted-foreground">Shares</div>
                 </div>
                 <div className="bg-muted px-2 py-1 rounded flex-1 text-center">
@@ -760,8 +765,11 @@ export function AmmTradePanel({
           !quote ||
           isExecuting ||
           isLoadingQuote ||
-          (tradeType === "buy" && parseFloat(amount) > userBalance) ||
-          (tradeType === "sell" && parseFloat(amount) > userShares)
+          (tradeType === "buy" &&
+            (quote?.totalCost ?? parseFloat(amount) * (1 + TOTAL_FEE_PERCENT / 100)) >
+              userBalance) ||
+          (tradeType === "sell" &&
+            (parseFloat(amount) < MIN_SHARE_INCREMENT || parseFloat(amount) > userShares))
         }
         onClick={handleExecute}
       >

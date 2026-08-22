@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { holdings, trades } from "@shared/schema";
-import { executeSell } from "./pool";
+import { calculateSellShares, executeSell } from "./pool";
 import { db } from "../db";
 
 vi.mock("../db", () => ({
@@ -146,5 +146,46 @@ describe("executeSell smoke", () => {
 
     const tradeInsert = tx.inserts.find((entry) => entry.table === trades);
     expect(tradeInsert?.values.quantity).toBe("1.0000");
+  });
+
+  it("settles fractional sells and returns the seller's net proceeds", async () => {
+    const tx = buildTx(
+      [
+        [basePoolRow],
+        [{ id: "holding-1", quantity: "5.5000" }],
+        [{ total: 0 }],
+        [{ id: "user-1", balance: "100.00" }],
+      ],
+      new Map([[trades, [{ id: "trade-2" }]]]),
+    );
+
+    vi.mocked(db.transaction).mockImplementation(async (callback: any) => callback(tx));
+
+    const result = await executeSell("player-1", "user-1", 0.6985, 0.5);
+    const expectedQuote = calculateSellShares(
+      {
+        playerId: basePoolRow.playerId,
+        shares: Number(basePoolRow.shares),
+        playMoney: Number(basePoolRow.playMoney),
+        k: Number(basePoolRow.k),
+        lpSharesTotal: Number(basePoolRow.lpSharesTotal),
+        feesAccumulated: Number(basePoolRow.feesAccumulated),
+        feeGrowthPerLpShare: Number(basePoolRow.feeGrowthPerLpShare),
+        totalVolume: Number(basePoolRow.totalVolume),
+        totalTrades: basePoolRow.totalTrades,
+        currentPrice: Number(basePoolRow.playMoney) / Number(basePoolRow.shares),
+      },
+      0.6985,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.sharesTraded).toBe(0.6985);
+    expect(result.totalValue).toBeCloseTo(expectedQuote.sellerReceives, 8);
+
+    const holdingsUpdate = tx.updates.find((entry) => entry.table === holdings);
+    expect(holdingsUpdate?.values.quantity).toBe("4.8015");
+
+    const tradeInsert = tx.inserts.find((entry) => entry.table === trades);
+    expect(tradeInsert?.values.quantity).toBe("0.6985");
   });
 });

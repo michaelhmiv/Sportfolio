@@ -498,7 +498,9 @@ function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Pay
                     <Stat
                       label="Estimated output"
                       value={
-                        side === "buy" ? `${quantity(quote.sharesOut)} shares` : money(quote.sbOut)
+                        side === "buy"
+                          ? `${quantity(quote.sharesOut, 4)} shares`
+                          : money(quote.sellerReceives ?? quote.sbOut)
                       }
                     />
                     <Stat label="Effective price" value={money(quote.effectivePrice)} />

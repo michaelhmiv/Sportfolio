@@ -21,7 +21,14 @@ import { buildDiscordSlashCommandDefinitions, syncDiscordGuildCommands } from ".
 import { syncDiscordReportThreadToGitHub } from "../discord-report-sync";
 import { storage } from "../storage";
 import { db } from "../db";
-import { getBuyQuote, getSellQuote, executeBuy, executeSell, getPool } from "../amm/pool";
+import {
+  getBuyQuote,
+  getSellQuote,
+  executeBuy,
+  executeSell,
+  getPool,
+  MIN_AMM_SHARE_INCREMENT,
+} from "../amm/pool";
 import { newsFeed, players, trades } from "@shared/schema";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { hasGameStartedForBoost } from "@shared/game-status";
@@ -682,8 +689,8 @@ async function handleSell(ctx: DiscordCommandContext, options: DiscordCommandOpt
   const resolvedAmount = resolveAmountInput({
     rawInput: amountInput,
     baseAmount: regularAvailableShares,
-    kind: "whole",
-    minimum: 1,
+    kind: "shares",
+    minimum: MIN_AMM_SHARE_INCREMENT,
   });
   if (!resolvedAmount) {
     return buildErrorResponse(
@@ -691,10 +698,10 @@ async function handleSell(ctx: DiscordCommandContext, options: DiscordCommandOpt
     );
   }
 
-  const shares = Math.floor(resolvedAmount.value);
+  const shares = resolvedAmount.value;
   if (shares > regularAvailableShares) {
     return buildErrorResponse(
-      `Requested shares exceed regular available shares (${Math.floor(regularAvailableShares)}).`,
+      `Requested shares exceed regular available shares (${regularAvailableShares.toFixed(4)}).`,
     );
   }
 
@@ -718,8 +725,8 @@ async function handleSell(ctx: DiscordCommandContext, options: DiscordCommandOpt
     [
       `Sell quote for ${player.firstName} ${player.lastName}`,
       `Input: ${resolvedAmount.input} -> Shares in ${shares}`,
-      `Regular available shares: ${Math.floor(regularAvailableShares)}`,
-      `Estimated SB out: ${formatCurrency(quote.sbOut)}`,
+      `Regular available shares: ${regularAvailableShares.toFixed(4)}`,
+      `Estimated SB out: ${formatCurrency(quote.sellerReceives)}`,
       `Effective price: ${formatCurrency(quote.effectivePrice)}`,
       `Slippage estimate: ${formatPercent(quote.slippagePercent)}`,
       `Max slippage: ${formatPercent(maxSlippage ?? 0.05)}`,
@@ -1198,7 +1205,7 @@ async function handleTradeComponent(
       };
     }
 
-    const sharesAmount = Math.floor(parseFloat(consumed.amount));
+    const sharesAmount = parseFloat(consumed.amount);
     const result = await executeSell(consumed.playerId, consumed.userId, sharesAmount, maxSlippage);
     if (!result.success) {
       return {
