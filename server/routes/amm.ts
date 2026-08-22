@@ -9,7 +9,15 @@
  */
 
 import { Express } from "express";
-import { getPool, getBuyQuote, getSellQuote, executeBuy, executeSell } from "../amm/pool";
+import {
+  getPool,
+  getBuyQuote,
+  getSellQuote,
+  executeBuy,
+  executeSell,
+  MIN_AMM_SHARE_INCREMENT,
+  normalizeTradeShareAmount,
+} from "../amm/pool";
 import { isAuthenticated } from "../auth/runtime-auth";
 import { storage } from "../storage";
 import { logger } from "../lib/logger";
@@ -25,6 +33,11 @@ function isPoolNotInitializedErrorMessage(message: string | undefined): boolean 
   if (!message) return false;
   const normalized = message.toLowerCase();
   return normalized.includes("pool not initialized");
+}
+
+function isTradeInputErrorMessage(message: string | undefined): boolean {
+  if (!message) return false;
+  return /^(Invalid trade amount|Trade too small|Trade too large|Trade rounding)/.test(message);
 }
 
 export function registerAmmRoutes(app: Express) {
@@ -127,12 +140,18 @@ export function registerAmmRoutes(app: Express) {
       const tradeType = type as string;
       const tradeAmount = parseFloat(amount as string);
 
-      if (isNaN(tradeAmount) || tradeAmount <= 0) {
+      if (!Number.isFinite(tradeAmount) || tradeAmount <= 0) {
         return res.status(400).json({ error: "Invalid amount" });
       }
 
       if (tradeType !== "buy" && tradeType !== "sell") {
         return res.status(400).json({ error: "Invalid type. Must be 'buy' or 'sell'" });
+      }
+
+      if (tradeType === "sell" && tradeAmount < MIN_AMM_SHARE_INCREMENT) {
+        return res.status(400).json({
+          error: `Minimum sell amount is ${MIN_AMM_SHARE_INCREMENT.toFixed(4)} shares`,
+        });
       }
 
       const pool = await getPool(playerId);
@@ -154,6 +173,9 @@ export function registerAmmRoutes(app: Express) {
           sbIn: tradeAmount,
           sharesOut: quote.sharesOut,
           effectivePrice: quote.effectivePrice,
+          totalCost: quote.totalCost,
+          poolFee: quote.poolFee,
+          burnFee: quote.burnFee,
           currentPrice: pool.currentPrice,
           slippagePercent: quote.slippagePercent * 100, // Convert to percentage
           newPoolPrice: quote.newPoolPrice,
@@ -166,8 +188,11 @@ export function registerAmmRoutes(app: Express) {
 
         res.json({
           type: "sell",
-          sharesIn: tradeAmount,
+          sharesIn: normalizeTradeShareAmount(tradeAmount),
           sbOut: quote.sbOut,
+          sellerReceives: quote.sellerReceives,
+          poolFee: quote.poolFee,
+          burnFee: quote.burnFee,
           effectivePrice: quote.effectivePrice,
           currentPrice: pool.currentPrice,
           slippagePercent: quote.slippagePercent * 100, // Convert to percentage
@@ -176,7 +201,9 @@ export function registerAmmRoutes(app: Express) {
       }
     } catch (error: any) {
       logger.error({ err: error }, "[AMM API] Error getting quote");
-      res.status(500).json({ error: error.message });
+      res.status(isTradeInputErrorMessage(error?.message) ? 400 : 500).json({
+        error: error.message,
+      });
     }
   });
 
@@ -191,18 +218,18 @@ export function registerAmmRoutes(app: Express) {
       const userId = getUserId(req);
       const { sbAmount, maxSlippage } = req.body;
 
-      if (!sbAmount || isNaN(parseFloat(sbAmount)) || parseFloat(sbAmount) <= 0) {
+      if (!sbAmount || !Number.isFinite(parseFloat(sbAmount)) || parseFloat(sbAmount) <= 0) {
         return res.status(400).json({ error: "Invalid sbAmount" });
       }
 
       const amount = parseFloat(sbAmount);
-      if (isNaN(amount) || amount < 0.01) {
+      if (!Number.isFinite(amount) || amount < 0.01) {
         return res.status(400).json({ error: "Minimum buy amount is $0.01" });
       }
       // Validate and clamp maxSlippage to safe bounds
       let maxSlippageDecimal =
         maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
-      if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
+      if (!Number.isFinite(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
         maxSlippageDecimal = MIN_SLIPPAGE;
       } else if (maxSlippageDecimal > MAX_SLIPPAGE) {
         maxSlippageDecimal = MAX_SLIPPAGE;
@@ -251,18 +278,24 @@ export function registerAmmRoutes(app: Express) {
       const userId = getUserId(req);
       const { sharesAmount, maxSlippage } = req.body;
 
-      if (!sharesAmount || isNaN(parseFloat(sharesAmount)) || parseFloat(sharesAmount) <= 0) {
+      if (
+        !sharesAmount ||
+        !Number.isFinite(parseFloat(sharesAmount)) ||
+        parseFloat(sharesAmount) <= 0
+      ) {
         return res.status(400).json({ error: "Invalid sharesAmount" });
       }
 
       const amount = parseFloat(sharesAmount);
-      if (!Number.isInteger(amount)) {
-        return res.status(400).json({ error: "sharesAmount must be a whole number" });
+      if (amount < MIN_AMM_SHARE_INCREMENT) {
+        return res.status(400).json({
+          error: `Minimum sell amount is ${MIN_AMM_SHARE_INCREMENT.toFixed(4)} shares`,
+        });
       }
       // Validate and clamp maxSlippage to safe bounds
       let maxSlippageDecimal =
         maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
-      if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
+      if (!Number.isFinite(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
         maxSlippageDecimal = MIN_SLIPPAGE;
       } else if (maxSlippageDecimal > MAX_SLIPPAGE) {
         maxSlippageDecimal = MAX_SLIPPAGE;

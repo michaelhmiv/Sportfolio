@@ -58,6 +58,7 @@ const MIN_HOLDING_THRESHOLD = 0.0001;
 const HOLDING_QUANTITY_DECIMALS = 4;
 const HOLDING_QUANTITY_FACTOR = 10 ** HOLDING_QUANTITY_DECIMALS;
 const HOLDING_QUANTITY_EPSILON = 1e-9;
+export const MIN_AMM_SHARE_INCREMENT = 1 / HOLDING_QUANTITY_FACTOR;
 
 // Market Maker identifier is still used for LP boost exclusion.
 const MARKET_MAKER_ID = "market_maker";
@@ -80,6 +81,18 @@ function roundHoldingQuantity(value: number): number {
 
 function formatHoldingQuantity(value: number): string {
   return roundHoldingQuantity(value).toFixed(HOLDING_QUANTITY_DECIMALS);
+}
+
+/**
+ * Trades use the same four-decimal precision as holdings and the trade ledger.
+ * Buy quotes are floored so a trade never grants more shares than its pool math
+ * can fund; sell inputs are normalized the same way so quotes and execution agree.
+ */
+export function normalizeTradeShareAmount(value: number): number {
+  return (
+    Math.floor((value + HOLDING_QUANTITY_EPSILON) * HOLDING_QUANTITY_FACTOR) /
+    HOLDING_QUANTITY_FACTOR
+  );
 }
 
 const poolSelect = {
@@ -298,6 +311,48 @@ export function calculateBuyShares(pool: Pool, sbAmount: number): BuyQuote {
   };
 }
 
+function calculateBuyExecutionQuote(pool: Pool, sbAmount: number): BuyQuote {
+  const rawQuote = calculateBuyShares(pool, sbAmount);
+  const sharesOut = normalizeTradeShareAmount(rawQuote.sharesOut);
+
+  if (sharesOut < MIN_AMM_SHARE_INCREMENT) {
+    throw new Error(
+      `Trade too small: minimum trade is ${MIN_AMM_SHARE_INCREMENT.toFixed(HOLDING_QUANTITY_DECIMALS)} shares`,
+    );
+  }
+
+  const targetNewShares = pool.shares - sharesOut;
+  if (targetNewShares <= 0) {
+    throw new Error("Trade would deplete pool reserves");
+  }
+
+  const targetNewPlayMoney = pool.k / targetNewShares;
+  const poolReceives = targetNewPlayMoney - pool.playMoney;
+  if (!isFinite(poolReceives) || poolReceives <= 0) {
+    throw new Error("Trade too large: invalid pool state");
+  }
+
+  const adjustedSbAmount = poolReceives / (1 + POOL_FEE_PERCENT);
+  if (adjustedSbAmount - sbAmount > 1e-6) {
+    throw new Error("Trade rounding requires more SB than requested");
+  }
+
+  const poolFee = adjustedSbAmount * POOL_FEE_PERCENT;
+  const burnFee = adjustedSbAmount * BURN_FEE_PERCENT;
+  const totalCost = adjustedSbAmount + poolFee + burnFee;
+  const currentPrice = pool.playMoney / pool.shares;
+
+  return {
+    sharesOut,
+    effectivePrice: totalCost / sharesOut,
+    slippagePercent: (totalCost / sharesOut - currentPrice) / currentPrice,
+    newPoolPrice: targetNewPlayMoney / targetNewShares,
+    totalCost,
+    poolFee,
+    burnFee,
+  };
+}
+
 /**
  * Calculate SB out for a given shares amount with new fee structure
  * Formula:
@@ -403,45 +458,9 @@ export async function executeBuy(
         currentPrice: parseFloat(pool.playMoney) / parseFloat(pool.shares),
       };
 
-      // 2. Calculate trade details
-      const rawQuote = calculateBuyShares(poolData, sbAmount);
-      const sharesOutRounded = Math.floor(rawQuote.sharesOut);
-
-      if (sharesOutRounded < 1) {
-        return { success: false, error: "Trade too small: must buy at least 1 share" };
-      }
-
-      const targetNewShares = poolData.shares - sharesOutRounded;
-      if (targetNewShares <= 0) {
-        return { success: false, error: "Trade would deplete pool reserves" };
-      }
-
-      const targetNewPlayMoney = poolData.k / targetNewShares;
-      const poolReceives = targetNewPlayMoney - poolData.playMoney;
-      if (!isFinite(poolReceives) || poolReceives <= 0) {
-        return { success: false, error: "Trade too large: invalid pool state" };
-      }
-
-      const adjustedSbAmount = poolReceives / (1 + POOL_FEE_PERCENT);
-      if (adjustedSbAmount - sbAmount > 1e-6) {
-        return { success: false, error: "Trade rounding requires more SB than requested" };
-      }
-      const poolFee = adjustedSbAmount * POOL_FEE_PERCENT;
-      const burnFee = adjustedSbAmount * BURN_FEE_PERCENT;
-      const totalCost = adjustedSbAmount + poolFee + burnFee;
-      const effectivePrice = totalCost / sharesOutRounded;
-      const currentPrice = poolData.playMoney / poolData.shares;
-      const slippagePercent = (effectivePrice - currentPrice) / currentPrice;
-
-      const quote: BuyQuote = {
-        sharesOut: sharesOutRounded,
-        effectivePrice,
-        slippagePercent,
-        newPoolPrice: targetNewPlayMoney / targetNewShares,
-        totalCost,
-        poolFee,
-        burnFee,
-      };
+      // 2. Calculate trade details using the same rounded quantity returned by execution.
+      const quote = calculateBuyExecutionQuote(poolData, sbAmount);
+      const adjustedSbAmount = quote.totalCost - quote.poolFee - quote.burnFee;
 
       // 3. Check slippage
       if (quote.slippagePercent > maxSlippage) {
@@ -484,7 +503,7 @@ export async function executeBuy(
       await tx
         .update(playerPools)
         .set({
-          shares: newShares.toFixed(2),
+          shares: newShares.toFixed(HOLDING_QUANTITY_DECIMALS),
           playMoney: newPlayMoney.toFixed(2),
           k: newK.toFixed(2),
           feesAccumulated: newFeesAccumulated.toFixed(2),
@@ -538,7 +557,7 @@ export async function executeBuy(
           sellerId: "pool",
           buyOrderId: null,
           sellOrderId: null,
-          quantity: quote.sharesOut.toString(),
+          quantity: formatHoldingQuantity(quote.sharesOut),
           price: quote.effectivePrice.toFixed(2),
           executedAt: new Date(),
         })
@@ -552,7 +571,7 @@ export async function executeBuy(
           currentPrice: quote.newPoolPrice.toFixed(2),
           // volume24h is updated asynchronously as a true rolling 24h metric.
           // Keep a lightweight counter here for immediate UI feedback between refreshes.
-          volume24h: sql`${players.volume24h} + ${quote.sharesOut}`,
+          volume24h: sql`${players.volume24h} + ${Math.round(quote.sharesOut)}`,
           lastUpdated: new Date(),
         })
         .where(eq(players.id, playerId));
@@ -562,7 +581,7 @@ export async function executeBuy(
         type: "trade",
         playerId,
         price: quote.newPoolPrice.toFixed(2),
-        quantity: sharesOutRounded,
+        quantity: quote.sharesOut,
         buyerId: userId,
         sellerId: "pool",
       });
@@ -621,13 +640,13 @@ export async function executeBuy(
         userId,
         category: "trade_execution",
         title: "Buy Order Filled",
-        body: `Bought ${sharesOutRounded.toFixed(2)} shares.`,
+        body: `Bought ${quote.sharesOut.toFixed(HOLDING_QUANTITY_DECIMALS)} shares.`,
         deepLink: `/player/${playerId}`,
         data: {
           playerId,
           tradeId: trade.id,
           side: "buy",
-          shares: sharesOutRounded.toFixed(4),
+          shares: quote.sharesOut.toFixed(HOLDING_QUANTITY_DECIMALS),
           totalValue: quote.totalCost.toFixed(2),
           pricePerShare: quote.effectivePrice.toFixed(4),
         },
@@ -637,7 +656,7 @@ export async function executeBuy(
       return {
         success: true,
         tradeId: trade.id,
-        sharesTraded: sharesOutRounded,
+        sharesTraded: quote.sharesOut,
         pricePerShare: quote.effectivePrice,
         totalValue: quote.totalCost,
         slippagePercent: quote.slippagePercent,
@@ -687,8 +706,15 @@ export async function executeSell(
         currentPrice: parseFloat(pool.playMoney) / parseFloat(pool.shares),
       };
 
-      // 2. Calculate trade details
-      const quote = calculateSellShares(poolData, sharesAmount);
+      // 2. Normalize to ledger precision so quote, settlement, and holdings agree.
+      const executedSharesAmount = normalizeTradeShareAmount(sharesAmount);
+      if (executedSharesAmount < MIN_AMM_SHARE_INCREMENT) {
+        return {
+          success: false,
+          error: `Trade too small: minimum trade is ${MIN_AMM_SHARE_INCREMENT.toFixed(HOLDING_QUANTITY_DECIMALS)} shares`,
+        };
+      }
+      const quote = calculateSellShares(poolData, executedSharesAmount);
 
       // 3. Check slippage
       if (quote.slippagePercent > maxSlippage) {
@@ -728,16 +754,16 @@ export async function executeSell(
         );
       const lockedQuantity = Number(lockedResult[0]?.total || 0);
       const availableShares = Math.max(0, holdingQuantity - lockedQuantity);
-      if (availableShares + HOLDING_QUANTITY_EPSILON < sharesAmount) {
+      if (availableShares + HOLDING_QUANTITY_EPSILON < executedSharesAmount) {
         return {
           success: false,
-          error: `Insufficient available shares. Have ${availableShares.toFixed(4)} available, need ${sharesAmount.toFixed(4)}`,
+          error: `Insufficient available shares. Have ${availableShares.toFixed(4)} available, need ${executedSharesAmount.toFixed(4)}`,
         };
       }
 
       // 5. Update pool state
       // Pool loses: sbOut - poolFee (pool fee stays in pool, burn fee is removed)
-      const newShares = poolData.shares + sharesAmount;
+      const newShares = poolData.shares + executedSharesAmount;
       const newPlayMoney = poolData.playMoney - quote.sbOut + quote.poolFee;
       const newTotalVolume = poolData.totalVolume + quote.sbOut;
       const newFeesAccumulated = poolData.feesAccumulated + quote.poolFee;
@@ -754,7 +780,7 @@ export async function executeSell(
       await tx
         .update(playerPools)
         .set({
-          shares: newShares.toFixed(2),
+          shares: newShares.toFixed(HOLDING_QUANTITY_DECIMALS),
           playMoney: newPlayMoney.toFixed(2),
           k: newK.toFixed(2),
           feesAccumulated: newFeesAccumulated.toFixed(2),
@@ -766,7 +792,7 @@ export async function executeSell(
         .where(eq(playerPools.playerId, playerId));
 
       // 6. Deduct shares from user holdings
-      const newQuantity = holdingQuantity - sharesAmount;
+      const newQuantity = holdingQuantity - executedSharesAmount;
       if (newQuantity > MIN_HOLDING_THRESHOLD) {
         await tx
           .update(holdings)
@@ -801,7 +827,7 @@ export async function executeSell(
           sellerId: userId,
           buyOrderId: null,
           sellOrderId: null,
-          quantity: formatHoldingQuantity(sharesAmount),
+          quantity: formatHoldingQuantity(executedSharesAmount),
           price: quote.effectivePrice.toFixed(2),
           executedAt: new Date(),
         })
@@ -815,7 +841,7 @@ export async function executeSell(
           currentPrice: quote.newPoolPrice.toFixed(2),
           // volume24h is updated asynchronously as a true rolling 24h metric.
           // Keep a lightweight counter here for immediate UI feedback between refreshes.
-          volume24h: sql`${players.volume24h} + ${Math.round(sharesAmount)}`,
+          volume24h: sql`${players.volume24h} + ${Math.round(executedSharesAmount)}`,
           lastUpdated: new Date(),
         })
         .where(eq(players.id, playerId));
@@ -825,7 +851,7 @@ export async function executeSell(
         type: "trade",
         playerId,
         price: quote.newPoolPrice.toFixed(2),
-        quantity: sharesAmount,
+        quantity: executedSharesAmount,
         buyerId: "pool",
         sellerId: userId,
       });
@@ -881,14 +907,14 @@ export async function executeSell(
         userId,
         category: "trade_execution",
         title: "Sell Order Filled",
-        body: `Sold ${sharesAmount.toFixed(2)} shares.`,
+        body: `Sold ${executedSharesAmount.toFixed(HOLDING_QUANTITY_DECIMALS)} shares.`,
         deepLink: `/player/${playerId}`,
         data: {
           playerId,
           tradeId: trade.id,
           side: "sell",
-          shares: sharesAmount.toFixed(4),
-          totalValue: quote.sbOut.toFixed(2),
+          shares: executedSharesAmount.toFixed(HOLDING_QUANTITY_DECIMALS),
+          totalValue: quote.sellerReceives.toFixed(2),
           pricePerShare: quote.effectivePrice.toFixed(4),
         },
         dedupeKey: `trade:${trade.id}`,
@@ -897,9 +923,9 @@ export async function executeSell(
       return {
         success: true,
         tradeId: trade.id,
-        sharesTraded: sharesAmount,
+        sharesTraded: executedSharesAmount,
         pricePerShare: quote.effectivePrice,
-        totalValue: quote.sbOut,
+        totalValue: quote.sellerReceives,
         slippagePercent: quote.slippagePercent,
         poolFee: quote.poolFee,
         burnFee: quote.burnFee,
@@ -1240,7 +1266,7 @@ export async function zapAddLiquiditySharesOnly(
       await tx
         .update(playerPools)
         .set({
-          shares: poolSharesAfterSell.toFixed(2),
+          shares: poolSharesAfterSell.toFixed(HOLDING_QUANTITY_DECIMALS),
           playMoney: poolPlayMoneyAfterSell.toFixed(2),
           k: kAfterSell.toFixed(2),
           feesAccumulated: poolFeesAfterSell.toFixed(2),
@@ -1322,7 +1348,7 @@ export async function zapAddLiquiditySharesOnly(
       await tx
         .update(playerPools)
         .set({
-          shares: poolSharesAfterAdd.toFixed(2),
+          shares: poolSharesAfterAdd.toFixed(HOLDING_QUANTITY_DECIMALS),
           playMoney: poolPlayMoneyAfterAdd.toFixed(2),
           k: kAfterAdd.toFixed(2),
           lpSharesTotal: lpTotalAfterAdd.toFixed(2),
@@ -1390,9 +1416,9 @@ export async function zapAddLiquiditySharesOnly(
         playerId,
         transactionType: "add",
         lpShares: lpSharesToMint.toFixed(2),
-        sharesAmount: sharesDeposited.toFixed(2),
+        sharesAmount: sharesDeposited.toFixed(HOLDING_QUANTITY_DECIMALS),
         playMoneyAmount: playMoneyDeposited.toFixed(2),
-        poolSharesBefore: poolSharesAfterSell.toFixed(2),
+        poolSharesBefore: poolSharesAfterSell.toFixed(HOLDING_QUANTITY_DECIMALS),
         poolPlayMoneyBefore: poolPlayMoneyAfterSell.toFixed(2),
         poolLpSharesTotalBefore: lpTotalBefore.toFixed(2),
         timestamp: new Date(),
@@ -1521,7 +1547,7 @@ export async function zapAddLiquiditySbOnly(
       await tx
         .update(playerPools)
         .set({
-          shares: poolSharesAfterBuy.toFixed(2),
+          shares: poolSharesAfterBuy.toFixed(HOLDING_QUANTITY_DECIMALS),
           playMoney: poolPlayMoneyAfterBuy.toFixed(2),
           k: kAfterBuy.toFixed(2),
           feesAccumulated: poolFeesAfterBuy.toFixed(2),
@@ -1579,7 +1605,7 @@ export async function zapAddLiquiditySbOnly(
       await tx
         .update(playerPools)
         .set({
-          shares: poolSharesAfterAdd.toFixed(2),
+          shares: poolSharesAfterAdd.toFixed(HOLDING_QUANTITY_DECIMALS),
           playMoney: poolPlayMoneyAfterAdd.toFixed(2),
           k: kAfterAdd.toFixed(2),
           lpSharesTotal: lpTotalAfterAdd.toFixed(2),
@@ -1633,9 +1659,9 @@ export async function zapAddLiquiditySbOnly(
         playerId,
         transactionType: "add",
         lpShares: lpSharesToMint.toFixed(2),
-        sharesAmount: sharesDeposited.toFixed(2),
+        sharesAmount: sharesDeposited.toFixed(HOLDING_QUANTITY_DECIMALS),
         playMoneyAmount: playMoneyDeposited.toFixed(2),
-        poolSharesBefore: poolSharesAfterBuy.toFixed(2),
+        poolSharesBefore: poolSharesAfterBuy.toFixed(HOLDING_QUANTITY_DECIMALS),
         poolPlayMoneyBefore: poolPlayMoneyAfterBuy.toFixed(2),
         poolLpSharesTotalBefore: lpTotalBefore.toFixed(2),
         timestamp: new Date(),
@@ -1810,7 +1836,7 @@ export async function addLiquidity(
           .insert(playerPools)
           .values({
             playerId,
-            shares: sharesToDeposit.toFixed(2),
+            shares: sharesToDeposit.toFixed(HOLDING_QUANTITY_DECIMALS),
             playMoney: playMoneyToDeposit.toFixed(2),
             k: (sharesToDeposit * playMoneyToDeposit).toFixed(2),
             lpSharesTotal: lpSharesToMint.toFixed(2),
@@ -1848,7 +1874,7 @@ export async function addLiquidity(
         await tx
           .update(playerPools)
           .set({
-            shares: newPoolShares.toFixed(2),
+            shares: newPoolShares.toFixed(HOLDING_QUANTITY_DECIMALS),
             playMoney: newPoolPlayMoney.toFixed(2),
             k: newK.toFixed(2),
             lpSharesTotal: (poolData.lpSharesTotal + lpSharesToMint).toFixed(2),
@@ -1925,9 +1951,9 @@ export async function addLiquidity(
         playerId,
         transactionType: "add",
         lpShares: lpSharesToMint.toFixed(2),
-        sharesAmount: sharesToDeposit.toFixed(2),
+        sharesAmount: sharesToDeposit.toFixed(HOLDING_QUANTITY_DECIMALS),
         playMoneyAmount: playMoneyToDeposit.toFixed(2),
-        poolSharesBefore: poolSharesBefore.toFixed(2),
+        poolSharesBefore: poolSharesBefore.toFixed(HOLDING_QUANTITY_DECIMALS),
         poolPlayMoneyBefore: poolPlayMoneyBefore.toFixed(2),
         poolLpSharesTotalBefore: poolLpSharesTotalBefore.toFixed(2),
         timestamp: new Date(),
@@ -2035,7 +2061,7 @@ export async function removeLiquidity(
       await tx
         .update(playerPools)
         .set({
-          shares: newPoolShares.toFixed(2),
+          shares: newPoolShares.toFixed(HOLDING_QUANTITY_DECIMALS),
           playMoney: newPoolPlayMoney.toFixed(2),
           k: newK.toFixed(2),
           lpSharesTotal: newLpSharesTotal.toFixed(2),
@@ -2100,9 +2126,9 @@ export async function removeLiquidity(
         playerId,
         transactionType: "remove",
         lpShares: lpSharesToRemove.toFixed(2),
-        sharesAmount: sharesToReturn.toFixed(2),
+        sharesAmount: sharesToReturn.toFixed(HOLDING_QUANTITY_DECIMALS),
         playMoneyAmount: playMoneyToReturn.toFixed(2),
-        poolSharesBefore: poolData.shares.toFixed(2),
+        poolSharesBefore: poolData.shares.toFixed(HOLDING_QUANTITY_DECIMALS),
         poolPlayMoneyBefore: poolData.playMoney.toFixed(2),
         poolLpSharesTotalBefore: poolData.lpSharesTotal.toFixed(2),
         timestamp: new Date(),
@@ -2302,7 +2328,7 @@ export async function addLiquidityOptimal(
           .insert(playerPools)
           .values({
             playerId,
-            shares: sharesToDeposit.toFixed(2),
+            shares: sharesToDeposit.toFixed(HOLDING_QUANTITY_DECIMALS),
             playMoney: playMoneyToDeposit.toFixed(2),
             k: (sharesToDeposit * playMoneyToDeposit).toFixed(2),
             lpSharesTotal: lpSharesToMint.toFixed(2),
@@ -2340,7 +2366,7 @@ export async function addLiquidityOptimal(
         await tx
           .update(playerPools)
           .set({
-            shares: newPoolShares.toFixed(2),
+            shares: newPoolShares.toFixed(HOLDING_QUANTITY_DECIMALS),
             playMoney: newPoolPlayMoney.toFixed(2),
             k: newK.toFixed(2),
             lpSharesTotal: (poolData.lpSharesTotal + lpSharesToMint).toFixed(2),
@@ -2415,9 +2441,9 @@ export async function addLiquidityOptimal(
         playerId,
         transactionType: "add",
         lpShares: lpSharesToMint.toFixed(2),
-        sharesAmount: sharesToDeposit.toFixed(2),
+        sharesAmount: sharesToDeposit.toFixed(HOLDING_QUANTITY_DECIMALS),
         playMoneyAmount: playMoneyToDeposit.toFixed(2),
-        poolSharesBefore: poolSharesBefore.toFixed(2),
+        poolSharesBefore: poolSharesBefore.toFixed(HOLDING_QUANTITY_DECIMALS),
         poolPlayMoneyBefore: poolPlayMoneyBefore.toFixed(2),
         poolLpSharesTotalBefore: poolLpSharesTotalBefore.toFixed(2),
         timestamp: new Date(),
@@ -2556,7 +2582,7 @@ export async function calculateLpBoost(userId: string, playerId: string): Promis
 export async function getBuyQuote(playerId: string, sbAmount: number): Promise<BuyQuote | null> {
   const pool = await getPool(playerId);
   if (!pool) return null;
-  return calculateBuyShares(pool, sbAmount);
+  return calculateBuyExecutionQuote(pool, sbAmount);
 }
 
 /**
@@ -2568,5 +2594,11 @@ export async function getSellQuote(
 ): Promise<SellQuote | null> {
   const pool = await getPool(playerId);
   if (!pool) return null;
-  return calculateSellShares(pool, sharesAmount);
+  const normalizedSharesAmount = normalizeTradeShareAmount(sharesAmount);
+  if (normalizedSharesAmount < MIN_AMM_SHARE_INCREMENT) {
+    throw new Error(
+      `Trade too small: minimum trade is ${MIN_AMM_SHARE_INCREMENT.toFixed(HOLDING_QUANTITY_DECIMALS)} shares`,
+    );
+  }
+  return calculateSellShares(pool, normalizedSharesAmount);
 }

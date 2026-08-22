@@ -6,7 +6,7 @@ audience: public
 category: gameplay
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-05-12
+lastReviewedAt: 2026-08-21
 changeTriggers: server/routes/amm.ts,server/routes/lp.ts,server/amm/pool.ts,client/src/pages/marketplace.tsx,client/src/pages/player.tsx,shared/schema.ts
 slug: player-pools
 surface: web,cli
@@ -100,6 +100,9 @@ Before buying, check:
 
 **Buy flow:** uses SB amount (you specify how much to spend)  
 **Sell flow:** uses share quantities
+
+Buy and sell quantities support fractional shares down to `0.0001` shares. Quotes and execution
+use the same four-decimal quantity, so a quote for less than one whole share is still a valid trade.
 
 ---
 

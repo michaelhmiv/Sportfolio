@@ -1071,7 +1071,7 @@ export const playerPools = pgTable(
     playerId: varchar("player_id")
       .primaryKey()
       .references(() => players.id, { onDelete: "cascade" }),
-    shares: decimal("shares", { precision: 12, scale: 2 }).notNull().default("0"),
+    shares: decimal("shares", { precision: 12, scale: 4 }).notNull().default("0"),
     playMoney: decimal("play_money", { precision: 12, scale: 2 }).notNull().default("0"),
     k: decimal("k", { precision: 24, scale: 2 }).notNull().default("0"),
     lpSharesTotal: decimal("lp_shares_total", { precision: 24, scale: 2 }).notNull().default("0"),
@@ -1137,9 +1137,9 @@ export const lpTransactions = pgTable(
       .references(() => players.id, { onDelete: "cascade" }),
     transactionType: text("transaction_type").notNull(), // 'add' or 'remove'
     lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull(),
-    sharesAmount: decimal("shares_amount", { precision: 12, scale: 2 }).notNull(),
+    sharesAmount: decimal("shares_amount", { precision: 12, scale: 4 }).notNull(),
     playMoneyAmount: decimal("play_money_amount", { precision: 12, scale: 2 }).notNull(),
-    poolSharesBefore: decimal("pool_shares_before", { precision: 12, scale: 2 }).notNull(),
+    poolSharesBefore: decimal("pool_shares_before", { precision: 12, scale: 4 }).notNull(),
     poolPlayMoneyBefore: decimal("pool_play_money_before", { precision: 12, scale: 2 }).notNull(),
     poolLpSharesTotalBefore: decimal("pool_lp_shares_total_before", {
       precision: 24,

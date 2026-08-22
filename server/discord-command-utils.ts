@@ -2,7 +2,7 @@ export const DISCORD_SUPPORTED_SPORTS = ["ALL", "NBA", "NFL", "MLB", "NASCAR"] a
 export type DiscordSupportedSport = (typeof DISCORD_SUPPORTED_SPORTS)[number];
 
 export type ParsedAmountKind = "absolute" | "percent" | "max";
-export type ResolvedAmountKind = "currency" | "whole";
+export type ResolvedAmountKind = "currency" | "whole" | "shares";
 
 const PERCENT_PATTERN = /^(\d+(?:\.\d+)?)%$/;
 
@@ -69,6 +69,10 @@ function floorToCents(value: number): number {
   return Math.floor(value * 100) / 100;
 }
 
+function floorToShares(value: number): number {
+  return Math.floor((value + 1e-9) * 10_000) / 10_000;
+}
+
 export function resolveAmountInput(config: {
   rawInput: string;
   baseAmount: number;
@@ -90,6 +94,8 @@ export function resolveAmountInput(config: {
     resolvedValue = floorToCents(resolvedRaw);
   } else if (config.kind === "whole") {
     resolvedValue = Math.floor(resolvedRaw);
+  } else if (config.kind === "shares") {
+    resolvedValue = floorToShares(resolvedRaw);
   } else {
     resolvedValue = Math.floor(resolvedRaw);
   }
