@@ -26,7 +26,7 @@ jobs:
       PLUGIN_OAUTH_ISSUER: ${{ github.event_name == 'pull_request' && 'https://beta.sportfolio.market/api/auth/better' || 'https://www.sportfolio.market/api/auth/better' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v4
