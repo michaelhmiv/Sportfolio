@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+import { PlayerAvatar } from "./player-avatar";
 
 type JsonRecord = Record<string, unknown>;
 type ViewName = "player_market" | "trade_preview" | "portfolio" | "market_movers" | "liquidity";
@@ -63,14 +64,6 @@ function percent(value: unknown): string {
 function timestamp(value: unknown): string {
   const date = new Date(text(value));
   return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString(window.openai?.locale);
-}
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }
 function normalize(value: unknown): PresentationPayload | null {
   const root = obj(value);
@@ -169,14 +162,9 @@ function Notice({ children }: { children: ReactNode }) {
 }
 function Identity({ player }: { player: JsonRecord }) {
   const name = text(player.displayName, "Unknown player");
-  const image = text(player.imageUrl);
   return (
     <div className="row">
-      {image ? (
-        <img className="avatar" src={image} alt="" />
-      ) : (
-        <div className="avatar fallback">{initials(name)}</div>
-      )}
+      <PlayerAvatar player={player} fallbackClassName="avatar fallback" />
       <div>
         <div className="title">{name}</div>
         <div className="sub">

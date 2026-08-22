@@ -4,6 +4,15 @@
 
 Sportfolio exposes interactive MCP Apps UI in addition to its shared public business-tool catalog. The UI layer is presentation-only: it builds bounded, sanitized view models and calls the same shared Sportfolio tools used by other MCP clients for all mutations.
 
+## Demo and smoke fixtures
+
+Presentation metadata must use production-shaped identifiers so developer-mode
+tool previews exercise the success path instead of manufacturing a template
+failure. The current public fixtures use `mlb_669022` for the player market and
+`mlb_game_1` for the live-event contract. A real ChatGPT demo should still
+resolve a player or event through the corresponding data tool first and pass
+the returned identifier to the render tool.
+
 ## Architectural boundary
 
 - `server/mcp/public-tool-registry.ts` remains the source of truth for reusable business reads and writes.
@@ -107,6 +116,7 @@ Run locally with:
 
 ```bash
 npm run plugin:ui:build
+npm run plugin:ui:harness # serves a deterministic delayed-result browser fixture on :4173
 npx vitest run \
   client/src/plugin-ui/openai-host.test.ts \
   client/src/plugin-ui/sportfolio-widget-entry.test.ts \
@@ -116,3 +126,8 @@ npm run plugin:ui:audit
 npm run check
 npm run build
 ```
+
+For a hosted smoke test, set `PLUGIN_UI_SMOKE_URL` to the canonical MCP URL and
+run `npm run plugin:ui:live-smoke`. The probe validates the shared resource,
+OAuth challenge behavior, and at least one public render path without logging
+tokens or user data.
