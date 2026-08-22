@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Select current App Store Xcode toolchain
         uses: maxim-lobanov/setup-xcode@v1
