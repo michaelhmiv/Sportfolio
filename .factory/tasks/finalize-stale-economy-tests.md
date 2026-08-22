@@ -7,3 +7,5 @@ This synchronization is intentionally against the current finalizer/wrapper head
 Retry uses the absolute GitHub Actions checkout path for npm lifecycle execution.
 
 Final retry uses executable mode for the temporary lifecycle wrapper.
+
+Corrected retry removes both obsolete game multiplier fixture lines.
