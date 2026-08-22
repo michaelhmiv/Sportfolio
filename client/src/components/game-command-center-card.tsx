@@ -57,9 +57,7 @@ export function GameCommandCenterCard({
   );
 
   const ownedTeams = new Set(
-    (userContext?.ownedPlayers || [])
-      .map((player) => player.team?.toUpperCase())
-      .filter(Boolean),
+    (userContext?.ownedPlayers || []).map((player) => player.team?.toUpperCase()).filter(Boolean),
   );
 
   const progressValue =
@@ -364,10 +362,7 @@ export function GameCommandCenterCard({
                 Boost-ready holdings
               </div>
               {boostCandidates.slice(0, 3).map((player) => (
-                <div
-                  key={player.playerId}
-                  className="flex items-center justify-between"
-                >
+                <div key={player.playerId} className="flex items-center justify-between">
                   <span
                     role="button"
                     tabIndex={0}

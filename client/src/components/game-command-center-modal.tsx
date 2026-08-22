@@ -2794,22 +2794,42 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[840px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Player</th>
-                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
-                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Pos</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Pass</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Rush</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Rec</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">TD</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">INT</th>
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
+                                      Player
+                                    </th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      FP
+                                    </th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      $
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Pos
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Pass
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Rush
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Rec
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      TD
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      INT
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     const passLine = `${player.passingCompletions ?? 0}/${player.passingAttempts ?? 0}-${player.passingYards ?? 0}`;
                                     const rushLine = `${player.rushingAttempts ?? 0}/${player.rushingYards ?? 0}`;
                                     const recLine = `${player.receptions ?? 0}/${player.receivingTargets ?? 0}-${player.receivingYards ?? 0}`;
@@ -2819,18 +2839,48 @@ export function GameCommandCenterModal({
                                       (player.receivingTDs ?? 0);
 
                                     return (
-                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
-                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>
-                                          {renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}
+                                      <tr
+                                        key={`${section.team}-${player.playerId || player.name}`}
+                                        className={owned ? "bg-category-ownership/5" : ""}
+                                      >
+                                        <td
+                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
+                                        >
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
                                         </td>
-                                        <td className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
-                                        <td className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.position || "—"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{passLine}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{rushLine}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{recLine}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{totalTD}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.passingInterceptions ?? 0}</td>
+                                        <td
+                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
+                                        >
+                                          {(player.fantasyPoints || 0).toFixed(1)}
+                                        </td>
+                                        <td
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
+                                        >
+                                          ${earnings.toFixed(2)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.position || "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {passLine}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {rushLine}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {recLine}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {totalTD}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.passingInterceptions ?? 0}
+                                        </td>
                                       </tr>
                                     );
                                   })}
@@ -2840,43 +2890,119 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[980px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Driver</th>
-                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
-                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Run</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Start</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">+/-</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Laps</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Led</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Fast</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Best MPH</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Gap</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Car</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Status</th>
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
+                                      Driver
+                                    </th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      FP
+                                    </th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      $
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Run
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Start
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      +/-
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Laps
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Led
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Fast
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Best MPH
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Gap
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Car
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Status
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     const positionDiff = Number(player.positionDifferential || 0);
 
                                     return (
-                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
-                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>{renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}</td>
-                                        <td className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
-                                        <td className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.runningPosition || "--"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.startingPosition || "--"}</td>
-                                        <td className={`border-b border-border/40 px-1 py-1.5 text-right font-mono ${positionDiff > 0 ? "text-market-positive" : positionDiff < 0 ? "text-market-negative" : ""}`}>{positionDiff > 0 ? "+" : ""}{positionDiff}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.lapsCompleted ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.lapsLed ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.fastestLaps ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{typeof player.bestLapSpeed === "number" ? player.bestLapSpeed.toFixed(1) : "--"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{typeof player.delta === "number" ? player.delta.toFixed(1) : "--"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">#{player.carNumber || "--"} {player.manufacturer || ""}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right">{player.status || (player.isOnTrack === false ? "Off" : "Run")}</td>
+                                      <tr
+                                        key={`${section.team}-${player.playerId || player.name}`}
+                                        className={owned ? "bg-category-ownership/5" : ""}
+                                      >
+                                        <td
+                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
+                                        >
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
+                                        </td>
+                                        <td
+                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
+                                        >
+                                          {(player.fantasyPoints || 0).toFixed(1)}
+                                        </td>
+                                        <td
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
+                                        >
+                                          ${earnings.toFixed(2)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.runningPosition || "--"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.startingPosition || "--"}
+                                        </td>
+                                        <td
+                                          className={`border-b border-border/40 px-1 py-1.5 text-right font-mono ${positionDiff > 0 ? "text-market-positive" : positionDiff < 0 ? "text-market-negative" : ""}`}
+                                        >
+                                          {positionDiff > 0 ? "+" : ""}
+                                          {positionDiff}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.lapsCompleted ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.lapsLed ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.fastestLaps ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {typeof player.bestLapSpeed === "number"
+                                            ? player.bestLapSpeed.toFixed(1)
+                                            : "--"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {typeof player.delta === "number"
+                                            ? player.delta.toFixed(1)
+                                            : "--"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          #{player.carNumber || "--"} {player.manufacturer || ""}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right">
+                                          {player.status ||
+                                            (player.isOnTrack === false ? "Off" : "Run")}
+                                        </td>
                                       </tr>
                                     );
                                   })}
@@ -2886,11 +3012,34 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[720px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-24 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Player</th>
-                                    <th className="sticky left-24 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
-                                    <th className="sticky left-36 z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
-                                    {["Pos", "G", "A", "PTS", "SOG", "HIT", "BLK", "SV", "GA", "TOI", "DEC"].map((label) => (
-                                      <th key={label} className="border-b border-border/60 px-1 py-1 text-right font-medium">{label}</th>
+                                    <th className="sticky left-0 z-30 w-24 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
+                                      Player
+                                    </th>
+                                    <th className="sticky left-24 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      FP
+                                    </th>
+                                    <th className="sticky left-36 z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      $
+                                    </th>
+                                    {[
+                                      "Pos",
+                                      "G",
+                                      "A",
+                                      "PTS",
+                                      "SOG",
+                                      "HIT",
+                                      "BLK",
+                                      "SV",
+                                      "GA",
+                                      "TOI",
+                                      "DEC",
+                                    ].map((label) => (
+                                      <th
+                                        key={label}
+                                        className="border-b border-border/60 px-1 py-1 text-right font-medium"
+                                      >
+                                        {label}
+                                      </th>
                                     ))}
                                   </tr>
                                 </thead>
@@ -2898,23 +3047,67 @@ export function GameCommandCenterModal({
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     return (
-                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
-                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>{renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}</td>
-                                        <td className={`sticky left-24 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
-                                        <td className={`sticky left-36 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.position || "—"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.goals ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.assists ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.points ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.shotsOnGoal ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.hits ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.blockedShots ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.saves ?? "—"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.goalsAgainst ?? "—"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.timeOnIce || "—"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.decision || "—"}</td>
+                                      <tr
+                                        key={`${section.team}-${player.playerId || player.name}`}
+                                        className={owned ? "bg-category-ownership/5" : ""}
+                                      >
+                                        <td
+                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
+                                        >
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
+                                        </td>
+                                        <td
+                                          className={`sticky left-24 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
+                                        >
+                                          {(player.fantasyPoints || 0).toFixed(1)}
+                                        </td>
+                                        <td
+                                          className={`sticky left-36 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
+                                        >
+                                          ${earnings.toFixed(2)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.position || "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.goals ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.assists ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.points ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.shotsOnGoal ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.hits ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.blockedShots ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.saves ?? "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.goalsAgainst ?? "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.timeOnIce || "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.decision || "—"}
+                                        </td>
                                       </tr>
                                     );
                                   })}
@@ -2924,47 +3117,127 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[1020px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Player</th>
-                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
-                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Pos</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">H</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">R</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">RBI</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">HR</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">SB</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">BB</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">K</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">IP</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">P-K</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">ER</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">W</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">SV</th>
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
+                                      Player
+                                    </th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      FP
+                                    </th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      $
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Pos
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      H
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      R
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      RBI
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      HR
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      SB
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      BB
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      K
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      IP
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      P-K
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      ER
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      W
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      SV
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     return (
-                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
-                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>{renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}</td>
-                                        <td className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
-                                        <td className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.position || "-"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.hits ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.runs ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.runsBattedIn ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.homeRuns ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.stolenBases ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.walks ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.strikeoutsBatting ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{Number(player.inningsPitched ?? 0).toFixed(1)}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.pitchingStrikeouts ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.earnedRuns ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.wins ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.saves ?? 0}</td>
+                                      <tr
+                                        key={`${section.team}-${player.playerId || player.name}`}
+                                        className={owned ? "bg-category-ownership/5" : ""}
+                                      >
+                                        <td
+                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
+                                        >
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
+                                        </td>
+                                        <td
+                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
+                                        >
+                                          {(player.fantasyPoints || 0).toFixed(1)}
+                                        </td>
+                                        <td
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
+                                        >
+                                          ${earnings.toFixed(2)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.position || "-"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.hits ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.runs ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.runsBattedIn ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.homeRuns ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.stolenBases ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.walks ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.strikeoutsBatting ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {Number(player.inningsPitched ?? 0).toFixed(1)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.pitchingStrikeouts ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.earnedRuns ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.wins ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.saves ?? 0}
+                                        </td>
                                       </tr>
                                     );
                                   })}
@@ -2974,45 +3247,121 @@ export function GameCommandCenterModal({
                               <table className="w-full min-w-[940px] border-separate border-spacing-0 text-[10px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
-                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">Player</th>
-                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">FP</th>
-                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">$</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">Pos</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">MIN</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">PTS</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">REB</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">AST</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">STL</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">BLK</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">TO</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">3PM</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">FG</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">FT</th>
-                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">+/-</th>
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
+                                      Player
+                                    </th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      FP
+                                    </th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      $
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Pos
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      MIN
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      PTS
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      REB
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      AST
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      STL
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      BLK
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      TO
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      3PM
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      FG
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      FT
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      +/-
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {section.players.map((player) => {
                                     const earnings = getPlayerLiveEarnings(player, section.team);
                                     const owned = earnings > 0;
-                                    const stickyCellBg = owned ? "bg-category-ownership/10" : "bg-card";
+                                    const stickyCellBg = owned
+                                      ? "bg-category-ownership/10"
+                                      : "bg-card";
                                     return (
-                                      <tr key={`${section.team}-${player.playerId || player.name}`} className={owned ? "bg-category-ownership/5" : ""}>
-                                        <td className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}>{renderLiveModalPlayerName({ player, team: section.team, className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`, label: formatCompactName(player.name) })}</td>
-                                        <td className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}>{(player.fantasyPoints || 0).toFixed(1)}</td>
-                                        <td className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}>${earnings.toFixed(2)}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.position || "—"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.min || "0"}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.pts ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.reb ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.ast ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.stl ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.blk ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.turnover ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.fg3m ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.fgm ?? 0}/{player.fga ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.ftm ?? 0}/{player.fta ?? 0}</td>
-                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">{player.plusMinus ?? 0}</td>
+                                      <tr
+                                        key={`${section.team}-${player.playerId || player.name}`}
+                                        className={owned ? "bg-category-ownership/5" : ""}
+                                      >
+                                        <td
+                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
+                                        >
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-category-ownership" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
+                                        </td>
+                                        <td
+                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
+                                        >
+                                          {(player.fantasyPoints || 0).toFixed(1)}
+                                        </td>
+                                        <td
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-market-positive dark:text-market-positive ${stickyCellBg}`}
+                                        >
+                                          ${earnings.toFixed(2)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.position || "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.min || "0"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.pts ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.reb ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.ast ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.stl ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.blk ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.turnover ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.fg3m ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.fgm ?? 0}/{player.fga ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.ftm ?? 0}/{player.fta ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.plusMinus ?? 0}
+                                        </td>
                                       </tr>
                                     );
                                   })}

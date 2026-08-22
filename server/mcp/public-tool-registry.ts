@@ -2466,7 +2466,8 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "stage_daily_boost_assign",
-    description: "Stage a Daily Boost assignment using a direct quantity of Singles for confirmation.",
+    description:
+      "Stage a Daily Boost assignment using a direct quantity of Singles for confirmation.",
     domain: "boosts",
     readOnly: false,
     inputSchema: stageBoostAssignSchema,
