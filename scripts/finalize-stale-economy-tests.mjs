@@ -93,14 +93,10 @@ const formatFiles = [
 ];
 execFileSync("./node_modules/.bin/prettier", ["--write", ...formatFiles], { stdio: "inherit" });
 
-const packagePath = "package.json";
-const pkg = JSON.parse(readFileSync(packagePath, "utf8"));
-pkg.scripts.prepare = "husky";
-writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
-execFileSync("./node_modules/.bin/prettier", ["--write", packagePath], { stdio: "inherit" });
-
 rmSync(".factory/tasks/finalize-stale-economy-tests.md", { force: true });
 rmSync("scripts/finalize-stale-economy-tests.mjs", { force: true });
+rmSync("scripts/npm-lifecycle-finalizer.sh", { force: true });
+rmSync(".npmrc", { force: true });
 
 execFileSync(
   "./node_modules/.bin/vitest",
@@ -112,7 +108,7 @@ execFileSync(
   ],
   { stdio: "inherit" },
 );
-execFileSync("./node_modules/.bin/prettier", ["--check", ...formatFiles, packagePath], {
+execFileSync("./node_modules/.bin/prettier", ["--check", ...formatFiles, "package.json"], {
   stdio: "inherit",
 });
 
