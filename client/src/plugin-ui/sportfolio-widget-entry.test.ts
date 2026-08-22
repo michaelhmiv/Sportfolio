@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   snapshot: { toolOutput: undefined as unknown },
@@ -49,6 +49,7 @@ vi.mock("./sportfolio-widget-v2", () => {
 });
 
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.resetModules();
   state.snapshot = { toolOutput: undefined };
   state.handler = null;
@@ -56,9 +57,14 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="root"></div>';
 });
 
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+});
+
 describe("Sportfolio widget entry routing", () => {
-  it("waits for ui/notifications/tool-result instead of locking into the generic widget", async () => {
-    await import("./sportfolio-widget-entry");
+  it("waits for a delayed tool result and clears the hydration fallback", async () => {
+    const module = await import("./sportfolio-widget-entry");
     expect(state.loads).toEqual([]);
     expect(document.getElementById("root")?.textContent).toContain("Loading Sportfolio");
 
@@ -72,7 +78,40 @@ describe("Sportfolio widget entry routing", () => {
     };
     state.handler?.({ method: "ui/notifications/tool-result", params: state.snapshot.toolOutput });
 
-    await vi.waitFor(() => expect(state.loads).toEqual(["gameplay"]));
+    await vi.runAllTicks();
+    await Promise.resolve();
+    expect(state.loads).toEqual(["gameplay"]);
+
+    await vi.advanceTimersByTimeAsync(module.WIDGET_HYDRATION_TIMEOUT_MS + 1);
+    expect(document.getElementById("root")?.getAttribute("role")).not.toBe("alert");
+  });
+
+  it("terminates loading when no presentation payload arrives", async () => {
+    const module = await import("./sportfolio-widget-entry");
+
+    await vi.advanceTimersByTimeAsync(module.WIDGET_HYDRATION_TIMEOUT_MS + 1);
+
+    const root = document.getElementById("root");
+    expect(root?.getAttribute("role")).toBe("alert");
+    expect(root?.textContent).toContain("did not receive the data needed");
+    expect(state.loads).toEqual([]);
+  });
+
+  it("terminates loading for malformed or raw stage output instead of spinning forever", async () => {
+    state.snapshot.toolOutput = {
+      structuredContent: {
+        transactionId: "00000000-0000-4000-8000-000000000001",
+        status: "pending_confirmation",
+      },
+    };
+    const module = await import("./sportfolio-widget-entry");
+
+    await vi.advanceTimersByTimeAsync(module.WIDGET_HYDRATION_TIMEOUT_MS + 1);
+
+    const root = document.getElementById("root");
+    expect(root?.getAttribute("role")).toBe("alert");
+    expect(root?.textContent).toContain("cannot be displayed here");
+    expect(state.loads).toEqual([]);
   });
 
   it("maps every current presentation view to its owning React surface", async () => {
