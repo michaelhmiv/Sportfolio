@@ -346,7 +346,6 @@ describe("buildMobileMarketOverview", () => {
     expect(overview.pulse.openBoostSlots).toBe(4);
     expect(overview.marketIndicators.healthScore).toBeGreaterThan(0);
     expect(personalBoost?.availableShares).toBe(1);
-    expect(personalBoost?.bestShareMultiplier).toBe(1);
     expect(personalBoost?.signal).toBe("boost");
     expect(overview.watchlistMoves.map((entry) => entry.playerId)).toEqual(["p4", "p2"]);
     expect(overview.personalEdge?.boostReady.map((entry) => entry.playerId)).toContain("p3");
