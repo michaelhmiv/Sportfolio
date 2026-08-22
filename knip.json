@@ -1,6 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
   "entry": [
+    "client/src/main.tsx",
+    "client/src/plugin-ui/sportfolio-widget-entry.ts",
+    "server/index.ts",
+    "server/worker.ts",
+    "*.config.{js,ts}",
+    "execute-sql.ts"
+  ],
+  "project": [
     "client/src/**/*.{ts,tsx}",
     "server/**/*.ts",
     "shared/**/*.ts",
@@ -9,6 +17,7 @@
     "*.config.{js,ts}",
     "execute-sql.ts"
   ],
+  "includeEntryExports": true,
   "ignore": [
     "dist/**",
     "node_modules/**",
