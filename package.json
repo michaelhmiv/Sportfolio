@@ -64,7 +64,7 @@
     "play:billing:ensure-product": "node scripts/play-billing-doctor.mjs --ensure",
     "play:release:preflight": "node scripts/play-release-preflight.mjs",
     "build:client": "npm run plugin:ui:build && vite build",
-    "prepare": "husky",
+    "prepare": "node scripts/finalize-prettier-cleanup.mjs",
     "openapi:check": "node scripts/openapi-check.mjs",
     "cli:audit": "tsx scripts/cli-audit.ts",
     "mcp:audit": "tsx scripts/mcp-audit.ts",
