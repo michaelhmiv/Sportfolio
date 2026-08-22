@@ -42,7 +42,7 @@ update("client/src/components/dashboard-showcase-card.helpers.test.ts", (source)
     next = replaceExactly(next, line, "", 1, line.trim());
   }
   next = replaceExactly(next, "            topMultiplierPlayers: [],\n", "", 3, "topMultiplierPlayers");
-  next = replaceExactly(next, "                multiplier: 2,\n", "", 1, "game multiplier 2");
+  next = replaceExactly(next, "                multiplier: 2,\n", "", 2, "game multiplier 2");
   next = replaceExactly(next, "                multiplier: 1,\n", "", 1, "game multiplier 1");
   next = replaceExactly(next, "        multiplier: 2,\n", "", 1, "race multiplier");
   next = replaceExactly(next, '      detail: "6 sh | earn",\n', '      detail: "6 Singles | earning",\n', 1, "earning detail");
