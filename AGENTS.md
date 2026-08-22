@@ -77,6 +77,7 @@ Historical migrations may mention removed systems because they record actual dat
 
 - Use existing patterns before introducing abstractions or dependencies.
 - Keep changes targeted and remove obsolete paths instead of layering new compatibility shims over retired systems.
+- Treat configured Daily Boost slot multipliers as current mechanics; do not confuse them with retired player-share stacking or share-multiplier state.
 - Never expose secrets, tokens, private user data, raw provider payloads, or internal error stacks.
 - Preserve market, portfolio, scouting, boost, collection, payout, and identity invariants when changing data ingestion.
 - Do not create new public tools when an existing compact/unified capability can satisfy the use case.
