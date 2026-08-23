@@ -11,6 +11,7 @@
     "client/src/pages/plugin-docs.tsx",
     "client/src/pages/plugin-support.tsx",
     "server/auth/plugin-*.ts",
+    "server/express-auth.d.ts",
     "server/routes/plugin-*.ts",
     "server/mcp/plugin/**/*.ts",
     "server/mcp/public-tool-registry.ts",

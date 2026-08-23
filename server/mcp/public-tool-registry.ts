@@ -44,6 +44,7 @@ import { redeemPremiumShare } from "../services/premium-redemption";
 import { loadUserEntitlements } from "../services/user-entitlements";
 import { getLeaderboardReadResponse } from "../leaderboards-read-service";
 import { getCanonicalPlayerMarkets } from "../valuation/canonical-valuation";
+import { normalizePublicError } from "./public-errors";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 
@@ -241,7 +242,7 @@ const PUBLIC_MLB_SOURCE_NAME = "Sportfolio MLB provider";
 const DEFAULT_PUBLIC_SPORTS_REGISTRY = createDefaultSportsAdapterRegistry();
 const HIGH_RISK_IMMEDIATE_TOOL_NAMES = new Set(["revoke_api_token", "redeem_premium"]);
 
-class PublicMcpToolError extends Error {
+export class PublicMcpToolError extends Error {
   constructor(
     message: string,
     readonly code: string,
@@ -297,13 +298,7 @@ function toStructuredContent(value: unknown): ToolStructuredContent {
 }
 
 function toToolErrorResult(error: unknown) {
-  const normalized =
-    error instanceof PublicMcpToolError
-      ? error
-      : new PublicMcpToolError(
-          error instanceof Error ? error.message : String(error),
-          "tool_execution_failed",
-        );
+  const normalized = normalizePublicError(error);
 
   return {
     content: [
@@ -315,7 +310,7 @@ function toToolErrorResult(error: unknown) {
     structuredContent: {
       code: normalized.code,
       message: normalized.message,
-      ...(normalized.details ? { details: normalized.details } : {}),
+      retryable: normalized.retryable,
     },
     isError: true,
   };
@@ -700,30 +695,42 @@ async function buildDashboardOverview(
   context: PublicMcpServerContext,
   args: Record<string, unknown>,
 ) {
+  const recentLotsLimit = Math.min(20, Math.max(1, toPositiveInteger(args.recentLotsLimit) || 6));
+  const sharedArgs = {
+    ...(toOptionalString(args.sport) ? { sport: toOptionalString(args.sport) } : {}),
+    ...(toOptionalString(args.date) ? { date: toOptionalString(args.date) } : {}),
+  };
   const [
     portfolioSummary,
     balanceState,
+    recentLots,
     scoutStatus,
     dailyBoosts,
     communityBoostState,
     watchlists,
   ] = await Promise.all([
-    executeReadTool(context, "get_portfolio_summary", args),
-    executeReadTool(context, "get_balance_state", args),
+    executeReadTool(context, "get_portfolio_summary", sharedArgs),
+    executeReadTool(context, "get_balance_state", sharedArgs),
+    executeReadTool(context, "get_holdings", {
+      limit: recentLotsLimit,
+      ...(sharedArgs.sport ? { sport: sharedArgs.sport } : {}),
+    }),
     buildScoutStatus(context),
     executeReadTool(context, "get_daily_boost_state", {
-      date: args.date,
+      date: sharedArgs.date,
     }),
     executeReadTool(context, "get_community_boost_state", {
-      date: args.date,
+      date: sharedArgs.date,
     }),
     executeReadTool(context, "get_watchlists"),
   ]);
 
   return {
     summary: "Loaded dashboard overview.",
+    recentLotsLimit,
     portfolioSummary,
     balanceState,
+    recentLots,
     scoutStatus,
     dailyBoosts,
     communityBoostState,
@@ -732,7 +739,7 @@ async function buildDashboardOverview(
 }
 
 async function searchPlayers(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const query = toStringValue(args.query || args.q || args.search);
+  const query = toStringValue(args.query);
   const team = toOptionalString(args.team) || undefined;
   const position = toOptionalString(args.position) || undefined;
   const limit = toPositiveInteger(args.limit) || 25;
@@ -769,15 +776,6 @@ async function searchPlayers(context: PublicMcpServerContext, args: Record<strin
         priceChange24h: player.priceChange24h,
       };
     }),
-  };
-}
-
-async function getMarketScanners(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const sport = toOptionalString(args.sport)?.toUpperCase() || "ALL";
-  return {
-    summary: `Loaded ${sport} market scanners.`,
-    sport,
-    scanners: await context.deps.storage.getFinancialMarketScanners(sport),
   };
 }
 
@@ -1211,14 +1209,6 @@ async function getActivityFeed(context: PublicMcpServerContext, args: Record<str
   };
 }
 
-async function listWatchlistPlayerIds(context: PublicMcpServerContext) {
-  const playerIds = await context.deps.storage.getWatchList(context.userId);
-  return {
-    summary: `Loaded ${playerIds.length} watchlist player id(s).`,
-    playerIds,
-  };
-}
-
 async function completeOnboarding(context: PublicMcpServerContext) {
   await context.deps.storage.markOnboardingComplete(context.userId);
   return {
@@ -1443,11 +1433,15 @@ async function redeemPremiumTool(context: PublicMcpServerContext) {
 }
 
 const noArgsSchema: RawSchema = {};
-const optionalMessageSchema: RawSchema = {
-  message: z.string().min(1).max(1200).optional(),
-};
 const optionalSportDateSchema: RawSchema = {
-  message: z.string().min(1).max(1200).optional(),
+  sport: z.string().min(2).max(16).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+};
+const dashboardOverviewSchema: RawSchema = {
+  recentLotsLimit: z.number().int().min(1).max(20).optional().default(6),
   sport: z.string().min(2).max(16).optional(),
   date: z
     .string()
@@ -1455,7 +1449,6 @@ const optionalSportDateSchema: RawSchema = {
     .optional(),
 };
 const scoutOpportunitySchema: RawSchema = {
-  message: z.string().min(1).max(1200).optional(),
   sport: z.string().min(2).max(16).optional(),
   limit: z.number().int().positive().max(20).optional(),
 };
@@ -1487,9 +1480,7 @@ const listSchema: RawSchema = {
     .optional(),
 };
 const searchPlayersSchema: RawSchema = {
-  query: z.string().min(1).max(120).optional(),
-  q: z.string().min(1).max(120).optional(),
-  search: z.string().min(1).max(120).optional(),
+  query: z.string().min(1).max(120),
   team: z.string().min(1).max(16).optional(),
   position: z.string().min(1).max(16).optional(),
   sport: z.string().min(2).max(16).optional(),
@@ -1726,7 +1717,8 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "list_boost_candidates",
-    description: "Rank the best daily boost candidates for the requested window.",
+    description:
+      "Use this when the user asks who to boost or wants ranked Daily Boost recommendations. Do not use it to assign a boost; use list_daily_boost_eligible_players, then stage_daily_boost_assign.",
     domain: "boosts",
     readOnly: true,
     inputSchema: listSchema,
@@ -1739,21 +1731,13 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "list_scout_opportunities",
-    description: "Rank the strongest current scout targets and reallocation opportunities.",
+    description:
+      "Use this when the user asks who to scout or wants ranked scout recommendations. Do not use it to change assignments; use stage_scout_assignment after the user selects a target.",
     domain: "scouting",
     readOnly: true,
     inputSchema: scoutOpportunitySchema,
     fixtureArgs: { sport: "mlb", limit: 6 },
     execute: (context, args) => executeScanTool(context, "scan_scout_opportunities", args),
-  }),
-  defineTool({
-    name: "list_market_opportunities",
-    description: "List the strongest current market-facing opportunities.",
-    domain: "market",
-    readOnly: true,
-    inputSchema: optionalMessageSchema,
-    fixtureArgs: {},
-    execute: (context, args) => executeScanTool(context, "scan_top_market_opportunities", args),
   }),
   defineTool({
     name: "get_balance_state",
@@ -1809,7 +1793,7 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
   defineTool({
     name: "get_player_detail",
     description:
-      "Load a player's detail, stats, recent games, market context, and user holding state.",
+      "Use this for one player's bounded Sportfolio snapshot: identity, market context, recent performance, and the user's holding state. Do not use it for a multi-player search or to mutate holdings.",
     domain: "players",
     readOnly: true,
     inputSchema: playerIdLimitSchema,
@@ -1851,15 +1835,6 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
     inputSchema: playerIdSchema,
     fixtureArgs: { playerId: "player_1" },
     execute: (context, args) => executeReadTool(context, "get_player_shares_info", args),
-  }),
-  defineTool({
-    name: "list_watchlist_player_ids",
-    description: "List every player id across the user's watchlists.",
-    domain: "watchlists",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: listWatchlistPlayerIds,
   }),
   defineTool({
     name: "list_watchlists",
@@ -1970,7 +1945,8 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "get_trade_quote",
-    description: "Load a buy or sell quote from the AMM.",
+    description:
+      "Use this to quote a proposed buy or sell before staging it. Do not use it to execute a trade; use stage_market_buy or stage_market_sell and review the server-issued transaction.",
     domain: "market",
     readOnly: true,
     inputSchema: getTradeQuoteSchema,
@@ -2071,11 +2047,11 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   defineTool({
     name: "get_dashboard_overview",
     description:
-      "Load a composed dashboard overview spanning balance, portfolio, boosts, scouts, and watchlists.",
+      "Use this when the user asks for a compact dashboard summary across balance, portfolio, boosts, scouts, and watchlists. Do not use it for a complete holdings table; use render_portfolio for that.",
     domain: "dashboard",
     readOnly: true,
-    inputSchema: optionalSportDateSchema,
-    fixtureArgs: {},
+    inputSchema: dashboardOverviewSchema,
+    fixtureArgs: { recentLotsLimit: 6 },
     execute: buildDashboardOverview,
   }),
   defineTool({
@@ -2125,23 +2101,13 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "search_players",
-    description: "Search active players by name, team, or position.",
+    description:
+      "Use this first when a user names a Sportfolio player and the canonical player ID is unknown; return a small set of active matches by name, team, or position. Do not pass provider-native IDs or use q/search aliases.",
     domain: "players",
     readOnly: true,
     inputSchema: searchPlayersSchema,
     fixtureArgs: { query: "Jalen" },
     execute: searchPlayers,
-  }),
-  defineTool({
-    name: "get_market_scanners",
-    description: "Load current market scanner buckets.",
-    domain: "market",
-    readOnly: true,
-    inputSchema: {
-      sport: z.string().min(2).max(16).optional(),
-    },
-    fixtureArgs: { sport: "NBA" },
-    execute: getMarketScanners,
   }),
   defineTool({
     name: "get_games_today",
@@ -2287,7 +2253,8 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "list_daily_boost_eligible_players",
-    description: "List holdings eligible for a daily boost.",
+    description:
+      "Use this before assigning a Daily Boost to verify eligible current holdings and available direct-share quantities. Do not use it to assign a boost; use stage_daily_boost_assign with playerId, slotTier, and shares.",
     domain: "boosts",
     readOnly: true,
     inputSchema: listSchema,
@@ -2297,18 +2264,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
         ...args,
         sport: args.sport || (await resolvePreferredSport(context, args)),
       }),
-  }),
-  defineTool({
-    name: "list_community_boost_history",
-    description: "Return the current site-equivalent community boost history surface.",
-    domain: "community_boosts",
-    readOnly: true,
-    inputSchema: noArgsSchema,
-    fixtureArgs: {},
-    execute: async () => ({
-      summary: "Community boost history currently has no dedicated persisted history surface.",
-      history: [],
-    }),
   }),
   defineTool({
     name: "list_community_boost_eligible_players",
@@ -2345,7 +2300,8 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "stage_market_buy",
-    description: "Stage a market buy for confirmation.",
+    description:
+      "Use this to stage a proposed Singles buy for explicit review and confirmation. Do not call confirm_pending_action until the user approves the exact server-issued transaction.",
     domain: "market",
     readOnly: false,
     inputSchema: stageMarketBuySchema,
@@ -2362,7 +2318,8 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "stage_market_sell",
-    description: "Stage a market sell for confirmation.",
+    description:
+      "Use this to stage a proposed share sale for explicit review and confirmation. Do not call confirm_pending_action until the user approves the exact server-issued transaction.",
     domain: "market",
     readOnly: false,
     inputSchema: stageMarketSellSchema,
@@ -2452,7 +2409,8 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "stage_scout_assignment",
-    description: "Stage a scout assignment change for confirmation.",
+    description:
+      "Use this to stage one scout assignment change after the user selects a player and target count. Do not execute or silently confirm the change; render/review the server-issued transaction first.",
     domain: "scouting",
     readOnly: false,
     inputSchema: stageScoutSchema,
@@ -2467,7 +2425,7 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   defineTool({
     name: "stage_daily_boost_assign",
     description:
-      "Stage a Daily Boost assignment using a direct quantity of Singles for confirmation.",
+      "Use this to stage a Daily Boost assignment after eligibility is checked. The current economy uses direct Singles quantity: provide playerId, one of slotTier 2/3/5/7/10, and shares; date and sport are optional. Do not use retired Stack Shares concepts and do not confirm without explicit user approval.",
     domain: "boosts",
     readOnly: false,
     inputSchema: stageBoostAssignSchema,
@@ -2590,7 +2548,8 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "confirm_pending_action",
-    description: "Confirm and execute a staged gameplay transaction.",
+    description:
+      "Use this only after the user explicitly approves the exact server-issued staged transaction shown by render_action_review. Do not create or alter a transaction with this tool; it executes exactly one pending transactionId.",
     domain: "transactions",
     readOnly: false,
     inputSchema: pendingActionSchema,
@@ -2754,6 +2713,24 @@ export function createDefaultPublicMcpDependencies(): PublicMcpDependencies {
 }
 
 const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
+  {
+    capabilityId: "list_watchlist_player_ids_site_only",
+    kind: "excluded",
+    status: "excluded",
+    domain: "watchlists",
+    source: "/api/watchlist",
+    notes:
+      "The website's flattened player-id helper is redundant with list_watchlists and get_watchlist_items and is not model-visible.",
+  },
+  {
+    capabilityId: "list_community_boost_history_site_only",
+    kind: "excluded",
+    status: "excluded",
+    domain: "community_boosts",
+    source: "/api/community-boosts/history",
+    notes:
+      "The route has no dedicated persisted history source; the empty model-visible compatibility tool was removed.",
+  },
   {
     capabilityId: "news_digest_site_only",
     kind: "excluded",
@@ -2976,7 +2953,11 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     capabilityIds: ["celebrate_milestone"],
   },
   { method: "GET", path: "/api/trades/history", capabilityIds: ["get_trade_history"] },
-  { method: "GET", path: "/api/watchlist", capabilityIds: ["list_watchlist_player_ids"] },
+  {
+    method: "GET",
+    path: "/api/watchlist",
+    excludedCapabilityId: "list_watchlist_player_ids_site_only",
+  },
   { method: "GET", path: "/api/watchlists", capabilityIds: ["list_watchlists"] },
   { method: "POST", path: "/api/watchlists", capabilityIds: ["create_watchlist"] },
   { method: "PUT", path: "/api/watchlists/:id", capabilityIds: ["update_watchlist"] },
@@ -3091,7 +3072,7 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
   {
     method: "GET",
     path: "/api/community-boosts/history",
-    capabilityIds: ["list_community_boost_history"],
+    excludedCapabilityId: "list_community_boost_history_site_only",
   },
   {
     method: "GET",
@@ -3120,7 +3101,6 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
 const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
   "list_boost_candidates",
   "list_scout_opportunities",
-  "list_market_opportunities",
   "get_balance_state",
   "get_player_stats",
   "get_player_recent_games",
@@ -3131,7 +3111,6 @@ const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
   "get_dashboard_overview",
   "get_leaderboard",
   "search_players",
-  "get_market_scanners",
   "get_games_today",
   "get_game_insights",
   "search_docs",
@@ -3610,6 +3589,15 @@ export function getPublicToolDefinition(name: string) {
   return buildPublicToolRegistry().find((tool) => tool.name === name) || null;
 }
 
+/** Canonical input validation used by every public dispatch path and contract test. */
+export function validatePublicToolArguments(name: string, args: Record<string, unknown> = {}) {
+  const tool = getPublicToolDefinition(name);
+  if (!tool) {
+    throw new PublicMcpToolError("Unknown public tool.", "not_found", { name });
+  }
+  return parseSchemaArgs(tool.inputSchema, args);
+}
+
 export function getPublicPromptDefinition(name: string) {
   return buildPublicPromptRegistry().find((prompt) => prompt.name === name) || null;
 }
@@ -3623,7 +3611,7 @@ export async function executePublicTool(
   if (!tool) {
     throw new PublicMcpToolError("Unknown public tool.", "not_found", { name });
   }
-  return tool.execute(context, parseSchemaArgs(tool.inputSchema, args));
+  return tool.execute(context, validatePublicToolArguments(name, args));
 }
 
 export async function executeResolvedPublicTool(

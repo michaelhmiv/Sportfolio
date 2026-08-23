@@ -170,8 +170,6 @@ function nativeReadResult(toolName: string) {
       return { summary: "Loaded watchlist items.", items: [{ playerId: "player_1" }] };
     case "get_player_watchlists":
       return { summary: "Loaded player watchlists.", watchlists: [{ id: "watchlist_1" }] };
-    case "get_holding_multiplier_state":
-      return { summary: "Loaded multiplier.", multiplier: 1 };
     case "get_daily_boost_state":
       return { summary: "Loaded boosts.", boosts: [] };
     case "get_daily_boost_history":

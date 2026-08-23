@@ -12,6 +12,7 @@ const {
 } = await import("../server/mcp/plugin/ui/catalog");
 const { SPORTFOLIO_WIDGET_HTML_TEMPLATE } =
   await import("../server/mcp/plugin/ui/generated-widget");
+const { buildPublicToolRegistry } = await import("../server/mcp/public-tool-registry");
 
 const errors: string[] = [];
 const catalog = buildAllPluginPresentationCatalog();
@@ -116,6 +117,21 @@ const widgetSources = [
   readFileSync("client/src/plugin-ui/player-avatar.tsx", "utf8"),
   hostSource,
 ].join("\n");
+
+const registeredWidgetToolNames = new Set([
+  ...buildPublicToolRegistry().map((tool) => tool.name),
+  ...catalog.map((entry) => entry.name),
+  "resolve_players",
+  "stage_scout_assignments",
+]);
+const staticWidgetCalls = Array.from(widgetSources.matchAll(/callTool\(\s*"([^"]+)"/g)).map(
+  (match) => match[1],
+);
+for (const toolName of new Set(staticWidgetCalls)) {
+  if (!registeredWidgetToolNames.has(toolName)) {
+    errors.push(`Widget calls unregistered MCP tool ${toolName}.`);
+  }
+}
 
 for (const required of [
   "tools/call",

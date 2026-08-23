@@ -73,6 +73,8 @@
     "plugin:ui:audit": "tsx scripts/plugin-ui-audit.ts",
     "plugin:ui:harness": "node scripts/plugin-ui-harness.mjs",
     "plugin:ui:live-smoke": "tsx scripts/plugin-ui-live-smoke.ts",
+    "plugin:inventory": "node --import tsx/esm scripts/generate-production-plugin-inventory.ts",
+    "plugin:golden:check": "node scripts/check-golden-prompts.mjs",
     "bot:liquidity:report": "tsx scripts/bot-liquidity-spread-report.ts",
     "text:check": "node scripts/check-text-encoding.mjs",
     "redditbot:typecheck": "npm --prefix packages/sportfoliobot run typecheck",

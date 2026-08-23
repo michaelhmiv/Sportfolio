@@ -284,7 +284,7 @@ describe("Sportfolio overview presentation surfaces", () => {
     expect(result?.structuredContent).toMatchObject({
       view: "dashboard",
       data: { dashboard: { unavailable: true } },
-      warnings: ["dashboard unavailable"],
+      warnings: ["Sportfolio could not complete this request."],
     });
   });
 });

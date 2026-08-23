@@ -41,7 +41,6 @@ describe("canonical valuation cross-surface invariants", () => {
           player,
         },
       ],
-      multipliers: [{ id: "stack-a", playerId: player.id, multiplier: 600, player }],
       markets: new Map([[player.id, market]]),
     });
 

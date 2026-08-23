@@ -318,7 +318,7 @@ function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Pay
     const timer = window.setTimeout(async () => {
       try {
         const result = unwrap(
-          await callTool("get_amm_trade_quote", { playerId, type: side, amount: value }),
+          await callTool("get_trade_quote", { playerId, type: side, amount: value }),
         );
         if (sequence === quoteSequence.current)
           setQuote(Object.keys(asRecord(result.quote)).length ? asRecord(result.quote) : result);

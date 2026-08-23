@@ -16,6 +16,7 @@ import {
 import type { PluginMcpContext } from "./context";
 import { PluginDeadlineError, withPluginDeadline } from "./runtime-guard";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "./sanitizer";
+import { normalizePublicError } from "../public-errors";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 type PluginAccess = "public" | "oauth";
@@ -198,6 +199,22 @@ function outputSize(value: unknown): number | undefined {
   }
 }
 
+function toPluginErrorResult(error: unknown, fallbackSummary: string) {
+  const normalized = normalizePublicError(error);
+  return {
+    isError: true,
+    content: [{ type: "text" as const, text: normalized.message }],
+    structuredContent: {
+      summary: fallbackSummary,
+      data: {
+        code: normalized.code,
+        retryable: normalized.retryable,
+      },
+      warnings: [],
+    },
+  };
+}
+
 async function registerStaticTools(
   server: McpServer,
   context: PluginMcpContext,
@@ -264,26 +281,12 @@ async function registerStaticTools(
             access: catalog.access,
             durationMs: Date.now() - startedAt,
           });
-          return {
-            isError: true,
-            content: [
-              {
-                type: "text" as const,
-                text: timeout
-                  ? "Sportfolio took too long to respond. Try the request again."
-                  : "Sportfolio could not complete this request.",
-              },
-            ],
-            structuredContent: {
-              summary: timeout
-                ? "The tool exceeded its execution deadline."
-                : "The tool could not be completed.",
-              data: {
-                code: timeout ? "tool_timeout" : "tool_execution_failed",
-              },
-              warnings: [],
-            },
-          } as any;
+          return toPluginErrorResult(
+            error,
+            timeout
+              ? "The tool exceeded its execution deadline."
+              : "The tool could not be completed.",
+          ) as any;
         }
       },
     );
@@ -376,24 +379,12 @@ function registerPlayerResolutionFastPath(
           access: "public",
           durationMs: Date.now() - startedAt,
         });
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: timeout
-                ? "Sportfolio took too long to resolve the requested players. Try again."
-                : "Sportfolio could not resolve the requested players.",
-            },
-          ],
-          structuredContent: {
-            summary: timeout
-              ? "The player resolution request exceeded its execution deadline."
-              : "Player resolution could not be completed.",
-            data: { code: timeout ? "tool_timeout" : "tool_execution_failed" },
-            warnings: [],
-          },
-        } as any;
+        return toPluginErrorResult(
+          error,
+          timeout
+            ? "The player resolution request exceeded its execution deadline."
+            : "Player resolution could not be completed.",
+        ) as any;
       }
     },
   );
@@ -484,24 +475,12 @@ function registerScoutBatchFastPath(
           access: "oauth",
           durationMs: Date.now() - startedAt,
         });
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: timeout
-                ? "Sportfolio took too long to stage the scout changes. Try again."
-                : "Sportfolio could not stage the scout assignment bundle.",
-            },
-          ],
-          structuredContent: {
-            summary: timeout
-              ? "The scout staging request exceeded its execution deadline."
-              : "The scout assignment bundle could not be staged.",
-            data: { code: timeout ? "tool_timeout" : "tool_execution_failed" },
-            warnings: [],
-          },
-        } as any;
+        return toPluginErrorResult(
+          error,
+          timeout
+            ? "The scout staging request exceeded its execution deadline."
+            : "The scout assignment bundle could not be staged.",
+        ) as any;
       }
     },
   );

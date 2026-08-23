@@ -17,7 +17,16 @@ const TEXT_EXTENSIONS = new Set([
   ".yaml",
 ]);
 const SKIP_PARTS = new Set(["node_modules", "dist", "build", "coverage", ".git"]);
-const EXCLUDED_FILES = new Set(["server/mcp/public-tool-registry.economy-v2.test.ts"]);
+const EXCLUDED_FILES = new Set([
+  "server/mcp/public-tool-registry.economy-v2.test.ts",
+  "server/mcp/public-tool-contract.test.ts",
+  // These are immutable audit/evaluation artifacts documenting absence and
+  // negative routing behavior; they do not register or execute the retired
+  // concepts.
+  "docs/plugin/golden-prompts.json",
+  "docs/plugin/production-audit.md",
+  "docs/plugin/production-tool-inventory.json",
+]);
 const FORBIDDEN = [
   /playerMultipliers/g,
   /PlayerMultiplier/g,

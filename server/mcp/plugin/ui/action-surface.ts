@@ -7,6 +7,8 @@ import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
 import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
+import { normalizePresentationWarnings } from "./presentation-warnings";
+import { normalizePublicError } from "../../public-errors";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -142,7 +144,7 @@ export async function registerActionPluginUiSurface(
         const structuredContent = sanitizeActionReview({
           transactionId,
           summary: transaction.summary,
-          warnings: transaction.warnings,
+          warnings: normalizePresentationWarnings(transaction.warnings),
           confirmationRequired: transaction.status === "pending_confirmation",
           status: transaction.status,
           transaction,
@@ -160,14 +162,13 @@ export async function registerActionPluginUiSurface(
           structuredContent,
         } as any;
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Sportfolio could not load this action.";
+        const normalized = normalizePublicError(error);
         return {
           isError: true,
-          content: [{ type: "text" as const, text: message }],
+          content: [{ type: "text" as const, text: normalized.message }],
           structuredContent: sanitizeActionReview({
-            code: "plugin_ui_action_review_failed",
-            message,
+            code: normalized.code,
+            retryable: normalized.retryable,
           }),
         } as any;
       }

@@ -445,19 +445,6 @@
     },
     {
       "kind": "tool",
-      "name": "get_market_scanners",
-      "auth": "oauth",
-      "readOnly": true,
-      "destructive": false,
-      "openWorld": false,
-      "outputSchema": "plugin-envelope-v1",
-      "resourceUri": null,
-      "domain": "market",
-      "sportClassification": "none",
-      "source": "public_registry:tool"
-    },
-    {
-      "kind": "tool",
       "name": "get_mlb_batting_leaders",
       "auth": "oauth",
       "readOnly": true,
@@ -874,19 +861,6 @@
     },
     {
       "kind": "tool",
-      "name": "list_community_boost_history",
-      "auth": "oauth",
-      "readOnly": true,
-      "destructive": false,
-      "openWorld": false,
-      "outputSchema": "plugin-envelope-v1",
-      "resourceUri": null,
-      "domain": "community_boosts",
-      "sportClassification": "none",
-      "source": "public_registry:tool"
-    },
-    {
-      "kind": "tool",
       "name": "list_daily_boost_eligible_players",
       "auth": "oauth",
       "readOnly": true,
@@ -952,19 +926,6 @@
     },
     {
       "kind": "tool",
-      "name": "list_market_opportunities",
-      "auth": "oauth",
-      "readOnly": true,
-      "destructive": false,
-      "openWorld": false,
-      "outputSchema": "plugin-envelope-v1",
-      "resourceUri": null,
-      "domain": "market",
-      "sportClassification": "none",
-      "source": "public_registry:tool"
-    },
-    {
-      "kind": "tool",
       "name": "list_milestones",
       "auth": "oauth",
       "readOnly": true,
@@ -1012,19 +973,6 @@
       "outputSchema": "plugin-envelope-v1",
       "resourceUri": null,
       "domain": "scouting",
-      "sportClassification": "none",
-      "source": "public_registry:tool"
-    },
-    {
-      "kind": "tool",
-      "name": "list_watchlist_player_ids",
-      "auth": "oauth",
-      "readOnly": true,
-      "destructive": false,
-      "openWorld": false,
-      "outputSchema": "plugin-envelope-v1",
-      "resourceUri": null,
-      "domain": "watchlists",
       "sportClassification": "none",
       "source": "public_registry:tool"
     },

@@ -3,7 +3,6 @@ import {
   dailyBoosts,
   dailyGames,
   holdings,
-  holdingsLocks,
   playerGameStats,
   players,
   portfolioSnapshots,
@@ -195,88 +194,6 @@ async function runMarketPulseAlerts(now: Date): Promise<SignalOutcome> {
       errorCount: 1,
     };
   }
-}
-
-async function runCondenseOpportunityAlerts(now: Date): Promise<SignalOutcome> {
-  const lockRows = await db
-    .select({
-      userId: holdingsLocks.userId,
-      playerId: holdingsLocks.assetId,
-      lockedQuantity: sql<number>`coalesce(sum(${holdingsLocks.lockedQuantity}), 0)`,
-    })
-    .from(holdingsLocks)
-    .where(eq(holdingsLocks.assetType, "player"))
-    .groupBy(holdingsLocks.userId, holdingsLocks.assetId);
-
-  const lockMap = new Map<string, number>();
-  for (const row of lockRows) {
-    lockMap.set(`${row.userId}:${row.playerId}`, toNumber(row.lockedQuantity));
-  }
-
-  const holdingRows = await db
-    .select({
-      userId: holdings.userId,
-      playerId: holdings.assetId,
-      quantity: holdings.quantity,
-    })
-    .from(holdings)
-    .where(eq(holdings.assetType, "player"));
-
-  const opportunitiesByUser = new Map<
-    string,
-    {
-      stackableShares: number;
-      playerCount: number;
-    }
-  >();
-
-  for (const row of holdingRows) {
-    const quantity = toNumber(row.quantity);
-    const locked = lockMap.get(`${row.userId}:${row.playerId}`) || 0;
-    const available = Math.max(0, quantity - locked);
-    const stackable = Math.floor(available / 2) * 2;
-    if (stackable < 4) {
-      continue;
-    }
-
-    const current = opportunitiesByUser.get(row.userId) || { stackableShares: 0, playerCount: 0 };
-    current.stackableShares += stackable;
-    current.playerCount += 1;
-    opportunitiesByUser.set(row.userId, current);
-  }
-
-  let recordsProcessed = 0;
-  let errorCount = 0;
-  const dateKey = now.toISOString().slice(0, 10);
-
-  await Promise.all(
-    Array.from(opportunitiesByUser.entries()).map(async ([userId, summary]) => {
-      try {
-        const result = await sendUserNotification({
-          userId,
-          category: "condense_opportunities",
-          title: "Stacking Opportunity",
-          body: `You have ${summary.stackableShares} stackable raw shares across ${summary.playerCount} player holdings.`,
-          deepLink: "/portfolio",
-          data: {
-            stackableShares: String(summary.stackableShares),
-            playerCount: String(summary.playerCount),
-          },
-          dedupeKey: `condense_opportunity:${dateKey}`,
-          cooldownMs: 6 * 60 * 60 * 1000,
-        });
-        recordsProcessed += result.recipientUsers;
-      } catch (error) {
-        errorCount += 1;
-        console.error(
-          "[notification_signals/condense] Failed to send condense opportunity alert:",
-          error,
-        );
-      }
-    }),
-  );
-
-  return { recordsProcessed, errorCount };
 }
 
 async function runLeaderboardMovementAlerts(now: Date): Promise<SignalOutcome> {
@@ -600,7 +517,6 @@ export async function runNotificationSignalDetectors(
   const tasks: Array<{ name: string; run: (now: Date) => Promise<SignalOutcome> }> = [
     { name: "watchlist_alerts", run: runWatchlistAlerts },
     { name: "market_alerts", run: runMarketPulseAlerts },
-    { name: "condense_opportunities", run: runCondenseOpportunityAlerts },
     { name: "leaderboard_competition", run: runLeaderboardMovementAlerts },
     { name: "game_lifecycle", run: runGameLifecycleAlerts },
     { name: "billing_premium_expiry", run: runPremiumExpiryReminders },

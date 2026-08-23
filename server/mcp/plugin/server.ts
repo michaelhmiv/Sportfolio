@@ -1,6 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import type { McpServer as LegacyMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerMarketResearchTools } from "../market-research-tools";
 import type { PublicMcpDependencies } from "../public-tool-registry";
 import type { PluginMcpContext } from "./context";
 import { registerPluginMarketplaceSurface } from "./registry";
@@ -71,8 +70,6 @@ export async function createPluginMcpServer(
   registerSharedPluginUiResource(registrationServer);
 
   await registerPluginMarketplaceSurface(registrationServer, context, deps);
-  registerMarketResearchTools(registrationServer, { plugin: true });
-
   const presentationServer = canonicalPresentationServer(registrationServer);
   await registerPluginUiSurface(presentationServer, context);
   await registerSportsPluginUiSurface(presentationServer, context, deps);

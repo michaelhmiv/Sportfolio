@@ -41,7 +41,6 @@ const DEFAULT_CATEGORY_COOLDOWNS_MS: Record<NotificationCategory, number> = {
   market_alerts: 600_000,
   whale_alerts: 300_000,
   lp_liquidity: 60_000,
-  condense_opportunities: 3_600_000,
   leaderboard_competition: 3_600_000,
   account_security: 60_000,
   billing_premium: 300_000,
