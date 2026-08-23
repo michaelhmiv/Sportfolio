@@ -1,0 +1,298 @@
+[
+  {
+    "id": "direct-portfolio",
+    "type": "positive",
+    "prompt": "Show me my Sportfolio portfolio.",
+    "expectedTools": ["render_portfolio"],
+    "render": "inline-or-fullscreen"
+  },
+  {
+    "id": "direct-balance",
+    "type": "positive",
+    "prompt": "How much buying power do I have?",
+    "expectedTools": ["get_balance_state"],
+    "render": "plain-or-inline"
+  },
+  {
+    "id": "direct-scout",
+    "type": "positive",
+    "prompt": "Scout Ryan Blaney.",
+    "expectedTools": ["search_players", "stage_scout_assignment", "render_action_review"],
+    "render": "review-card",
+    "requiresConfirmation": true
+  },
+  {
+    "id": "direct-boost",
+    "type": "positive",
+    "prompt": "Put my strongest boost on Ryan Blaney.",
+    "expectedTools": [
+      "search_players",
+      "list_daily_boost_eligible_players",
+      "stage_daily_boost_assign",
+      "render_action_review"
+    ],
+    "render": "review-card",
+    "requiresConfirmation": true
+  },
+  {
+    "id": "direct-boosts",
+    "type": "positive",
+    "prompt": "Show today’s NASCAR boosts.",
+    "expectedTools": ["render_boosts"],
+    "render": "carousel"
+  },
+  {
+    "id": "direct-scout-candidates",
+    "type": "positive",
+    "prompt": "Who should I scout?",
+    "expectedTools": ["render_scouting"],
+    "render": "carousel"
+  },
+  {
+    "id": "direct-movers",
+    "type": "positive",
+    "prompt": "Show NASCAR market movers.",
+    "expectedTools": ["render_market_movers"],
+    "render": "carousel"
+  },
+  {
+    "id": "direct-live",
+    "type": "positive",
+    "prompt": "How is the NASCAR race going?",
+    "expectedTools": ["render_live_event"],
+    "render": "pip-or-fullscreen"
+  },
+  {
+    "id": "direct-buy",
+    "type": "positive",
+    "prompt": "Buy $100 of Ryan Blaney.",
+    "expectedTools": ["search_players", "stage_market_buy", "render_action_review"],
+    "render": "review-card",
+    "requiresConfirmation": true
+  },
+  {
+    "id": "direct-lp",
+    "type": "positive",
+    "prompt": "Show my Tyler Reddick LP position.",
+    "expectedTools": ["search_players", "render_liquidity_position"],
+    "render": "inline-card"
+  },
+  {
+    "id": "direct-watchlist",
+    "type": "positive",
+    "prompt": "Show my watchlist.",
+    "expectedTools": ["render_watchlist"],
+    "render": "carousel"
+  },
+  {
+    "id": "direct-dashboard",
+    "type": "positive",
+    "prompt": "Open my Sportfolio dashboard.",
+    "expectedTools": ["render_dashboard"],
+    "render": "fullscreen"
+  },
+  {
+    "id": "direct-slate",
+    "type": "positive",
+    "prompt": "Show NASCAR today.",
+    "expectedTools": ["render_score_slate"],
+    "render": "carousel"
+  },
+  {
+    "id": "direct-player",
+    "type": "positive",
+    "prompt": "What is Ryan Blaney worth right now?",
+    "expectedTools": ["search_players", "render_player_market"],
+    "render": "inline-card"
+  },
+  {
+    "id": "direct-quote",
+    "type": "positive",
+    "prompt": "What would 10 Ryan Blaney shares cost?",
+    "expectedTools": ["search_players", "get_trade_quote"],
+    "render": "plain-or-inline"
+  },
+  {
+    "id": "direct-history",
+    "type": "positive",
+    "prompt": "Show the recent price history for Ryan Blaney.",
+    "expectedTools": ["search_players", "render_player_market"],
+    "render": "fullscreen"
+  },
+  {
+    "id": "direct-collections",
+    "type": "positive",
+    "prompt": "Show my collections.",
+    "expectedTools": ["render_collections"],
+    "render": "fullscreen"
+  },
+  {
+    "id": "direct-rankings",
+    "type": "positive",
+    "prompt": "Who is leading Sportfolio today?",
+    "expectedTools": ["render_rankings"],
+    "render": "carousel"
+  },
+  {
+    "id": "direct-activity",
+    "type": "positive",
+    "prompt": "What happened in my Sportfolio account recently?",
+    "expectedTools": ["get_activity_feed"],
+    "render": "plain-or-inline"
+  },
+  {
+    "id": "direct-docs",
+    "type": "positive",
+    "prompt": "How do Daily Boosts work in Sportfolio?",
+    "expectedTools": ["search_docs", "get_doc_article"],
+    "render": "plain"
+  },
+  {
+    "id": "direct-remove-boost",
+    "type": "positive",
+    "prompt": "Remove my Ryan Blaney 10x Daily Boost.",
+    "expectedTools": ["search_players", "stage_daily_boost_remove", "render_action_review"],
+    "render": "review-card",
+    "requiresConfirmation": true
+  },
+  {
+    "id": "direct-sell",
+    "type": "positive",
+    "prompt": "Sell 4 shares of Ryan Blaney.",
+    "expectedTools": ["search_players", "stage_market_sell", "render_action_review"],
+    "render": "review-card",
+    "requiresConfirmation": true
+  },
+  {
+    "id": "direct-nascar-live",
+    "type": "positive",
+    "prompt": "Is the NASCAR race live yet?",
+    "expectedTools": ["get_event_slate", "render_live_event"],
+    "render": "pip-or-inline"
+  },
+  {
+    "id": "indirect-portfolio",
+    "type": "positive",
+    "prompt": "How am I invested across my players?",
+    "expectedTools": ["render_portfolio"],
+    "render": "inline-or-fullscreen"
+  },
+  {
+    "id": "indirect-cash",
+    "type": "positive",
+    "prompt": "Can I afford to buy 100 dollars of Blaney?",
+    "expectedTools": ["get_balance_state", "search_players", "get_trade_quote"],
+    "render": "plain-or-inline"
+  },
+  {
+    "id": "indirect-scout",
+    "type": "positive",
+    "prompt": "I want to assign a scout to the best current opportunity.",
+    "expectedTools": ["render_scouting", "stage_scout_assignment", "render_action_review"],
+    "render": "review-card",
+    "requiresConfirmation": true
+  },
+  {
+    "id": "indirect-boost",
+    "type": "positive",
+    "prompt": "Give my biggest Daily Boost to my best eligible NASCAR holding.",
+    "expectedTools": [
+      "list_daily_boost_eligible_players",
+      "stage_daily_boost_assign",
+      "render_action_review"
+    ],
+    "render": "review-card",
+    "requiresConfirmation": true
+  },
+  {
+    "id": "indirect-markets",
+    "type": "positive",
+    "prompt": "Which NASCAR player markets moved the most today?",
+    "expectedTools": ["render_market_movers"],
+    "render": "carousel"
+  },
+  {
+    "id": "indirect-game",
+    "type": "positive",
+    "prompt": "Follow the current race for me.",
+    "expectedTools": ["render_live_event"],
+    "render": "pip"
+  },
+  {
+    "id": "indirect-lp",
+    "type": "positive",
+    "prompt": "Do I have liquidity in Tyler Reddick?",
+    "expectedTools": ["search_players", "render_liquidity_position"],
+    "render": "inline-card"
+  },
+  {
+    "id": "misspelled-name",
+    "type": "positive",
+    "prompt": "Show me Ryen Blaney’s Sportfolio market.",
+    "expectedTools": ["search_players", "render_player_market"],
+    "render": "inline-card"
+  },
+  {
+    "id": "multi-player-resolution",
+    "type": "positive",
+    "prompt": "Compare Ohtani, Judge, and Ryan Blaney.",
+    "expectedTools": ["resolve_players", "get_sports_entity"],
+    "render": "plain-or-carousel"
+  },
+  {
+    "id": "multi-scout",
+    "type": "positive",
+    "prompt": "Set scouts on Blaney and Ohtani together.",
+    "expectedTools": ["resolve_players", "stage_scout_assignments", "render_action_review"],
+    "render": "review-card",
+    "requiresConfirmation": true
+  },
+  {
+    "id": "negative-stock",
+    "type": "negative",
+    "prompt": "Buy $100 of Apple stock in my brokerage account.",
+    "expectedTools": [],
+    "render": "none",
+    "reason": "Not Sportfolio; do not call Sportfolio."
+  },
+  {
+    "id": "negative-weather",
+    "type": "negative",
+    "prompt": "What will the weather be in Charlotte tomorrow?",
+    "expectedTools": [],
+    "render": "none",
+    "reason": "Unrelated weather request."
+  },
+  {
+    "id": "negative-supabase",
+    "type": "negative",
+    "prompt": "Show me Sportfolio’s Supabase tables.",
+    "expectedTools": [],
+    "render": "none",
+    "reason": "Supabase is not a current Sportfolio product dependency or user capability."
+  },
+  {
+    "id": "negative-stack",
+    "type": "negative",
+    "prompt": "Give me Stack Power for Ryan Blaney.",
+    "expectedTools": [],
+    "render": "none",
+    "reason": "Retired concept; do not route to a compatibility tool."
+  },
+  {
+    "id": "negative-generic-mlb",
+    "type": "negative",
+    "prompt": "Who won the Yankees game last year?",
+    "expectedTools": [],
+    "render": "none",
+    "reason": "No Sportfolio user/product intent; answer with general sports knowledge or another source."
+  },
+  {
+    "id": "negative-password",
+    "type": "negative",
+    "prompt": "Reset my Sportfolio password by sending me an email.",
+    "expectedTools": [],
+    "render": "none",
+    "reason": "Account recovery is not exposed as an MCP tool; use the website auth flow."
+  }
+]

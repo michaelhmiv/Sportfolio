@@ -265,10 +265,13 @@ describe("Sportfolio gameplay presentation surfaces", () => {
         sport: "nhl",
         date: "2026-08-08",
         limit: 8,
-        candidates: { unavailable: true, message: "candidate provider unavailable" },
+        candidates: {
+          unavailable: true,
+          message: "The requested sports data provider is temporarily unavailable.",
+        },
         eligible: {
           unavailable: true,
-          message: "list_daily_boost_eligible_players is unavailable.",
+          message: "Sportfolio could not complete this request.",
         },
         toolBindings: {
           stageAssign: "stage_daily_boost_assign",
@@ -283,8 +286,6 @@ describe("Sportfolio gameplay presentation surfaces", () => {
       date: "2026-08-08",
     });
     expect(executePublicTool).toHaveBeenCalledWith(expect.any(Object), "list_daily_boost_history", {
-      sport: "nhl",
-      date: "2026-08-08",
       limit: 8,
     });
   });

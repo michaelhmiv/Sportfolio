@@ -370,7 +370,7 @@ function PlayerMarket({ payload, update, widgetState, updateWidgetState }: ViewP
     const timer = window.setTimeout(async () => {
       try {
         const body = unwrap(
-          await callTool("get_amm_trade_quote", { playerId, type: side, amount: value }),
+          await callTool("get_trade_quote", { playerId, type: side, amount: value }),
         );
         if (sequence === quoteSequence.current)
           setQuote(Object.keys(asRecord(body.quote)).length ? asRecord(body.quote) : body);

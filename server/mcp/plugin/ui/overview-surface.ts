@@ -17,6 +17,8 @@ import {
   invokeComposedPublicTool,
   type ComposedToolState,
 } from "./composed-tool";
+import { normalizePresentationWarnings } from "./presentation-warnings";
+import { normalizePublicError } from "../../public-errors";
 
 type JsonRecord = Record<string, unknown>;
 type RawSchema = Record<string, z.ZodTypeAny>;
@@ -94,7 +96,7 @@ function sanitizePresentation(
     view,
     asOf: new Date().toISOString(),
     data,
-    warnings,
+    warnings: normalizePresentationWarnings(warnings),
   });
   assertNoRestrictedPluginFields(payload);
   return payload as JsonRecord;
@@ -179,7 +181,7 @@ const DEFINITIONS: OverviewDefinition[] = [
     name: "render_dashboard",
     title: "Show Sportfolio dashboard",
     description:
-      "Render the connected user's Sportfolio account overview, recent player lots, achievements, and portfolio progress in a compact interactive dashboard.",
+      "Use this for the connected user's compact dashboard overview, including bounded recent player lots, achievements, and portfolio progress. Do not use it as a complete holdings export; use render_portfolio.",
     view: "dashboard",
     sourceToolName: "get_dashboard_overview",
     featureFlag: "PLUGIN_UI_DASHBOARD_ENABLED",
@@ -314,14 +316,13 @@ export async function registerOverviewPluginUiSurface(
             structuredContent,
           } as any;
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Sportfolio could not render this view.";
+          const normalized = normalizePublicError(error);
           return {
             isError: true,
-            content: [{ type: "text" as const, text: message }],
+            content: [{ type: "text" as const, text: normalized.message }],
             structuredContent: sanitizePresentation(definition.view, {
-              code: "plugin_ui_overview_render_failed",
-              message,
+              code: normalized.code,
+              retryable: normalized.retryable,
             }),
           } as any;
         }

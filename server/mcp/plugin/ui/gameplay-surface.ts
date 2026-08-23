@@ -12,6 +12,7 @@ import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitize
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
 import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
 import { composedToolValue, composedToolWarning, invokeComposedPublicTool } from "./composed-tool";
+import { normalizePresentationWarnings } from "./presentation-warnings";
 
 type JsonRecord = Record<string, unknown>;
 type RawSchema = Record<string, z.ZodTypeAny>;
@@ -86,7 +87,7 @@ function sanitizePresentation(
     view,
     asOf: new Date().toISOString(),
     data,
-    warnings,
+    warnings: normalizePresentationWarnings(warnings),
   });
   assertNoRestrictedPluginFields(payload);
   return payload as JsonRecord;
@@ -165,7 +166,7 @@ async function renderBoosts(
       safeTool(publicContext, "list_daily_boosts", baseArgs),
       safeTool(publicContext, "list_boost_candidates", { ...baseArgs, limit }),
       safeTool(publicContext, "list_daily_boost_eligible_players", { ...baseArgs, limit }),
-      safeTool(publicContext, "list_daily_boost_history", { ...baseArgs, limit }),
+      safeTool(publicContext, "list_daily_boost_history", { limit }),
       safeTool(publicContext, "get_community_boost_state", baseArgs),
     ]);
   const results = [activeResult, candidatesResult, eligibleResult, historyResult, communityResult];
@@ -265,7 +266,7 @@ const DEFINITIONS: GameplayDefinition[] = [
     name: "render_boosts",
     title: "Show Sportfolio boosts",
     description:
-      "Render active daily boosts, eligible players, boost candidates, history, and community boost context for the connected user.",
+      "Use this for today's bounded Daily Boost view: active boosts, eligible players, candidate rankings, history, and community context. It is read-only; assigning a boost requires stage_daily_boost_assign and explicit confirmation.",
     view: "boosts",
     featureFlag: "PLUGIN_UI_BOOSTS_ENABLED",
     resourceUri: SPORTFOLIO_GAMEPLAY_UI_RESOURCE_URIS.boosts,

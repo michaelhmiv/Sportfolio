@@ -113,7 +113,12 @@ jobs:
           server/mcp/plugin/capability-policy.test.ts
           server/mcp/plugin/adapters.test.ts
           server/mcp/plugin/runtime-guard.test.ts
+          server/mcp/public-errors.test.ts
+          server/mcp/public-tool-contract.test.ts
+          server/mcp/plugin/full-surface-contract.test.ts
           server/mcp/plugin/ui/surface.test.ts
+          server/mcp/plugin/ui/presentation-warnings.test.ts
+          server/mcp/plugin/ui/widget-tool-contract.test.ts
           server/mcp/plugin/ui/shared-resource.test.ts
           server/mcp/plugin/ui/protocol-resource.test.ts
           client/src/plugin-ui/openai-host.test.ts
@@ -135,6 +140,12 @@ jobs:
         run: npx tsx scripts/plugin-submission-check.ts
       - name: Verify OpenAI submission import
         run: npx tsx scripts/generate-chatgpt-app-submission.ts --check
+      - name: Verify production inventory is reproducible
+        run: |
+          npm run plugin:inventory
+          git diff --exit-code -- docs/plugin/production-tool-inventory.json
+      - name: Golden prompt regression set
+        run: npm run plugin:golden:check
       - name: External release gate report
         run: npx tsx scripts/plugin-release-gate.ts
 

@@ -206,12 +206,11 @@ describe("Sportfolio generic action review presentation", () => {
     const failed = await tool?.handler({ transactionId });
     expect(failed).toMatchObject({
       isError: true,
-      content: [{ type: "text", text: "Transaction not found" }],
+      content: [{ type: "text", text: "The requested Sportfolio record was not found." }],
       structuredContent: {
         view: "action_review",
         data: {
-          code: "plugin_ui_action_review_failed",
-          message: "Transaction not found",
+          code: "not_found",
         },
       },
     });
@@ -220,7 +219,7 @@ describe("Sportfolio generic action review presentation", () => {
     const unknownFailure = await tool?.handler({ transactionId });
     expect(unknownFailure).toMatchObject({
       isError: true,
-      content: [{ type: "text", text: "Sportfolio could not load this action." }],
+      content: [{ type: "text", text: "Sportfolio could not complete this request." }],
     });
   });
 });

@@ -17,6 +17,8 @@ import {
   invokeComposedPublicTool,
   type ComposedToolState,
 } from "./composed-tool";
+import { normalizePresentationWarnings } from "./presentation-warnings";
+import { normalizePublicError } from "../../public-errors";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 type JsonRecord = Record<string, unknown>;
@@ -121,7 +123,7 @@ function sanitizePresentation(
     view,
     asOf: new Date().toISOString(),
     data,
-    warnings,
+    warnings: normalizePresentationWarnings(warnings),
   });
   assertNoRestrictedPluginFields(payload);
   return payload as JsonRecord;
@@ -363,7 +365,7 @@ const SPORTS_PRESENTATION_DEFINITIONS: SportsPresentationDefinition[] = [
     name: "render_live_event",
     title: "Follow a live Sportfolio event",
     description:
-      "Render live event state with score context when available and support a compact picture-in-picture follow mode.",
+      "Use this when the user wants to follow one live supported event. It renders score/state context and can request picture-in-picture when the host supports it. Do not use it for a full schedule; use render_score_slate.",
     view: "live_event",
     access: "public",
     featureFlag: "PLUGIN_UI_LIVE_EVENT_ENABLED",
@@ -525,17 +527,14 @@ export async function registerSportsPluginUiSurface(
             structuredContent,
           } as any;
         } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Sportfolio could not render this sports view.";
+          const normalized = normalizePublicError(error);
           return {
             isError: true,
-            content: [{ type: "text" as const, text: message }],
+            content: [{ type: "text" as const, text: normalized.message }],
             structuredContent: {
               view: definition.view,
               asOf: new Date().toISOString(),
-              data: { code: "plugin_ui_render_failed", message },
+              data: { code: normalized.code, retryable: normalized.retryable },
               warnings: [],
             },
           } as any;

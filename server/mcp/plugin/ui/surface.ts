@@ -9,6 +9,8 @@ import type { PluginMcpContext } from "../context";
 import { assertNoRestrictedPluginFields, sanitizePluginValue } from "../sanitizer";
 import { SPORTFOLIO_WIDGET_HTML } from "./generated-widget";
 import { SPORTFOLIO_SHARED_UI_RESOURCE_URI } from "./shared-resource";
+import { normalizePresentationWarnings } from "./presentation-warnings";
+import { normalizePublicError } from "../../public-errors";
 import { resolvePlayerDisplayName } from "./player-display-name";
 import {
   getCanonicalPlayerMarket,
@@ -175,7 +177,7 @@ function sanitizePresentation(view: PluginUiView, data: JsonRecord, warnings: st
     view,
     asOf: new Date().toISOString(),
     data,
-    warnings,
+    warnings: normalizePresentationWarnings(warnings),
   });
   assertNoRestrictedPluginFields(payload);
   return payload as JsonRecord;
@@ -444,7 +446,7 @@ async function renderPortfolio(
   return sanitizePresentation(
     "portfolio",
     buildPortfolioViewData(valuation, availableBalance, args),
-    valuation.warnings,
+    normalizePresentationWarnings(valuation.warnings),
   );
 }
 
@@ -608,7 +610,7 @@ const PRESENTATION_DEFINITIONS: PluginPresentationDefinition[] = [
     name: "render_portfolio",
     title: "Show Sportfolio Portfolio",
     description:
-      "Render the authenticated user's Sportfolio portfolio, balances, allocation, and player holdings in an interactive dashboard.",
+      "Use this for the authenticated user's complete bounded Sportfolio portfolio view: balances, allocation, and player holdings with local sort/filter. Do not use it for a one-line balance answer; use get_balance_state.",
     view: "portfolio",
     access: "oauth",
     featureFlag: "PLUGIN_UI_PORTFOLIO_ENABLED",
@@ -623,7 +625,7 @@ const PRESENTATION_DEFINITIONS: PluginPresentationDefinition[] = [
     name: "render_market_movers",
     title: "Show Market Movers",
     description:
-      "Render a compact carousel of current Sportfolio gainers, decliners, volume leaders, most-traded players, or authenticated watchlist movers.",
+      "Use this for a small ranked carousel of current Sportfolio gainers, decliners, volume leaders, most-traded players, or watchlist movers. Do not use it as a complete market dump.",
     view: "market_movers",
     access: "public",
     featureFlag: "PLUGIN_UI_DISCOVERY_ENABLED",
@@ -772,15 +774,14 @@ export async function registerPluginUiSurface(
             structuredContent,
           } as any;
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Sportfolio could not render this view.";
+          const normalized = normalizePublicError(error);
           return {
             isError: true,
-            content: [{ type: "text" as const, text: message }],
+            content: [{ type: "text" as const, text: normalized.message }],
             structuredContent: {
               view: definition.view,
               asOf: new Date().toISOString(),
-              data: { code: "plugin_ui_render_failed", message },
+              data: { code: normalized.code, retryable: normalized.retryable },
               warnings: [],
             },
           } as any;

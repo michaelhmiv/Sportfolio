@@ -1,0 +1,3643 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": "main@169dae06d45261e3184aceb9fd7795b78e027d34",
+  "generatedFor": "Sportfolio ChatGPT/OpenAI MCP production surface",
+  "measurementNotes": [
+    "Per-tool latency and response sizes are null when a production sample was not attributable to a single tool. Aggregate Railway and MCP measurements are in docs/plugin/production-audit.md.",
+    "Website use is route-backed only when the shared route inventory names the capability; internal website service use may exist without a direct route reference.",
+    "The 102 current tools are 85 static public tools, 2 bounded fast paths, and 15 UI-only render tools."
+  ],
+  "counts": {
+    "before": {
+      "static": 89,
+      "analyticsPluginOnly": 6,
+      "fastPaths": 2,
+      "renderTools": 15,
+      "total": 112
+    },
+    "after": {
+      "static": 85,
+      "analyticsPluginOnly": 0,
+      "fastPaths": 2,
+      "renderTools": 15,
+      "total": 102
+    },
+    "reduction": 10
+  },
+  "tools": [
+    {
+      "name": "add_watchlist_player",
+      "purpose": "Add a player to a watchlist immediately.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry watchlists handler: add_watchlist_player",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "cancel_pending_action",
+      "purpose": "Cancel a staged gameplay transaction.",
+      "mode": "write",
+      "sideEffects": "finalizer mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "finalizer",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry transactions handler: cancel_pending_action",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "celebrate_milestone",
+      "purpose": "Mark a milestone as celebrated.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry milestones handler: celebrate_milestone",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "complete_onboarding",
+      "purpose": "Mark onboarding as complete for the authenticated user.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry account handler: complete_onboarding",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "confirm_pending_action",
+      "purpose": "Use this only after the user explicitly approves the exact server-issued staged transaction shown by render_action_review. Do not create or alter a transaction with this tool; it executes exactly one pending transactionId.",
+      "mode": "write",
+      "sideEffects": "finalizer mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "finalizer",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry transactions handler: confirm_pending_action",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "create_watchlist",
+      "purpose": "Create a watchlist immediately.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry watchlists handler: create_watchlist",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "delete_watchlist",
+      "purpose": "Delete a watchlist immediately.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry watchlists handler: delete_watchlist",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "get_account_profile",
+      "purpose": "Load the authenticated user's core account profile.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry account handler: get_account_profile",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_activity_feed",
+      "purpose": "Load the authenticated user's activity feed.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry account handler: get_activity_feed",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_amm_pool_state",
+      "purpose": "Load the AMM pool state for a player.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry market handler: get_amm_pool_state",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_balance_state",
+      "purpose": "Read available balance, open boost slots, and community share availability.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry account handler: get_balance_state",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_dashboard_overview",
+        "render_portfolio"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_collection_detail",
+      "purpose": "Load a specific collection and any matching owned players.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry collections handler: get_collection_detail",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_community_boost_state",
+      "purpose": "Load community share availability and current community boosts.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry community_boosts handler: get_community_boost_state",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_dashboard_overview",
+      "purpose": "Use this when the user asks for a compact dashboard summary across balance, portfolio, boosts, scouts, and watchlists. Do not use it for a complete holdings table; use render_portfolio for that.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry dashboard handler: get_dashboard_overview",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_portfolio_summary",
+        "get_balance_state",
+        "render_dashboard"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_doc_article",
+      "purpose": "Load a documentation article by section and slug.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry docs handler: get_doc_article",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_event_live_state",
+      "purpose": "Use this to retrieve the current inning, period, lap, stage, clock, and normalized status for one canonical event ID.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry sports_data handler: get_event_live_state",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_live_event"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_event_slate",
+      "purpose": "Use this to list a compact, chronologically ordered MLB, NHL, or NASCAR schedule for one date or a bounded date range.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry sports_data handler: get_event_slate",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_games_today",
+        "render_score_slate"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_game_insights",
+      "purpose": "Load a game-centric view with user-context basics for the requested slate.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry games handler: get_game_insights",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_game_insights"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_games_today",
+      "purpose": "Load games for today or a requested date.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry games handler: get_games_today",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_event_slate",
+        "render_score_slate"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_holdings",
+      "purpose": "List current player holdings and available shares.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry portfolio handler: get_holdings",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_dashboard_overview",
+        "render_portfolio"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_leaderboard",
+      "purpose": "Load the live Sportfolio trader leaderboard using the same ranking metrics as the website.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry rankings handler: get_leaderboard",
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_rankings"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "route_backed",
+      "chatgptOnly": false,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_lp_position",
+      "purpose": "Load a single LP position by player id.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry liquidity handler: get_lp_position",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_liquidity_position"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_lp_zap_quote",
+      "purpose": "Load a preview quote for a single-sided LP zap.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry liquidity handler: get_lp_zap_quote",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_batting_leaders",
+      "purpose": "Return season-to-date MLB batting leaders. Use for questions such as ‘Who are the top five MLB hitters in OPS this season?’ Do not use for pitching metrics or a single team.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_batting_leaders",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_game_details",
+      "purpose": "Return box-score and game details for one MLB game id.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_game_details",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_games",
+      "purpose": "Return the MLB schedule for a calendar date, including matchup and game status. Use for ‘Who plays today?’ questions.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_games",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_pitching_leaders",
+      "purpose": "Return season-to-date MLB pitching leaders. Use for ERA, wins, strikeouts, WHIP, saves, innings, or pitching WAR leader questions.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_pitching_leaders",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_player_splits",
+      "purpose": "Load a player’s batting splits for a season using the canonical MLBAM player id returned by player search.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_player_splits",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_player_stats",
+      "purpose": "Load season or career MLB statistics for one known MLBAM player id.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_player_stats",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_probable_pitchers",
+      "purpose": "Return probable pitchers for MLB games on a date. Use for probable-starter slate questions.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_probable_pitchers",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_roster",
+      "purpose": "Return a team roster for a season. This confirms active membership but does not guarantee today’s lineup.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_roster",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_standings",
+      "purpose": "Return MLB standings for a season.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_standings",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_statcast_profile",
+      "purpose": "Return Statcast expected-stat profile data for batters or pitchers in a season.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_statcast_profile",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_mlb_team_leaders",
+      "purpose": "Return leaders for one MLB team and one statistic. Use for team-specific leader questions, not leaguewide rankings.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB",
+      "underlyingService": "Curated MLB provider adapter: get_mlb_team_leaders",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_pending_action",
+      "purpose": "Load one staged gameplay transaction.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry transactions handler: get_pending_action",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_player_detail",
+      "purpose": "Use this for one player's bounded Sportfolio snapshot: identity, market context, recent performance, and the user's holding state. Do not use it for a multi-player search or to mutate holdings.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry players handler: get_player_detail",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_player_stats",
+        "get_player_recent_games",
+        "get_player_financial_metrics",
+        "get_player_shares_info",
+        "get_sports_entity"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_player_financial_metrics",
+      "purpose": "Load player market and financial metrics.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry players handler: get_player_financial_metrics",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_player_detail",
+        "get_amm_pool_state"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_player_recent_games",
+      "purpose": "Load recent game logs for a player.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry players handler: get_player_recent_games",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_player_detail",
+        "get_sports_entity"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_player_shares_info",
+      "purpose": "Load share structure info for a player.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry players handler: get_player_shares_info",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_player_detail"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_player_stats",
+      "purpose": "Load season stats for a player.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry players handler: get_player_stats",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_player_detail",
+        "get_sports_entity"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_portfolio_history",
+      "purpose": "Read portfolio history snapshots for a standard time range.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry portfolio handler: get_portfolio_history",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_portfolio_summary",
+      "purpose": "Read the user's portfolio summary and operator overview.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry portfolio handler: get_portfolio_summary",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "get_dashboard_overview",
+        "render_portfolio"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_premium_status",
+      "purpose": "Load the authenticated user's premium status and redeemable share count.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry premium handler: get_premium_status",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_scout_roster",
+      "purpose": "Load the scout roster for a player.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry scouting handler: get_scout_roster",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_scout_status",
+      "purpose": "Load current scout status, assignment totals, and next distribution timing.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry scouting handler: get_scout_status",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_sports_context",
+      "purpose": "Use this to assemble only the requested MLB, NHL, or NASCAR entity, schedule, performance, live-state, or sanitized connected-user sections in one bounded call.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry sports_data handler: get_sports_context",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_sports_entity",
+      "purpose": "Use this to load one canonical athlete, driver, or team after resolving its stable unified ID.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry sports_data handler: get_sports_entity",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_supported_sports_capabilities",
+      "purpose": "Use this to discover which unified read capabilities are available for MLB, NHL, or NASCAR before selecting another sports-data tool.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry sports_data handler: get_supported_sports_capabilities",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_trade_history",
+      "purpose": "Read recent market activity for the user.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry market handler: get_trade_history",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_trade_quote",
+      "purpose": "Use this to quote a proposed buy or sell before staging it. Do not use it to execute a trade; use stage_market_buy or stage_market_sell and review the server-issued transaction.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry market handler: get_trade_quote",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_player_market"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "get_watchlist_items",
+      "purpose": "List player ids in a watchlist.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry watchlists handler: get_watchlist_items",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_watchlist"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_api_tokens",
+      "purpose": "List API tokens for the authenticated account.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry account handler: list_api_tokens",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_boost_candidates",
+      "purpose": "Use this when the user asks who to boost or wants ranked Daily Boost recommendations. Do not use it to assign a boost; use list_daily_boost_eligible_players, then stage_daily_boost_assign.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry boosts handler: list_boost_candidates",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_boosts"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_collections",
+      "purpose": "Load the authenticated user's tracked collections.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry collections handler: list_collections",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_community_boost_eligible_players",
+      "purpose": "List players eligible for a community boost on the requested date.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry community_boosts handler: list_community_boost_eligible_players",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_daily_boost_eligible_players",
+      "purpose": "Use this before assigning a Daily Boost to verify eligible current holdings and available direct-share quantities. Do not use it to assign a boost; use stage_daily_boost_assign with playerId, slotTier, and shares.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry boosts handler: list_daily_boost_eligible_players",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_daily_boost_history",
+      "purpose": "List recent daily boost history and payouts.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry boosts handler: list_daily_boost_history",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_boosts"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_daily_boosts",
+      "purpose": "List the user's daily boosts for a requested date.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry boosts handler: list_daily_boosts",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_boosts"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_lp_history",
+      "purpose": "List recent LP transaction history.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry liquidity handler: list_lp_history",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_lp_positions",
+      "purpose": "List the user's LP positions.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry liquidity handler: list_lp_positions",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_milestones",
+      "purpose": "Load the authenticated user's milestone history.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry milestones handler: list_milestones",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_player_watchlists",
+      "purpose": "List the watchlists containing a player.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry watchlists handler: list_player_watchlists",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_scout_assignments",
+      "purpose": "List the user's current scout assignments.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry scouting handler: list_scout_assignments",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_scouting"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_scout_opportunities",
+      "purpose": "Use this when the user asks who to scout or wants ranked scout recommendations. Do not use it to change assignments; use stage_scout_assignment after the user selects a target.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry scouting handler: list_scout_opportunities",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_scouting"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "list_watchlists",
+      "purpose": "List the user's watchlists.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry watchlists handler: list_watchlists",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "render_watchlist"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "redeem_premium",
+      "purpose": "Redeem one premium share immediately for premium access.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry premium handler: redeem_premium",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "remove_watchlist_player",
+      "purpose": "Remove a player from a watchlist immediately.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry watchlists handler: remove_watchlist_player",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "render_action_review",
+      "purpose": "Render the exact pending Sportfolio gameplay transaction identified by a server-issued transactionId with Confirm and Cancel controls. Use this for staged market, scouting, Daily Boost, liquidity, and community-boost actions.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: action_review",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_boosts",
+      "purpose": "Use this for today's bounded Daily Boost view: active boosts, eligible players, candidate rankings, history, and community context. It is read-only; assigning a boost requires stage_daily_boost_assign and explicit confirmation.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: boosts",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_collections",
+      "purpose": "Render the connected user's Sportfolio collection progress and optionally open one collection in a compact interactive view.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: collections",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_dashboard",
+      "purpose": "Use this for the connected user's compact dashboard overview, including bounded recent player lots, achievements, and portfolio progress. Do not use it as a complete holdings export; use render_portfolio.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: dashboard",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_game_insights",
+      "purpose": "Render a connected user's owned-player and boost exposure across a sport's game slate.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported",
+      "underlyingService": "Plugin presentation renderer: game_insights",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_liquidity_position",
+      "purpose": "Render the authenticated user's virtual AMM liquidity position for a player with staged add and remove controls.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: liquidity",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_live_event",
+      "purpose": "Use this when the user wants to follow one live supported event. It renders score/state context and can request picture-in-picture when the host supports it. Do not use it for a full schedule; use render_score_slate.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported",
+      "underlyingService": "Plugin presentation renderer: live_event",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_market_movers",
+      "purpose": "Use this for a small ranked carousel of current Sportfolio gainers, decliners, volume leaders, most-traded players, or watchlist movers. Do not use it as a complete market dump.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: market_movers",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_player_market",
+      "purpose": "Render an interactive Sportfolio player market with current virtual price, bounded price history, account holding context, live quotes, and staged buy or sell controls. Use this after resolving a player id.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: player_market",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_portfolio",
+      "purpose": "Use this for the authenticated user's complete bounded Sportfolio portfolio view: balances, allocation, and player holdings with local sort/filter. Do not use it for a one-line balance answer; use get_balance_state.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: portfolio",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_rankings",
+      "purpose": "Render live Sportfolio trader rankings with the connected user's current position and nearby rank window.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: rankings",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_score_slate",
+      "purpose": "Render a compact, interactive score and schedule slate for Sportfolio-supported sports, with connected-user overlays when available.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported",
+      "underlyingService": "Plugin presentation renderer: score_slate",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_scouting",
+      "purpose": "Render the connected user's current scouting status, assignments, and candidate opportunities in an interactive Sportfolio view.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: scouting",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_trade_preview",
+      "purpose": "Render one staged Sportfolio gameplay transaction with Confirm and Cancel controls. Use this only after a stage_* tool returns transactionId.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: trade_preview",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "render_watchlist",
+      "purpose": "Render the connected user's Sportfolio watchlists and players with a compact interactive browsing surface.",
+      "mode": "read",
+      "sideEffects": "None; renders bounded final context. UI controls may initiate separate tool calls.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Plugin presentation renderer: watchlist",
+      "callers": [
+        "ChatGPT render routing",
+        "Sportfolio MCP App widget"
+      ],
+      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "UI-ONLY",
+      "decisionRationale": "Keeps presentation decoupled from data tools and gives the host a single shared, versioned MCP App resource."
+    },
+    {
+      "name": "resolve_players",
+      "purpose": "Resolve several player names to canonical Sportfolio player IDs in one bounded call.",
+      "mode": "read",
+      "sideEffects": "None; bounded batched read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported",
+      "underlyingService": "Public registry search_players in bounded Promise.all fan-out",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "search_players"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained to resolve several names in one model round trip without repeated search calls."
+    },
+    {
+      "name": "revoke_api_token",
+      "purpose": "Revoke an API token immediately.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry account handler: revoke_api_token",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "search_docs",
+      "purpose": "Search Sportfolio documentation articles.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry docs handler: search_docs",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "search_mlb_players",
+      "purpose": "Search MLB players by name. Use this before player-specific MLB tools when the player identifier is unknown.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Curated MLB provider adapter: search_mlb_players",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "search_players",
+      "purpose": "Use this first when a user names a Sportfolio player and the canonical player ID is unknown; return a small set of active matches by name, team, or position. Do not pass provider-native IDs or use q/search aliases.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry players handler: search_players",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "search_sports_entities",
+      "purpose": "Use this to search canonical athletes, drivers, or teams within one supported sport. Do not use provider-native identifiers as Sportfolio IDs.",
+      "mode": "read",
+      "sideEffects": "None; bounded read.",
+      "confirmation": "none",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry sports_data handler: search_sports_entities",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained as a bounded, orthogonal read primitive or provider-specific capability needed for current routing."
+    },
+    {
+      "name": "stage_community_boost_create",
+      "purpose": "Stage a community boost creation for confirmation.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry community_boosts handler: stage_community_boost_create",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_daily_boost_assign",
+      "purpose": "Use this to stage a Daily Boost assignment after eligibility is checked. The current economy uses direct Singles quantity: provide playerId, one of slotTier 2/3/5/7/10, and shares; date and sport are optional. Do not use retired Stack Shares concepts and do not confirm without explicit user approval.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry boosts handler: stage_daily_boost_assign",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_daily_boost_remove",
+      "purpose": "Stage removal of an active Daily Boost for confirmation.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
+      "underlyingService": "Public registry boosts handler: stage_daily_boost_remove",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_lp_add",
+      "purpose": "Stage a fixed-ratio LP add for confirmation.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry liquidity handler: stage_lp_add",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_lp_add_optimal",
+      "purpose": "Stage an optimal-ratio LP add for confirmation.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry liquidity handler: stage_lp_add_optimal",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_lp_remove",
+      "purpose": "Stage an LP removal for confirmation.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry liquidity handler: stage_lp_remove",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_lp_zap_add",
+      "purpose": "Stage a single-sided LP zap for confirmation.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry liquidity handler: stage_lp_zap_add",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_market_buy",
+      "purpose": "Use this to stage a proposed Singles buy for explicit review and confirmation. Do not call confirm_pending_action until the user approves the exact server-issued transaction.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry market handler: stage_market_buy",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_market_sell",
+      "purpose": "Use this to stage a proposed share sale for explicit review and confirmation. Do not call confirm_pending_action until the user approves the exact server-issued transaction.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry market handler: stage_market_sell",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_scout_assignment",
+      "purpose": "Use this to stage one scout assignment change after the user selects a player and target count. Do not execute or silently confirm the change; render/review the server-issued transaction first.",
+      "mode": "write",
+      "sideEffects": "staged_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry scouting handler: stage_scout_assignment",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because consequential actions require an explicit server-issued review/confirmation transaction."
+    },
+    {
+      "name": "stage_scout_assignments",
+      "purpose": "Stage multiple scout assignment target counts as one exact bundle for a single confirmation.",
+      "mode": "write",
+      "sideEffects": "Stages one exact multi-assignment transaction.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Gameplay transaction service: scout_set_counts",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "stage_scout_assignment"
+      ],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained to stage a multi-player scout change as one reviewable transaction."
+    },
+    {
+      "name": "update_profile_image",
+      "purpose": "Update the authenticated user's profile image immediately.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry account handler: update_profile_image",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "update_username",
+      "purpose": "Update the authenticated user's username immediately.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry account handler: update_username",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    },
+    {
+      "name": "update_watchlist",
+      "purpose": "Update a watchlist immediately.",
+      "mode": "write",
+      "sideEffects": "immediate_write mutation in the Sportfolio transaction/action layer.",
+      "confirmation": "immediate",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Public registry watchlists handler: update_watchlist",
+      "callers": [
+        "ChatGPT/MCP model-visible dispatch"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "current",
+      "decision": "KEEP",
+      "decisionRationale": "Retained because the action is a current product capability with an explicit mutation contract."
+    }
+  ],
+  "removed": [
+    {
+      "name": "stage_stack_shares",
+      "purpose": "Retired Stack Shares assignment tool.",
+      "mode": "write",
+      "sideEffects": "Retired gameplay mutation; must not be callable.",
+      "confirmation": "staged_review_confirm",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Retired Stack Shares transaction path",
+      "callers": [
+        "Historical production catalog / stale connector cache"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [
+        "stage_daily_boost_assign"
+      ],
+      "supersededBy": "stage_daily_boost_assign",
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Stack Shares/Stack Power are retired. No runtime alias, registration, metadata, UI binding, or current documentation remains."
+    },
+    {
+      "name": "list_market_opportunities",
+      "purpose": "Redundant market-opportunity list; superseded by bounded market-movers presentation.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Redundant market-opportunity list; superseded by bounded market-movers presentation."
+    },
+    {
+      "name": "get_market_scanners",
+      "purpose": "Redundant scanner endpoint; removed from ChatGPT surface while retained only where website/internal code requires it.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Redundant scanner endpoint; removed from ChatGPT surface while retained only where website/internal code requires it."
+    },
+    {
+      "name": "list_watchlist_player_ids",
+      "purpose": "Redundant watchlist ID primitive; UI and watchlist reads use the current watchlist contract.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Redundant watchlist ID primitive; UI and watchlist reads use the current watchlist contract."
+    },
+    {
+      "name": "list_community_boost_history",
+      "purpose": "Redundant history primitive; current boost presentation owns bounded history composition.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Redundant history primitive; current boost presentation owns bounded history composition."
+    },
+    {
+      "name": "get_market_overview",
+      "purpose": "Analytics-only market research tool removed from ChatGPT model-visible registration.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Analytics-only market research tool removed from ChatGPT model-visible registration."
+    },
+    {
+      "name": "screen_markets",
+      "purpose": "Analytics-only market research tool removed from ChatGPT model-visible registration.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Analytics-only market research tool removed from ChatGPT model-visible registration."
+    },
+    {
+      "name": "get_market_index",
+      "purpose": "Analytics-only market research tool removed from ChatGPT model-visible registration.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Analytics-only market research tool removed from ChatGPT model-visible registration."
+    },
+    {
+      "name": "get_market_tape",
+      "purpose": "Analytics-only market research tool removed from ChatGPT model-visible registration.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Analytics-only market research tool removed from ChatGPT model-visible registration."
+    },
+    {
+      "name": "compare_player_markets",
+      "purpose": "Analytics-only market research tool removed from ChatGPT model-visible registration.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Analytics-only market research tool removed from ChatGPT model-visible registration."
+    },
+    {
+      "name": "get_market_correlations",
+      "purpose": "Analytics-only market research tool removed from ChatGPT model-visible registration.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Analytics-only market research tool removed from ChatGPT model-visible registration."
+    },
+    {
+      "name": "get_holding_multiplier_state",
+      "purpose": "Stale runtime-only tool that leaked framework exceptions; no current product contract.",
+      "mode": "read",
+      "sideEffects": "None; removed from the production ChatGPT surface.",
+      "confirmation": "none",
+      "sportScope": "not sport-scoped",
+      "underlyingService": "Legacy or analytics-only path",
+      "callers": [
+        "Historical catalog/source references"
+      ],
+      "uiResourceAssociation": null,
+      "responseSize": {
+        "typicalBytes": null,
+        "p95Bytes": null,
+        "measured": false
+      },
+      "latencyMs": {
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "measured": false
+      },
+      "overlappingTools": [],
+      "supersededBy": null,
+      "usedByWebsite": "not_directly_route_backed",
+      "chatgptOnly": true,
+      "lifecycle": "legacy_removed",
+      "decision": "REMOVE",
+      "decisionRationale": "Stale runtime-only tool that leaked framework exceptions; no current product contract."
+    }
+  ]
+}

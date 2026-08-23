@@ -284,18 +284,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "get_market_scanners": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized market information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "get_mlb_batting_leaders": {
       "annotations": {
         "readOnlyHint": true,
@@ -680,18 +668,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "list_community_boost_history": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized community_boosts information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "list_daily_boost_eligible_players": {
       "annotations": {
         "readOnlyHint": true,
@@ -752,18 +728,6 @@
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }
     },
-    "list_market_opportunities": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized market information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
     "list_milestones": {
       "annotations": {
         "readOnlyHint": true,
@@ -808,18 +772,6 @@
       },
       "justifications": {
         "read_only_justification": "Retrieves sanitized scouting information and does not modify Sportfolio account or gameplay state.",
-        "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
-        "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
-      }
-    },
-    "list_watchlist_player_ids": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Retrieves sanitized watchlists information and does not modify Sportfolio account or gameplay state.",
         "open_world_justification": "Operates only within the connected user's private Sportfolio game account and does not publish to the public internet or modify an unrelated third-party system.",
         "destructive_justification": "Does not delete, revoke, irreversibly overwrite, or finalize a destructive action according to the implemented tool behavior."
       }

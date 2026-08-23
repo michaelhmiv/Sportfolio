@@ -1,4 +1,5 @@
 import { executePublicTool, type PublicMcpServerContext } from "../../public-tool-registry";
+import { normalizePublicError } from "../../public-errors";
 import { normalizePlayerDisplayNames } from "./player-display-name";
 
 type JsonRecord = Record<string, unknown>;
@@ -10,14 +11,6 @@ export type ComposedToolResult =
 
 function record(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function errorCode(error: unknown): string {
-  if (error && typeof error === "object" && "code" in error) {
-    const value = String((error as { code?: unknown }).code || "").trim();
-    if (value) return value;
-  }
-  return "composed_tool_unavailable";
 }
 
 /**
@@ -39,10 +32,11 @@ export async function invokeComposedPublicTool(
       ? { state: "empty", data: normalized }
       : { state: "ok", data: normalized };
   } catch (error) {
+    const normalized = normalizePublicError(error);
     return {
       state: "unavailable",
-      code: errorCode(error),
-      message: error instanceof Error ? error.message : `${name} is unavailable.`,
+      code: normalized.code,
+      message: normalized.message,
     };
   }
 }

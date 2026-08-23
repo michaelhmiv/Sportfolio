@@ -84,6 +84,18 @@ describe("canonical AMM valuation", () => {
     expect(market.lastTradePrice).toBe(7);
   });
 
+  it("keeps denormalized price drift diagnostic-only and ignores legacy marketCap drift", () => {
+    const market = resolveCanonicalPlayerMarket({
+      player: { ...joey, currentPrice: "8.00", marketCap: "1.00" },
+      pool: { shares: 5, playMoney: 50 },
+      liquidUserShares: 60,
+    });
+    expect(market).toMatchObject({ marketPrice: 10, marketCap: 650, warnings: [] });
+    expect(market.diagnostics).toHaveLength(1);
+    expect(market.diagnostics[0]).toContain("persisted currentPrice");
+    expect(market.diagnostics.join(" ")).not.toContain("persisted marketCap");
+  });
+
   it("resolves a batch with the same market contract as single resolution", () => {
     const input = {
       player: { ...joey, lastTradePrice: "8.00" },
