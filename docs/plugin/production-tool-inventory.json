@@ -33,9 +33,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry watchlists handler: add_watchlist_player",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -64,9 +62,7 @@
       "confirmation": "finalizer",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry transactions handler: cancel_pending_action",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -95,9 +91,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry milestones handler: celebrate_milestone",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -126,9 +120,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry account handler: complete_onboarding",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -157,9 +149,7 @@
       "confirmation": "finalizer",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry transactions handler: confirm_pending_action",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -188,9 +178,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry watchlists handler: create_watchlist",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -219,9 +207,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry watchlists handler: delete_watchlist",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -250,9 +236,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry account handler: get_account_profile",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -281,9 +265,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry account handler: get_activity_feed",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -312,9 +294,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry market handler: get_amm_pool_state",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -343,9 +323,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry account handler: get_balance_state",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -358,10 +336,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_dashboard_overview",
-        "render_portfolio"
-      ],
+      "overlappingTools": ["get_dashboard_overview", "render_portfolio"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -377,9 +352,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry collections handler: get_collection_detail",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -408,9 +381,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry community_boosts handler: get_community_boost_state",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -439,9 +410,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry dashboard handler: get_dashboard_overview",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -454,11 +423,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_portfolio_summary",
-        "get_balance_state",
-        "render_dashboard"
-      ],
+      "overlappingTools": ["get_portfolio_summary", "get_balance_state", "render_dashboard"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -474,9 +439,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry docs handler: get_doc_article",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -505,9 +468,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry sports_data handler: get_event_live_state",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -520,9 +481,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_live_event"
-      ],
+      "overlappingTools": ["render_live_event"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -538,9 +497,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry sports_data handler: get_event_slate",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -553,10 +510,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_games_today",
-        "render_score_slate"
-      ],
+      "overlappingTools": ["get_games_today", "render_score_slate"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -572,9 +526,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry games handler: get_game_insights",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -587,9 +539,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_game_insights"
-      ],
+      "overlappingTools": ["render_game_insights"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -605,9 +555,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry games handler: get_games_today",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -620,10 +568,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_event_slate",
-        "render_score_slate"
-      ],
+      "overlappingTools": ["get_event_slate", "render_score_slate"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -639,9 +584,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry portfolio handler: get_holdings",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -654,10 +597,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_dashboard_overview",
-        "render_portfolio"
-      ],
+      "overlappingTools": ["get_dashboard_overview", "render_portfolio"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -685,9 +625,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_rankings"
-      ],
+      "overlappingTools": ["render_rankings"],
       "supersededBy": null,
       "usedByWebsite": "route_backed",
       "chatgptOnly": false,
@@ -703,9 +641,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry liquidity handler: get_lp_position",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -718,9 +654,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_liquidity_position"
-      ],
+      "overlappingTools": ["render_liquidity_position"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -736,9 +670,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry liquidity handler: get_lp_zap_quote",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -767,9 +699,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_batting_leaders",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -798,9 +728,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_game_details",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -829,9 +757,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_games",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -860,9 +786,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_pitching_leaders",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -891,9 +815,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_player_splits",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -922,9 +844,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_player_stats",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -953,9 +873,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_probable_pitchers",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -984,9 +902,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_roster",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1015,9 +931,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_standings",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1046,9 +960,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_statcast_profile",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1077,9 +989,7 @@
       "confirmation": "none",
       "sportScope": "MLB",
       "underlyingService": "Curated MLB provider adapter: get_mlb_team_leaders",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1108,9 +1018,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry transactions handler: get_pending_action",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1139,9 +1047,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry players handler: get_player_detail",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1176,9 +1082,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry players handler: get_player_financial_metrics",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1191,10 +1095,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_player_detail",
-        "get_amm_pool_state"
-      ],
+      "overlappingTools": ["get_player_detail", "get_amm_pool_state"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1210,9 +1111,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry players handler: get_player_recent_games",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1225,10 +1124,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_player_detail",
-        "get_sports_entity"
-      ],
+      "overlappingTools": ["get_player_detail", "get_sports_entity"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1244,9 +1140,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry players handler: get_player_shares_info",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1259,9 +1153,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_player_detail"
-      ],
+      "overlappingTools": ["get_player_detail"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1277,9 +1169,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry players handler: get_player_stats",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1292,10 +1182,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_player_detail",
-        "get_sports_entity"
-      ],
+      "overlappingTools": ["get_player_detail", "get_sports_entity"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1311,9 +1198,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry portfolio handler: get_portfolio_history",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1342,9 +1227,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry portfolio handler: get_portfolio_summary",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1357,10 +1240,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "get_dashboard_overview",
-        "render_portfolio"
-      ],
+      "overlappingTools": ["get_dashboard_overview", "render_portfolio"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1376,9 +1256,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry premium handler: get_premium_status",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1407,9 +1285,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry scouting handler: get_scout_roster",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1438,9 +1314,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry scouting handler: get_scout_status",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1469,9 +1343,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry sports_data handler: get_sports_context",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1500,9 +1372,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry sports_data handler: get_sports_entity",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1531,9 +1401,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry sports_data handler: get_supported_sports_capabilities",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1562,9 +1430,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry market handler: get_trade_history",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1593,9 +1459,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry market handler: get_trade_quote",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1608,9 +1472,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_player_market"
-      ],
+      "overlappingTools": ["render_player_market"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1626,9 +1488,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry watchlists handler: get_watchlist_items",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1641,9 +1501,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_watchlist"
-      ],
+      "overlappingTools": ["render_watchlist"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1659,9 +1517,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry account handler: list_api_tokens",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1690,9 +1546,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry boosts handler: list_boost_candidates",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1705,9 +1559,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_boosts"
-      ],
+      "overlappingTools": ["render_boosts"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1723,9 +1575,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry collections handler: list_collections",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1754,9 +1604,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry community_boosts handler: list_community_boost_eligible_players",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1785,9 +1633,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry boosts handler: list_daily_boost_eligible_players",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1816,9 +1662,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry boosts handler: list_daily_boost_history",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1831,9 +1675,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_boosts"
-      ],
+      "overlappingTools": ["render_boosts"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1849,9 +1691,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry boosts handler: list_daily_boosts",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1864,9 +1704,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_boosts"
-      ],
+      "overlappingTools": ["render_boosts"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -1882,9 +1720,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry liquidity handler: list_lp_history",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1913,9 +1749,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry liquidity handler: list_lp_positions",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1944,9 +1778,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry milestones handler: list_milestones",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -1975,9 +1807,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry watchlists handler: list_player_watchlists",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2006,9 +1836,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry scouting handler: list_scout_assignments",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2021,9 +1849,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_scouting"
-      ],
+      "overlappingTools": ["render_scouting"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -2039,9 +1865,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry scouting handler: list_scout_opportunities",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2054,9 +1878,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_scouting"
-      ],
+      "overlappingTools": ["render_scouting"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -2072,9 +1894,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry watchlists handler: list_watchlists",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2087,9 +1907,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "render_watchlist"
-      ],
+      "overlappingTools": ["render_watchlist"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -2105,9 +1923,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry premium handler: redeem_premium",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2136,9 +1952,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry watchlists handler: remove_watchlist_player",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2167,10 +1981,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: action_review",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2199,10 +2010,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: boosts",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2231,10 +2039,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: collections",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2263,10 +2068,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: dashboard",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2295,10 +2097,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported",
       "underlyingService": "Plugin presentation renderer: game_insights",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2327,10 +2126,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: liquidity",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2359,10 +2155,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported",
       "underlyingService": "Plugin presentation renderer: live_event",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2391,10 +2184,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: market_movers",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2423,10 +2213,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: player_market",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2455,10 +2242,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: portfolio",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2487,10 +2271,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: rankings",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2519,10 +2300,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported",
       "underlyingService": "Plugin presentation renderer: score_slate",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2551,10 +2329,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: scouting",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2583,10 +2358,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: trade_preview",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2615,10 +2387,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: watchlist",
-      "callers": [
-        "ChatGPT render routing",
-        "Sportfolio MCP App widget"
-      ],
+      "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
       "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
       "responseSize": {
         "typicalBytes": null,
@@ -2647,9 +2416,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported",
       "underlyingService": "Public registry search_players in bounded Promise.all fan-out",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2662,9 +2429,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "search_players"
-      ],
+      "overlappingTools": ["search_players"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -2680,9 +2445,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry account handler: revoke_api_token",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2711,9 +2474,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry docs handler: search_docs",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2742,9 +2503,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Curated MLB provider adapter: search_mlb_players",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2773,9 +2532,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry players handler: search_players",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2804,9 +2561,7 @@
       "confirmation": "none",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry sports_data handler: search_sports_entities",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2835,9 +2590,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry community_boosts handler: stage_community_boost_create",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2866,9 +2619,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry boosts handler: stage_daily_boost_assign",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2897,9 +2648,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "MLB/NHL/NASCAR/NFL where supported by the selected adapter",
       "underlyingService": "Public registry boosts handler: stage_daily_boost_remove",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2928,9 +2677,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry liquidity handler: stage_lp_add",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2959,9 +2706,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry liquidity handler: stage_lp_add_optimal",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -2990,9 +2735,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry liquidity handler: stage_lp_remove",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3021,9 +2764,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry liquidity handler: stage_lp_zap_add",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3052,9 +2793,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry market handler: stage_market_buy",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3083,9 +2822,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry market handler: stage_market_sell",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3114,9 +2851,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry scouting handler: stage_scout_assignment",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3145,9 +2880,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Gameplay transaction service: scout_set_counts",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3160,9 +2893,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "stage_scout_assignment"
-      ],
+      "overlappingTools": ["stage_scout_assignment"],
       "supersededBy": null,
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -3178,9 +2909,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry account handler: update_profile_image",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3209,9 +2938,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry account handler: update_username",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3240,9 +2967,7 @@
       "confirmation": "immediate",
       "sportScope": "not sport-scoped",
       "underlyingService": "Public registry watchlists handler: update_watchlist",
-      "callers": [
-        "ChatGPT/MCP model-visible dispatch"
-      ],
+      "callers": ["ChatGPT/MCP model-visible dispatch"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3273,9 +2998,7 @@
       "confirmation": "staged_review_confirm",
       "sportScope": "not sport-scoped",
       "underlyingService": "Retired Stack Shares transaction path",
-      "callers": [
-        "Historical production catalog / stale connector cache"
-      ],
+      "callers": ["Historical production catalog / stale connector cache"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3288,9 +3011,7 @@
         "p99": null,
         "measured": false
       },
-      "overlappingTools": [
-        "stage_daily_boost_assign"
-      ],
+      "overlappingTools": ["stage_daily_boost_assign"],
       "supersededBy": "stage_daily_boost_assign",
       "usedByWebsite": "not_directly_route_backed",
       "chatgptOnly": true,
@@ -3306,9 +3027,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3337,9 +3056,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3368,9 +3085,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3399,9 +3114,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3430,9 +3143,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3461,9 +3172,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3492,9 +3201,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3523,9 +3230,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3554,9 +3259,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3585,9 +3288,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
@@ -3616,9 +3317,7 @@
       "confirmation": "none",
       "sportScope": "not sport-scoped",
       "underlyingService": "Legacy or analytics-only path",
-      "callers": [
-        "Historical catalog/source references"
-      ],
+      "callers": ["Historical catalog/source references"],
       "uiResourceAssociation": null,
       "responseSize": {
         "typicalBytes": null,
