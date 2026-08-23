@@ -862,7 +862,10 @@ export default function PlayerPage() {
                           <div className="text-[10px] text-muted-foreground uppercase">
                             Pool Shares
                           </div>
-                          <div className="font-mono font-bold text-sm">
+                          <div
+                            className="font-mono font-bold text-sm"
+                            data-testid="text-pool-shares"
+                          >
                             {poolData.shares?.toLocaleString() ?? "Unpriced"}
                           </div>
                         </div>

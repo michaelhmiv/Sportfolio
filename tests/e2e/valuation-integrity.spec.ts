@@ -218,7 +218,7 @@ test("AMM valuation stays consistent across player, portfolio, leaderboard, and 
   await expect(page.getByText("Joey Logano").first()).toBeVisible();
   await expect(page.getByTestId("text-current-price")).toContainText("$10.00");
   await expect(page.getByText("Pool Shares")).toBeVisible();
-  await expect(page.getByText("5", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("text-pool-shares")).toHaveText("5");
   await expect(page.getByText("Pool TVL")).toBeVisible();
   await expect(page.getByText("$100.00", { exact: true })).toBeVisible();
 
