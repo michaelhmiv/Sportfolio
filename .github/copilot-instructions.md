@@ -9,7 +9,7 @@ Use these constraints when generating code or suggestions for this repository.
 - Better Auth is the only authentication provider; Resend delivers passwordless magic links.
 - Sports integrations are behind the neutral adapter/provider layers under `server/sports/` and related ingestion modules.
 - MLB uses MLB StatsAPI plus Baseball Savant enrichment; NHL uses the existing NHL web API client; NASCAR uses the current schedule/live integration; NFL uses ESPN plus nflverse.
-- Do not reintroduce Supabase runtime/auth, BallDontLie, Hermes/agent runtime, SMS/Telnyx auth, a standalone MLB MCP service, or retired provider-selection/fallback variables.
+- Do not reintroduce legacy auth, BallDontLie, retired orchestration or messaging paths, a standalone MLB MCP service, or retired provider-selection/fallback variables.
 
 ## Product mechanics that must remain reconciled
 
@@ -17,8 +17,8 @@ Use these constraints when generating code or suggestions for this repository.
 - Scout rewards are time-weighted by scout-minutes.
 - Vesting accrual depends on elapsed time plus residual milliseconds with caps.
 - Boosts preserve their sport-specific eligibility, locking/burn, snapshot, and settlement semantics.
-- Regular holdings and stacked-share multiplier state are separate. `holdings` does not contain a `power` or `powerLevel` column; stacked multiplier state lives in `player_multipliers` and its event ledger.
-- Locked regular shares must not be consumed by stacking or boost flows.
+- Player holdings are Singles. There is no separate player-share multiplier state or stacking flow.
+- Locked Singles must not be consumed by Daily Boost or trading flows.
 
 ## Source-of-truth code
 

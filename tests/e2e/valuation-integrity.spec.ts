@@ -3,7 +3,6 @@ import { expect, test, type Page } from "@playwright/test";
 const joeyPosition = {
   id: "holding-joey",
   holdingId: "holding-joey",
-  stackId: "stack-joey",
   assetType: "player",
   assetId: "nascar_3859",
   quantity: "60.0000",
@@ -32,10 +31,6 @@ const joeyPosition = {
   lockedQuantity: 0,
   availableQuantity: 60,
   singles: 60,
-  stackPower: 600,
-  gameplayPower: 660,
-  effectiveShares: "660.00",
-  totalPlayerEffectiveShares: "660.00",
   isCanonicalPosition: true,
   globalScoutCount: 0,
 };
@@ -199,8 +194,8 @@ async function mockValuationApis(page: Page) {
           lockedBoosts: 0,
           processedBoosts: 0,
           totalBoosts: 0,
-          slotsRemaining: 4,
-          availableSlots: [2, 3, 4, 5],
+          slotsRemaining: 5,
+          availableSlots: [10, 7, 5, 3, 2],
           communityBoostCount: 0,
           userCommunityShares: 0,
           totalLivePayout: "0",
@@ -223,7 +218,7 @@ test("AMM valuation stays consistent across player, portfolio, leaderboard, and 
   await expect(page.getByText("Joey Logano").first()).toBeVisible();
   await expect(page.getByTestId("text-current-price")).toContainText("$10.00");
   await expect(page.getByText("Pool Shares")).toBeVisible();
-  await expect(page.getByText("5", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("text-pool-shares")).toHaveText("5");
   await expect(page.getByText("Pool TVL")).toBeVisible();
   await expect(page.getByText("$100.00", { exact: true })).toBeVisible();
 

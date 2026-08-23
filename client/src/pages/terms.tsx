@@ -33,7 +33,7 @@ const sections = [
     title: "ChatGPT and Codex App",
     body: [
       "After OAuth authorization, the connected app may display supported public sports information and information associated with your Sportfolio account and may perform supported account or gameplay actions that you request.",
-      "Virtual market trades, scouting, share stacking, daily boosts, community boosts, and liquidity operations use Sportfolio's staged-action system. A staging result is a preview and pending action, not a completed transaction. Final execution occurs only after confirmation of the exact pending bundle.",
+      "Virtual market trades, scouting, Daily Boosts, community boosts, and liquidity operations use Sportfolio's staged-action system. A staging result is a preview and pending action, not a completed transaction. Final execution occurs only after confirmation of the exact pending bundle.",
       "Other supported low-risk account changes may execute after a clear request and any confirmation required by the connected platform.",
       "The connected app does not provide admin, internal, debug, raw database, mobile-store billing, credential-management, or private service-configuration access.",
       "You authorize app access through Sportfolio's OAuth consent flow and may revoke access from the Connected Applications page.",

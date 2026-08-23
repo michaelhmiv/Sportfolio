@@ -42,7 +42,6 @@ The following capability groups are excluded from marketplace v1:
 
 - trades and market mutations;
 - liquidity-provider mutations;
-- share stacking;
 - daily or community boost assignment/removal;
 - scout assignment changes;
 - pending-action confirmation and cancellation;

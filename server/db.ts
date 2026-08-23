@@ -29,7 +29,7 @@ if (!databaseUrl) {
 
 export const pool = new Pool({
   connectionString: databaseUrl,
-  max: 20, // Tuned for Railway PostgreSQL direct connection (was 5 for Supabase pooler)
+  max: 20, // Tuned for the Railway PostgreSQL direct connection
   connectionTimeoutMillis: 5000, // Fail fast if pool is full
   idleTimeoutMillis: 30000, // Close idle connections
 });

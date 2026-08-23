@@ -28,6 +28,9 @@ const statusConfig = {
 const listingGridClass =
   "grid grid-cols-[minmax(74px,1.05fr)_minmax(52px,0.8fr)_minmax(52px,0.8fr)_minmax(86px,1fr)_minmax(88px,1fr)] items-start gap-x-2";
 
+const BOOST_SLOT_TIERS = [10, 7, 5, 3, 2] as const;
+type BoostSlotTier = (typeof BOOST_SLOT_TIERS)[number];
+
 export function GameCommandCenterCard({
   game,
   effectiveStatus,
@@ -38,24 +41,23 @@ export function GameCommandCenterCard({
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [showBoostSelector, setShowBoostSelector] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<2 | 3 | 4 | 5 | null>(null);
+  const [selectedTier, setSelectedTier] = useState<BoostSlotTier | null>(null);
 
   const status = statusConfig[effectiveStatus];
   const StatusIcon = status.icon;
   const userContext = game.userContext;
+  const boostCandidates = (userContext?.ownedPlayers || []).filter(
+    (player) => player.availableShares >= 1 && !player.isBoosted,
+  );
   const startTime = new Date(game.startTime);
   const timeLabel = startTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const dateLabel = startTime.toLocaleDateString([], { month: "short", day: "numeric" });
-  const powerLeader = userContext?.topMultiplierPlayers?.[0];
   const showBoostPanel = Boolean(
-    userContext && (userContext.eligibleCount > 0 || userContext.topMultiplierPlayers.length > 0),
+    userContext && (userContext.eligibleCount > 0 || boostCandidates.length > 0),
   );
 
   const ownedTeams = new Set(
-    [
-      ...(userContext?.ownedPlayers || []).map((player) => player.team?.toUpperCase()),
-      ...(userContext?.topMultiplierPlayers || []).map((player) => player.team?.toUpperCase()),
-    ].filter(Boolean),
+    (userContext?.ownedPlayers || []).map((player) => player.team?.toUpperCase()).filter(Boolean),
   );
 
   const progressValue =
@@ -116,7 +118,6 @@ export function GameCommandCenterCard({
     openPlayerModal(playerId);
   };
 
-  // Boost assignment mutation
   const assignBoostMutation = useMutation({
     mutationFn: async ({
       playerId,
@@ -124,7 +125,7 @@ export function GameCommandCenterCard({
       sharesEntered,
     }: {
       playerId: string;
-      slotTier: number;
+      slotTier: BoostSlotTier;
       sharesEntered: number;
     }) => {
       const date = game.gameDay;
@@ -138,13 +139,12 @@ export function GameCommandCenterCard({
       return res.json();
     },
     onSuccess: () => {
-      // Invalidate the specific insights query used by dashboard to refresh slots/leaders
       queryClient.invalidateQueries({ queryKey: ["/api/games/insights"] });
       queryClient.invalidateQueries({ queryKey: ["/api/games", game.gameId, "insights"] });
       queryClient.invalidateQueries({ queryKey: ["/api/daily-boosts"] });
       toast({
         title: "Boost Applied!",
-        description: "Your player has been boosted for this game.",
+        description: "One Single was assigned to this game's Boost slot.",
       });
       setShowBoostSelector(false);
       setSelectedTier(null);
@@ -225,17 +225,15 @@ export function GameCommandCenterCard({
       {isAuthenticated && userContext && showBoostPanel && effectiveStatus === "scheduled" && (
         <div className="mt-3 border-t border-border/60 pt-2">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Eligible badge - non clickable */}
             <Badge variant="outline" className="text-[10px] border-border/80">
               Eligible: {userContext.eligibleCount}
             </Badge>
 
-            {/* Slots badge - CLICKABLE with distinct styling */}
             {boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={(event) => {
+                  event.stopPropagation();
                   setShowBoostSelector(!showBoostSelector);
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-compact text-[10px] font-medium border-2 transition-all ${
@@ -265,34 +263,21 @@ export function GameCommandCenterCard({
                 Slots: 0
               </Badge>
             )}
-
-            {/* Multiplier badge - non-clickable info */}
-            {powerLeader && powerLeader.multiplier > 0 && (
-              <Badge
-                variant="secondary"
-                className="gap-1 text-[10px] text-category-stacking border-border/80"
-              >
-                <Zap className="h-3 w-3" />
-                Multi {powerLeader.multiplier.toFixed(2)}x
-              </Badge>
-            )}
           </div>
 
-          {/* Quick Boost Selector - Inline expandable panel */}
           {showBoostSelector && boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
             <div
               className="mt-3 rounded-panel border-2 border-boost/40 bg-boost/10 p-3"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-2 text-[11px] font-medium text-boost">
-                Select tier & player to boost:
+                Select a slot and boost-ready player. Quick Boost burns one Single.
               </div>
 
-              {/* Tier Selection */}
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] text-muted-foreground">Tier:</span>
-                <div className="flex gap-1">
-                  {([5, 4, 3, 2] as const).map((tier) => (
+                <span className="text-[10px] text-muted-foreground">Slot:</span>
+                <div className="flex flex-wrap gap-1">
+                  {BOOST_SLOT_TIERS.map((tier) => (
                     <button
                       key={tier}
                       type="button"
@@ -310,12 +295,11 @@ export function GameCommandCenterCard({
                 </div>
               </div>
 
-              {/* Player list: each row represents one share and its current multiplier. */}
-              {userContext.topMultiplierPlayers.length > 0 ? (
+              {boostCandidates.length > 0 ? (
                 <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {userContext.topMultiplierPlayers.map((player, idx) => (
+                  {boostCandidates.map((player) => (
                     <div
-                      key={`${player.playerId}-${idx}`}
+                      key={player.playerId}
                       className="flex items-center justify-between text-xs py-1.5 px-2 rounded-compact bg-background/80"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -333,8 +317,8 @@ export function GameCommandCenterCard({
                           {player.name}
                         </span>
                         <span className="text-muted-foreground text-[10px]">{player.team}</span>
-                        <span className="text-category-stacking font-mono text-[10px]">
-                          {player.multiplier.toFixed(1)}x
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {player.availableShares} Singles
                         </span>
                       </div>
                       <Button
@@ -346,8 +330,8 @@ export function GameCommandCenterCard({
                           if (selectedTier) {
                             assignBoostMutation.mutate({
                               playerId: player.playerId,
-                              slotTier: selectedTier as number,
-                              sharesEntered: player.availableShares,
+                              slotTier: selectedTier,
+                              sharesEntered: 1,
                             });
                           }
                         }}
@@ -357,7 +341,7 @@ export function GameCommandCenterCard({
                         ) : (
                           <>
                             <Zap className="h-3 w-3 mr-1" />
-                            Boost
+                            Boost 1
                           </>
                         )}
                       </Button>
@@ -366,23 +350,19 @@ export function GameCommandCenterCard({
                 </div>
               ) : (
                 <div className="text-xs text-muted-foreground text-center py-3 bg-background/50 rounded-compact">
-                  No eligible players to boost
+                  No eligible Singles to boost
                 </div>
               )}
             </div>
           )}
 
-          {/* Collapsed stacked-share list (shown when boost selector is closed) */}
-          {!showBoostSelector && userContext.topMultiplierPlayers.length > 0 && (
+          {!showBoostSelector && boostCandidates.length > 0 && (
             <div className="mt-2 space-y-1 text-xs">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Your Stacked Shares
+                Boost-ready holdings
               </div>
-              {userContext.topMultiplierPlayers.slice(0, 3).map((player, idx) => (
-                <div
-                  key={`${player.playerId}-${idx}`}
-                  className="flex items-center justify-between"
-                >
+              {boostCandidates.slice(0, 3).map((player) => (
+                <div key={player.playerId} className="flex items-center justify-between">
                   <span
                     role="button"
                     tabIndex={0}
@@ -396,14 +376,14 @@ export function GameCommandCenterCard({
                   >
                     {player.name}
                   </span>
-                  <span className="font-mono text-category-stacking">
-                    {player.multiplier.toFixed(1)}x
+                  <span className="font-mono text-muted-foreground">
+                    {player.availableShares} Singles
                   </span>
                 </div>
               ))}
-              {userContext.topMultiplierPlayers.length > 3 && (
+              {boostCandidates.length > 3 && (
                 <div className="text-[10px] text-muted-foreground text-center">
-                  +{userContext.topMultiplierPlayers.length - 3} more
+                  +{boostCandidates.length - 3} more
                 </div>
               )}
             </div>

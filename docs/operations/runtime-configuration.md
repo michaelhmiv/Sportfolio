@@ -4,7 +4,7 @@ This document is the operational source of truth for application-defined runtime
 
 ## Authentication
 
-Sportfolio uses Better Auth backed by Railway PostgreSQL and Resend passwordless email. Better Auth is the only authentication provider; there is no runtime provider selector. Public password login and social login are intentionally unsupported. Supabase is not an active runtime or authentication dependency.
+Sportfolio uses Better Auth backed by Railway PostgreSQL and Resend passwordless email. Better Auth is the only authentication provider; there is no runtime provider selector. Public password login and social login are intentionally unsupported. No legacy provider or orchestration runtime is active.
 
 Required runtime configuration:
 
@@ -42,25 +42,7 @@ Variables for Whop, mobile stores, ads, Discord, social posting, search/data pro
 
 ## Permanently retired configuration
 
-The following prefixes/names must not be reintroduced:
-
-- `AUTH_PROVIDER`
-- `HERMES_*`
-- `HERMES_INTERNAL_*`
-- `TELNYX_*`
-- `SMS_LINK_*`
-- `USER_AGENT_MANAGED_PROVIDER`
-- `USER_AGENT_SECRET_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `AUTH_SUPABASE_FALLBACK_ENABLED`
-- `AUTH_SUPABASE_FALLBACK_EXPIRES_AT`
-- `MLB_MCP_ENABLED`
-- `MLB_MCP_URL`
-- `MLB_MCP_TIMEOUT_MS`
-- `MLB_MCP_HEALTH_CACHE_MS`
-- `MLB_MCP_AUTH_BEARER`
+The retired provider, orchestration, messaging, and fallback-auth variable families must remain absent from deployment inventories. Do not add replacement variables for those paths; use the archival migration records when historical state must be inspected.
 
 ## Environment parity rule
 

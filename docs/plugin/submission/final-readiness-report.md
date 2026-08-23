@@ -8,7 +8,7 @@ Status date: August 3, 2026
 - Static marketplace catalog derived directly from the shared Sportfolio site MCP registry
 - Public documentation, player, and schedule research without account access
 - OAuth-protected connected-account reads and all supported write actions
-- Existing staged previews for virtual market trades, scouting, share stacking, daily boosts, community boosts, and liquidity operations
+- Existing staged previews for virtual market trades, scouting, Daily Boosts, community boosts, and liquidity operations
 - Exact-bundle `confirm_pending_action` and `cancel_pending_action` finalizers
 - Supported immediate watchlist, schedule, profile, onboarding, milestone, news, premium, and account controls
 - Twelve static semantic MLB tools with bounded inputs and structured provider errors
@@ -30,10 +30,10 @@ Status date: August 3, 2026
 
 ## Previously verified infrastructure
 
-- Supabase project is active and healthy.
+- Better Auth OAuth is backed by the production Railway PostgreSQL database.
 - OAuth Server is enabled with `/oauth/consent` and dynamic client registration.
 - P-256/ES256 public signing keys are available through JWKS.
-- Live OAuth discovery and JWKS certification passes.
+- Live Better Auth OAuth discovery and JWKS certification passes.
 - The audience-hook table and Postgres hook function are deployed with an empty allowlist, so they do not alter existing tokens.
 - Every public-schema table has RLS enabled and the `anon` and `authenticated` Data API roles have zero table grants.
 - Mutable database-function search paths and broad avatar-bucket listing were remediated.
@@ -47,7 +47,7 @@ The permanent Plugin Readiness workflow must pass all four jobs on the final ful
 - plugin and repository TypeScript certification, production build, unit tests, full-surface catalog/package/privacy/submission audits, and release-gate reporting;
 - existing MCP audit and smoke plus marketplace stateless MCP smoke;
 - critical production dependency audit;
-- live Supabase OAuth discovery and JWKS compatibility.
+- live Better Auth OAuth discovery and JWKS compatibility.
 
 The marketplace smoke must prove that:
 
@@ -65,7 +65,7 @@ The marketplace smoke must prove that:
 2. Use a ChatGPT Business or Enterprise/Edu workspace for full MCP write-action developer-mode testing; current OpenAI documentation limits Pro custom MCP connections to read/fetch behavior.
 3. Register or refresh the production MCP in ChatGPT developer mode and replace the `.app.json` placeholder with the assigned `plugin_asdk_app...` ID.
 4. Receive and configure the OpenAI domain-verification challenge token.
-5. Identify the final registered OAuth client ID, add it to `public.plugin_oauth_clients`, set `PLUGIN_OAUTH_ALLOWED_CLIENT_IDS`, and enable `public.sportfolio_plugin_access_token_hook` under Supabase Authentication → Hooks → Custom Access Token.
+5. Identify the final registered OAuth client ID, add it to the Better Auth OAuth provider configuration, and set `PLUGIN_OAUTH_ALLOWED_CLIENT_IDS` when production allowlisting is enabled.
 6. Create and seed the synthetic reviewer account; keep credentials out of Git and provide them only through the submission portal.
 7. Complete manual OpenAI-policy review of credential, token, BYOK, premium, and other sensitive account-management tools included for site MCP parity.
 8. Complete final legal review of policy text and initial country availability.
@@ -73,11 +73,9 @@ The marketplace smoke must prove that:
 10. Run all eight submission cases in fresh ChatGPT conversations and freeze the final MCP and skill snapshots.
 11. Confirm publisher identity and Apps Management write permission in the submitting OpenAI organization.
 
-## Supabase Free-plan security note
+## Authentication deployment note
 
-Supabase leaked-password protection is available only on Pro and higher plans. It is useful defense in depth, but it is not an OpenAI plugin-submission requirement and is not a release blocker for Sportfolio while the project remains on the Free plan.
-
-Free-plan compensating controls include a strong minimum password policy, confirmed-email requirements where appropriate, OAuth PKCE, short-lived access tokens, client and audience validation, rate limiting, account-recovery protections, and continued monitoring of authentication abuse. Upgrade-based leaked-password screening can be reconsidered if Sportfolio moves to Supabase Pro.
+Better Auth is the sole active authentication and OAuth provider. Its sessions, OAuth clients, grants, codes, refresh tokens, and signing keys are stored or managed through the Railway PostgreSQL-backed application runtime.
 
 ## Release rule
 

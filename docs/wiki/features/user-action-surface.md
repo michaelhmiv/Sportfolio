@@ -36,7 +36,6 @@ A single reference for which actions are available, where they live, and how exe
 - View holdings, net worth, and activity
 - Manage watchlists
 - View and manage scouts
-- Stack eligible shares into multiplier inventory
 
 ### Boost and Slate Flows
 
@@ -83,7 +82,7 @@ Public `/mcp` shares the same capability registry as CLI.
 
 - Reads across portfolio, players, pools, boosts, scouts, watchlists, schedules, docs, news, and threads
 - Immediate account actions (profile updates, token management, watchlist CRUD, schedule CRUD, premium redeem)
-- Staged gameplay actions (trades, LP, stack shares, boosts, scouts, community boosts)
+- Staged gameplay actions (trades, LP, boosts, scouts, community boosts)
 - Confirm and cancel for pending bundles
 - Public prompts and resources
 - Static semantic MLB tools for players, leaders, games, standings, rosters, and Statcast profiles

@@ -46,7 +46,7 @@ export function buildActionPluginPresentationCatalog() {
       name: "render_action_review",
       title: "Review Sportfolio action",
       description:
-        "Render the exact pending Sportfolio gameplay transaction identified by a server-issued transactionId with Confirm and Cancel controls. Use this for staged market, scouting, boost, liquidity, stacking, and community-boost actions.",
+        "Render the exact pending Sportfolio gameplay transaction identified by a server-issued transactionId with Confirm and Cancel controls. Use this for staged market, scouting, Daily Boost, liquidity, and community-boost actions.",
       view: "action_review" as const,
       access: "oauth" as const,
       featureFlag: "PLUGIN_UI_ACTION_REVIEW_V2_ENABLED",

@@ -28,6 +28,7 @@ const scanRoots = [
 
 const excluded = new Set([
   "docs/runbooks/retired-product-database-cleanup.md",
+  "scripts/audit-retired-runtime.mjs",
   "scripts/audit-retired-surfaces.mjs",
   "server/jobs/retired-capabilities.contract.test.ts",
 ]);

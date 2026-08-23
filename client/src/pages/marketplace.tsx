@@ -67,7 +67,6 @@ type PlayerWithPool = Player & {
 
 type MobileQuickContext = {
   availableShares?: number;
-  bestShareMultiplier?: number;
   isBoostEligible?: boolean;
   scoutCount?: number;
   isWatchlisted?: boolean;

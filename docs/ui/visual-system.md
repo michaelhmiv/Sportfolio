@@ -172,7 +172,7 @@ Required variants:
 - Live indicator
 - Premium indicator
 - Rank/medal indicator
-- Multiplier/power indicator
+- Boost/performance indicator
 
 Lower-priority signals use a neutral chip with semantic icon/dot. Fully colored background/border/text is reserved for urgent or highly actionable states. Status lights are circular. “Live” is one shared indicator everywhere.
 

@@ -57,9 +57,8 @@ const checks = [
   },
   {
     id: "security_advisors",
-    passed: process.env.PLUGIN_SUPABASE_SECURITY_REVIEW_COMPLETE === "true",
-    detail:
-      "Resolve or formally disposition the Supabase security-advisor errors before submission.",
+    passed: process.env.PLUGIN_SECURITY_ADVISORS_REVIEW_COMPLETE === "true",
+    detail: "Resolve or formally disposition the security-advisor findings before submission.",
   },
   {
     id: "dependency_security",

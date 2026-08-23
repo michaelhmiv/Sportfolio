@@ -4,8 +4,6 @@
 # High-risk configuration and security boundaries
 /.github/ @michaelhmiv
 /.env.example @michaelhmiv
-/server/supabaseAuth.ts @michaelhmiv
-/server/supabaseClient.ts @michaelhmiv
 /server/mcp/ @michaelhmiv
 /server/routes/ @michaelhmiv
 /server/services/ @michaelhmiv

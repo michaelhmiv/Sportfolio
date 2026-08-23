@@ -94,7 +94,7 @@ For NASCAR, live context is race-oriented rather than team-vs-team game flow. Th
 
 Sportfolio is one economy with multiple sport overlays:
 
-- Core systems (trading, scouting, stacking, LP) are sport-agnostic
+- Core systems (trading, scouting, Daily Boosts, LP) are sport-agnostic
 - Boost eligibility, game windows, and live context are sport-specific
 - The dashboard and boosts page adapt to whichever sport you're focused on
 
@@ -103,5 +103,5 @@ Sportfolio is one economy with multiple sport overlays:
 ## Next Steps
 
 - [Player Pools](/wiki/gameplay/player-pools) — trading within a sport's market
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — slate-timed daily boost deployment
+- [Daily Boosts](/wiki/gameplay/daily-boosts) — slate-timed direct-share deployment
 - [Platform Tour](/wiki/getting-started/platform-tour) — full walkthrough of the dashboard and market views

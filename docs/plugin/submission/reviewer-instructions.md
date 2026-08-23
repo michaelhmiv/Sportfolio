@@ -14,7 +14,7 @@ Sportfolio is a virtual fantasy-sports portfolio game. The submitted ChatGPT/Cod
 
 ## Authentication
 
-Personalized tools and all writes use Sportfolio OAuth 2.1 through Supabase Auth. Start a connected-account prompt and use the account-linking flow shown by ChatGPT. Review the Sportfolio consent screen and choose Allow access.
+Personalized tools and all writes use Sportfolio OAuth 2.1 through Better Auth. Start a connected-account prompt and use the account-linking flow shown by ChatGPT. Review the Sportfolio consent screen and choose Allow access.
 
 Provide the demo email and password only through the OpenAI submission portal's reviewer-credential fields. Do not commit credentials to this repository, include them in release notes, or place them in screenshots.
 
@@ -29,7 +29,7 @@ The reviewer account must:
 
 ## Action behavior
 
-Market, scouting, share-stacking, boost, community-boost, and liquidity operations are staged before execution. A staged response must show the current virtual cost and account impact and return the pending thread and bundle identifiers. It is not a completed action.
+Market, scouting, Daily Boost, community-boost, and liquidity operations are staged before execution. A staged response must show the current virtual cost and account impact and return the pending thread and bundle identifiers. It is not a completed action.
 
 After the reviewer explicitly confirms the displayed preview, the app calls `confirm_pending_action` for that exact bundle. If the reviewer declines, the app calls `cancel_pending_action`. Do not approve a different or stale bundle.
 

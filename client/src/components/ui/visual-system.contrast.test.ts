@@ -178,7 +178,6 @@ const renderedCoreSurfaces = [
   "pages/player.tsx",
   "components/player-modal.tsx",
   "components/portfolio-activity-tab.tsx",
-  "components/market-mobile-home.tsx",
   "components/market-mobile-pools-board.tsx",
   "components/market-mobile-player-sheet.tsx",
   "components/market-activity-ledger.tsx",
@@ -333,7 +332,7 @@ describe("Sportfolio semantic color contrast", () => {
   );
 
   it.each([":root", ".dark"] as const)(
-    "keeps text-content readable on every translucent stacked-share tier in %s",
+    "keeps text-content readable on every translucent Daily Boost tier in %s",
     (theme) => {
       for (const tier of ["standard", "boosted", "elite", "legendary", "mythic"] as const) {
         expect(

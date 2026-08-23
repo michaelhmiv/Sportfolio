@@ -47,17 +47,6 @@ const emptyScouts = {
 function buildUserContext(team: string, playerId: string, playerName: string, status: string) {
   return {
     eligibleCount: 1,
-    topMultiplierPlayers: [
-      {
-        playerId,
-        name: playerName,
-        team,
-        multiplier: 2,
-        availableShares: 2,
-        totalShares: 2,
-        isBoosted: false,
-      },
-    ],
     ownedPlayers: [
       {
         playerId,
@@ -541,7 +530,6 @@ test.describe("MLB game card", () => {
               name: "Aaron Judge",
               team: "ATL",
               quantity: 2,
-              effectiveShares: 2,
               fantasyPoints: 14.8,
               estimatedEarnings: 18.25,
             },
@@ -634,12 +622,10 @@ test.describe("MLB game card", () => {
     const dialog = await openGameModal(page, "ATL@LAD");
     await expect(dialog.getByTestId("mlb-score-fallback")).toContainText("ATL 3 • 4 LAD");
     await expect(dialog.getByText("Loading live exposure…")).toBeVisible();
-    await expect(
-      dialog.getByText("No stacked or boosted earning lines are active in this matchup yet."),
-    ).toBeHidden();
+    await expect(dialog.getByText("No earning lines are active in this matchup yet.")).toBeHidden();
     await expect(dialog.getByTestId("mlb-score-fallback")).toContainText("ATL 3 • 4 LAD");
     await expect(
-      dialog.getByText("No stacked or boosted earning lines are active in this matchup yet."),
+      dialog.getByText("No earning lines are active in this matchup yet."),
     ).toBeVisible();
   });
 
@@ -666,9 +652,7 @@ test.describe("MLB game card", () => {
     const dialog = await openGameModal(page, "ATL@LAD");
     await expect(dialog.getByText("Live exposure is temporarily unavailable.")).toBeVisible();
     await expect(dialog.getByTestId("mlb-score-fallback")).toContainText("ATL 3 • 4 LAD");
-    await expect(
-      dialog.getByText("No stacked or boosted earning lines are active in this matchup yet."),
-    ).toBeHidden();
+    await expect(dialog.getByText("No earning lines are active in this matchup yet.")).toBeHidden();
   });
 
   test("shows final MLB recap content for completed games", async ({ page }) => {
@@ -755,7 +739,6 @@ test.describe("MLB game card", () => {
               name: "Aaron Judge",
               team: "SF",
               quantity: 2,
-              effectiveShares: 2,
               fantasyPoints: 17.2,
               estimatedEarnings: 24.1,
             },

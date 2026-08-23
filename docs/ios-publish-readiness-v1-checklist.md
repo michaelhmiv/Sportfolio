@@ -7,12 +7,12 @@ Launch scope (decision-locked):
 - Paid premium purchases disabled on iOS
 - Rewarded AdMob scout boost enabled (non-personalized requests)
 - In-app account deletion initiation available
-- Sign in with Apple included
+- Better Auth passwordless web/native handoff included
 
 ## Code/Repo Checks
 
 - `mobile/ios/App/App.xcodeproj/project.pbxproj` uses `TARGETED_DEVICE_FAMILY = 1`
-- Login supports Apple OAuth in `client/src/hooks/useAuth.tsx` and `client/src/pages/Login.tsx`
+- Login supports Better Auth passwordless email in `client/src/hooks/useAuth.tsx` and `client/src/pages/Login.tsx`
 - iOS profile picture flow uses library-only upload and does not expose a `capture="user"` camera path
 - Account deletion APIs exist:
   - `GET /api/account/deletion/status`
@@ -22,13 +22,15 @@ Launch scope (decision-locked):
 - Rewarded scout boosts support native iOS + Android adapter path
 - iOS external premium checkout remains blocked
 
-## Supabase (Auth) Setup
+## Better Auth / Railway Setup
 
-1. In Supabase Auth providers, enable `Apple`.
-2. Configure redirect URLs:
-   - `sportfolio://auth/callback`
-   - `https://www.sportfolio.market/auth/callback`
-3. Store Apple client ID/team/key values in secure environment variables used by Supabase.
+1. Configure the production Railway service with `BETTER_AUTH_URL=https://www.sportfolio.market`.
+2. Enable `AUTH_MAGIC_LINK_ENABLED=true` and `AUTH_NATIVE_HANDOFF_ENABLED=true` when the
+   passwordless native flow is included in the release.
+3. Configure `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, and `AUTH_EMAIL_FROM` in Railway; keep
+   all credentials out of the repository.
+4. Confirm the native callback `/auth/native/complete` and native auth exchange routes work
+   against the Railway PostgreSQL-backed Better Auth deployment.
 
 ## Apple Developer + App Store Connect
 

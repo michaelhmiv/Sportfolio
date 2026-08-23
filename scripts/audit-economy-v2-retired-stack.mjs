@@ -17,6 +17,7 @@ const TEXT_EXTENSIONS = new Set([
   ".yaml",
 ]);
 const SKIP_PARTS = new Set(["node_modules", "dist", "build", "coverage", ".git"]);
+const EXCLUDED_FILES = new Set(["server/mcp/public-tool-registry.economy-v2.test.ts"]);
 const FORBIDDEN = [
   /playerMultipliers/g,
   /PlayerMultiplier/g,
@@ -24,10 +25,14 @@ const FORBIDDEN = [
   /stack_shares/g,
   /stage_stack_shares/g,
   /preview_stack_shares/g,
+  /stageStackSharesSchema/g,
+  /stageStackShares/g,
+  /previewStackShares/g,
   /Stack Power/g,
   /stackPower/g,
   /gameplayPower/g,
   /shareMultiplier/g,
+  /bestShareMultiplier/g,
   /shareSourceType/g,
   /isStackedShare/g,
   /stackedShares/g,
@@ -57,6 +62,7 @@ for (const root of ROOTS) {
   }
   for (const file of files) {
     const rel = relative(ROOT, file).replaceAll("\\", "/");
+    if (EXCLUDED_FILES.has(rel)) continue;
     const text = await readFile(file, "utf8");
     const lines = text.split(/\r?\n/);
     lines.forEach((line, index) => {

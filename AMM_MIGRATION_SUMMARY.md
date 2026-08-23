@@ -147,7 +147,7 @@ const result = await executeBuy("nba_12345", userId, 100);
 ✅ **99.9% database write reduction** (4.5M → 3,753 rows)
 ✅ **Instant trade execution** (no order matching delay)
 ✅ **Clear price discovery** (mathematical formula)
-✅ **Reduced infrastructure costs** (less Supabase egress)
+✅ **Reduced infrastructure costs** (less legacy database egress)
 ✅ **Simpler user experience** (buy/sell at market price)
 
 ## Files Modified/Created

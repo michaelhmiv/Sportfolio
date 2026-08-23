@@ -23,7 +23,7 @@ const sections = [
     title: "ChatGPT and Codex App",
     body: [
       "When you voluntarily connect Sportfolio to ChatGPT or Codex, Sportfolio uses OAuth authorization to approve the connection. The app may return information needed for your request, such as public player data and your virtual holdings, balance, trades, scouts, watchlists, boosts, collections, milestones, schedules, liquidity, news, and profile.",
-      "When you request a supported account or gameplay change, the app may transmit the tool inputs required to perform that action. Market trades, scouting, share stacking, boosts, community boosts, and liquidity operations use Sportfolio's staged preview and confirmation workflow before final execution. Other supported account changes may execute after a clear request.",
+      "When you request a supported account or gameplay change, the app may transmit the tool inputs required to perform that action. Market trades, scouting, Daily Boosts, community boosts, and liquidity operations use Sportfolio's staged preview and confirmation workflow before final execution. Other supported account changes may execute after a clear request.",
       "The app does not expose passwords, API keys, authentication codes, access tokens, refresh tokens, payment credentials, or private service configuration through ordinary tool results.",
       "OpenAI receives the tool inputs and results necessary to provide the connected experience under OpenAI's applicable terms and privacy practices. Sportfolio does not use connected-app conversations or tool inputs to train an independent AI model.",
       "You can revoke a ChatGPT or Codex OAuth grant from Sportfolio's Connected Applications page.",

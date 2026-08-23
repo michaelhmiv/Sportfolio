@@ -70,17 +70,17 @@ describe("plugin sanitizer player identity", () => {
     expect(sanitized.items[0].player.lastName).toBeUndefined();
   });
 
-  it("keeps stacking gameplay fields while removing diagnostic stack traces", () => {
+  it("keeps current gameplay fields while removing diagnostic stack traces", () => {
     const sanitized = sanitizePluginValue({
-      sharesStacked: 4200,
-      newStackPower: 2100,
+      shares: 1,
+      slotTier: 5,
       stack: "Error: internal stack trace",
       sql: "select * from secrets",
     }) as any;
 
     expect(sanitized).toEqual({
-      sharesStacked: 4200,
-      newStackPower: 2100,
+      shares: 1,
+      slotTier: 5,
     });
     expect(() => assertNoRestrictedPluginFields(sanitized)).not.toThrow();
   });
