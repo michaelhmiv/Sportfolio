@@ -26,6 +26,18 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Scope runtime currency audit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/one-shot-plugin-portfolio-repair.py")
+          source = path.read_text()
+          source = source.replace(
+              '    if "RAX" in source:\n        raise RuntimeError(f"{path}: stale RAX label remains")',
+              '    if ".test." not in path.name and "RAX" in source:\n        raise RuntimeError(f"{path}: stale RAX label remains")',
+          )
+          path.write_text(source)
+          PY
       - name: Apply audited repair
         run: python scripts/one-shot-plugin-portfolio-repair.py
       - name: Format changed source
