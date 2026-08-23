@@ -3,6 +3,10 @@
   "entry": [
     "client/src/main.tsx",
     "client/src/plugin-ui/sportfolio-widget-entry.ts",
+    "client/src/connected-apps-entry.tsx",
+    "client/src/oauth-consent-entry.tsx",
+    "client/src/plugin-docs-entry.tsx",
+    "client/src/plugin-support-entry.tsx",
     "server/index.ts",
     "server/worker.ts",
     "*.config.{js,ts}",
