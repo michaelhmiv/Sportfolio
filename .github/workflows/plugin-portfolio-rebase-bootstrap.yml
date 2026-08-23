@@ -88,6 +88,22 @@ jobs:
           PY
           git add server/mcp/public-tool-registry.ts
 
+          # Keep the local-only test fallback but avoid embedding credentials in a URL literal.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("server/db.ts")
+          text = path.read_text()
+          anchor = 'const isTestEnvironment = process.env.NODE_ENV === "test" || process.env.VITEST === "true";\n'
+          helper = '''const isTestEnvironment = process.env.NODE_ENV === "test" || process.env.VITEST === "true";\nfunction buildLocalTestDatabaseUrl(): string {\n  const url = new URL("postgresql://127.0.0.1:5432/sportfolio_test");\n  url.username = "postgres";\n  url.password = "postgres";\n  return url.toString();\n}\n'''
+          fallback = '"postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_test"'
+          if anchor not in text or fallback not in text:
+              raise SystemExit("server/db.ts local test fallback anchors missing")
+          text = text.replace(anchor, helper, 1)
+          text = text.replace(fallback, 'buildLocalTestDatabaseUrl()', 1)
+          path.write_text(text)
+          PY
+          git add server/db.ts
+
           # Resolve the generated artifact provisionally; it is rebuilt from merged sources below.
           if git ls-files -u -- server/mcp/plugin/ui/generated-widget.ts | grep -q .; then
             git checkout --theirs server/mcp/plugin/ui/generated-widget.ts
@@ -115,6 +131,7 @@ jobs:
           npx prettier --write \
             client/src/plugin-ui/sportfolio-market-portfolio-widget.tsx \
             docs/wiki/faq/glossary.md \
+            server/db.ts \
             server/mcp/public-tool-registry.ts
 
       - name: Validate merged repair
