@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/plugin-portfolio-contract-currency-audit
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
