@@ -744,8 +744,7 @@ export default function Dashboard() {
           )}
 
           {/* Balance Header - Only show for authenticated users */}
-          {isAuthenticated &&
-            data?.user &&
+          {data?.user &&
             (() => {
               const change24hAmount = data.user.change24h?.amount ?? 0;
               return (
