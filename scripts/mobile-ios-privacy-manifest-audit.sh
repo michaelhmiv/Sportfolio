@@ -8,7 +8,10 @@ mkdir -p "$(dirname "${report_path}")"
 
 # The workflow passes one or more roots separated by newlines. Keep the
 # default source tree useful for local runs as well.
-mapfile -t scan_roots < <(printf '%s\n' "${scan_roots_value}" | tr ':' '\n' | sed '/^[[:space:]]*$/d')
+scan_roots=()
+while IFS= read -r root; do
+  scan_roots[${#scan_roots[@]}]="${root}"
+done < <(printf '%s\n' "${scan_roots_value}" | sed '/^[[:space:]]*$/d')
 
 manifest_count=0
 invalid_count=0
