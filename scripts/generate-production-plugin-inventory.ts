@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { format } from "prettier";
 import { buildPluginStaticCatalog } from "../server/mcp/plugin/registry";
 import { buildPublicToolRegistry } from "../server/mcp/public-tool-registry";
 import { buildAllPluginPresentationCatalog } from "../server/mcp/plugin/ui/catalog";
@@ -324,10 +325,11 @@ async function main() {
     removed,
   };
   await mkdir("docs/plugin", { recursive: true });
-  await writeFile(
-    "docs/plugin/production-tool-inventory.json",
-    `${JSON.stringify(document, null, 2)}\n`,
-  );
+  const json = await format(`${JSON.stringify(document, null, 2)}\n`, {
+    parser: "json",
+    printWidth: 100,
+  });
+  await writeFile("docs/plugin/production-tool-inventory.json", json);
 }
 
 void main();
