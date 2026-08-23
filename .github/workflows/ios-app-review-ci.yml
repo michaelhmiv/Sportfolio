@@ -80,6 +80,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "$(dirname "${IOS_BUILD_LOG}")"
           rm -rf "${IOS_DERIVED_DATA}"
           npm run mobile:build:ios:ci 2>&1 | tee "${IOS_BUILD_LOG}"
 
