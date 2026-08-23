@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-23T15:29:51.183Z",
+  "generatedAt": "2026-08-23T15:44:30.326Z",
   "articles": [
     {
       "id": "changelog-2026-03-02-knowledge-hub",
@@ -303,7 +303,11 @@
       "status": "published",
       "owner": "product-engineering",
       "lastReviewedAt": "2026-08-11",
-      "changeTriggers": ["server/economy/config.ts", "server/economy/math.ts"],
+      "changeTriggers": [
+        "server/economy/config.ts",
+        "server/economy/math.ts",
+        "scripts/calibrate-economy-v2.ts"
+      ],
       "slug": "earnings-normalization",
       "section": "gameplay",
       "surface": ["web", "cli"],

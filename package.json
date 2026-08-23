@@ -93,7 +93,9 @@
     "retired-surfaces:audit": "node scripts/audit-retired-surfaces.mjs",
     "nfl:backfill-boxscores": "tsx scripts/nfl-boxscore-backfill.ts",
     "retired-runtime:audit": "node scripts/audit-retired-runtime.mjs",
-    "db:migrate:amm-fractional-shares": "node scripts/apply-amm-fractional-share-migration.mjs"
+    "db:migrate:amm-fractional-shares": "node scripts/apply-amm-fractional-share-migration.mjs",
+    "economy:simulate": "tsx scripts/simulate-economy-v2.ts",
+    "economy:calibrate": "tsx scripts/calibrate-economy-v2.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.6.25",

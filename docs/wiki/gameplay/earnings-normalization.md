@@ -7,7 +7,7 @@ category: gameplay
 status: published
 owner: product-engineering
 lastReviewedAt: 2026-08-11
-changeTriggers: server/economy/config.ts,server/economy/math.ts
+changeTriggers: server/economy/config.ts,server/economy/math.ts,scripts/calibrate-economy-v2.ts
 slug: earnings-normalization
 surface: web,cli
 searchKeywords: normalization,benchmark,fantasy points,nfl,mlb,nhl,nascar,earnings
