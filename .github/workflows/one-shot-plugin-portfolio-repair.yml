@@ -26,7 +26,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Scope runtime currency audit
+      - name: Scope runtime currency audit and strict predicate
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -35,6 +35,10 @@ jobs:
           source = source.replace(
               '    if "RAX" in source:\n        raise RuntimeError(f"{path}: stale RAX label remains")',
               '    if ".test." not in path.name and "RAX" in source:\n        raise RuntimeError(f"{path}: stale RAX label remains")',
+          )
+          source = source.replace(
+              'typeof entry === "string" && entry.trim()',
+              'typeof entry === "string" && entry.trim().length > 0',
           )
           path.write_text(source)
           PY
