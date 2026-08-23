@@ -40,12 +40,6 @@ const requiredOperations = [
   { path: "/api/health", method: "get" },
   { path: "/api/amm/{playerId}", method: "get", pathParameters: ["playerId"] },
   { path: "/api/lp/positions", method: "get" },
-  { path: "/api/holdings/stack-shares", method: "post" },
-  {
-    path: "/api/holdings/{playerId}/multiplier-state",
-    method: "get",
-    pathParameters: ["playerId"],
-  },
 ];
 
 const pathsBlock = findBlock(lines, "paths:", 0, "document");

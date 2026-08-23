@@ -87,5 +87,5 @@ This surfaces the stories most relevant to your account rather than making you s
 
 ## Next Steps
 
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — use news to inform boost decisions
+- [Daily Boosts](/wiki/gameplay/daily-boosts) — use news to inform boost decisions
 - [Player Pools](/wiki/gameplay/player-pools) — trade based on news signals

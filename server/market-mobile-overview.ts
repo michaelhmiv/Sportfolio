@@ -5,6 +5,7 @@ import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { getUserLpPositions } from "./amm/pool";
 import { getOrCompute } from "./cache";
 import { db } from "./db";
+import { BOOST_SLOT_MULTIPLIERS } from "./economy/config";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { storage } from "./storage";
 import type { HoldingWithPlayerSummary } from "./storage";
@@ -104,7 +105,6 @@ export interface MobileMarketSignal {
   note: string;
   signal: SignalKind;
   availableShares: number | null;
-  bestShareMultiplier: number | null;
   heatCheckStatus: HeatCheckStatus;
 }
 
@@ -409,12 +409,10 @@ type PlayerContext = {
 
 type HoldingContext = {
   availableShares: number;
-  bestShareMultiplier: number;
 };
 
 type HoldingAggregation = {
   regularShares: number;
-  bestShareMultiplier: number;
 };
 
 function toNumber(value: string | number | null | undefined): number {
@@ -608,7 +606,6 @@ function withSignal(
     note,
     signal,
     availableShares: holdingContext?.availableShares ?? null,
-    bestShareMultiplier: holdingContext?.bestShareMultiplier ?? null,
   };
 }
 
@@ -626,11 +623,9 @@ async function buildHoldingContextMap(
 
     const current = grouped.get(holding.player.id) || {
       regularShares: 0,
-      bestShareMultiplier: 1,
     };
     const quantity = toNumber(holding.quantity);
     current.regularShares += quantity;
-    current.bestShareMultiplier = 1;
     grouped.set(holding.player.id, current);
   }
 
@@ -647,7 +642,6 @@ async function buildHoldingContextMap(
 
     result.set(playerId, {
       availableShares: availableRegularShares,
-      bestShareMultiplier: context.bestShareMultiplier,
     });
   }
 
@@ -840,7 +834,6 @@ async function buildMobileMarketOverviewInternal(
         note: `${entry.globalScoutCount} active scouts`,
         signal: "scout" as const,
         availableShares: null,
-        bestShareMultiplier: null,
       }));
   }
 
@@ -877,7 +870,6 @@ async function buildMobileMarketOverviewInternal(
             : "Upcoming game window",
       signal: "boost" as const,
       availableShares: null,
-      bestShareMultiplier: null,
     }));
 
   const mostActive = activity
@@ -941,9 +933,7 @@ async function buildMobileMarketOverviewInternal(
         return withSignal(
           context,
           "boost",
-          holding.bestShareMultiplier > 1
-            ? `${holding.bestShareMultiplier}x multiplier ready for boost`
-            : "One share ready for boost",
+          `${roundToTwo(holding.availableShares)} share${holding.availableShares === 1 ? "" : "s"} available for boost`,
           holding,
         );
       })
@@ -952,10 +942,6 @@ async function buildMobileMarketOverviewInternal(
         if (left.gameStatus !== right.gameStatus) {
           if (left.gameStatus === "live") return -1;
           if (right.gameStatus === "live") return 1;
-        }
-
-        if ((right.bestShareMultiplier || 1) !== (left.bestShareMultiplier || 1)) {
-          return (right.bestShareMultiplier || 1) - (left.bestShareMultiplier || 1);
         }
 
         if (right.communityBoostCount !== left.communityBoostCount) {
@@ -987,20 +973,12 @@ async function buildMobileMarketOverviewInternal(
         return withSignal(
           context,
           "portfolio",
-          holding.bestShareMultiplier > 1
-            ? `${holding.bestShareMultiplier}x stack on hand`
-            : `${roundToTwo(holding.availableShares)} share${holding.availableShares === 1 ? "" : "s"} ready`,
+          `${roundToTwo(holding.availableShares)} share${holding.availableShares === 1 ? "" : "s"} ready`,
           holding,
         );
       })
       .filter((entry): entry is MobileMarketSignal => Boolean(entry))
-      .sort((left, right) => {
-        if ((right.bestShareMultiplier || 1) !== (left.bestShareMultiplier || 1)) {
-          return (right.bestShareMultiplier || 1) - (left.bestShareMultiplier || 1);
-        }
-
-        return sortByAbsoluteMove(left, right);
-      })
+      .sort(sortByAbsoluteMove)
       .slice(0, 4);
 
     const watchlistPlayerIds = dedupeIds(watchListIds);
@@ -1023,7 +1001,6 @@ async function buildMobileMarketOverviewInternal(
               : `Watchlist down ${roundToTwo(Math.abs(entry.priceChange24h))}%`,
           signal: "watchlist" as const,
           availableShares: null,
-          bestShareMultiplier: null,
         }));
     }
 
@@ -1079,7 +1056,7 @@ async function buildMobileMarketOverviewInternal(
         lowActivity: tradeCount15m < LOW_ACTIVITY_THRESHOLD,
         liveGameCount: games.filter((game) => getEffectiveGameStatus(game, now) === "live").length,
         slateGameCount: games.length,
-        openBoostSlots: Math.max(0, 4 - currentBoosts.length),
+        openBoostSlots: Math.max(0, BOOST_SLOT_MULTIPLIERS.length - currentBoosts.length),
         generatedAt: now.toISOString(),
       },
       marketIndicators,

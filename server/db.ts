@@ -6,12 +6,16 @@ import { ensurePasswordlessAuthSchema } from "./auth/ensure-auth-schema";
 // Determine which database to use based on environment
 const isProduction = process.env.NODE_ENV === "production";
 const isTestEnvironment = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+function buildLocalTestDatabaseUrl(): string {
+  const url = new URL("postgresql://127.0.0.1:5432/sportfolio_test");
+  url.username = "postgres";
+  url.password = "postgres";
+  return url.toString();
+}
 const databaseUrl = isProduction
   ? process.env.DATABASE_URL
   : isTestEnvironment
-    ? process.env.TEST_DATABASE_URL ||
-      process.env.DEV_DATABASE_URL ||
-      "postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_test"
+    ? process.env.TEST_DATABASE_URL || process.env.DEV_DATABASE_URL || buildLocalTestDatabaseUrl()
     : process.env.DEV_DATABASE_URL;
 
 console.log(`[DB] Environment: ${process.env.NODE_ENV || "development"}`);
@@ -29,7 +33,7 @@ if (!databaseUrl) {
 
 export const pool = new Pool({
   connectionString: databaseUrl,
-  max: 20, // Tuned for Railway PostgreSQL direct connection (was 5 for Supabase pooler)
+  max: 20, // Tuned for the Railway PostgreSQL direct connection
   connectionTimeoutMillis: 5000, // Fail fast if pool is full
   idleTimeoutMillis: 30000, // Close idle connections
 });

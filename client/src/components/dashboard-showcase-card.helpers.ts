@@ -25,7 +25,6 @@ export interface DashboardShowcaseRaceHolding {
   team: string;
   availableShares: number;
   totalShares: number;
-  multiplier: number;
   isBoosted: boolean;
   gameId: string;
 }
@@ -35,13 +34,7 @@ export interface DashboardShowcaseEligiblePlayer {
   player: Player;
   sport: string;
   availableShares: number;
-  effectiveShares: string | number;
-  multiplier: string | number;
-  bestShareMultiplier: number;
   totalShares: string | number;
-  hasStackedShare?: boolean;
-  regularShares?: number;
-  availableRegularShares?: number;
   gameId: string | null;
   gameStartTime: string | Date | null;
   hasGameToday: boolean;
@@ -82,7 +75,6 @@ export interface DashboardShowcaseExposureRow {
   status: DashboardShowcaseStatus;
   startTime: string;
   ownedShares: number;
-  bestMultiplier: number;
   isEarning: boolean;
   isMissing: boolean;
   value: number | null;
@@ -97,7 +89,6 @@ interface NormalizedOwnedPosition {
   status: DashboardShowcaseStatus;
   startTime: string;
   ownedShares: number;
-  bestMultiplier: number;
 }
 
 const STATUS_PRIORITY: Record<DashboardShowcaseStatus, number> = {
@@ -111,23 +102,6 @@ const TOP_BENCHMARK_COUNT = 12;
 
 function compareStatus(left: DashboardShowcaseStatus, right: DashboardShowcaseStatus) {
   return STATUS_PRIORITY[left] - STATUS_PRIORITY[right];
-}
-
-function compareStartTime(left: string, right: string) {
-  return new Date(left).getTime() - new Date(right).getTime();
-}
-
-function toNumber(value: string | number | null | undefined): number {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  if (typeof value === "string") {
-    const parsed = parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  return 0;
 }
 
 function formatShareCount(value: number) {
@@ -217,7 +191,6 @@ function getOwnedPositionsFromGames(
         status: entry.effectiveStatus,
         startTime: entry.game.startTime,
         ownedShares: player.totalShares,
-        bestMultiplier: player.multiplier,
       };
 
       if (!existing) {
@@ -226,7 +199,6 @@ function getOwnedPositionsFromGames(
       }
 
       existing.ownedShares += position.ownedShares;
-      existing.bestMultiplier = Math.max(existing.bestMultiplier, position.bestMultiplier);
 
       if (compareStatus(position.status, existing.status) < 0) {
         existing.status = position.status;
@@ -259,7 +231,6 @@ function getOwnedPositionsFromRaces(
       status: normalizeSlatePlayerStatus(race.status),
       startTime: race.raceDate,
       ownedShares: holding.totalShares,
-      bestMultiplier: holding.multiplier,
     };
 
     if (!existing) {
@@ -268,7 +239,6 @@ function getOwnedPositionsFromRaces(
     }
 
     existing.ownedShares += position.ownedShares;
-    existing.bestMultiplier = Math.max(existing.bestMultiplier, position.bestMultiplier);
   });
 
   return Array.from(ownedByPlayerId.values());
@@ -304,24 +274,16 @@ function buildOwnedRows(
         return right.ownedShares - left.ownedShares;
       }
 
-      if (right.bestMultiplier !== left.bestMultiplier) {
-        return right.bestMultiplier - left.bestMultiplier;
-      }
-
       return left.label.localeCompare(right.label);
     })
     .slice(0, limit)
     .map((position) => {
       const slatePlayer = slateByPlayerId.get(position.playerId);
       const status = slatePlayer?.status || position.status;
-      const detailParts = [`${formatShareCount(position.ownedShares)} sh`];
-
-      if (position.bestMultiplier > 1) {
-        detailParts.push(`${position.bestMultiplier.toFixed(1)}x`);
-      }
+      const detailParts = [`${formatShareCount(position.ownedShares)} Singles`];
 
       if (earningPlayerIds.has(position.playerId)) {
-        detailParts.push("earn");
+        detailParts.push("earning");
       }
 
       return {
@@ -334,7 +296,6 @@ function buildOwnedRows(
         status,
         startTime: slatePlayer?.startTime || position.startTime,
         ownedShares: position.ownedShares,
-        bestMultiplier: position.bestMultiplier,
         isEarning: earningPlayerIds.has(position.playerId),
         isMissing: false,
         value: slatePlayer ? getSlatePlayerValue(slatePlayer) : null,
@@ -358,11 +319,10 @@ function buildMissingRows(
       label: player.name,
       team: player.team,
       contextLabel: player.contextLabel,
-      detail: "Gap | no shares",
+      detail: "Gap | no Singles",
       status: player.status,
       startTime: player.startTime,
       ownedShares: 0,
-      bestMultiplier: 0,
       isEarning: false,
       isMissing: true,
       value: getSlatePlayerValue(player),
@@ -392,7 +352,6 @@ function buildGuestRows(
       status: player.status,
       startTime: player.startTime,
       ownedShares: 0,
-      bestMultiplier: 0,
       isEarning: false,
       isMissing: false,
       value: getSlatePlayerValue(player),

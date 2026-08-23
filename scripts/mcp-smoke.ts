@@ -11,9 +11,8 @@ function smokeArgs(
   toolName: string,
   fixtures: Record<string, Record<string, unknown>>,
 ): Record<string, unknown> {
-  // Economy V2 retired the old stacking article. Keep the protocol smoke pinned
-  // to a currently published, stable docs article so it tests transport/tool
-  // execution instead of intentionally requesting removed documentation.
+  // Keep the protocol smoke pinned to a currently published, stable docs article
+  // so it tests transport/tool execution against the active documentation set.
   if (toolName === "get_doc_article") {
     return { section: "gameplay", slug: "sports-and-slates" };
   }

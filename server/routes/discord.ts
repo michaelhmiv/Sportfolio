@@ -33,6 +33,7 @@ import { newsFeed, players, trades } from "@shared/schema";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { hasGameStartedForBoost } from "@shared/game-status";
 import { assignDailyBoostWithValidation } from "../boosts/assign-daily-boost";
+import { BOOST_SLOT_MULTIPLIERS } from "../economy/config";
 import { loadUserEntitlements } from "../services/user-entitlements";
 import {
   DISCORD_SUPPORTED_SPORTS,
@@ -359,7 +360,7 @@ async function requireLinkedUser(ctx: DiscordCommandContext) {
     return {
       ok: false as const,
       response: buildEphemeralResponse(
-        `Your Discord user is not linked yet. Click below to link via Supabase (link expires in ${LINK_STATE_TTL_MINUTES} minutes).`,
+        `Your Discord user is not linked yet. Click below to link your Sportfolio account (link expires in ${LINK_STATE_TTL_MINUTES} minutes).`,
         linkComponent ? [linkComponent] : undefined,
       ),
     };
@@ -392,7 +393,7 @@ function handleHelp() {
     "`/link` account linking",
     "`/portfolio` account summary with filters (`sport`, `view`, `limit`)",
     "`/player` player market snapshot",
-    "`/buy`, `/sell`, `/stack` support `amount` as number, `%`, or `max`",
+    "`/buy` and `/sell` support `amount` as number, `%`, or `max`",
     "`/boost` daily boost actions (global slots across sports)",
     "`/scout` scout actions",
     "`/report submit` staff-only GitHub issue sync for closed-testing threads",
@@ -442,17 +443,12 @@ async function handlePortfolio(
     );
 
   const topHoldings = filteredHoldings
-    .sort(
-      (a: any, b: any) =>
-        toSafeNumber(b.holding?.effectiveShares || b.holding?.quantity) -
-        toSafeNumber(a.holding?.effectiveShares || a.holding?.quantity),
-    )
+    .sort((a: any, b: any) => toSafeNumber(b.holding?.quantity) - toSafeNumber(a.holding?.quantity))
     .slice(0, limit)
     .map((item: any) => {
-      const effectiveShares = toSafeNumber(item.holding?.effectiveShares || item.holding?.quantity);
-      const shareType = "Singles";
+      const singles = toSafeNumber(item.holding?.quantity);
 
-      return `${item.player.firstName} ${item.player.lastName} [${item.player.sport}] - ${effectiveShares.toFixed(2)} effective (${shareType})`;
+      return `${item.player.firstName} ${item.player.lastName} [${item.player.sport}] - ${singles.toFixed(2)} Singles`;
     });
 
   const content = [
@@ -836,7 +832,7 @@ async function handleBoost(
     if (currentBoosts.some((boost) => boost.playerId === canonicalPlayerId)) {
       return buildErrorResponse("This player is already in a boost slot.");
     }
-    if (currentBoosts.length >= 5) {
+    if (currentBoosts.length >= BOOST_SLOT_MULTIPLIERS.length) {
       return buildErrorResponse("All five boost slots are already filled.");
     }
 

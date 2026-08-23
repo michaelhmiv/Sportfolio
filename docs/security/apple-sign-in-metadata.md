@@ -1,29 +1,26 @@
-# Apple Sign In Metadata (Non-Secret)
+# Apple Sign In Metadata (Archived)
 
 Last updated: 2026-05-28
 Owner: Sportfolio iOS/Auth
 
 ## Purpose
 
-This document tracks non-secret Apple Sign in configuration values used by Sportfolio.
-Do not store private key files (`.p8`) or generated Apple client secrets in this repository.
+Sportfolio's active authentication path is Better Auth passwordless email with Railway
+PostgreSQL. Sign in with Apple is not an active production provider. This file remains only as
+an archival pointer for a future, separately approved provider integration.
+
+Do not store private key files (`.p8`), client secrets, or provider credentials in this repository.
 
 ## Current Configuration
 
-- Apple Team ID: `R42LWFBXBH`
-- Apple Services ID (Client ID): `com.sportfolio.auth`
-- Active Apple Key ID: `T46N2W9CLV`
-- Supabase Project Ref: `xolfyrbtkmwgllrazcfh`
-- Supabase Callback URL: `https://xolfyrbtkmwgllrazcfh.supabase.co/auth/v1/callback`
-- Supabase Domain (for Apple Services ID): `xolfyrbtkmwgllrazcfh.supabase.co`
+No Apple provider configuration is active in the current deployment. Any future Apple
+configuration must be recorded in the approved secret/configuration system and wired through
+Better Auth without reintroducing a retired provider or fallback.
 
 ## Rotation / Maintenance
 
-- Apple OAuth client secret expires every 6 months for OAuth-based Sign in with Apple.
-- Create a calendar reminder at least 2 weeks before expiration to rotate:
-  - Apple Sign in key (`.p8`) if needed
-  - Supabase Apple provider client secret (JWT)
-- After rotation, verify login using a private/incognito browser session.
+- If Apple is approved in a future auth release, rotate its provider credentials through the
+  approved secret manager and verify the Better Auth callback in a private browser session.
 
 ## Storage Policy
 

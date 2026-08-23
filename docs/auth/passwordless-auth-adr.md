@@ -10,7 +10,7 @@ Existing Sportfolio `users.id` remains the canonical application and game identi
 
 Web sessions use secure, same-origin, HttpOnly cookies. JavaScript does not receive reusable web session credentials. MCP bearer tokens remain a separate OAuth resource-server mechanism and resolve their subject through `auth_identities`.
 
-Better Auth is the sole authentication provider. Supabase authentication, OAuth, fallback token acceptance, provider selection, and Supabase runtime credentials are permanently retired.
+Better Auth is the sole authentication provider. Legacy authentication, fallback token acceptance, provider selection, and legacy runtime credentials are permanently retired.
 
 Beta and production intentionally share production Railway Postgres. Beta is a controlled application surface, not a disposable sandbox. Additive schema is allowed after review, but destructive rehearsals and synthetic bulk imports are prohibited. Migration execution is production-runtime-only and is protected by explicit runtime confirmations.
 

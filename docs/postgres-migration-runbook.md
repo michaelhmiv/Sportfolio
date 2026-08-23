@@ -1,6 +1,6 @@
-# PostgreSQL migration runbook
+# PostgreSQL migration runbook (historical)
 
-This runbook moves the application-owned `public` schema. Supabase Auth remains in Supabase and is not dumped or restored.
+This runbook records the completed application-database cutover. It is retained for audit history and rollback context only; it is not an active deployment procedure. Better Auth and the Sportfolio application now use Railway PostgreSQL.
 
 ## Safety contract
 
@@ -43,7 +43,7 @@ Create the artifact parent on a trusted local filesystem. The tooling creates th
    The command writes:
    - `public.dump` — compressed custom-format archive;
    - `public.list` — complete archive table of contents;
-   - `public.railway.list` — restore list with Supabase RLS policy and row-security entries removed;
+   - `public.railway.list` — restore list with legacy source-provider RLS policy and row-security entries removed;
    - `manifest.json` — artifact paths, SHA-256 hashes, and removal count.
 
 3. Restore into an empty disposable or final target:
@@ -81,15 +81,17 @@ Create the artifact parent on a trusted local filesystem. The tooling creates th
 
 ## Rollback
 
-Define and communicate the rollback window before cutover. Retain the immutable dump and keep the Supabase database available throughout that window.
+Define and communicate the rollback window before cutover. Retain the immutable dump and the
+legacy source database only for the documented historical rollback window.
 
 If verification or live smoke tests fail:
 
 1. Keep `MAINTENANCE_MODE=true` and set `RUN_SCHEDULED_JOBS=false` on **every** deployment. Stop all target schedulers/processors before changing any URL.
-2. Confirm no deployment can write to either database. Inventory target-only writes made since cutover; reconcile them into Supabase or explicitly accept their loss before proceeding.
-3. Switch every application deployment back to the Supabase `DATABASE_URL` as one coordinated change and redeploy.
-4. Verify Supabase health, row/structural inventory, Supabase Auth, and representative read/write gameplay contracts while writes remain blocked.
+2. Confirm no deployment can write to either database. Inventory target-only writes made since cutover; reconcile them into the legacy source database or explicitly accept their loss before proceeding.
+3. Switch every application deployment back to the archived source `DATABASE_URL` as one coordinated change and redeploy.
+4. Verify source-database health, row/structural inventory, legacy authentication records, and representative read/write gameplay contracts while writes remain blocked.
 5. Enable `RUN_SCHEDULED_JOBS=true` on exactly one authoritative deployment and verify advisory-lock ownership/job logs. Leave it false everywhere else.
 6. Clear maintenance mode only after the original database and single scheduler owner are verified.
 
-Never allow writes to both databases. After the rollback window expires and Railway is authoritative, a reverse migration—not a blind URL swap—is required to return to Supabase.
+Never allow writes to both databases. After the rollback window expires and Railway is authoritative,
+a reverse migration—not a blind URL swap—is required to restore the archived source system.

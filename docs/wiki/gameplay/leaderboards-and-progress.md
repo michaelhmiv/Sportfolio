@@ -84,7 +84,7 @@ Use profiles to understand what might be driving a rank — not just who is abov
 Leaderboards are a scoreboard for the systems you already use:
 
 ```
-Trading + Scouting + Stacking + Boost deployment → Leaderboard outcome
+Trading + Scouting + Boost deployment → Leaderboard outcome
 ```
 
 Sustained account quality produces better leaderboard results than isolated lucky trades.
@@ -94,5 +94,5 @@ Sustained account quality produces better leaderboard results than isolated luck
 ## Next Steps
 
 - [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) — the underlying account state driving your rank
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — the highest-leverage moves for rank improvement
+- [Daily Boosts](/wiki/gameplay/daily-boosts) — the highest-leverage moves for rank improvement
 - [Player Pools](/wiki/gameplay/player-pools) — trading activity that affects volume and value rankings

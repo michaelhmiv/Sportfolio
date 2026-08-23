@@ -39,7 +39,7 @@ Before any mutation:
 
 ```bash
 export API_BASE='https://beta.sportfolio.market'
-export ADMIN_TOKEN='<supabase-access-token>'
+export ADMIN_TOKEN='<authenticated-admin-session-token>'
 ```
 
 These examples use `curl`; they intentionally do not persist tokens or response bodies in the repository.

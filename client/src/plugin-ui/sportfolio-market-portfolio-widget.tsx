@@ -709,7 +709,7 @@ function Portfolio(props: ReturnType<typeof usePresentation> & { payload: Payloa
                 <tr>
                   <th>Player</th>
                   <th>Singles</th>
-                  <th>Gameplay Power</th>
+                  <th>Position value</th>
                   <th>Value</th>
                   <th>Avg cost</th>
                   <th>Unrealized</th>

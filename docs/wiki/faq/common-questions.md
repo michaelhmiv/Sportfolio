@@ -10,7 +10,7 @@ lastReviewedAt: 2026-05-31
 changeTriggers: client/src/App.tsx,client/src/pages/how-it-works.tsx,client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts,shared/schema.ts
 slug: common-questions
 surface: web,cli
-searchKeywords: faq,questions,trading,stacking,boosts,premium
+searchKeywords: faq,questions,trading,boosts,premium
 ---
 
 # Common Questions
@@ -45,8 +45,8 @@ At game lock/start, not after results.
 **Can I use the same player in multiple slots?**
 Only if you have separate eligible inventory for each slot.
 
-**What share gets used first?**
-If stack power exists, stack is preferred. Otherwise, one regular Single is used.
+**What inventory can a Daily Boost use?**
+Daily Boosts use the available Singles you choose. Reserved Singles cannot be committed again until their existing reservation clears.
 
 ## Liquidity Providing (LP)
 

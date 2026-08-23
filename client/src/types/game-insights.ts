@@ -24,7 +24,6 @@ export interface GameInsightUserContextPlayer {
   playerId: string;
   name: string;
   team: string;
-  multiplier: number;
   availableShares: number;
   totalShares: number;
   isBoosted: boolean;
@@ -32,7 +31,6 @@ export interface GameInsightUserContextPlayer {
 
 export interface GameInsightUserContext {
   eligibleCount: number;
-  topMultiplierPlayers: GameInsightUserContextPlayer[];
   ownedPlayers: GameInsightUserContextPlayer[];
   liveEarned?: number | null;
   earningsStatus?: "scheduled" | "inprogress" | "completed" | "postponed";

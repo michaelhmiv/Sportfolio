@@ -5,16 +5,16 @@ import {
   validateAuthorizationServerMetadata,
 } from "./plugin-oauth-discovery-check";
 
-const issuer = "https://example.supabase.co/auth/v1";
+const issuer = "https://auth.example.test/api/auth/better";
 
 describe("plugin OAuth discovery compatibility", () => {
   it("builds RFC 8414 discovery URLs for a path issuer", () => {
     expect(buildAuthorizationServerDiscoveryUrl(issuer)).toBe(
-      "https://example.supabase.co/.well-known/oauth-authorization-server/auth/v1",
+      "https://auth.example.test/.well-known/oauth-authorization-server/api/auth/better",
     );
   });
 
-  it("accepts a complete Supabase OAuth metadata document", () => {
+  it("accepts a complete Better Auth OAuth metadata document", () => {
     const result = validateAuthorizationServerMetadata(issuer, {
       issuer,
       authorization_endpoint: `${issuer}/oauth/authorize`,

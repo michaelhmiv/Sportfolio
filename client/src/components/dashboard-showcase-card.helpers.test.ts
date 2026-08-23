@@ -59,13 +59,7 @@ function buildEligiblePlayer(
       } as any),
     sport: overrides.sport || "NBA",
     availableShares: overrides.availableShares ?? 1,
-    effectiveShares: overrides.effectiveShares ?? "1.00",
-    multiplier: overrides.multiplier ?? "1.00",
-    bestShareMultiplier: overrides.bestShareMultiplier ?? 1,
     totalShares: overrides.totalShares ?? "1.00",
-    hasStackedShare: overrides.hasStackedShare ?? false,
-    regularShares: overrides.regularShares ?? 1,
-    availableRegularShares: overrides.availableRegularShares ?? 1,
     gameId: overrides.gameId ?? "game-1",
     gameStartTime: overrides.gameStartTime ?? "2026-03-09T19:00:00.000Z",
     hasGameToday: overrides.hasGameToday ?? true,
@@ -121,13 +115,11 @@ describe("dashboard showcase exposure helpers", () => {
           userContext: {
             eligibleCount: 1,
             liveEarned: null,
-            topMultiplierPlayers: [],
             ownedPlayers: [
               {
                 playerId: "player-1",
                 name: "Jayson Tatum",
                 team: "BOS",
-                multiplier: 2,
                 availableShares: 1,
                 totalShares: 4,
                 isBoosted: false,
@@ -146,13 +138,11 @@ describe("dashboard showcase exposure helpers", () => {
           userContext: {
             eligibleCount: 1,
             liveEarned: 12,
-            topMultiplierPlayers: [],
             ownedPlayers: [
               {
                 playerId: "player-2",
                 name: "Nikola Jokic",
                 team: "DEN",
-                multiplier: 1,
                 availableShares: 0,
                 totalShares: 6,
                 isBoosted: true,
@@ -203,13 +193,13 @@ describe("dashboard showcase exposure helpers", () => {
     expect(rows[0]).toMatchObject({
       playerId: "player-2",
       valueKind: "live",
-      detail: "6 sh | earn",
+      detail: "6 Singles | earning",
       isEarning: true,
     });
     expect(rows[1]).toMatchObject({
       playerId: "player-1",
       valueKind: "avg",
-      detail: "4 sh | 2.0x",
+      detail: "4 Singles",
     });
   });
 
@@ -220,13 +210,11 @@ describe("dashboard showcase exposure helpers", () => {
           userContext: {
             eligibleCount: 1,
             liveEarned: null,
-            topMultiplierPlayers: [],
             ownedPlayers: [
               {
                 playerId: "player-1",
                 name: "Jayson Tatum",
                 team: "BOS",
-                multiplier: 2,
                 availableShares: 1,
                 totalShares: 4,
                 isBoosted: false,
@@ -249,7 +237,7 @@ describe("dashboard showcase exposure helpers", () => {
 
     expect(missingRows.slice(0, 2).map((row) => row.playerId)).toEqual(["player-3", "player-2"]);
     expect(missingRows[0]).toMatchObject({
-      detail: "Gap | no shares",
+      detail: "Gap | no Singles",
       isMissing: true,
       valueKind: "avg",
     });
@@ -307,7 +295,6 @@ describe("dashboard showcase exposure helpers", () => {
         team: "Hendrick",
         availableShares: 0,
         totalShares: 3,
-        multiplier: 2,
         isBoosted: false,
         gameId: "race-1",
       },
@@ -377,7 +364,7 @@ describe("dashboard showcase exposure helpers", () => {
     expect(ownedRows[0]).toMatchObject({
       playerId: "driver-1",
       valueKind: "final",
-      detail: "3 sh | 2.0x",
+      detail: "3 Singles",
       isEarning: false,
     });
     expect(summary).toMatchObject({

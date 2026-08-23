@@ -30,7 +30,7 @@ Sports data sources:
 - NASCAR schedule/live-feed integration
 - ESPN for current/live NFL data and nflverse for NFL identity/history
 
-Sportfolio does not require Supabase, a standalone MLB MCP service, BallDontLie, Hermes/agent infrastructure, or SMS/Telnyx infrastructure.
+Sportfolio does not require legacy auth, a standalone MLB MCP service, BallDontLie, or retired orchestration and messaging infrastructure.
 
 ## Worktree + GitHub flow
 

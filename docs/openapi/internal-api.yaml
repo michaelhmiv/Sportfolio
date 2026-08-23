@@ -32,21 +32,3 @@ paths:
       responses:
         "200":
           description: LP positions for authenticated user
-  /api/holdings/stack-shares:
-    post:
-      summary: Stack regular shares into a stacked-share multiplier
-      responses:
-        "200":
-          description: Stack-shares result
-  /api/holdings/{playerId}/multiplier-state:
-    get:
-      summary: Read stacked-share multiplier state for one player holding
-      parameters:
-        - name: playerId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Multiplier-state payload

@@ -67,8 +67,6 @@ export function buildPortfolioApiPayload(input: {
       lockedQuantity: position.lockedSingles,
       availableQuantity: position.availableSingles,
       singles: position.singles,
-      effectiveShares: position.singles.toFixed(4),
-      totalPlayerEffectiveShares: position.singles.toFixed(4),
       isCanonicalPosition: true as const,
       globalScoutCount: globalScoutMap.get(position.playerId) || 0,
     };

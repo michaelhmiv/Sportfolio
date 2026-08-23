@@ -744,8 +744,7 @@ export default function Dashboard() {
           )}
 
           {/* Balance Header - Only show for authenticated users */}
-          {isAuthenticated &&
-            data?.user &&
+          {data?.user &&
             (() => {
               const change24hAmount = data.user.change24h?.amount ?? 0;
               return (
@@ -1263,14 +1262,9 @@ export default function Dashboard() {
                                           ? "text-status-warning"
                                           : "text-status-info";
                                   const ownedTeams = new Set(
-                                    [
-                                      ...(game.userContext?.ownedPlayers || []).map(
-                                        (player) => player.team,
-                                      ),
-                                      ...(game.userContext?.topMultiplierPlayers || []).map(
-                                        (player) => player.team,
-                                      ),
-                                    ].filter(Boolean),
+                                    (game.userContext?.ownedPlayers || [])
+                                      .map((player) => player.team)
+                                      .filter(Boolean),
                                   );
                                   const earningsDisplay = getEarningsDisplay({
                                     value: game.userContext?.liveEarned,
@@ -1278,7 +1272,6 @@ export default function Dashboard() {
                                     canShow: isAuthenticated && game.userContext !== null,
                                   });
                                   const ownedCount = game.userContext?.ownedPlayers?.length || 0;
-                                  const powerLeader = game.userContext?.topMultiplierPlayers?.[0];
                                   const isMlbGame = (game.sport || "").toUpperCase() === "MLB";
                                   const mlbPregame = isMlbGame ? game.mlbPregame || null : null;
                                   const mlbEnrichment = isMlbGame
@@ -1407,11 +1400,6 @@ export default function Dashboard() {
                                       <td className="hidden px-2 py-2 align-middle text-right sm:table-cell">
                                         <div className="font-mono text-xs font-semibold text-foreground">
                                           {isAuthenticated ? ownedCount : "--"}
-                                        </div>
-                                        <div className="truncate text-[11px] text-muted-foreground">
-                                          {isAuthenticated && powerLeader
-                                            ? `Multi ${powerLeader.multiplier.toFixed(1)}x`
-                                            : "--"}
                                         </div>
                                       </td>
                                     </tr>

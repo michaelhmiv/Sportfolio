@@ -37,22 +37,15 @@ Primary source-of-truth code:
 - API surface: `server/routes.ts`, `server/routes/`
 - MCP/public capability policy: `server/mcp/`
 - Domain model: `shared/schema.ts`
-- Core economics: `server/amm/pool.ts`, `shared/vesting-utils.ts`
+- Core economics: `server/amm/pool.ts`, `server/economy/`, `server/boosts/`
 - Background jobs: `server/jobs/`
 - Auth runtime: `server/auth/`
 
-## Retired architecture
+## Architecture boundaries
 
-Do not reintroduce or depend on:
+Use only the current runtime and provider architecture represented by active source code, package scripts, and maintained operations documentation. Do not restore removed auth providers, retired product runtimes, legacy messaging/linking flows, dedicated per-sport sidecars, or fallback configuration from historical commits or migrations.
 
-- Supabase runtime/auth/configuration;
-- Hermes or Sportfolio product-agent runtime;
-- SMS/Telnyx login or linking;
-- a standalone MLB MCP/sidecar service;
-- BallDontLie as a Sportfolio runtime provider;
-- `AUTH_PROVIDER`, Supabase fallback switches, `MLB_MCP_*`, `HERMES_*`, `TELNYX_*`, `SMS_LINK_*`, or managed-user-agent runtime variables.
-
-Historical migrations may mention retired systems because they record actual database lineage. Do not treat historical migration text as current architecture.
+Historical migrations may mention removed systems because they record actual database lineage. Do not treat historical migration text as current architecture.
 
 ## Product-critical mechanics
 
@@ -63,22 +56,14 @@ Historical migrations may mention retired systems because they record actual dat
    - Hourly distribution is proportional to scout-minutes.
 3. **Vesting accrual**
    - Accrual uses elapsed time plus residual milliseconds with hard caps.
-4. **Boost lifecycle**
-   - Boosts lock/burn shares at the applicable game boundary and settle from eligible gameplay results.
-   - Preserve sport-specific eligibility gates, including display-only/non-gameplay states where configured.
-
-## Stacked shares
-
-Stacked-share multiplier state is separate from regular tradeable holdings.
-
-- `holdings` stores regular asset quantity/cost basis.
-- `player_multipliers` stores the canonical non-tradeable stacked-share multiplier state.
-- `player_multiplier_events` is the immutable stacking/burn ledger.
-- Available regular shares are `holdings.quantity - holdings_locks.lockedQuantity`.
-- Stacking and boost flows must not consume locked shares.
-- Daily boost assignment uses the existing one-share-per-slot contract and snapshots the selected multiplier.
-
-For stacked-share changes, validate the holdings multiplier state, stack-shares route, boost eligibility, and boost assignment paths together.
+4. **Economy V2 holdings**
+   - Player holdings are Singles. There is no separate player stacking or power state in the current economy.
+   - Available player inventory is derived from the owned holding minus active share locks/reservations.
+   - Do not add compatibility fields, routes, tools, tables, or calculations for retired player-share multiplier mechanics.
+5. **Daily Boost lifecycle**
+   - Daily Boosts commit a direct quantity of Singles to one of the configured boost slots.
+   - The selected Singles are reserved before the game and burn at the applicable game boundary according to the current Boost settlement flow.
+   - Preserve sport-specific eligibility gates, game-start checks, share reservation rules, and payout behavior.
 
 ## Auth and access
 
@@ -92,9 +77,12 @@ For stacked-share changes, validate the holdings multiplier state, stack-shares 
 
 - Use existing patterns before introducing abstractions or dependencies.
 - Keep changes targeted and remove obsolete paths instead of layering new compatibility shims over retired systems.
+- Treat configured Daily Boost slot multipliers as current mechanics; do not confuse them with retired player-share stacking or share-multiplier state.
+- Keep maintained tests, fixtures, and UI inventories aligned to current product contracts; do not preserve retired fields or surfaces solely to satisfy stale assertions.
 - Never expose secrets, tokens, private user data, raw provider payloads, or internal error stacks.
 - Preserve market, portfolio, scouting, boost, collection, payout, and identity invariants when changing data ingestion.
 - Do not create new public tools when an existing compact/unified capability can satisfy the use case.
+- Remove completed one-shot implementation scripts, generated reports, temporary task contracts, and tracked cache/debug artifacts once they are no longer operational inputs.
 
 ## Validation before completion
 
@@ -106,6 +94,7 @@ npm run lint
 npm run test:run
 npm run format:check
 npm run build
+npm run code:dead
 npm run public-tools:audit
 npm run governance:capabilities
 npm run retired-runtime:audit

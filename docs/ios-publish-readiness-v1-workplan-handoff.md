@@ -11,7 +11,7 @@ Current git state: detached `HEAD` with uncommitted iOS publish-readiness change
 3. Paid premium purchases disabled on iOS v1
 4. Rewarded AdMob scout boost required on iOS (non-personalized ads)
 5. In-app account deletion initiation required
-6. Sign in with Apple required
+6. Better Auth passwordless/native handoff required
 
 ## 2. What Has Already Been Implemented
 
@@ -19,10 +19,10 @@ Current git state: detached `HEAD` with uncommitted iOS publish-readiness change
 
 1. iPhone-only target change in iOS project:
    - `mobile/ios/App/App.xcodeproj/project.pbxproj`
-2. Sign in with Apple client flow added:
+2. Better Auth passwordless client flow added:
    - `client/src/hooks/useAuth.tsx`
    - `client/src/pages/Login.tsx`
-   - telemetry allowlist in `server/supabaseAuth.ts`
+   - telemetry allowlist in `server/auth/runtime-auth.ts`
 3. In-app account deletion backend + wiring:
    - `server/routes/account-deletion.ts` (`request`, `status`, `cancel`)
    - route registration in `server/routes/register-domain-routes.ts`
@@ -70,8 +70,8 @@ Current git state: detached `HEAD` with uncommitted iOS publish-readiness change
 
 ### 3.3 Portal-side tasks still pending (cannot be done purely in repo)
 
-1. Apple Developer capability and key confirmation for Sign in with Apple
-2. Supabase Apple provider enablement and callback verification
+1. Better Auth passwordless/native handoff configuration and callback verification
+2. Railway Resend delivery configuration
 3. AdMob iOS app/ad-unit and SSV verification setup confirmation
 4. App Store Connect privacy/accessibility/age-rating/review-note completion
 
@@ -86,8 +86,8 @@ Current git state: detached `HEAD` with uncommitted iOS publish-readiness change
 
 ### Requires human/operator portal access
 
-1. Apple Developer portal capability/key setup checks
-2. Supabase Auth provider dashboard changes
+1. Better Auth/Railway configuration checks
+2. Resend sending-domain configuration
 3. AdMob console configuration
 4. App Store Connect policy forms and final submission click-through
 
@@ -151,9 +151,10 @@ Exit criteria:
 1. Apple Developer:
    - confirm Sign in with Apple capability is enabled on app ID
    - confirm keys/certs/profiles valid
-2. Supabase Auth:
-   - Apple provider enabled
-   - callbacks include `sportfolio://auth/callback` and web callback
+2. Better Auth / Railway:
+   - `AUTH_MAGIC_LINK_ENABLED=true` and `AUTH_NATIVE_HANDOFF_ENABLED=true`
+   - `BETTER_AUTH_URL` and Resend delivery configuration match the target environment
+   - `/auth/native/complete` callback and native session exchange are verified
 3. AdMob:
    - iOS app and rewarded ad unit configured
    - SSV target verified with existing backend endpoint

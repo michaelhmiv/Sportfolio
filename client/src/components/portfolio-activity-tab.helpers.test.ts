@@ -48,7 +48,7 @@ describe("portfolio activity tab helpers", () => {
         description: "Entered 5x boost on Amen Thompson",
         status: "locked",
         entity: { kind: "boosts", label: "Amen Thompson", href: "/boosts" },
-        context: { summary: "5x slot | stacked share" },
+        context: { summary: "5x Daily Boost slot" },
         metadata: { playerName: "Amen Thompson" },
       } as UserActivityItem,
     ];
