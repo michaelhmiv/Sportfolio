@@ -1,0 +1,137 @@
+name: Plugin Portfolio Repair Rebase Bootstrap
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  rebase-repair:
+    if: ${{ github.event.pull_request.head.ref == 'factory/plugin-portfolio-rebase-bootstrap' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v5
+        with:
+          ref: fix/plugin-portfolio-contract-currency-audit
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Merge current main and resolve audited overlaps
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "plugin-repair-finalizer[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_status=$?
+          set -e
+          if [[ "${merge_status}" -ne 0 ]]; then
+            echo "Merge reported expected overlap conflicts."
+          fi
+
+          # #455 intentionally removed this legacy widget; never resurrect it.
+          git rm -f client/src/plugin-ui/sportfolio-widget.tsx 2>/dev/null || true
+
+          # Keep #462's SB formatter but preserve #455's current position terminology.
+          if git ls-files -u -- client/src/plugin-ui/sportfolio-market-portfolio-widget.tsx | grep -q .; then
+            git checkout --ours client/src/plugin-ui/sportfolio-market-portfolio-widget.tsx
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("client/src/plugin-ui/sportfolio-market-portfolio-widget.tsx")
+          text = path.read_text()
+          text = text.replace("<th>Gameplay Power</th>", "<th>Position value</th>")
+          path.write_text(text)
+          PY
+          git add client/src/plugin-ui/sportfolio-market-portfolio-widget.tsx
+
+          # #462's glossary is the stricter final Singles/direct-share/SB contract.
+          if git ls-files -u -- docs/wiki/faq/glossary.md | grep -q .; then
+            git checkout --ours docs/wiki/faq/glossary.md
+          fi
+          git add docs/wiki/faq/glossary.md
+
+          # Preserve #455's direct-share action schemas, then layer #462's user-facing SB wording.
+          if git ls-files -u -- server/mcp/public-tool-registry.ts | grep -q .; then
+            git checkout --theirs server/mcp/public-tool-registry.ts
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("server/mcp/public-tool-registry.ts")
+          text = path.read_text()
+          portfolio_old = 'description: "Read the user\'s portfolio summary and operator overview.",'
+          portfolio_new = 'description:\n      "Read the user\'s portfolio summary and operator overview. Monetary amounts are virtual Sportfolio Bucks (SB).",'
+          holdings_old = 'description: "List current player holdings and available shares.",'
+          holdings_new = 'description:\n      "List current Singles holdings and available shares under the current Economy V2 model.",'
+          if portfolio_old not in text:
+              raise SystemExit("portfolio summary description anchor missing")
+          if holdings_old not in text:
+              raise SystemExit("holdings description anchor missing")
+          text = text.replace(portfolio_old, portfolio_new, 1)
+          text = text.replace(holdings_old, holdings_new, 1)
+          path.write_text(text)
+          PY
+          git add server/mcp/public-tool-registry.ts
+
+          # Resolve the generated artifact provisionally; it is rebuilt from merged sources below.
+          if git ls-files -u -- server/mcp/plugin/ui/generated-widget.ts | grep -q .; then
+            git checkout --theirs server/mcp/plugin/ui/generated-widget.ts
+          fi
+          git add server/mcp/plugin/ui/generated-widget.ts
+
+          # The original branch-local helper cannot run while conflicts exist; remove it from final tree.
+          git rm -f .github/workflows/plugin-portfolio-rebase-finalizer.yml 2>/dev/null || true
+
+          remaining="$(git diff --name-only --diff-filter=U)"
+          if [[ -n "${remaining}" ]]; then
+            echo "Unexpected unresolved conflicts:"
+            echo "${remaining}"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild merged ChatGPT widget
+        run: npm run plugin:ui:build
+
+      - name: Format merged hand-edited files
+        run: |
+          npx prettier --write \
+            client/src/plugin-ui/sportfolio-market-portfolio-widget.tsx \
+            docs/wiki/faq/glossary.md \
+            server/mcp/public-tool-registry.ts
+
+      - name: Validate merged repair
+        run: |
+          npm run check
+          npm run retired-runtime:audit
+          npx vitest run \
+            client/src/plugin-ui/virtual-currency.test.ts \
+            server/mcp/plugin/ui/presentation-contract.test.ts \
+            server/valuation/canonical-valuation.test.ts \
+            server/mcp/public-tool-registry.economy-v2.test.ts
+          npm run plugin:ui:audit
+
+      - name: Commit and push repaired PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git commit -m "Rebase plugin portfolio repair onto Economy V2 cleanup"
+          git push origin HEAD:fix/plugin-portfolio-contract-currency-audit
