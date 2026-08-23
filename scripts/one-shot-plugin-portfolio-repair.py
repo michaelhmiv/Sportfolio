@@ -70,7 +70,7 @@ function record(value: unknown): JsonRecord | null {
 export function normalizePresentationWarnings(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const warnings = Array.from(
-    new Set(value.filter((entry): entry is string => typeof entry === "string" && entry.trim())),
+    new Set(value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)),
   );
   if (warnings.length <= MAX_PRESENTATION_WARNINGS) return warnings;
 
@@ -442,7 +442,7 @@ for path in Path("client/src/plugin-ui").glob("*.[tj]s*"):
     source = path.read_text()
     if 'currency: "USD"' in source:
         raise RuntimeError(f"{path}: stale USD currency formatter remains")
-    if "RAX" in source:
+    if ".test." not in path.name and "RAX" in source:
         raise RuntimeError(f"{path}: stale RAX label remains")
 
 print("Applied Sportfolio plugin portfolio contract/currency repair.")

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+import { formatSportfolioBucks } from "./virtual-currency";
 import {
   asRecord,
   callTool,
@@ -35,11 +36,11 @@ function num(value: unknown): number {
 }
 function money(value: unknown): string {
   const parsed = num(value);
-  return new Intl.NumberFormat(getOpenAIHost()?.locale, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: Math.abs(parsed) >= 1000 ? 0 : 2,
-  }).format(parsed);
+  const digits = Math.abs(parsed) >= 1000 ? 0 : 2;
+  return formatSportfolioBucks(parsed, getOpenAIHost()?.locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 function display(value: unknown): string {
   if (typeof value === "number")

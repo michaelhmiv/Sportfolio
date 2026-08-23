@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { PlayerAvatar } from "./player-avatar";
+import { formatSportfolioBucks } from "./virtual-currency";
 import {
   asRecord,
   callTool,
@@ -52,11 +53,7 @@ function num(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 function money(value: unknown): string {
-  return new Intl.NumberFormat(getOpenAIHost()?.locale, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(num(value));
+  return formatSportfolioBucks(num(value), getOpenAIHost()?.locale);
 }
 function quantity(value: unknown, digits = 2): string {
   return new Intl.NumberFormat(getOpenAIHost()?.locale, { maximumFractionDigits: digits }).format(

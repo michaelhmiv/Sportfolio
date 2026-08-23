@@ -13,6 +13,7 @@ import {
 } from "./ui/shared-resource";
 import { registerSportsPluginUiSurface } from "./ui/sports-surface";
 import { registerPluginUiSurface } from "./ui/surface";
+import { normalizePresentationToolResult } from "./ui/presentation-contract";
 
 const PLUGIN_SERVER_INFO = {
   name: "sportfolio-marketplace-plugin",
@@ -37,6 +38,17 @@ function canonicalPresentationServer(server: LegacyMcpServer): LegacyMcpServer {
             return undefined;
           }
           return target.registerResource(...args);
+        };
+      }
+      if (property === "registerTool") {
+        return (...args: any[]) => {
+          const handler = args[2];
+          if (typeof handler !== "function") {
+            return target.registerTool(...args);
+          }
+          const wrappedHandler = async (...handlerArgs: any[]) =>
+            normalizePresentationToolResult(await handler(...handlerArgs));
+          return target.registerTool(args[0], args[1], wrappedHandler);
         };
       }
       const value = Reflect.get(target, property, target);
