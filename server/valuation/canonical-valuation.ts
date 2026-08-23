@@ -20,6 +20,7 @@ export type CanonicalPlayerMarket = {
   liquidSharesOutstanding: number;
   marketCap: number | null;
   warnings: string[];
+  diagnostics: string[];
 };
 
 export type CanonicalPlayerPosition = {
@@ -138,7 +139,9 @@ const DRIFT_WARNING_LOG_INTERVAL_MS = 5 * 60 * 1000;
 const DRIFT_WARNING_SAMPLE_SIZE = 10;
 
 function logMarketDriftBatch(markets: Iterable<CanonicalPlayerMarket>): void {
-  const drifted = Array.from(markets).filter((market) => market.warnings.length > 0);
+  const drifted = Array.from(markets).filter(
+    (market) => market.diagnostics.length > 0 || market.warnings.length > 0,
+  );
   if (!drifted.length) return;
   const now = Date.now();
   if (now - driftWarningLastLoggedAt < DRIFT_WARNING_LOG_INTERVAL_MS) return;
@@ -146,10 +149,13 @@ function logMarketDriftBatch(markets: Iterable<CanonicalPlayerMarket>): void {
 
   console.warn("[canonical_valuation] Market-state drift summary", {
     marketCount: drifted.length,
-    warningCount: drifted.reduce((sum, market) => sum + market.warnings.length, 0),
+    warningCount: drifted.reduce(
+      (sum, market) => sum + market.diagnostics.length + market.warnings.length,
+      0,
+    ),
     samples: drifted.slice(0, DRIFT_WARNING_SAMPLE_SIZE).map((market) => ({
       playerId: market.playerId,
-      warnings: market.warnings,
+      warnings: [...market.warnings, ...market.diagnostics],
     })),
     omittedMarketCount: Math.max(0, drifted.length - DRIFT_WARNING_SAMPLE_SIZE),
   });
@@ -181,6 +187,7 @@ export function resolveCanonicalPlayerMarket(input: {
   const liquidUserShares = Math.max(0, finite(input.liquidUserShares));
   const lastTradePrice = nullableFinite(player.lastTradePrice);
   const warnings: string[] = [];
+  const diagnostics: string[] = [];
 
   if (!pool) {
     return {
@@ -197,6 +204,7 @@ export function resolveCanonicalPlayerMarket(input: {
       liquidSharesOutstanding: liquidUserShares,
       marketCap: null,
       warnings,
+      diagnostics,
     };
   }
 
@@ -220,6 +228,7 @@ export function resolveCanonicalPlayerMarket(input: {
       liquidSharesOutstanding: liquidUserShares + Math.max(0, finite(shareReserve)),
       marketCap: null,
       warnings,
+      diagnostics,
     };
   }
 
@@ -227,18 +236,19 @@ export function resolveCanonicalPlayerMarket(input: {
   const poolTvl = playMoneyReserve + shareReserve * marketPrice;
   const liquidSharesOutstanding = liquidUserShares + shareReserve;
   const marketCap = marketPrice * liquidSharesOutstanding;
+  // Persisted currentPrice is denormalized observability state. Canonical valuation
+  // is derived from live AMM reserves, so drift is diagnostic-only and must never
+  // become a user-facing portfolio warning or invalidate an MCP presentation.
   const persistedPrice = nullableFinite(player.currentPrice);
-  const persistedMarketCap = nullableFinite(player.marketCap);
   if (persistedPrice != null && !approximatelyEqual(persistedPrice, marketPrice)) {
-    warnings.push(
+    diagnostics.push(
       `Player ${player.id} persisted currentPrice ${persistedPrice} differs from AMM spot ${marketPrice}.`,
     );
   }
-  if (persistedMarketCap != null && !approximatelyEqual(persistedMarketCap, marketCap)) {
-    warnings.push(
-      `Player ${player.id} persisted marketCap ${persistedMarketCap} differs from canonical ${marketCap}.`,
-    );
-  }
+
+  // players.marketCap is a legacy denormalized column and is not a canonical live
+  // input. Live market-cap surfaces already derive value from AMM spot and liquid
+  // supply; comparing the legacy column here generated one false warning per market.
 
   return {
     playerId: player.id,
@@ -254,6 +264,7 @@ export function resolveCanonicalPlayerMarket(input: {
     liquidSharesOutstanding,
     marketCap,
     warnings,
+    diagnostics,
   };
 }
 

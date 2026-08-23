@@ -1766,7 +1766,8 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "get_portfolio_summary",
-    description: "Read the user's portfolio summary and operator overview.",
+    description:
+      "Read the user's portfolio summary and operator overview. Monetary amounts are virtual Sportfolio Bucks (SB).",
     domain: "portfolio",
     readOnly: true,
     inputSchema: optionalSportDateSchema,
@@ -1775,7 +1776,8 @@ const READ_ALIAS_TOOLS: PublicToolDefinition[] = [
   }),
   defineTool({
     name: "get_holdings",
-    description: "List current player holdings and available shares.",
+    description:
+      "List current Singles holdings and available shares under the current Economy V2 model.",
     domain: "portfolio",
     readOnly: true,
     inputSchema: {

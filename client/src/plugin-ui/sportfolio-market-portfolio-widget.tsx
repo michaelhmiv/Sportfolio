@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNod
 import { createRoot } from "react-dom/client";
 import { ACTION_REVIEW_CSS, ActionReviewPanel } from "./action-review-panel";
 import { PlayerAvatar } from "./player-avatar";
+import { formatSportfolioBucks } from "./virtual-currency";
 import {
   asRecord,
   callTool,
@@ -49,11 +50,7 @@ function num(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 function money(value: unknown): string {
-  return new Intl.NumberFormat(getOpenAIHost()?.locale, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(num(value));
+  return formatSportfolioBucks(num(value), getOpenAIHost()?.locale);
 }
 function marketMoney(value: unknown, marketStatus: unknown): string {
   return marketStatus === "unpriced" || value == null ? "Unpriced" : money(value);

@@ -16,6 +16,12 @@ import {
   type CanonicalPortfolioValuation,
 } from "../valuation/canonical-valuation";
 
+const SPORTFOLIO_VIRTUAL_CURRENCY = Object.freeze({
+  unit: "SB",
+  name: "Sportfolio Bucks",
+  virtual: true,
+});
+
 export type NativeToolInput = {
   toolName: string;
   userId: string;
@@ -55,6 +61,7 @@ export function buildNativePortfolioSummary(
   availableBalance: number,
 ) {
   return {
+    currency: SPORTFOLIO_VIRTUAL_CURRENCY,
     ...getCanonicalPortfolioTotals(valuation),
     availableBalance,
     holdingCount: valuation.positionCount,
@@ -73,7 +80,8 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
       const availableBalance = await storage.getAvailableBalance(input.userId);
       const lockedBalance = await storage.getTotalLockedBalance(input.userId);
       return {
-        summary: "Loaded balance state.",
+        summary: "Loaded balance state in virtual Sportfolio Bucks (SB).",
+        currency: SPORTFOLIO_VIRTUAL_CURRENCY,
         balance: Number(user.balance || 0),
         availableBalance,
         lockedBalance,
@@ -121,6 +129,7 @@ export async function runNativeReadTool(input: NativeToolInput): Promise<unknown
       const snapshots = await storage.getPortfolioSnapshotsInRange(input.userId, start, now);
       return {
         timeRange: range,
+        currency: SPORTFOLIO_VIRTUAL_CURRENCY,
         history: snapshots.map((row) => ({
           date: row.snapshotDate.toISOString(),
           cashBalance: Number(row.cashBalance),

@@ -10,18 +10,18 @@ lastReviewedAt: 2026-05-31
 changeTriggers: shared/schema.ts,server/routes.ts,server/amm/pool.ts,server/websocket.ts,client/src/pages
 slug: glossary
 surface: web,cli
-searchKeywords: glossary,terms,definitions,amm,boosts,scouts,lp
+searchKeywords: glossary,terms,definitions,amm,singles,boosts,scouts,lp
 ---
 
 # Glossary
 
 ## Money and Assets
 
-**SB / Balance**
-Your liquid virtual cash.
+**SB (Sportfolio Bucks) / Balance**
+Your liquid virtual game currency. All cash balances, market prices, portfolio values, liquidity values, fees, and payouts are denominated in SB.
 
-**Single (Raw Share)**
-A tradeable player share with power 1.
+**Single**
+The current player ownership asset. Singles are tradeable player shares and are the shares used directly by Daily Boosts.
 
 **Premium Share**
 A separate asset used to redeem premium access windows.
@@ -46,11 +46,13 @@ Difference between quoted spot and average fill.
 **TVL (Total Value Locked)**
 Total value currently in a pool.
 
+## Boost Terms
+
 **Daily Boost**
-One-slot action that commits a direct quantity of Singles, burns them at game lock, and settles after the game.
+A one-game action that commits Singles directly to a boost slot. The committed Singles are permanently burned once a valid game begins, while settlement adds the incremental bonus above ordinary 1x base earnings.
 
 **Boost Slot Tier**
-Base slot tier values: 2x, 3x, 5x, 7x, and 10x.
+Current slot tiers: 2x, 3x, 5x, 7x, and 10x.
 
 **Effective Multiplier**
 `slotTier + communityBoostCount`.
@@ -71,4 +73,4 @@ Time-weighted measure used for hourly share distribution.
 
 ## One-Line Summary
 
-Sportfolio is a sports player-share game where you accumulate Singles, trade through AMM markets, deploy direct-share Daily Boosts around slates, and manage the loop through live portfolio and market surfaces.
+Sportfolio is a sports player-share game where you accumulate and trade Singles, deploy direct-share Daily Boosts around slates, and manage the loop through live portfolio and market surfaces.
