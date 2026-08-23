@@ -12,7 +12,7 @@ Manage your virtual sports portfolio.
 
 Sportfolio helps users research supported players and games, understand Sportfolio rules, review a connected virtual portfolio, and carry out supported gameplay actions. After OAuth connection, users can inspect virtual holdings and balance, trades, scouts, watchlists, boosts, collections, milestones, news, schedules, liquidity, and personalized insights.
 
-Supported market, scouting, share-stacking, boost, community-boost, and liquidity operations use Sportfolio's existing staged workflow. The app presents the current virtual cost and account impact, creates a pending action, and finalizes only after the user explicitly confirms that exact bundle. Supported lower-risk account changes, such as watchlist and schedule management, can also be completed when specifically requested.
+Supported market, scouting, Daily Boost, community-boost, and liquidity operations use Sportfolio's existing staged workflow. The app presents the current virtual cost and account impact, creates a pending action, and finalizes only after the user explicitly confirms that exact bundle. Supported lower-risk account changes, such as watchlist and schedule management, can also be completed when specifically requested.
 
 Sportfolio is a fantasy-sports portfolio game. Shares, balances, position values, trades, gains, losses, and payouts are virtual game units with no cash value. The app does not provide real-money investing, betting, wagering, cash prizes, or cash-out functionality.
 

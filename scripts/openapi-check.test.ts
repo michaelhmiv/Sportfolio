@@ -70,20 +70,19 @@ describe("openapi-check CLI", () => {
     ["/api/health", "get", "post"],
     ["/api/amm/{playerId}", "get", "post"],
     ["/api/lp/positions", "get", "post"],
-    ["/api/holdings/stack-shares", "post", "get"],
-    ["/api/holdings/{playerId}/multiplier-state", "get", "post"],
   ])("rejects the wrong method for %s", (path, expectedMethod, replacementMethod) => {
     const spec = replaceInPath(path, `    ${expectedMethod}:`, `    ${replacementMethod}:`);
     expect(runChecker(spec).status).not.toBe(0);
   });
 
-  it.each(["/api/amm/{playerId}", "/api/holdings/{playerId}/multiplier-state"])(
-    "rejects a non-required playerId parameter for %s",
-    (path) => {
-      const spec = replaceInPath(path, "          required: true", "          required: false");
-      expect(runChecker(spec).status).not.toBe(0);
-    },
-  );
+  it("rejects a non-required playerId parameter for the AMM path", () => {
+    const spec = replaceInPath(
+      "/api/amm/{playerId}",
+      "          required: true",
+      "          required: false",
+    );
+    expect(runChecker(spec).status).not.toBe(0);
+  });
 
   it("rejects a playerId parameter that is not declared in the path", () => {
     const spec = replaceInPath("/api/amm/{playerId}", "          in: path", "          in: query");

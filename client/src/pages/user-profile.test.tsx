@@ -57,18 +57,6 @@ vi.mock("@/lib/queryClient", async () => {
   };
 });
 
-// Mock supabase to avoid auth initialization issues in jsdom
-vi.mock("@/lib/supabase", async () => {
-  const actual: any = await vi.importActual("@/lib/supabase");
-  return {
-    ...actual,
-    getSupabase: vi.fn().mockResolvedValue({
-      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
-    }),
-    getAuthSession: vi.fn().mockResolvedValue(null),
-  };
-});
-
 // Mock framer-motion to avoid animation warnings in tests
 vi.mock("framer-motion", async () => {
   const actual: any = await vi.importActual("framer-motion");

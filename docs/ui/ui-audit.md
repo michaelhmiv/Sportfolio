@@ -145,7 +145,7 @@ Capacitor splash/status bar use `#0f1420`, status bar style is fixed to `DARK`, 
 
 ### 12. Protected-route fallback is visually misleading
 
-The active baseline renders `<Dashboard />` for unauthenticated visits to `/power`, `/boosts`, `/player/*`, `/portfolio`, `/admin`, `/premium`, and `/watchlists` while retaining the protected URL. Several page-level signed-out treatments are therefore normally unreachable. This is verified in `client/src/App.tsx:865-900`.
+The active baseline renders `<Dashboard />` for unauthenticated visits to `/boosts`, `/player/*`, `/portfolio`, `/admin`, `/premium`, and `/watchlists` while retaining the protected URL. Several page-level signed-out treatments are therefore normally unreachable. This is verified in `client/src/App.tsx:865-900`.
 
 **Required action:** preserve authorization and route behavior during this overhaul. Account for the retained-URL dashboard fallback in visual regression tests, avoid presenting it as the destination page, and defer any redirect/auth-flow change to a separately approved behavior PR.
 

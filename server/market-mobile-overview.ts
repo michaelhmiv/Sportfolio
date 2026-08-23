@@ -5,6 +5,7 @@ import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { getUserLpPositions } from "./amm/pool";
 import { getOrCompute } from "./cache";
 import { db } from "./db";
+import { BOOST_SLOT_MULTIPLIERS } from "./economy/config";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { storage } from "./storage";
 import type { HoldingWithPlayerSummary } from "./storage";
@@ -1055,7 +1056,7 @@ async function buildMobileMarketOverviewInternal(
         lowActivity: tradeCount15m < LOW_ACTIVITY_THRESHOLD,
         liveGameCount: games.filter((game) => getEffectiveGameStatus(game, now) === "live").length,
         slateGameCount: games.length,
-        openBoostSlots: Math.max(0, 4 - currentBoosts.length),
+        openBoostSlots: Math.max(0, BOOST_SLOT_MULTIPLIERS.length - currentBoosts.length),
         generatedAt: now.toISOString(),
       },
       marketIndicators,

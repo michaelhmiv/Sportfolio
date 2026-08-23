@@ -25,7 +25,7 @@ Complete the portal attestations only after every statement below has been indep
 - [ ] Every tool's name, description, input schema, output schema, security scheme, and annotations match deployed behavior.
 - [ ] Every tool explicitly declares `readOnlyHint`, `openWorldHint`, and `destructiveHint`.
 - [ ] Public unauthenticated tools are read-only documentation, player, or schedule research tools.
-- [ ] Staged market, scouting, stacking, boost, community-boost, and liquidity actions return a preview and pending bundle before execution.
+- [ ] Staged market, scouting, boost, community-boost, and liquidity actions return a preview and pending bundle before execution.
 - [ ] `confirm_pending_action` executes only the exact reviewed bundle and is treated as a destructive finalizer.
 - [ ] `cancel_pending_action` abandons a pending bundle without applying the gameplay action.
 - [ ] Immediate write tools are invoked only for a user's clear request for that exact account change.

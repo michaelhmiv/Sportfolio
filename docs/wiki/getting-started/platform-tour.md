@@ -79,7 +79,7 @@ The Portfolio page has two tabs:
 
 - Cash balance and net worth
 - Realized and unrealized P&L
-- Each player-share position (raw and stacked)
+- Each player-share position and its available/reserved quantity
 - Activity history
 
 **Liquidity tab**
@@ -96,17 +96,14 @@ Also see: [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) for de
 
 **Where inventory quality becomes competitive strategy.**
 
-Everything multiplier-related lives here:
-
-- Stack raw shares into higher-multiplier inventory
-- Assign daily boost slots (4 tiers: 5×, 4×, 3×, 2×)
+- Assign direct-share Daily Boost slots (2×, 3×, 5×, 7×, and 10×)
 - Track which slots are open, locked, or settled
 - Create community boosts
 - View live and historical boost payouts
 
 > 💡 Think of the market as accumulation and Boosts as deployment. You build inventory everywhere else; here you spend it.
 
-Also see: [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) for full mechanics.
+Also see: [Daily Boosts](/wiki/gameplay/daily-boosts) for full mechanics.
 
 ---
 
@@ -197,5 +194,5 @@ Sportfolio is a live product. Many pages update automatically:
 
 - [Player Pools](/wiki/gameplay/player-pools) — how AMM trading and pricing work
 - [Scouts and Rewards](/wiki/gameplay/scouts-and-rewards) — passive share accumulation
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — multipliers and payout mechanics
+- [Daily Boosts](/wiki/gameplay/daily-boosts) — direct-share slots and payout mechanics
 - [How to Access Sportfolio](/wiki/getting-started/access) — web, mobile, CLI, and MCP

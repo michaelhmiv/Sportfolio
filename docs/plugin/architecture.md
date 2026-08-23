@@ -18,7 +18,7 @@ The app supports the authenticated user's shared public Sportfolio MCP surface, 
 - public documentation, player, schedule, and performance research;
 - connected portfolio, holdings, balance, trade, boost, scouting, watchlist, collection, milestone, news, liquidity, schedule, profile, and activity reads;
 - staged virtual market buys and sells;
-- staged scouting, share stacking, daily boosts, community boosts, and liquidity operations;
+- staged scouting, Daily Boosts, community boosts, and liquidity operations;
 - exact-bundle confirmation and cancellation;
 - supported immediate watchlist, schedule, profile, onboarding, milestone, news, account, and premium controls;
 - a static semantic MLB tool facade whose public catalog remains stable during provider outages.
@@ -29,7 +29,7 @@ Sportfolio values and actions remain virtual gameplay only. The app does not pro
 
 ## Authentication
 
-The marketplace endpoint uses OAuth 2.1 through the existing Supabase Auth user base. The implementation supports PKCE, OAuth discovery, protected-resource metadata, client registration, audience validation, revocation, and MCP authentication challenges.
+The marketplace endpoint uses OAuth 2.1 through Better Auth backed by Railway PostgreSQL. The implementation supports PKCE, OAuth discovery, protected-resource metadata, client registration, audience validation, revocation, and MCP authentication challenges.
 
 A small set of documentation and public player/game research tools may be used without authentication. Every private-data or write tool declares OAuth 2 security. Manual `spt_...` API tokens remain limited to the existing `/mcp` and CLI surfaces.
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 const capabilities = [
   "Search Sportfolio documentation and supported public player, schedule, and performance information.",
   "Review an authorized account's virtual portfolio, balance, holdings, trades, boosts, scouts, watchlists, collections, milestones, news, liquidity, schedules, and profile state.",
-  "Stage supported virtual share purchases and sales, scouting, share stacking, boosts, community boosts, and liquidity changes through Sportfolio's preview workflow.",
+  "Stage supported virtual share purchases and sales, scouting, Daily Boosts, community boosts, and liquidity changes through Sportfolio's preview workflow.",
   "Confirm or cancel the exact staged action after reviewing virtual cost, holdings impact, balance impact, and warnings.",
   "Perform supported lower-risk account changes, such as watchlist or schedule management, after a clear request.",
 ] as const;
@@ -43,9 +43,9 @@ export default function PluginDocsPage() {
       <EditorialSection title="Preview before execution" className="bg-surface">
         <div className="max-w-3xl space-y-4 leading-7 text-content-muted">
           <p>
-            Market trades, scouting, share stacking, daily boosts, community boosts, and liquidity
-            operations use Sportfolio's staged-action system. The connected app first creates a
-            current preview and pending gameplay transaction.
+            Market trades, scouting, Daily Boosts, community boosts, and liquidity operations use
+            Sportfolio's staged-action system. The connected app first creates a current preview and
+            pending gameplay transaction.
           </p>
           <p>
             Review the displayed player, quantity, virtual cost, expected balance or holdings

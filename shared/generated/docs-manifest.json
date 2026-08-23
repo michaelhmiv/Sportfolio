@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-11T15:08:02.591Z",
+  "generatedAt": "2026-08-23T15:29:51.183Z",
   "articles": [
     {
       "id": "changelog-2026-03-02-knowledge-hub",
@@ -97,7 +97,7 @@
       "slug": "common-questions",
       "section": "faq",
       "surface": ["web", "cli"],
-      "searchKeywords": ["faq", "questions", "trading", "stacking", "boosts", "premium"],
+      "searchKeywords": ["faq", "questions", "trading", "boosts", "premium"],
       "urlPath": "/wiki/faq/common-questions"
     },
     {
@@ -119,16 +119,7 @@
       "slug": "glossary",
       "section": "faq",
       "surface": ["web", "cli"],
-      "searchKeywords": [
-        "glossary",
-        "terms",
-        "definitions",
-        "amm",
-        "stacking",
-        "boosts",
-        "scouts",
-        "lp"
-      ],
+      "searchKeywords": ["glossary", "terms", "definitions", "amm", "boosts", "scouts", "lp"],
       "urlPath": "/wiki/faq/glossary"
     },
     {
@@ -312,11 +303,7 @@
       "status": "published",
       "owner": "product-engineering",
       "lastReviewedAt": "2026-08-11",
-      "changeTriggers": [
-        "server/economy/config.ts",
-        "server/economy/math.ts",
-        "scripts/calibrate-economy-v2.ts"
-      ],
+      "changeTriggers": ["server/economy/config.ts", "server/economy/math.ts"],
       "slug": "earnings-normalization",
       "section": "gameplay",
       "surface": ["web", "cli"],
@@ -423,7 +410,7 @@
       "category": "gameplay",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-12",
+      "lastReviewedAt": "2026-08-21",
       "changeTriggers": [
         "server/routes/amm.ts",
         "server/routes/lp.ts",

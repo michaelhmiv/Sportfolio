@@ -10,7 +10,7 @@ lastReviewedAt: 2026-05-31
 changeTriggers: shared/schema.ts,server/routes.ts,server/amm/pool.ts,server/websocket.ts,client/src/pages
 slug: glossary
 surface: web,cli
-searchKeywords: glossary,terms,definitions,amm,stacking,boosts,scouts,lp
+searchKeywords: glossary,terms,definitions,amm,boosts,scouts,lp
 ---
 
 # Glossary
@@ -46,22 +46,11 @@ Difference between quoted spot and average fill.
 **TVL (Total Value Locked)**
 Total value currently in a pool.
 
-## Stacking and Boost Terms
-
-**Stack Shares**
-Conversion flow from unlocked Singles into stack power.
-
-**Multiplier (Legacy Label)**
-Historical name for stack power in APIs/UI. In current gameplay docs, this is described as power.
-
-**Effective Shares**
-Derived economic weight (`quantity * power`). Useful for analytics, not the primary inventory mental model.
-
 **Daily Boost**
-One-slot action that burns one eligible share source at lock and settles after the game.
+One-slot action that commits a direct quantity of Singles, burns them at game lock, and settles after the game.
 
 **Boost Slot Tier**
-Base slot tier values: 5x, 4x, 3x, 2x.
+Base slot tier values: 2x, 3x, 5x, 7x, and 10x.
 
 **Effective Multiplier**
 `slotTier + communityBoostCount`.
@@ -82,4 +71,4 @@ Time-weighted measure used for hourly share distribution.
 
 ## One-Line Summary
 
-Sportfolio is a sports player-share game where you accumulate Singles, convert some into stack power, deploy boosts around slates, and manage the loop through live portfolio and market surfaces.
+Sportfolio is a sports player-share game where you accumulate Singles, trade through AMM markets, deploy direct-share Daily Boosts around slates, and manage the loop through live portfolio and market surfaces.

@@ -56,8 +56,8 @@ function authFailureResponse(error: unknown): {
 function canonicalUserId(claims: PluginAccessTokenClaims): string {
   const canonical = claims[SPORTFOLIO_CANONICAL_USER_CLAIM];
   if (typeof canonical === "string" && canonical.trim()) return canonical.trim();
-  // Transitional compatibility for already-issued legacy access tokens. Once
-  // Supabase is removed, every Better Auth token carries the canonical claim.
+  // Keep the subject fallback for OAuth tokens issued before the canonical
+  // Sportfolio claim was added.
   return claims.sub;
 }
 

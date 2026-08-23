@@ -88,6 +88,7 @@ import {
   assignDailyBoostWithValidation,
   DailyBoostValidationError,
 } from "./boosts/assign-daily-boost";
+import { BOOST_SLOT_MULTIPLIERS } from "./economy/config";
 import { ensureDiscordSchema } from "./discord-service";
 import { ensureAccountDeletionSchema } from "./services/account-deletion";
 import { redeemPremiumShare } from "./services/premium-redemption";
@@ -118,6 +119,7 @@ import {
 
 // Public route validation includes every sport enabled by the shared product configuration.
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR", "NHL"] as const;
+const DAILY_BOOST_SLOT_ORDER = [...BOOST_SLOT_MULTIPLIERS].reverse();
 function toNumber(value: string | number | null | undefined): number {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : 0;
@@ -213,8 +215,10 @@ async function getDashboardBoostData(userId: string) {
     }
 
     // Get slots info
-    const slotsRemaining = 4 - boosts.length;
-    const availableSlots = [5, 4, 3, 2].filter((tier) => !boosts.some((b) => b.slotTier === tier));
+    const availableSlots = DAILY_BOOST_SLOT_ORDER.filter(
+      (tier) => !boosts.some((b) => b.slotTier === tier),
+    );
+    const slotsRemaining = availableSlots.length;
 
     return {
       activeBoosts,
@@ -227,7 +231,7 @@ async function getDashboardBoostData(userId: string) {
       userCommunityShares,
       totalLivePayout,
       totalProcessedPayout,
-      boosts: boosts.slice(0, 4), // Include top boosts for preview
+      boosts: boosts.slice(0, BOOST_SLOT_MULTIPLIERS.length), // Include all current slots for preview
     };
   } catch (error: any) {
     console.error("[getDashboardBoostData] Error:", error.message);
@@ -236,8 +240,8 @@ async function getDashboardBoostData(userId: string) {
       lockedBoosts: 0,
       processedBoosts: 0,
       totalBoosts: 0,
-      slotsRemaining: 4,
-      availableSlots: [5, 4, 3, 2],
+      slotsRemaining: BOOST_SLOT_MULTIPLIERS.length,
+      availableSlots: DAILY_BOOST_SLOT_ORDER,
       communityBoostCount: 0,
       userCommunityShares: 0,
       totalLivePayout: "0.00",
@@ -285,20 +289,10 @@ function invalidateAdminStatsCache() {
 
 type GameInsightUserContext = {
   eligibleCount: number;
-  topMultiplierPlayers: Array<{
-    playerId: string;
-    name: string;
-    team: string;
-    multiplier: number;
-    availableShares: number;
-    totalShares: number;
-    isBoosted: boolean;
-  }>;
   ownedPlayers: Array<{
     playerId: string;
     name: string;
     team: string;
-    multiplier: number;
     availableShares: number;
     totalShares: number;
     isBoosted: boolean;
@@ -459,7 +453,6 @@ type UserLiveEarningsSummary = {
     name: string;
     team: string;
     quantity: number;
-    effectiveShares: number;
     fantasyPoints: number;
     estimatedEarnings: number;
   }>;
@@ -859,7 +852,6 @@ async function buildUserLiveEarningsSummary(params: {
         liveByNameAndTeam.get(getLiveEarningsNameTeamKey(playerName, player?.team)) || 0;
       const fantasyPoints = fantasyPointsById || fantasyPointsByName;
       const quantity = parseLiveEarningsNumber(holding.quantity);
-      const effectiveShares = quantity;
 
       const existing = map.get(playerId);
       if (!existing) {
@@ -868,27 +860,24 @@ async function buildUserLiveEarningsSummary(params: {
           name: playerName,
           team: player.team,
           quantity,
-          effectiveShares,
           fantasyPoints,
         });
         return map;
       }
 
       existing.quantity += quantity;
-      existing.effectiveShares += effectiveShares;
       return map;
     }, new Map<string, any>());
 
   const ownedPlayers = Array.from(aggregatedOwnedPlayers.values())
     .map((player) => {
-      const estimatedEarnings = player.fantasyPoints * player.effectiveShares;
+      const estimatedEarnings = player.fantasyPoints * player.quantity;
 
       return {
         playerId: player.playerId,
         name: player.name,
         team: player.team,
         quantity: parseFloat(player.quantity.toFixed(4)),
-        effectiveShares: parseFloat(player.effectiveShares.toFixed(2)),
         fantasyPoints: parseFloat(player.fantasyPoints.toFixed(2)),
         estimatedEarnings: parseFloat(estimatedEarnings.toFixed(2)),
       };
@@ -1710,7 +1699,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ownedPlayers: GameInsightUserContext["ownedPlayers"],
     ): GameInsightUserContext["ownedPlayers"] =>
       [...ownedPlayers].sort((a, b) => {
-        if (b.multiplier !== a.multiplier) return b.multiplier - a.multiplier;
         if (b.totalShares !== a.totalShares) return b.totalShares - a.totalShares;
         return a.name.localeCompare(b.name);
       });
@@ -1725,7 +1713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
 
       currentBoosts.forEach((boost) => boostedPlayerIds.add(boost.playerId));
-      boostSlotsRemaining = Math.max(0, 5 - currentBoosts.length);
+      boostSlotsRemaining = Math.max(0, BOOST_SLOT_MULTIPLIERS.length - currentBoosts.length);
 
       const eligibleByGame = new Map<string, typeof eligiblePlayers>();
       eligiblePlayers.forEach((player) => {
@@ -1736,28 +1724,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       eligibleByGame.forEach((playersForGame, gameId) => {
-        // Each holding row represents a distinct share with its own multiplier/effective-share state.
-        // We show individual shares because only ONE share can be placed in a boost slot
-        const topMultiplierPlayers = [...playersForGame]
-          .sort((a, b) => 0)
-          .slice(0, 2)
-          .map((player) => ({
-            playerId: player.player.id,
-            name: `${player.player.firstName} ${player.player.lastName}`,
-            team: player.player.team,
-            multiplier: 1,
-            availableShares: Number(player.availableShares || 0),
-            totalShares: Number(player.effectiveShares || player.quantity || 0),
-            isBoosted: boostedPlayerIds.has(player.player.id),
-          }));
-
         const ownedPlayersById = new Map<
           string,
           {
             playerId: string;
             name: string;
             team: string;
-            multiplier: number;
             availableShares: number;
             totalShares: number;
             isBoosted: boolean;
@@ -1766,9 +1738,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         playersForGame.forEach((player) => {
           const playerId = player.player.id;
-          const multiplier = 1;
           const availableShares = Number(player.availableShares || 0);
-          const totalShares = Number(player.effectiveShares || player.quantity || 0);
+          const totalShares = Number(player.quantity || 0);
           const existing = ownedPlayersById.get(playerId);
 
           if (!existing) {
@@ -1776,7 +1747,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               playerId,
               name: `${player.player.firstName} ${player.player.lastName}`,
               team: player.player.team,
-              multiplier,
               availableShares,
               totalShares,
               isBoosted: boostedPlayerIds.has(playerId),
@@ -1784,7 +1754,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
-          existing.multiplier = Math.max(existing.multiplier, multiplier);
           existing.availableShares += availableShares;
           existing.totalShares += totalShares;
           existing.isBoosted = existing.isBoosted || boostedPlayerIds.has(playerId);
@@ -1794,13 +1763,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         userContextByGame.set(gameId, {
           eligibleCount: playersForGame.length,
-          topMultiplierPlayers,
           ownedPlayers,
         });
       });
 
       allHoldings.forEach((holding) => {
-        const totalShares = parseFloat(holding.effectiveShares || holding.quantity || "0");
+        const totalShares = parseFloat(holding.quantity || "0");
         if (totalShares <= 0) return;
 
         const teamKey = playerTeamKey(holding.player.sport, holding.player.team);
@@ -1812,7 +1780,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           playerId,
           name: `${holding.player.firstName} ${holding.player.lastName}`,
           team: holding.player.team,
-          multiplier: 1,
           availableShares: 0,
           totalShares,
           isBoosted: boostedPlayerIds.has(playerId),
@@ -1823,7 +1790,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!existingContext) {
             userContextByGame.set(gameId, {
               eligibleCount: 0,
-              topMultiplierPlayers: [],
               ownedPlayers: [fallbackOwnedPlayer],
             });
             return;
@@ -1839,10 +1805,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
-          existingOwnedPlayer.multiplier = Math.max(
-            existingOwnedPlayer.multiplier,
-            fallbackOwnedPlayer.multiplier,
-          );
           existingOwnedPlayer.totalShares = Math.max(
             existingOwnedPlayer.totalShares,
             fallbackOwnedPlayer.totalShares,
@@ -1945,7 +1907,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userContext = userId
         ? {
             eligibleCount: baseUserContext?.eligibleCount || 0,
-            topMultiplierPlayers: baseUserContext?.topMultiplierPlayers || [],
             ownedPlayers: baseUserContext?.ownedPlayers || [],
             liveEarned:
               status === "scheduled" || status === "postponed"
@@ -3184,7 +3145,6 @@ ${items}
           currentPrice: position.marketPrice?.toFixed(2) ?? null,
         },
         quantity: position.singles.toFixed(2),
-        effectiveShares: position.singles.toFixed(2),
         singles: position.singles,
         value: position.marketValue?.toFixed(2) ?? null,
         pnl: position.unrealizedChange?.toFixed(2) ?? null,
@@ -3233,7 +3193,7 @@ ${items}
       }
 
       const portfolioMovers24h = Array.from(moverSharesByPlayer.entries())
-        .map(([playerId, effectiveShares]) => {
+        .map(([playerId, singles]) => {
           const position = portfolioValuation.positions.find((item) => item.playerId === playerId);
           const player = playerMap.get(playerId);
           if (!player || !position || position.marketPrice == null) {
@@ -3248,7 +3208,7 @@ ${items}
 
           const previousPrice =
             priceChange24h <= -100 ? 0 : currentPrice / (1 + priceChange24h / 100);
-          const valueGain24h = roundToTwo(effectiveShares * (currentPrice - previousPrice));
+          const valueGain24h = roundToTwo(singles * (currentPrice - previousPrice));
 
           if (!Number.isFinite(valueGain24h) || valueGain24h <= 0) {
             return null;
@@ -3261,7 +3221,7 @@ ${items}
               marketPrice: position.marketPrice,
               currentPrice: position.marketPrice.toFixed(2),
             },
-            effectiveShares,
+            singles,
             currentPrice: roundToTwo(currentPrice),
             priceChange24h: roundToTwo(priceChange24h),
             valueGain24h,
@@ -3275,7 +3235,7 @@ ${items}
               marketStatus: "priced" | "unpriced";
               marketPrice: number;
             };
-            effectiveShares: number;
+            singles: number;
             currentPrice: number;
             priceChange24h: number;
             valueGain24h: number;
@@ -3507,7 +3467,7 @@ ${items}
           storage.getAllHoldingsWithPlayers(userId),
         ]);
 
-        boostSlotsRemaining = Math.max(0, 5 - currentBoosts.length);
+        boostSlotsRemaining = Math.max(0, BOOST_SLOT_MULTIPLIERS.length - currentBoosts.length);
         const boostedPlayerIds = new Set(currentBoosts.map((boost) => boost.playerId));
 
         userHoldings = eligiblePlayers.map((holding) => ({
@@ -3515,7 +3475,7 @@ ${items}
           name: `${holding.player.firstName} ${holding.player.lastName}`.trim(),
           team: holding.player.team,
           availableShares: holding.availableShares,
-          totalShares: parseFloat(holding.effectiveShares || holding.quantity) || 0,
+          totalShares: parseFloat(holding.quantity) || 0,
           isBoosted: boostedPlayerIds.has(holding.player.id),
           gameId: holding.gameId,
         }));
@@ -8973,7 +8933,7 @@ ${items}
         avgFantasyPoints: r.avgFantasyPoints,
       }));
 
-      // Get position rankings using the effective-share rankings data
+      // Get position rankings using the market rankings data
       const positions = ["PG", "SG", "SF", "PF", "C"];
       const positionRankings = positions.map((position: string) => {
         const posPlayers = powerRankingsData
@@ -9517,8 +9477,12 @@ ${items}
       res.json({
         date: dateStr,
         boosts: enrichedBoosts,
-        slotsRemaining: 4 - boosts.length,
-        availableSlots: [5, 4, 3, 2].filter((tier) => !boosts.some((b) => b.slotTier === tier)),
+        slotsRemaining: DAILY_BOOST_SLOT_ORDER.filter(
+          (tier) => !boosts.some((b) => b.slotTier === tier),
+        ).length,
+        availableSlots: DAILY_BOOST_SLOT_ORDER.filter(
+          (tier) => !boosts.some((b) => b.slotTier === tier),
+        ),
       });
     } catch (error: any) {
       console.error("[daily-boosts/all] Error fetching boosts:", error);
@@ -9715,8 +9679,7 @@ ${items}
         playerId: ep.player.id,
         player: ep.player,
         availableShares: ep.availableShares,
-        effectiveShares: ep.effectiveShares,
-        totalShares: ep.effectiveShares,
+        totalShares: ep.quantity,
         gameId: ep.gameId,
         gameStartTime: ep.gameStartTime,
         isAlreadyBoosted: boostedPlayerIds.has(ep.player.id),
@@ -9996,8 +9959,12 @@ ${items}
         sport,
         date: dateStr,
         boosts: enrichedBoosts,
-        slotsRemaining: 4 - boosts.length,
-        availableSlots: [5, 4, 3, 2].filter((tier) => !boosts.some((b) => b.slotTier === tier)),
+        slotsRemaining: DAILY_BOOST_SLOT_ORDER.filter(
+          (tier) => !boosts.some((b) => b.slotTier === tier),
+        ).length,
+        availableSlots: DAILY_BOOST_SLOT_ORDER.filter(
+          (tier) => !boosts.some((b) => b.slotTier === tier),
+        ),
       });
     } catch (error: any) {
       console.error("[daily-boosts] Error fetching boosts:", error);

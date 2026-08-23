@@ -51,7 +51,6 @@ function detailRows(action: JsonRecord): Array<{ label: string; value: string }>
     ["maxShares", "Maximum shares"],
     ["maxPlayMoney", "Maximum play money"],
     ["lpShares", "LP shares"],
-    ["sharesToStack", "Shares to stack"],
     ["slotTier", "Boost slot"],
     ["boostDate", "Boost date"],
     ["sport", "Sport"],

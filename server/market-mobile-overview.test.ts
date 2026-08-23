@@ -67,7 +67,6 @@ function makeHoldingSummary(
     assetType: "player",
     assetId: player.id,
     quantity: overrides.quantity || "2",
-    effectiveShares: overrides.effectiveShares || overrides.quantity || "2",
     avgCostBasis: overrides.avgCostBasis || "10.00",
     totalCostBasis: overrides.totalCostBasis || "20.00",
     lastUpdated: overrides.lastUpdated || new Date("2026-03-08T00:00:00.000Z"),
@@ -223,7 +222,6 @@ describe("buildMobileMarketOverview", () => {
         id: "holding-1",
         userId: "user-1",
         quantity: "1",
-        effectiveShares: "1.00",
       }),
     ],
     getDailyBoostsAllSports: async () => [],
@@ -343,7 +341,7 @@ describe("buildMobileMarketOverview", () => {
 
     const personalBoost = overview.boostWindow.find((entry) => entry.playerId === "p3");
 
-    expect(overview.pulse.openBoostSlots).toBe(4);
+    expect(overview.pulse.openBoostSlots).toBe(5);
     expect(overview.marketIndicators.healthScore).toBeGreaterThan(0);
     expect(personalBoost?.availableShares).toBe(1);
     expect(personalBoost?.signal).toBe("boost");

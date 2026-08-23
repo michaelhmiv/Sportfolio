@@ -17,7 +17,7 @@ searchKeywords: scouts,share rewards,free shares,scout minutes,hourly distributi
 
 Scouts are your passive share-accumulation engine. Assign a scout to a player and it earns shares for you over time — no active trading required.
 
-> 💡 **Scouts mint player-share inventory, not cash.** Those shares feed your future trades, boost slots, and stacking pipeline.
+> 💡 **Scouts mint player-share inventory, not cash.** Those shares feed your future trades and Daily Boost slots.
 
 ---
 
@@ -99,12 +99,11 @@ The system automatically clears active scout assignments for accounts **inactive
 Scouts produce inventory that flows into the rest of your account:
 
 ```
-Scout → Player shares → Hold / Sell / Stack / Boost
+Scout → Player shares → Hold / Sell / Boost
 ```
 
 - **Hold** for price appreciation
 - **Sell** to realize SB
-- **Stack** to convert raw shares into boost-ready multipliers
 - **Use in boosts** to earn game-window payouts
 
 Scouts are the upstream supply engine. The better your scout allocation, the better your downstream options.
@@ -124,6 +123,6 @@ They're a compounding inventory tool. The users who treat them that way get the 
 
 ## Next Steps
 
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — what to do with the shares scouts build
+- [Daily Boosts](/wiki/gameplay/daily-boosts) — what to do with the shares scouts build
 - [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) — see your scout-earned inventory
 - [Premium](/wiki/features/premium) — expand to 10 scouts

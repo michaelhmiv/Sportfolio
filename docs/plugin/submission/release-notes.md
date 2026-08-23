@@ -4,7 +4,7 @@ This is the initial public submission of the full Sportfolio Companion experienc
 
 The app combines Sportfolio's shared public MCP capability registry with a Sportfolio-specific skill. It provides public documentation, player, and game research and lets users connect a Sportfolio account through OAuth 2.1 to review and manage supported virtual portfolio and gameplay workflows.
 
-Version 2 includes the existing Sportfolio staged-action system for virtual market buys and sells, scouting, share stacking, daily boosts, community boosts, and liquidity operations. These workflows produce a current preview and pending bundle, require explicit user confirmation, and execute only through `confirm_pending_action`; users may cancel with `cancel_pending_action`.
+Version 2 includes the existing Sportfolio staged-action system for virtual market buys and sells, scouting, Daily Boosts, community boosts, and liquidity operations. These workflows produce a current preview and pending bundle, require explicit user confirmation, and execute only through `confirm_pending_action`; users may cancel with `cancel_pending_action`.
 
 The app also includes supported authenticated watchlist, schedule, profile, onboarding, milestone, news, premium, and account controls from the shared site MCP surface. Private-data and write tools are OAuth-only, every tool declares explicit safety annotations and an output schema, and all responses pass through marketplace sanitization.
 

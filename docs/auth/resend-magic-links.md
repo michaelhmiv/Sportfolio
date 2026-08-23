@@ -15,4 +15,4 @@ Security properties:
 
 The webhook endpoint is `/api/webhooks/resend`. Configure it for `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed`, and `email.suppressed` after the sending domain is verified.
 
-Merging this implementation does not activate email delivery. Both application services remain on Supabase authentication until the shared-database migration, Resend credentials, verified sending domain, webhook secret, and dual-auth validation are complete.
+Better Auth is the active authentication provider. Email delivery is enabled only when the Resend credentials, verified sending domain, webhook secret, and `AUTH_MAGIC_LINK_ENABLED=true` are configured in the target Railway environment.

@@ -24,7 +24,7 @@ const sections = [
     icon: CheckCircle2,
     title: "Review consequential actions",
     items: [
-      "Virtual trades, scouting, share stacking, boosts, community boosts, and liquidity changes are staged before execution.",
+      "Virtual trades, scouting, Daily Boosts, community boosts, and liquidity changes are staged before execution.",
       "Review the exact player, quantity, virtual cost, balance or holdings impact, and warnings shown in the preview.",
       "Confirm only the pending action you reviewed. A staged preview is not a completed action.",
     ],

@@ -90,8 +90,6 @@ declare
     'vesting',
     'vesting_claims',
     'vesting_splits',
-    'player_multipliers',
-    'player_multiplier_events',
     'watch_list',
     'player_id_aliases',
     'contest_lineups',

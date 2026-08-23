@@ -17,6 +17,7 @@ const TEXT_EXTENSIONS = new Set([
   ".yaml",
 ]);
 const SKIP_PARTS = new Set(["node_modules", "dist", "build", "coverage", ".git"]);
+const EXCLUDED_FILES = new Set(["server/mcp/public-tool-registry.economy-v2.test.ts"]);
 const FORBIDDEN = [
   /playerMultipliers/g,
   /PlayerMultiplier/g,
@@ -61,6 +62,7 @@ for (const root of ROOTS) {
   }
   for (const file of files) {
     const rel = relative(ROOT, file).replaceAll("\\", "/");
+    if (EXCLUDED_FILES.has(rel)) continue;
     const text = await readFile(file, "utf8");
     const lines = text.split(/\r?\n/);
     lines.forEach((line, index) => {

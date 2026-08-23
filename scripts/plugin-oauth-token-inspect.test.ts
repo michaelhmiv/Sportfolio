@@ -5,14 +5,14 @@ describe("plugin OAuth token claim inspection", () => {
   it("accepts the expected issuer, audience, client, and lifetime", () => {
     const result = inspectPluginOAuthClaims({
       payload: {
-        iss: "https://example.supabase.co/auth/v1",
+        iss: "https://auth.example.test/api/auth/better",
         aud: "https://www.sportfolio.market/mcp/plugin",
         sub: "user-1",
         client_id: "client-1",
         exp: 2_000,
         nbf: 900,
       },
-      expectedIssuer: "https://example.supabase.co/auth/v1",
+      expectedIssuer: "https://auth.example.test/api/auth/better",
       expectedAudience: "https://www.sportfolio.market/mcp/plugin",
       expectedClientId: "client-1",
       nowSeconds: 1_000,
@@ -24,13 +24,13 @@ describe("plugin OAuth token claim inspection", () => {
   it("rejects wrong audience, wrong client, and expired tokens", () => {
     const result = inspectPluginOAuthClaims({
       payload: {
-        iss: "https://example.supabase.co/auth/v1",
+        iss: "https://auth.example.test/api/auth/better",
         aud: "authenticated",
         sub: "user-1",
         client_id: "other-client",
         exp: 999,
       },
-      expectedIssuer: "https://example.supabase.co/auth/v1",
+      expectedIssuer: "https://auth.example.test/api/auth/better",
       expectedAudience: "https://www.sportfolio.market/mcp/plugin",
       expectedClientId: "client-1",
       nowSeconds: 1_000,

@@ -82,7 +82,6 @@
     "public-tools:audit": "tsx scripts/audit-public-tool-policy.ts",
     "db:migrate:scout-claims": "node scripts/apply-scout-claims-migration.mjs",
     "audit:sports-semantics": "tsx scripts/audit-unified-sports-semantics.ts",
-    "audit:portfolio-valuations": "tsx scripts/audit-portfolio-valuations.ts",
     "governance:capabilities": "tsx scripts/public-capability-governance.ts check",
     "governance:capabilities:snapshot": "tsx scripts/public-capability-governance.ts snapshot",
     "governance:capabilities:update": "tsx scripts/public-capability-governance.ts update",
@@ -94,10 +93,7 @@
     "retired-surfaces:audit": "node scripts/audit-retired-surfaces.mjs",
     "nfl:backfill-boxscores": "tsx scripts/nfl-boxscore-backfill.ts",
     "retired-runtime:audit": "node scripts/audit-retired-runtime.mjs",
-    "db:migrate:economy-v2": "node scripts/apply-economy-v2-migration.mjs",
-    "db:migrate:amm-fractional-shares": "node scripts/apply-amm-fractional-share-migration.mjs",
-    "economy:simulate": "tsx scripts/simulate-economy-v2.ts",
-    "economy:calibrate": "tsx scripts/calibrate-economy-v2.ts"
+    "db:migrate:amm-fractional-shares": "node scripts/apply-amm-fractional-share-migration.mjs"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.6.25",
@@ -116,7 +112,6 @@
     "@capacitor/share": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
-    "@mariozechner/pi-ai": "^0.55.3",
     "@modelcontextprotocol/node": "2.0.0-beta.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@modelcontextprotocol/server": "2.0.0",
@@ -156,7 +151,6 @@
     "@radix-ui/react-visually-hidden": "^1.2.3",
     "@sentry/node": "^10.69.0",
     "@sentry/react": "^10.69.0",
-    "@sinclair/typebox": "^0.34.48",
     "@tanstack/react-query": "^5.60.5",
     "@types/canvas-confetti": "^1.9.0",
     "@types/pg": "^8.16.0",

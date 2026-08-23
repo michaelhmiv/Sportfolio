@@ -111,7 +111,7 @@ use the same four-decimal quantity, so a quote for less than one whole share is 
 Before selling, check:
 
 - Available shares after lock checks (locked shares can't be sold)
-- Whether the shares are raw or stacked - only raw shares are tradeable
+- How many Singles remain available after active reservations
 - Whether the player is relevant for an upcoming boost window
 - Whether you're selling into a thin pool and eating avoidable slippage
 
@@ -164,4 +164,4 @@ They are instant, transparent liquidity surfaces. Price reflects supply and dema
 
 - [Liquidity Providing](/wiki/gameplay/liquidity-providing) - LP mechanics in depth
 - [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) - how your positions are tracked
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) - what to do with the shares you accumulate
+- [Daily Boosts](/wiki/gameplay/daily-boosts) - what to do with the shares you accumulate

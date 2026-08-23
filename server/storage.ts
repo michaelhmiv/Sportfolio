@@ -174,9 +174,7 @@ export interface PlayerFinancialMetrics {
   };
 }
 
-export interface HoldingSummary extends Holding {
-  effectiveShares: string;
-}
+export type HoldingSummary = Holding;
 
 export interface HoldingWithPlayerSummary extends HoldingSummary {
   player: Player;
@@ -761,7 +759,7 @@ function toHoldingNumber(value: unknown): number {
 }
 
 function buildHoldingSummary(holding: Holding): HoldingSummary {
-  return { ...holding, effectiveShares: holding.quantity };
+  return holding;
 }
 
 const LEGACY_ACTIVITY_CATEGORIES: UserActivityCategory[] = ["market", "scout"];
@@ -6705,18 +6703,16 @@ export class DatabaseStorage implements IStorage {
       const totalLocked = lockedQuantities.get(player.id) || 0;
       const availableShares = parseFloat(holding.quantity) - totalLocked;
 
-      const effectiveShares = holding.quantity || "0.00";
-
       // Check if player is already boosted today
       const isBoosted = boostedPlayerIds.has(player.id);
 
       // Player is eligible if they have either:
       // 1. Available raw shares
-      // 2. Effective shares on the holding
+      // 2. Positive Singles on the holding
       // 3. An active boost for today (so we can show the "Boosted" / "Game Started" status)
-      const hasEffectiveShares = parseFloat(effectiveShares) > 0;
+      const hasSingles = parseFloat(holding.quantity || "0") > 0;
 
-      if (availableShares <= 0 && !hasEffectiveShares && !isBoosted) continue;
+      if (availableShares <= 0 && !hasSingles && !isBoosted) continue;
 
       result.push({
         ...buildHoldingSummary(holding),

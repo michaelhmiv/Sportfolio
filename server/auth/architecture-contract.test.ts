@@ -25,6 +25,6 @@ describe("passwordless authentication architecture contract", () => {
 
   it("records Better Auth as the sole authentication provider", () => {
     expect(adr).toContain("Better Auth is the sole authentication provider");
-    expect(adr).toContain("Supabase authentication, OAuth, fallback token acceptance");
+    expect(adr).toContain("Legacy authentication, fallback token acceptance");
   });
 });

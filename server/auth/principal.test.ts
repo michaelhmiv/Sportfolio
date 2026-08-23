@@ -21,10 +21,10 @@ describe("provider-neutral authentication principal", () => {
     const req = {} as Request;
     attachAuthPrincipal(req, {
       userId: "canonical-user",
-      provider: "supabase",
-      providerSubject: "supabase-subject",
+      provider: "better-auth",
+      providerSubject: "auth-subject",
     });
-    expect(getAuthPrincipal(req)?.providerSubject).toBe("supabase-subject");
+    expect(getAuthPrincipal(req)?.providerSubject).toBe("auth-subject");
     expect((req as Request & { user?: { claims: { sub: string } } }).user?.claims.sub).toBe(
       "canonical-user",
     );
