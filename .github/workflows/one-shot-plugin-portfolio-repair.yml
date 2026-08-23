@@ -27,7 +27,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply audited repair
-        run: node scripts/one-shot-plugin-portfolio-repair.mjs
+        run: python scripts/one-shot-plugin-portfolio-repair.py
       - name: Format changed source
         run: >-
           npx prettier --write
