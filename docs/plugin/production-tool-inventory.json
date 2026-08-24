@@ -1982,7 +1982,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: action_review",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2011,7 +2011,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: boosts",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2040,7 +2040,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: collections",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2069,7 +2069,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: dashboard",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2098,7 +2098,7 @@
       "sportScope": "MLB/NHL/NASCAR/NFL where supported",
       "underlyingService": "Plugin presentation renderer: game_insights",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2127,7 +2127,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: liquidity",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2156,7 +2156,7 @@
       "sportScope": "MLB/NHL/NASCAR/NFL where supported",
       "underlyingService": "Plugin presentation renderer: live_event",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2185,7 +2185,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: market_movers",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2214,7 +2214,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: player_market",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2243,7 +2243,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: portfolio",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2272,7 +2272,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: rankings",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2301,7 +2301,7 @@
       "sportScope": "MLB/NHL/NASCAR/NFL where supported",
       "underlyingService": "Plugin presentation renderer: score_slate",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2330,7 +2330,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: scouting",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2359,7 +2359,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: trade_preview",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
@@ -2388,7 +2388,7 @@
       "sportScope": "not sport-scoped",
       "underlyingService": "Plugin presentation renderer: watchlist",
       "callers": ["ChatGPT render routing", "Sportfolio MCP App widget"],
-      "uiResourceAssociation": "ui://sportfolio/app/0388c35c9094f5ee.html",
+      "uiResourceAssociation": "ui://sportfolio/app/f33616fe7b300f31.html",
       "responseSize": {
         "typicalBytes": null,
         "p95Bytes": null,
