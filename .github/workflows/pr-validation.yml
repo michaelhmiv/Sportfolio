@@ -1,5 +1,7 @@
 name: Code Validation
 
+# Keep main pushes visible to Railway's check-suite deployment gate.
+
 on:
   pull_request:
     branches:
