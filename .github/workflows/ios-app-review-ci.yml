@@ -26,6 +26,30 @@ on:
       - "server/routes/mobile-**"
       - "server/services/rewarded-scout-boost*"
 
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/ios-*.yml"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "mobile/ios/**"
+      - "mobile/README.md"
+      - "docs/ios-*.md"
+      - "scripts/fix-ios-spm-paths.mjs"
+      - "scripts/mobile-ios-doctor.mjs"
+      - "scripts/mobile-ios-privacy-manifest-audit.sh"
+      - "scripts/app-store-connect-submission-prep.mjs"
+      - "scripts/ios-app-store-screenshots.mjs"
+      - "client/src/**"
+      - "shared/**"
+      - "migrations/**"
+      - "server/auth/**"
+      - "server/profile/**"
+      - "server/routes/mobile-**"
+      - "server/services/rewarded-scout-boost*"
+
 permissions:
   contents: read
 
