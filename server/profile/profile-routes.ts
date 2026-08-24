@@ -4,7 +4,6 @@ import { optionalAuth } from "../auth/runtime-auth";
 import {
   blockUserProfile,
   getUserProfileBlockStatus,
-  isProfileBlockedForViewer,
   profileReportReasons,
   reportUserProfile,
   unblockUserProfile,
@@ -111,13 +110,6 @@ export function registerProfileRoutes(
     try {
       const requestedUserId = pathValueSchema.parse(req.params.userId);
       const viewerUserId = getViewerUserId(req);
-
-      if (await isProfileBlockedForViewer(viewerUserId, requestedUserId)) {
-        return res.status(404).json({
-          error: { code: "PROFILE_BLOCKED", message: "This profile is blocked." },
-        });
-      }
-
       const profile = await profileService.getPublicProfile(requestedUserId, viewerUserId);
       res.json(profile);
     } catch (error) {
