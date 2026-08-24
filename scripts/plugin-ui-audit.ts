@@ -118,6 +118,13 @@ const widgetSources = [
   hostSource,
 ].join("\n");
 
+if (widgetSources.includes("ui://sportfolio/action-review/v1.html")) {
+  errors.push("Widget source must not reference the inactive legacy action-review UI resource.");
+}
+if (/requestModal\\(\\s*\\{\\s*transactionId\\s*\\}\\s*,/.test(widgetSources)) {
+  errors.push("Widget action review must use the active shared UI resource.");
+}
+
 const registeredWidgetToolNames = new Set([
   ...buildPublicToolRegistry().map((tool) => tool.name),
   ...catalog.map((entry) => entry.name),
