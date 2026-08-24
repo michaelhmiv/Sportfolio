@@ -30,7 +30,6 @@ type LocalState = {
   draftAmount?: string;
 };
 
-const ACTION_REVIEW_URI = "ui://sportfolio/action-review/v1.html";
 const RANGES = ["1D", "7D", "1M", "1Y", "ALL"] as const;
 
 const CSS = `
@@ -347,7 +346,7 @@ function PlayerMarket(props: ReturnType<typeof usePresentation> & { payload: Pay
       );
       if (!transactionId) throw new Error("The staged trade did not return a transaction id.");
       try {
-        await requestModal({ transactionId }, ACTION_REVIEW_URI);
+        await requestModal({ transactionId });
         await load();
       } catch {
         const review = unwrap(await callTool("render_action_review", { transactionId }));
