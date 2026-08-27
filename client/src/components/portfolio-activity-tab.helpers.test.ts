@@ -4,6 +4,7 @@ import { USER_ACTIVITY_CATEGORIES } from "@shared/activity-feed";
 import type { UserActivityItem } from "@shared/activity-feed";
 
 import {
+  buildPortfolioActivityCategoryCounts,
   buildPortfolioActivityFeedQueryParams,
   buildPortfolioActivitySummary,
   filterPortfolioActivities,
@@ -106,7 +107,7 @@ describe("portfolio activity tab helpers", () => {
     ).toEqual([processedPayout]);
   });
 
-  it("counts only actual cash and gameplay activity when server summary is absent", () => {
+  it("counts only actual cash and gameplay events", () => {
     const activities: UserActivityItem[] = [
       {
         ...baseActivity,
@@ -154,54 +155,39 @@ describe("portfolio activity tab helpers", () => {
     });
   });
 
-  it("zeroes the legacy pending count when a clean server summary is available", () => {
-    expect(
-      buildPortfolioActivitySummary([], {
-        total: 42,
-        cashCount: 10,
-        pendingCount: 3,
-        gameplayCount: 19,
-      }),
-    ).toEqual({
-      total: 42,
-      cashCount: 10,
-      pendingCount: 0,
-      gameplayCount: 19,
-    });
-  });
+  it("keeps category counts aligned with displayed events", () => {
+    const activities: UserActivityItem[] = [
+      {
+        ...baseActivity,
+        id: "trade-1",
+        category: "market",
+        type: "trade_buy",
+        title: "Bought shares",
+        description: "Bought shares",
+      } as UserActivityItem,
+      {
+        ...baseActivity,
+        id: "processed-1",
+        category: "payouts",
+        type: "share_payout_processed",
+        title: "Holder payout credited",
+        description: "Credited payout",
+        status: "processed",
+      } as UserActivityItem,
+      {
+        ...baseActivity,
+        id: "pending-1",
+        category: "payouts",
+        type: "share_payout_pending",
+        title: "Holder payout pending",
+        description: "Queued payout",
+        status: "pending",
+      } as UserActivityItem,
+    ];
 
-  it("does not trust server totals when loaded rows contain legacy pending snapshots", () => {
-    const pendingPayout = {
-      ...baseActivity,
-      id: "pending-1",
-      category: "payouts",
-      type: "share_payout_pending",
-      title: "Holder payout pending",
-      description: "Queued payout",
-      status: "pending",
-    } as UserActivityItem;
-    const trade = {
-      ...baseActivity,
-      id: "trade-1",
-      category: "market",
-      type: "trade_buy",
-      title: "Bought shares",
-      description: "Bought shares",
-      cashDelta: "-10.00",
-    } as UserActivityItem;
-
-    expect(
-      buildPortfolioActivitySummary([pendingPayout, trade], {
-        total: 2,
-        cashCount: 1,
-        pendingCount: 1,
-        gameplayCount: 1,
-      }),
-    ).toEqual({
-      total: 1,
-      cashCount: 1,
-      pendingCount: 0,
-      gameplayCount: 0,
+    expect(buildPortfolioActivityCategoryCounts(activities)).toEqual({
+      market: 1,
+      payouts: 1,
     });
   });
 });
