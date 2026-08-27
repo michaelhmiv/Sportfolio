@@ -96,9 +96,8 @@ export function buildPortfolioActivitySummary(
 
   return {
     total: actualActivities.length,
-    cashCount: actualActivities.filter(
-      (activity) => Math.abs(Number(activity.cashDelta || 0)) > 0,
-    ).length,
+    cashCount: actualActivities.filter((activity) => Math.abs(Number(activity.cashDelta || 0)) > 0)
+      .length,
     pendingCount: 0,
     gameplayCount: actualActivities.filter((activity) => GAMEPLAY_CATEGORIES.has(activity.category))
       .length,
