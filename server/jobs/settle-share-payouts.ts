@@ -115,7 +115,11 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
 
     return { requestCount, recordsProcessed: processed, errorCount };
   } catch (error: unknown) {
-    reportSettlementError("Base payout settlement failed before game processing", error, progressCallback);
+    reportSettlementError(
+      "Base payout settlement failed before game processing",
+      error,
+      progressCallback,
+    );
     return { requestCount, recordsProcessed: processed, errorCount: errorCount + 1 };
   }
 }
