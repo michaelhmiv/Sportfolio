@@ -7,6 +7,36 @@ import { sendUserNotification } from "../services/notification-dispatcher";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
+function logBoostLockError(message: string, error: unknown, context: Record<string, unknown> = {}) {
+  const resolvedError = error instanceof Error ? error : new Error(String(error));
+  const databaseError = resolvedError as Error & {
+    code?: string;
+    detail?: string;
+    constraint?: string;
+    table?: string;
+    column?: string;
+  };
+
+  console.error(
+    JSON.stringify({
+      level: "error",
+      job: "lock_boost_shares",
+      message,
+      ...context,
+      error: {
+        name: databaseError.name,
+        message: databaseError.message,
+        code: databaseError.code,
+        detail: databaseError.detail,
+        constraint: databaseError.constraint,
+        table: databaseError.table,
+        column: databaseError.column,
+        stack: databaseError.stack,
+      },
+    }),
+  );
+}
+
 export async function lockBoostShares(progressCallback?: ProgressCallback): Promise<JobResult> {
   const lockingSoonWindowMinutes = Math.max(
     5,
@@ -87,18 +117,28 @@ export async function lockBoostShares(progressCallback?: ProgressCallback): Prom
           timestamp: new Date().toISOString(),
           message: `Locked ${boost.slotTier}x Boost ${boost.id}; burned ${locked.sharesBurned.toFixed(4)} Singles`,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         errorCount++;
+        const detail = error instanceof Error ? error.message : String(error);
+        logBoostLockError("Boost share lock failed", error, {
+          boostId: boost.id,
+          userId: boost.userId,
+          playerId: boost.playerId,
+          gameId: boost.gameId,
+          sport: boost.sport,
+          slotTier: boost.slotTier,
+        });
         progressCallback?.({
           type: "error",
           timestamp: new Date().toISOString(),
-          message: `Error locking boost ${boost.id}: ${error?.message || error}`,
+          message: `Error locking boost ${boost.id}: ${detail}`,
         });
       }
     }
 
     return { requestCount: activeBoosts.length, recordsProcessed: boostsLocked, errorCount };
-  } catch {
+  } catch (error: unknown) {
+    logBoostLockError("Boost share lock job failed before item processing", error);
     return { requestCount: 0, recordsProcessed: boostsLocked, errorCount: errorCount + 1 };
   }
 }
