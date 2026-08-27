@@ -87,15 +87,18 @@ export function buildPortfolioActivitySummary(
   // Preserve server totals only when no such rows are present in the loaded page;
   // otherwise derive a truthful visible summary. Pending is retained in the shared
   // response contract for compatibility, but the Activity Ledger always reports zero.
-  const containsPendingSnapshots = activities.some((activity) => !isActualPortfolioActivity(activity));
+  const containsPendingSnapshots = activities.some(
+    (activity) => !isActualPortfolioActivity(activity),
+  );
   if (summary && !containsPendingSnapshots) {
     return { ...summary, pendingCount: 0 };
   }
 
   return {
     total: actualActivities.length,
-    cashCount: actualActivities.filter((activity) => Math.abs(Number(activity.cashDelta || 0)) > 0)
-      .length,
+    cashCount: actualActivities.filter(
+      (activity) => Math.abs(Number(activity.cashDelta || 0)) > 0,
+    ).length,
     pendingCount: 0,
     gameplayCount: actualActivities.filter((activity) => GAMEPLAY_CATEGORIES.has(activity.category))
       .length,
