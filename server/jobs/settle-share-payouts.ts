@@ -5,6 +5,59 @@ import { broadcast } from "../websocket";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
+function serializeSettlementError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return { message: String(error) };
+  }
+
+  const databaseError = error as Error & {
+    code?: string;
+    detail?: string;
+    constraint?: string;
+    table?: string;
+    column?: string;
+  };
+
+  return {
+    name: databaseError.name,
+    message: databaseError.message,
+    code: databaseError.code,
+    detail: databaseError.detail,
+    constraint: databaseError.constraint,
+    table: databaseError.table,
+    column: databaseError.column,
+    stack: databaseError.stack,
+  };
+}
+
+function reportSettlementError(
+  message: string,
+  error: unknown,
+  progressCallback?: ProgressCallback,
+  context: Record<string, unknown> = {},
+) {
+  const serialized = serializeSettlementError(error);
+  const detail = serialized.message || String(error);
+
+  // Scheduled jobs do not receive an admin progress callback, so this log is the
+  // authoritative production error path. Keep it structured for Railway/Sentry searchability.
+  console.error(
+    JSON.stringify({
+      level: "error",
+      job: "settle_share_payouts",
+      message,
+      ...context,
+      error: serialized,
+    }),
+  );
+
+  progressCallback?.({
+    type: "error",
+    timestamp: new Date().toISOString(),
+    message: `${message}: ${detail}`,
+  });
+}
+
 export async function settleSharePayouts(progressCallback?: ProgressCallback): Promise<JobResult> {
   let processed = 0;
   let requestCount = 0;
@@ -18,12 +71,13 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
     progressCallback?.({
       type: "info",
       timestamp: new Date().toISOString(),
-      message: `Economy V2 base settlement checking ${pending.length} user snapshots across ${gameIds.length} games`,
+      message: `Base payout settlement checking ${pending.length} user snapshots across ${gameIds.length} games`,
     });
 
     for (const gameId of gameIds) {
+      let game: Awaited<ReturnType<typeof storage.getDailyGameByGameId>> | undefined;
       try {
-        const game = await storage.getDailyGameByGameId(gameId);
+        game = await storage.getDailyGameByGameId(gameId);
         requestCount++;
         if (!game) continue;
         if (resolveEconomySeasonPhase({ seasonType: game.seasonType }) === "preseason") continue;
@@ -45,21 +99,23 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
           progressCallback?.({
             type: "info",
             timestamp: new Date().toISOString(),
-            message: `Settled ${result.userPayouts} capped base payouts for ${gameId} (${result.sbIssued.toFixed(2)} SB issued)`,
+            message: `Settled ${result.userPayouts} base payouts for ${gameId} (${result.sbIssued.toFixed(2)} SB issued)`,
           });
         }
-      } catch (err: any) {
+      } catch (error: unknown) {
         errorCount++;
-        progressCallback?.({
-          type: "error",
-          timestamp: new Date().toISOString(),
-          message: `Economy V2 base settlement failed for game ${gameId}: ${err?.message || err}`,
+        reportSettlementError("Base payout settlement failed for game", error, progressCallback, {
+          gameId,
+          sport: game?.sport,
+          status: game?.status,
+          seasonType: game?.seasonType,
         });
       }
     }
 
     return { requestCount, recordsProcessed: processed, errorCount };
-  } catch {
+  } catch (error: unknown) {
+    reportSettlementError("Base payout settlement failed before game processing", error, progressCallback);
     return { requestCount, recordsProcessed: processed, errorCount: errorCount + 1 };
   }
 }
