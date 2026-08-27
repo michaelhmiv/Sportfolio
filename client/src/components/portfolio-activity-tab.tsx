@@ -56,7 +56,6 @@ const CATEGORY_OPTIONS: Array<{ value: PortfolioActivityCategoryFilter; label: s
 const FOCUS_OPTIONS: Array<{ value: PortfolioActivityFocusFilter; label: string }> = [
   { value: "all", label: "Everything" },
   { value: "cash", label: "Cash only" },
-  { value: "pending", label: "Pending" },
   { value: "gameplay", label: "Gameplay" },
 ];
 
@@ -118,8 +117,6 @@ function getStatusLabel(status?: string) {
       return "Locked";
     case "processed":
       return "Processed";
-    case "pending":
-      return "Pending";
     case "cancelled":
       return "Cancelled";
     default:
@@ -332,11 +329,10 @@ export function PortfolioActivityTab() {
           <div className="text-[11px] text-muted-foreground">{summary.total} events</div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2">
           {[
             { label: "Total", value: summary.total },
             { label: "Cash", value: summary.cashCount },
-            { label: "Pending", value: summary.pendingCount },
             { label: "Gameplay", value: summary.gameplayCount },
           ].map((item) => (
             <div key={item.label} className="rounded-control border bg-muted/20 px-3 py-2">
