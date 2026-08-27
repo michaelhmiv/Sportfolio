@@ -6,15 +6,20 @@ import {
 } from "@shared/activity-feed";
 
 export type PortfolioActivityCategoryFilter = "all" | UserActivityCategory;
-export type PortfolioActivityFocusFilter = "all" | "cash" | "pending" | "gameplay";
+export type PortfolioActivityFocusFilter = "all" | "cash" | "gameplay";
 
-const PENDING_STATUSES = new Set(["pending", "active", "locked"]);
 const GAMEPLAY_CATEGORIES = new Set<UserActivityCategory>([
   "scout",
   "boosts",
   "community",
   "payouts",
 ]);
+
+export function isActualPortfolioActivity(activity: UserActivityItem) {
+  // Pending holder payouts are state snapshots, not completed user/system actions.
+  // Keep real actions whose current state may be active/locked (for example a Daily Boost entry).
+  return activity.type !== "share_payout_pending";
+}
 
 export function buildPortfolioActivityFeedQueryParams(offset: number) {
   return new URLSearchParams({
@@ -35,18 +40,15 @@ export function filterPortfolioActivities(
   const search = filters.search.trim().toLowerCase();
 
   return activities.filter((activity) => {
+    if (!isActualPortfolioActivity(activity)) {
+      return false;
+    }
+
     if (filters.category !== "all" && activity.category !== filters.category) {
       return false;
     }
 
     if (filters.focus === "cash" && Math.abs(Number(activity.cashDelta || 0)) === 0) {
-      return false;
-    }
-
-    if (
-      filters.focus === "pending" &&
-      !PENDING_STATUSES.has(String(activity.status || "").toLowerCase())
-    ) {
       return false;
     }
 
@@ -79,18 +81,23 @@ export function buildPortfolioActivitySummary(
   activities: UserActivityItem[],
   summary?: UserActivityFeedSummary,
 ): UserActivityFeedSummary {
-  if (summary) {
-    return summary;
+  const actualActivities = activities.filter(isActualPortfolioActivity);
+
+  // The backend summary may temporarily include legacy pending payout snapshots.
+  // Preserve server totals only when no such rows are present in the loaded page;
+  // otherwise derive a truthful visible summary. Pending is retained in the shared
+  // response contract for compatibility, but the Activity Ledger always reports zero.
+  const containsPendingSnapshots = activities.some((activity) => !isActualPortfolioActivity(activity));
+  if (summary && !containsPendingSnapshots) {
+    return { ...summary, pendingCount: 0 };
   }
 
   return {
-    total: activities.length,
-    cashCount: activities.filter((activity) => Math.abs(Number(activity.cashDelta || 0)) > 0)
+    total: actualActivities.length,
+    cashCount: actualActivities.filter((activity) => Math.abs(Number(activity.cashDelta || 0)) > 0)
       .length,
-    pendingCount: activities.filter((activity) =>
-      PENDING_STATUSES.has(String(activity.status || "").toLowerCase()),
-    ).length,
-    gameplayCount: activities.filter((activity) => GAMEPLAY_CATEGORIES.has(activity.category))
+    pendingCount: 0,
+    gameplayCount: actualActivities.filter((activity) => GAMEPLAY_CATEGORIES.has(activity.category))
       .length,
   };
 }
