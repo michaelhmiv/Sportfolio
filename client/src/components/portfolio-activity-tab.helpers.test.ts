@@ -4,9 +4,11 @@ import { USER_ACTIVITY_CATEGORIES } from "@shared/activity-feed";
 import type { UserActivityItem } from "@shared/activity-feed";
 
 import {
+  buildPortfolioActivityCategoryCounts,
   buildPortfolioActivityFeedQueryParams,
   buildPortfolioActivitySummary,
   filterPortfolioActivities,
+  isActualPortfolioActivity,
 } from "@/components/portfolio-activity-tab.helpers";
 
 const baseActivity = {
@@ -26,7 +28,7 @@ describe("portfolio activity tab helpers", () => {
     expect(params.get("types")?.split(",")).toEqual(USER_ACTIVITY_CATEGORIES);
   });
 
-  it("filters by category, focus, and search text", () => {
+  it("keeps a real boost action even when its current status is locked", () => {
     const activities: UserActivityItem[] = [
       {
         ...baseActivity,
@@ -56,13 +58,56 @@ describe("portfolio activity tab helpers", () => {
     expect(
       filterPortfolioActivities(activities, {
         category: "boosts",
-        focus: "pending",
+        focus: "gameplay",
         search: "amen",
       }).map((activity) => activity.id),
     ).toEqual(["boost-1"]);
   });
 
-  it("counts cash and gameplay activity when server summary is absent", () => {
+  it("excludes synthetic pending payout snapshots from every Activity Ledger view", () => {
+    const pendingPayout = {
+      ...baseActivity,
+      id: "holder-payout-pending",
+      category: "payouts",
+      type: "share_payout_pending",
+      title: "Holder payout pending",
+      description: "Queued holder payout",
+      status: "pending",
+    } as UserActivityItem;
+
+    expect(isActualPortfolioActivity(pendingPayout)).toBe(false);
+    expect(
+      filterPortfolioActivities([pendingPayout], {
+        category: "all",
+        focus: "all",
+        search: "",
+      }),
+    ).toEqual([]);
+  });
+
+  it("includes an actual processed holder payout", () => {
+    const processedPayout = {
+      ...baseActivity,
+      id: "holder-payout-processed",
+      category: "payouts",
+      type: "share_payout_processed",
+      title: "Holder payout credited",
+      description: "Credited holder payout",
+      status: "processed",
+      cashDelta: "12.50",
+    } as UserActivityItem;
+
+    expect(isActualPortfolioActivity(processedPayout)).toBe(true);
+    expect(
+      filterPortfolioActivities([processedPayout], {
+        category: "payouts",
+        focus: "cash",
+        search: "credited",
+      }),
+    ).toEqual([processedPayout]);
+  });
+
+  it("counts only actual cash and gameplay events", () => {
     const activities: UserActivityItem[] = [
       {
         ...baseActivity,
@@ -91,29 +136,58 @@ describe("portfolio activity tab helpers", () => {
         description: "Boost",
         status: "active",
       } as UserActivityItem,
+      {
+        ...baseActivity,
+        id: "pending-1",
+        category: "payouts",
+        type: "share_payout_pending",
+        title: "Holder payout pending",
+        description: "Queued payout",
+        status: "pending",
+      } as UserActivityItem,
     ];
 
     expect(buildPortfolioActivitySummary(activities)).toEqual({
       total: 3,
       cashCount: 1,
-      pendingCount: 1,
+      pendingCount: 0,
       gameplayCount: 2,
     });
   });
 
-  it("prefers server-provided summary counts when available", () => {
-    expect(
-      buildPortfolioActivitySummary([], {
-        total: 42,
-        cashCount: 10,
-        pendingCount: 3,
-        gameplayCount: 19,
-      }),
-    ).toEqual({
-      total: 42,
-      cashCount: 10,
-      pendingCount: 3,
-      gameplayCount: 19,
+  it("keeps category counts aligned with displayed events", () => {
+    const activities: UserActivityItem[] = [
+      {
+        ...baseActivity,
+        id: "trade-1",
+        category: "market",
+        type: "trade_buy",
+        title: "Bought shares",
+        description: "Bought shares",
+      } as UserActivityItem,
+      {
+        ...baseActivity,
+        id: "processed-1",
+        category: "payouts",
+        type: "share_payout_processed",
+        title: "Holder payout credited",
+        description: "Credited payout",
+        status: "processed",
+      } as UserActivityItem,
+      {
+        ...baseActivity,
+        id: "pending-1",
+        category: "payouts",
+        type: "share_payout_pending",
+        title: "Holder payout pending",
+        description: "Queued payout",
+        status: "pending",
+      } as UserActivityItem,
+    ];
+
+    expect(buildPortfolioActivityCategoryCounts(activities)).toEqual({
+      market: 1,
+      payouts: 1,
     });
   });
 });

@@ -35,6 +35,51 @@ const joeyPosition = {
   globalScoutCount: 0,
 };
 
+const activityPayload = {
+  activities: [
+    {
+      id: "payout-pending-1",
+      timestamp: "2026-08-25T12:00:00.000Z",
+      category: "payouts",
+      type: "share_payout_pending",
+      title: "Holder payout pending",
+      description: "Queued holder payout for Joey Logano",
+      status: "pending",
+      metadata: { playerName: "Joey Logano", payoutAmount: "0.00" },
+    },
+    {
+      id: "payout-processed-1",
+      timestamp: "2026-08-25T13:00:00.000Z",
+      category: "payouts",
+      type: "share_payout_processed",
+      title: "Holder payout credited",
+      description: "Credited holder payout for Joey Logano",
+      cashDelta: "12.50",
+      status: "processed",
+      metadata: { playerName: "Joey Logano", payoutAmount: "12.50" },
+    },
+    {
+      id: "boost-locked-1",
+      timestamp: "2026-08-25T14:00:00.000Z",
+      category: "boosts",
+      type: "boost_entered",
+      title: "Entered daily boost",
+      description: "Entered 5x boost on Joey Logano",
+      status: "locked",
+      entity: { kind: "boosts", label: "Joey Logano", href: "/boosts" },
+      context: { summary: "5x Daily Boost slot" },
+      metadata: { playerName: "Joey Logano", slotTier: 5 },
+    },
+  ],
+  total: 3,
+  limit: 40,
+  offset: 0,
+  hasMore: false,
+  nextOffset: null,
+  categoryCounts: { payouts: 2, boosts: 1 },
+  summary: { total: 3, cashCount: 1, pendingCount: 1, gameplayCount: 3 },
+};
+
 async function mockValuationApis(page: Page) {
   await page.addInitScript(() => {
     // Enter protected routes immediately while the mocked auth query settles.
@@ -141,6 +186,7 @@ async function mockValuationApis(page: Page) {
         isPremium: false,
       });
     }
+    if (path === "/api/activity") return json(activityPayload);
     if (path === "/api/lp/positions") return json([]);
     if (path === "/api/daily-boosts/eligible-all") return json({ eligiblePlayers: [] });
     if (path === "/api/premium/market-data") {
@@ -239,4 +285,26 @@ test("AMM valuation stays consistent across player, portfolio, leaderboard, and 
 
   await page.goto("/player/nascar_unpriced");
   await expect(page.getByTestId("text-current-price")).toHaveText("Unpriced");
+});
+
+test("portfolio Activity Ledger hides pending state but keeps real actions on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockValuationApis(page);
+  await page.goto("/portfolio");
+
+  await page.getByRole("tab", { name: "Activity" }).click();
+  await expect(page.getByText("Activity Ledger")).toBeVisible();
+  await expect(page.getByText("2 events", { exact: true })).toBeVisible();
+
+  await expect(page.getByText("Holder payout pending", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Pending", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Holder payout credited", { exact: true })).toBeVisible();
+  await expect(page.getByText("Entered daily boost", { exact: true })).toBeVisible();
+  await expect(page.getByText("Locked", { exact: true })).toBeVisible();
+
+  await expect(page.getByRole("button", { name: /Payouts/ })).toContainText("1");
+  await expect(page.getByRole("button", { name: /Boosts/ })).toContainText("1");
+  await expect(page.getByRole("combobox").last()).not.toContainText("Pending");
 });
