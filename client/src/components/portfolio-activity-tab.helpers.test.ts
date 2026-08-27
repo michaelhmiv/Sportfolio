@@ -7,6 +7,7 @@ import {
   buildPortfolioActivityFeedQueryParams,
   buildPortfolioActivitySummary,
   filterPortfolioActivities,
+  isActualPortfolioActivity,
 } from "@/components/portfolio-activity-tab.helpers";
 
 const baseActivity = {
@@ -26,7 +27,7 @@ describe("portfolio activity tab helpers", () => {
     expect(params.get("types")?.split(",")).toEqual(USER_ACTIVITY_CATEGORIES);
   });
 
-  it("filters by category, focus, and search text", () => {
+  it("keeps a real boost action even when its current status is locked", () => {
     const activities: UserActivityItem[] = [
       {
         ...baseActivity,
@@ -56,13 +57,56 @@ describe("portfolio activity tab helpers", () => {
     expect(
       filterPortfolioActivities(activities, {
         category: "boosts",
-        focus: "pending",
+        focus: "gameplay",
         search: "amen",
       }).map((activity) => activity.id),
     ).toEqual(["boost-1"]);
   });
 
-  it("counts cash and gameplay activity when server summary is absent", () => {
+  it("excludes synthetic pending payout snapshots from every Activity Ledger view", () => {
+    const pendingPayout = {
+      ...baseActivity,
+      id: "holder-payout-pending",
+      category: "payouts",
+      type: "share_payout_pending",
+      title: "Holder payout pending",
+      description: "Queued holder payout",
+      status: "pending",
+    } as UserActivityItem;
+
+    expect(isActualPortfolioActivity(pendingPayout)).toBe(false);
+    expect(
+      filterPortfolioActivities([pendingPayout], {
+        category: "all",
+        focus: "all",
+        search: "",
+      }),
+    ).toEqual([]);
+  });
+
+  it("includes an actual processed holder payout", () => {
+    const processedPayout = {
+      ...baseActivity,
+      id: "holder-payout-processed",
+      category: "payouts",
+      type: "share_payout_processed",
+      title: "Holder payout credited",
+      description: "Credited holder payout",
+      status: "processed",
+      cashDelta: "12.50",
+    } as UserActivityItem;
+
+    expect(isActualPortfolioActivity(processedPayout)).toBe(true);
+    expect(
+      filterPortfolioActivities([processedPayout], {
+        category: "payouts",
+        focus: "cash",
+        search: "credited",
+      }),
+    ).toEqual([processedPayout]);
+  });
+
+  it("counts only actual cash and gameplay activity when server summary is absent", () => {
     const activities: UserActivityItem[] = [
       {
         ...baseActivity,
@@ -91,17 +135,26 @@ describe("portfolio activity tab helpers", () => {
         description: "Boost",
         status: "active",
       } as UserActivityItem,
+      {
+        ...baseActivity,
+        id: "pending-1",
+        category: "payouts",
+        type: "share_payout_pending",
+        title: "Holder payout pending",
+        description: "Queued payout",
+        status: "pending",
+      } as UserActivityItem,
     ];
 
     expect(buildPortfolioActivitySummary(activities)).toEqual({
       total: 3,
       cashCount: 1,
-      pendingCount: 1,
+      pendingCount: 0,
       gameplayCount: 2,
     });
   });
 
-  it("prefers server-provided summary counts when available", () => {
+  it("zeroes the legacy pending count when a clean server summary is available", () => {
     expect(
       buildPortfolioActivitySummary([], {
         total: 42,
@@ -112,8 +165,43 @@ describe("portfolio activity tab helpers", () => {
     ).toEqual({
       total: 42,
       cashCount: 10,
-      pendingCount: 3,
+      pendingCount: 0,
       gameplayCount: 19,
+    });
+  });
+
+  it("does not trust server totals when loaded rows contain legacy pending snapshots", () => {
+    const pendingPayout = {
+      ...baseActivity,
+      id: "pending-1",
+      category: "payouts",
+      type: "share_payout_pending",
+      title: "Holder payout pending",
+      description: "Queued payout",
+      status: "pending",
+    } as UserActivityItem;
+    const trade = {
+      ...baseActivity,
+      id: "trade-1",
+      category: "market",
+      type: "trade_buy",
+      title: "Bought shares",
+      description: "Bought shares",
+      cashDelta: "-10.00",
+    } as UserActivityItem;
+
+    expect(
+      buildPortfolioActivitySummary([pendingPayout, trade], {
+        total: 2,
+        cashCount: 1,
+        pendingCount: 1,
+        gameplayCount: 1,
+      }),
+    ).toEqual({
+      total: 1,
+      cashCount: 1,
+      pendingCount: 0,
+      gameplayCount: 0,
     });
   });
 });
