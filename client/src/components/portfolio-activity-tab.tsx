@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 
 import {
+  buildPortfolioActivityCategoryCounts,
   buildPortfolioActivityFeedQueryParams,
   buildPortfolioActivitySummary,
   filterPortfolioActivities,
@@ -267,23 +268,18 @@ export function PortfolioActivityTab() {
     });
 
   const pages = data?.pages || [];
-  const summary = buildPortfolioActivitySummary(
-    pages.flatMap((page) => page.activities),
-    pages[0]?.summary,
-  );
-  const categoryCounts = pages[0]?.categoryCounts || {};
+  const activities = pages.flatMap((page) => page.activities);
+  const summary = buildPortfolioActivitySummary(activities);
+  const categoryCounts = buildPortfolioActivityCategoryCounts(activities);
 
   const filteredActivities = useMemo(
     () =>
-      filterPortfolioActivities(
-        pages.flatMap((page) => page.activities),
-        {
-          category,
-          focus,
-          search,
-        },
-      ),
-    [category, focus, pages, search],
+      filterPortfolioActivities(activities, {
+        category,
+        focus,
+        search,
+      }),
+    [activities, category, focus, search],
   );
 
   if (isLoading) {
