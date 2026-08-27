@@ -79,20 +79,8 @@ export function filterPortfolioActivities(
 
 export function buildPortfolioActivitySummary(
   activities: UserActivityItem[],
-  summary?: UserActivityFeedSummary,
 ): UserActivityFeedSummary {
   const actualActivities = activities.filter(isActualPortfolioActivity);
-
-  // The backend summary may temporarily include legacy pending payout snapshots.
-  // Preserve server totals only when no such rows are present in the loaded page;
-  // otherwise derive a truthful visible summary. Pending is retained in the shared
-  // response contract for compatibility, but the Activity Ledger always reports zero.
-  const containsPendingSnapshots = activities.some(
-    (activity) => !isActualPortfolioActivity(activity),
-  );
-  if (summary && !containsPendingSnapshots) {
-    return { ...summary, pendingCount: 0 };
-  }
 
   return {
     total: actualActivities.length,
@@ -102,4 +90,19 @@ export function buildPortfolioActivitySummary(
     gameplayCount: actualActivities.filter((activity) => GAMEPLAY_CATEGORIES.has(activity.category))
       .length,
   };
+}
+
+export function buildPortfolioActivityCategoryCounts(
+  activities: UserActivityItem[],
+): Partial<Record<UserActivityCategory, number>> {
+  const counts: Partial<Record<UserActivityCategory, number>> = {};
+
+  for (const activity of activities) {
+    if (!isActualPortfolioActivity(activity)) {
+      continue;
+    }
+    counts[activity.category] = (counts[activity.category] || 0) + 1;
+  }
+
+  return counts;
 }
