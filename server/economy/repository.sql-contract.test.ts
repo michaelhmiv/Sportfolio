@@ -9,31 +9,43 @@ const repositorySource = readFileSync(
 
 describe("economy repository PostgreSQL SQL contracts", () => {
   it("types base-settlement jsonb metadata parameters explicitly", () => {
-    expect(repositorySource).toContain("'economyVersion', ${ECONOMY_VERSION}::text");
-    expect(repositorySource).toContain("'gameEpsSb', ${decimal(math.gameEpsSb, 8)}::numeric");
-    expect(repositorySource).toContain("'seasonPhase', ${seasonPhase}::text");
-    expect(repositorySource).toContain("'economyClass', ${economyClass}::text");
+    const fragments = [
+      "'economyVersion', ${ECONOMY_VERSION}::text",
+      "'gameEpsSb', ${decimal(math.gameEpsSb, 8)}::numeric",
+      "'seasonPhase', ${seasonPhase}::text",
+      "'economyClass', ${economyClass}::text",
+    ];
+
+    for (const fragment of fragments) {
+      expect(repositorySource).toContain(fragment);
+    }
   });
 
   it("types direct-share Daily Boost jsonb metadata parameters explicitly", () => {
-    expect(repositorySource).toContain("'boostId', ${boostId}::text");
-    expect(repositorySource).toContain("'economyVersion', ${ECONOMY_VERSION}::text");
-    expect(repositorySource).toContain("'slotTier', ${Number(row.slot_tier)}::integer");
-    expect(repositorySource).toContain(
+    const fragments = [
+      "'boostId', ${boostId}::text",
+      "'economyVersion', ${ECONOMY_VERSION}::text",
+      "'slotTier', ${Number(row.slot_tier)}::integer",
       "'communityBoostCount', ${Math.max(0, communityBoostCount)}::integer",
-    );
-    expect(repositorySource).toContain("'gameEpsSb', ${decimal(gameEpsSb, 8)}::numeric");
+      "'gameEpsSb', ${decimal(gameEpsSb, 8)}::numeric",
+    ];
+
+    for (const fragment of fragments) {
+      expect(repositorySource).toContain(fragment);
+    }
   });
 
   it("retains the exactly-once settlement guards", () => {
-    expect(repositorySource).toContain(
+    const guards = [
       "SELECT status FROM player_game_earnings WHERE id = ${row.earnings_id} FOR UPDATE",
-    );
-    expect(repositorySource).toContain("AND sp.status = 'pending'");
-    expect(repositorySource).toContain(
+      "AND sp.status = 'pending'",
       "WHERE sp.id = payable.id AND sp.status = 'pending'",
-    );
-    expect(repositorySource).toContain("status = 'processed'");
-    expect(repositorySource).toContain("ON CONFLICT (boost_id) DO NOTHING");
+      "status = 'processed'",
+      "ON CONFLICT (boost_id) DO NOTHING",
+    ];
+
+    for (const guard of guards) {
+      expect(repositorySource).toContain(guard);
+    }
   });
 });
