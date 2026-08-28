@@ -1,28 +1,27 @@
-# Apple Sign In Metadata (Archived)
+# Apple Sign In Metadata — Retired
 
-Last updated: 2026-05-28
-Owner: Sportfolio iOS/Auth
+Last reviewed: 2026-08-11
+Status: retired
+Owner: Sportfolio Auth
 
-## Purpose
+## Current State
 
-Sportfolio's active authentication path is Better Auth passwordless email with Railway
-PostgreSQL. Sign in with Apple is not an active production provider. This file remains only as
-an archival pointer for a future, separately approved provider integration.
+Sportfolio no longer uses the former Supabase-backed Sign in with Apple configuration described by earlier versions of this document.
 
-Do not store private key files (`.p8`), client secrets, or provider credentials in this repository.
+Current public authentication is Sportfolio-owned passwordless email sign-in. Native iOS authentication uses the one-time email flow and the `sportfolio://auth/callback` handoff implemented by the current native-auth stack.
 
-## Current Configuration
+Do not use this document as an instruction to restore Supabase, Apple OAuth credentials, an Apple Services ID, or a Sign in with Apple provider. Those components are not part of the current public authentication architecture.
 
-No Apple provider configuration is active in the current deployment. Any future Apple
-configuration must be recorded in the approved secret/configuration system and wired through
-Better Auth without reintroducing a retired provider or fallback.
+## App Store Implication
 
-## Rotation / Maintenance
+The current iOS release should be reviewed and tested against the passwordless email flow documented in:
 
-- If Apple is approved in a future auth release, rotate its provider credentials through the
-  approved secret manager and verify the Better Auth callback in a private browser session.
+- `docs/ios-publish-readiness-v1-checklist.md`
+- `docs/ios-readiness-audit.md`
+- `mobile/ios/App/fastlane/metadata/review_information/notes.txt`
 
-## Storage Policy
+If Sportfolio intentionally adds a qualifying third-party/social login method in the future, reevaluate Apple's current login-service requirements at that time and create new configuration documentation from the then-current implementation.
 
-- Keep `.p8` files in a secure secret manager or encrypted vault.
-- Keep generated client secrets in secret stores only (not Git, not docs, not issue comments).
+## Secret Policy
+
+Do not commit Apple private keys (`.p8`), generated OAuth client secrets, App Store Connect private keys, signing certificate passwords, magic-link tokens, or other authentication credentials to this repository.

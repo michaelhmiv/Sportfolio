@@ -1,6 +1,13 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { optionalAuth } from "../auth/runtime-auth";
+import {
+  blockUserProfile,
+  getUserProfileBlockStatus,
+  profileReportReasons,
+  reportUserProfile,
+  unblockUserProfile,
+} from "./profile-safety";
 import type { PublicProfileService, TrophyCaseEditorService } from "./profile-service";
 
 function getViewerUserId(req: Request): string | null {
@@ -25,6 +32,15 @@ const trophyCaseBodySchema = z
   })
   .strict();
 
+const usernameSchema = z.string().trim().min(1).max(30);
+const profileSafetyTargetSchema = z.object({ username: usernameSchema }).strict();
+const profileReportBodySchema = z
+  .object({
+    username: usernameSchema,
+    reason: z.enum(profileReportReasons),
+    details: z.string().trim().max(1500).optional(),
+  })
+  .strict();
 const pathValueSchema = z.string().trim().min(1).max(200);
 
 function sendError(res: Response, error: unknown): void {
@@ -50,6 +66,16 @@ function sendError(res: Response, error: unknown): void {
     res
       .status(401)
       .json({ error: { code: "UNAUTHENTICATED", message: "Authentication required" } });
+    return;
+  }
+
+  if (e?.statusCode === 400) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_REQUEST",
+        message: e.message || "Request was invalid",
+      },
+    });
     return;
   }
 
@@ -84,9 +110,53 @@ export function registerProfileRoutes(
     try {
       const requestedUserId = pathValueSchema.parse(req.params.userId);
       const viewerUserId = getViewerUserId(req);
-
       const profile = await profileService.getPublicProfile(requestedUserId, viewerUserId);
       res.json(profile);
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  // ── profile safety / UGC controls (authenticated) ──────────────────────
+  app.post("/api/profile-safety/report", optionalAuth, async (req, res) => {
+    try {
+      const reporterUserId = getRequiredUserId(req);
+      const body = profileReportBodySchema.parse(req.body);
+      const result = await reportUserProfile({ reporterUserId, ...body });
+      res.status(201).json({ success: true, ...result });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.post("/api/profile-safety/block", optionalAuth, async (req, res) => {
+    try {
+      const blockerUserId = getRequiredUserId(req);
+      const body = profileSafetyTargetSchema.parse(req.body);
+      const result = await blockUserProfile({ blockerUserId, username: body.username });
+      res.json({ success: true, blocked: true, ...result });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.delete("/api/profile-safety/block", optionalAuth, async (req, res) => {
+    try {
+      const blockerUserId = getRequiredUserId(req);
+      const body = profileSafetyTargetSchema.parse(req.body);
+      const result = await unblockUserProfile({ blockerUserId, username: body.username });
+      res.json({ success: true, blocked: false, ...result });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get("/api/profile-safety/block-status", optionalAuth, async (req, res) => {
+    try {
+      const blockerUserId = getRequiredUserId(req);
+      const username = usernameSchema.parse(req.query.username);
+      const result = await getUserProfileBlockStatus({ blockerUserId, username });
+      res.json(result);
     } catch (error) {
       sendError(res, error);
     }

@@ -19,6 +19,15 @@ const sections = [
     ],
   },
   {
+    id: "public-profiles-and-safety",
+    title: "Public Profiles and Safety Controls",
+    body: [
+      "If your Sportfolio profile is public, other users may see user-selected profile information such as your username, profile image, and eligible public trophy-case content. You can change supported profile visibility settings from your account controls.",
+      "Signed-in users can report public profile content for moderation review and can block another user's public profile from their own account. A profile report stores the reporting user, the reported account, the selected reason, optional report details, and a snapshot of the reported username and profile-image reference so the report can be investigated even if the profile later changes.",
+      "A block records the relationship between the blocking account and blocked account and is used to hide that user's public profile content from the blocker. Blocks can be removed by the blocking user.",
+    ],
+  },
+  {
     id: "connected-ai-app",
     title: "ChatGPT and Codex App",
     body: [
@@ -27,6 +36,16 @@ const sections = [
       "The app does not expose passwords, API keys, authentication codes, access tokens, refresh tokens, payment credentials, or private service configuration through ordinary tool results.",
       "OpenAI receives the tool inputs and results necessary to provide the connected experience under OpenAI's applicable terms and privacy practices. Sportfolio does not use connected-app conversations or tool inputs to train an independent AI model.",
       "You can revoke a ChatGPT or Codex OAuth grant from Sportfolio's Connected Applications page.",
+    ],
+  },
+  {
+    id: "rewarded-advertising",
+    title: "Rewarded Advertising",
+    body: [
+      "Sportfolio's native mobile apps may offer optional rewarded ads through Google Mobile Ads. A user may choose to watch a rewarded ad to receive a temporary virtual gameplay benefit, such as additional scout capacity. The reward is optional and is not a cash prize or redeemable item.",
+      "For the current rewarded scout boost flow, Sportfolio requests non-personalized ad serving. Google and participating advertising providers may still process information needed to deliver, measure, secure, and prevent abuse of ads, such as device or network information, approximate location derived from network information, diagnostics, and ad interactions, subject to their applicable privacy practices.",
+      "After a rewarded ad is shown, Sportfolio may retain limited ad diagnostic context on the device, such as the ad response identifier, mediation adapter name, platform, and time shown. This context is used to help identify an ad if the user chooses Support > Report an ad. It is not used by Sportfolio to build an advertising profile.",
+      "Users can report inappropriate or age-inappropriate ads through the in-app Support page. Reports may include the available ad diagnostic context so Sportfolio can investigate the ad with the advertising provider.",
     ],
   },
   {
@@ -51,7 +70,7 @@ const sections = [
     id: "third-party-services",
     title: "Third-Party Services",
     body: [
-      "Sportfolio uses service providers for authentication, hosting, databases, monitoring, payments, communications, sports data, and connected-app delivery. These providers process information subject to their own terms and our applicable agreements with them.",
+      "Sportfolio uses service providers for authentication, hosting, databases, monitoring, payments, communications, advertising, sports data, and connected-app delivery. These providers process information subject to their own terms and our applicable agreements with them.",
       "Public sports information may originate from third-party or unofficial sports data sources and may be delayed, incomplete, or corrected after publication.",
     ],
   },
@@ -59,7 +78,7 @@ const sections = [
     id: "rights-and-controls",
     title: "Your Rights and Controls",
     body: [
-      "You may access or modify available profile information through account settings or supported connected-app tools, revoke connected applications, and request deletion through the dedicated Delete Account page.",
+      "You may access or modify available profile information through account settings or supported connected-app tools, change supported public-profile visibility, report or block public profiles, revoke connected applications, and request deletion through the dedicated Delete Account page.",
       "For other privacy requests, contact Sportfolio support. We may need to verify your identity before fulfilling a request.",
     ],
   },
@@ -67,7 +86,7 @@ const sections = [
     id: "cookies-and-storage",
     title: "Cookies and Local Storage",
     body: [
-      "Sportfolio uses cookies, local storage, and similar technologies to maintain authentication sessions, preserve preferences, support native and web functionality, and protect the service.",
+      "Sportfolio uses cookies, local storage, and similar technologies to maintain authentication sessions, preserve preferences, support native and web functionality, retain limited rewarded-ad report context, and protect the service.",
       "Disabling required storage may prevent authentication, OAuth consent, or other essential features from working.",
     ],
   },
@@ -76,7 +95,7 @@ const sections = [
     title: "Data Retention",
     body: [
       "We retain account and gameplay data while an account remains active and as reasonably necessary to provide historical activity, resolve disputes, enforce agreements, meet legal obligations, and maintain platform integrity.",
-      "Pending action records, transaction history, audit records, and account-change records may be retained as reasonably necessary to prevent duplicate execution, investigate errors or abuse, and preserve gameplay integrity.",
+      "Pending action records, transaction history, audit records, profile-safety reports and blocks, and account-change records may be retained as reasonably necessary to prevent duplicate execution, investigate errors or abuse, preserve safety controls, and maintain gameplay integrity.",
       "Account deletion remains subject to legitimate legal, security, fraud-prevention, backup, and record-retention requirements.",
     ],
   },
@@ -107,15 +126,15 @@ export default function Privacy() {
     <DocumentShell
       title="Privacy Policy"
       summary="How Sportfolio collects, uses, shares, retains, and safeguards account and gameplay information."
-      effectiveDate="August 6, 2026"
+      effectiveDate="August 24, 2026"
       sections={sections}
     >
       {sections.map((section) => (
         <DocumentSection key={section.id} id={section.id} title={section.title}>
           {section.id === "contact" ? (
             <p>
-              Questions about this policy, data access, connected applications, or account deletion
-              may be sent to{" "}
+              Questions about this policy, data access, connected applications, advertising, ad
+              reports, profile safety, or account deletion may be sent to{" "}
               <a
                 className="font-medium text-brand underline underline-offset-4"
                 href={`mailto:${SPORTFOLIO_SUPPORT_EMAIL}`}
