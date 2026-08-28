@@ -273,10 +273,12 @@ export async function settleBaseEarningsForGame(
           SELECT
             'base_player_earnings', updated.user_id, ${row.player_id}, ${game.gameId},
             updated.payout_amount::numeric, 0,
-            jsonb_build_object('economyVersion', ${ECONOMY_VERSION}, 'gameEpsSb', ${decimal(
-              math.gameEpsSb,
-              8,
-            )}, 'seasonPhase', ${seasonPhase}, 'economyClass', ${economyClass})
+            jsonb_build_object(
+              'economyVersion', ${ECONOMY_VERSION}::text,
+              'gameEpsSb', ${decimal(math.gameEpsSb, 8)}::numeric,
+              'seasonPhase', ${seasonPhase}::text,
+              'economyClass', ${economyClass}::text
+            )
           FROM updated
           RETURNING id
         )
@@ -390,7 +392,11 @@ export async function lockDirectShareBoost(
       INSERT INTO economy_events (event_type, user_id, player_id, game_id, sb_delta, shares_delta, metadata)
       VALUES (
         'boost_share_burn', ${boost.user_id}, ${boost.player_id}, ${game.gameId}, 0,
-        ${decimal(-sharesBurned, 4)}, jsonb_build_object('boostId', ${boostId}, 'economyVersion', ${ECONOMY_VERSION})
+        ${decimal(-sharesBurned, 4)},
+        jsonb_build_object(
+          'boostId', ${boostId}::text,
+          'economyVersion', ${ECONOMY_VERSION}::text
+        )
       )
     `);
     return { locked: true, sharesBurned };
@@ -480,12 +486,11 @@ export async function settleDirectShareBoost(
       VALUES (
         'boost_bonus', ${row.user_id}, ${row.player_id}, ${row.game_id}, ${decimal(actualBonus, 4)}, 0,
         jsonb_build_object(
-          'boostId', ${boostId}, 'economyVersion', ${ECONOMY_VERSION}, 'slotTier', ${Number(
-            row.slot_tier,
-          )}, 'communityBoostCount', ${Math.max(0, communityBoostCount)}, 'gameEpsSb', ${decimal(
-            gameEpsSb,
-            8,
-          )}
+          'boostId', ${boostId}::text,
+          'economyVersion', ${ECONOMY_VERSION}::text,
+          'slotTier', ${Number(row.slot_tier)}::integer,
+          'communityBoostCount', ${Math.max(0, communityBoostCount)}::integer,
+          'gameEpsSb', ${decimal(gameEpsSb, 8)}::numeric
         )
       )
     `);
