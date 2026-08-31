@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const storageMocks = vi.hoisted(() => ({
   getPlayersByIds: vi.fn(),
+  getPlayerGameStats: vi.fn(),
   upsertPlayer: vi.fn(),
   upsertPlayerGameStats: vi.fn(),
   updateDailyGameStatus: vi.fn(),
@@ -17,6 +18,7 @@ const nascarApiMocks = vi.hoisted(() => ({
 vi.mock("../storage", () => ({
   storage: {
     getPlayersByIds: storageMocks.getPlayersByIds,
+    getPlayerGameStats: storageMocks.getPlayerGameStats,
     upsertPlayer: storageMocks.upsertPlayer,
     upsertPlayerGameStats: storageMocks.upsertPlayerGameStats,
     updateDailyGameStatus: storageMocks.updateDailyGameStatus,
@@ -75,6 +77,7 @@ describe("syncNascarRaceResults", () => {
     storageMocks.getPlayersByIds.mockImplementation(async (ids: string[]) =>
       ids.map((id) => ({ id })),
     );
+    storageMocks.getPlayerGameStats.mockResolvedValue(undefined);
     storageMocks.upsertPlayer.mockResolvedValue(undefined);
     storageMocks.upsertPlayerGameStats.mockResolvedValue(undefined);
     storageMocks.updateDailyGameStatus.mockResolvedValue(undefined);
@@ -107,6 +110,43 @@ describe("syncNascarRaceResults", () => {
       recordsProcessed: 1,
       errorCount: 0,
     });
+  });
+
+  it("preserves safe live analytics while final result fields stay authoritative", async () => {
+    storageMocks.getPlayerGameStats.mockResolvedValue({
+      statsJson: {
+        runningPosition: 2,
+        averageRunningPosition: 5.8,
+        averageSpeed: 147.2,
+        bestLapSpeed: 181.4,
+        flagState: 1,
+        lapsToGo: 10,
+      },
+    });
+
+    const { syncNascarRaceResults } = await import("./sync-nascar-stats");
+    await syncNascarRaceResults(
+      2026,
+      1 as any,
+      5621,
+      new Date("2026-05-10T22:00:00.000Z"),
+    );
+
+    const stored = storageMocks.upsertPlayerGameStats.mock.calls[0][0];
+    expect(stored.statsJson).toMatchObject({
+      finishPosition: 1,
+      averageRunningPosition: 5.8,
+      averageSpeed: 147.2,
+      bestLapSpeed: 181.4,
+      performance: {
+        resultPosition: 1,
+        averageRunningPosition: 5.8,
+        resultDelta: 4.8,
+      },
+    });
+    expect(stored.statsJson).not.toHaveProperty("runningPosition");
+    expect(stored.statsJson).not.toHaveProperty("flagState");
+    expect(stored.statsJson).not.toHaveProperty("lapsToGo");
   });
 
   it("admits an unseen historical race participant as a permanent inactive asset", async () => {
@@ -207,6 +247,7 @@ describe("syncNascarStats", () => {
     storageMocks.getPlayersByIds.mockImplementation(async (ids: string[]) =>
       ids.map((id) => ({ id })),
     );
+    storageMocks.getPlayerGameStats.mockResolvedValue(undefined);
     storageMocks.upsertPlayer.mockResolvedValue(undefined);
     storageMocks.upsertPlayerGameStats.mockResolvedValue(undefined);
     storageMocks.updateDailyGameStatus.mockResolvedValue(undefined);

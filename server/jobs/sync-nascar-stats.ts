@@ -17,6 +17,7 @@ import {
   NascarSeriesId,
   NascarRaceResult,
 } from "../nascar-api";
+import { mergeNascarFinalStats } from "../nascar-performance";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -210,6 +211,14 @@ export async function syncNascarRaceResults(
           );
         }
 
+        // The final result remains authoritative. Carry forward only explicitly safe
+        // analytical context from the live row; never preserve live race-state fields.
+        const existingStats = await storage.getPlayerGameStats(statsData.playerId, statsData.gameId);
+        const mergedStatsJson = mergeNascarFinalStats(
+          existingStats?.statsJson,
+          statsData.statsJson,
+        );
+
         await storage.upsertPlayerGameStats({
           playerId: statsData.playerId,
           gameId: statsData.gameId,
@@ -219,7 +228,7 @@ export async function syncNascarRaceResults(
           season: statsData.season,
           opponentTeam: "",
           homeAway: "neutral",
-          statsJson: statsData.statsJson,
+          statsJson: mergedStatsJson,
           minutes: 0,
           points: result.finishPosition,
           fieldGoalsMade: 0,
