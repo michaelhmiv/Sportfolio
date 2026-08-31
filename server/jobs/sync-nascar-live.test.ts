@@ -132,7 +132,7 @@ describe("syncNascarLiveForSeries", () => {
     expect(storageMocks.upsertPlayerGameStats).not.toHaveBeenCalled();
   });
 
-  it("processes race sessions and includes runType in persisted stats", async () => {
+  it("processes race sessions, persists analytics, and leaves live fantasy scoring unchanged", async () => {
     nascarApiMocks.fetchLiveFeed.mockResolvedValue(buildLiveFeed({ run_type: 3, flag_state: 4 }));
     nascarApiMocks.isNascarRaceSession.mockReturnValue(true);
     nascarApiMocks.isNascarRaceFinished.mockReturnValue(true);
@@ -146,6 +146,13 @@ describe("syncNascarLiveForSeries", () => {
 
     const [firstCallArg] = storageMocks.upsertPlayerGameStats.mock.calls[0];
     expect(firstCallArg.statsJson.runType).toBe(3);
+    expect(firstCallArg.statsJson.performance).toMatchObject({
+      averageRunningPosition: 1,
+      resultPosition: 1,
+      resultDelta: 0,
+    });
+    // Existing formula: 100 position + 25 leader + 15 led-a-lap + 0.5 lap-led.
+    expect(firstCallArg.fantasyPoints).toBe("140.5");
   });
 
   it("upserts missing local drivers before writing live stats", async () => {
