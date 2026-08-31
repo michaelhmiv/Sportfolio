@@ -89,7 +89,9 @@ export function deriveNascarPerformance(source: unknown): NascarPerformanceMetri
   const averageSpeed = firstNumber(nested.averageSpeed, root.averageSpeed, root.average_speed);
   const finishPosition = positiveNumberOrNull(root.finishPosition ?? root.finish_position);
   const runningPosition = positiveNumberOrNull(root.runningPosition ?? root.running_position);
-  const resultPosition = firstNumber(nested.resultPosition, finishPosition, runningPosition);
+  // Explicit root race positions are authoritative over a nested value preserved from
+  // an earlier live snapshot. This is what keeps final results final after reconciliation.
+  const resultPosition = firstNumber(finishPosition, runningPosition, nested.resultPosition);
   const lapsCompleted = firstNumber(root.lapsCompleted, root.laps_completed);
   const fastestLaps = firstNumber(
     root.fastestLaps,
@@ -264,9 +266,9 @@ export function buildNascarWeekendDriverContexts(
         context.practice = normalizeSessionResult(session.runName || "Practice", vehicle);
       } else if (session.runType === 2) {
         context.qualifying = normalizeSessionResult(session.runName || "Qualifying", vehicle);
-      } else if (session.runType === 3) {
-        context.startingPosition = positiveNumberOrNull(vehicle?.starting_position);
       }
+      // Do not infer a starting grid from weekend-feed race rows. The current provider
+      // transformation does not carry an authoritative race starting position there.
     }
   }
 
