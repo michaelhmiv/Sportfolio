@@ -109,6 +109,10 @@ export function registerNascarContextRoutes(app: Express): void {
             const statsJson = (stored.statsJson || {}) as Record<string, any>;
             const hasFinalResult = Number(statsJson.finishPosition) > 0;
             if (!hasFinalResult) return;
+            const storedStart = Number(statsJson.startPosition);
+            if (!context.startingPosition && Number.isFinite(storedStart) && storedStart > 0) {
+              context.startingPosition = storedStart;
+            }
             context.performance = deriveNascarPerformance(statsJson);
             context.performanceState = "final";
           } catch {
