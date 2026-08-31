@@ -11,6 +11,7 @@ import { registerDiscordRoutes } from "./discord";
 import { registerDocsRoutes } from "./docs";
 import { registerLpRoutes } from "./lp";
 import { registerMcpRoutes } from "./mcp";
+import { registerNascarContextRoutes } from "./nascar-context";
 import { registerNotificationRoutes } from "./notifications";
 import { registerPluginMcpRoutes } from "./plugin-mcp";
 import { registerPluginOAuthMetadataRoutes } from "./plugin-oauth-metadata";
@@ -46,6 +47,7 @@ export function registerDomainRoutes(app: Express): void {
   registerNotificationRoutes(app);
   registerRedditBotRoutes(app);
   registerMcpRoutes(app);
+  registerNascarContextRoutes(app);
   registerProfileRoutes(app, profileService, editorService);
   registerPublicIdentityRoutes(app, publicIdentityService);
 }
