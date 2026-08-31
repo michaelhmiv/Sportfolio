@@ -20,6 +20,7 @@ import {
   isNascarRaceFinished,
   countNascarLapsLed,
 } from "../nascar-api";
+import { deriveNascarPerformance } from "../nascar-performance";
 import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -146,7 +147,7 @@ async function convertLiveFeedToStats(
     const lapsLedCount = countNascarLapsLed(vehicle.laps_led, liveFeed.lap_number);
     const fastestLaps = Math.max(0, Number(vehicle.fastest_laps_run) || 0);
 
-    // Calculate live fantasy points
+    // Calculate live fantasy points. Keep this formula isolated from the analytics layer.
     let liveFantasyPoints = 0;
     liveFantasyPoints += (41 - vehicle.running_position) * 2.5; // Position points
     if (vehicle.running_position === 1) liveFantasyPoints += 25; // Leader bonus
@@ -177,6 +178,8 @@ async function convertLiveFeedToStats(
       bestLap: vehicle.best_lap,
       bestLapSpeed: vehicle.best_lap_speed,
       bestLapTime: vehicle.best_lap_time,
+      // Additive scouting/performance context. This never participates in scoring.
+      performance: deriveNascarPerformance(vehicle),
       // Time gap
       delta: vehicle.delta,
       // Car info
