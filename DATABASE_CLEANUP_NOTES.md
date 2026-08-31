@@ -13,3 +13,7 @@ Jan 25 NBA games now showing correctly:
 - 6 other scheduled games
 
 NFL playoff fix already committed (dates[] instead of weeks[]).
+
+## Production economy note (2026-08-31)
+
+PR #471 fixes PostgreSQL parameter typing in payout settlement and direct-share Daily Boost economy event metadata. This repair is code-only and does not require rerunning the retired/destructive Economy V2 migration.
