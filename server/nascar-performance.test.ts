@@ -66,6 +66,10 @@ describe("mergeNascarFinalStats", () => {
         isOnTrack: true,
         lapsCompleted: 190,
         fastestLaps: 12,
+        performance: {
+          resultPosition: 2,
+          averageRunningPosition: 5.8,
+        },
       },
       {
         finishPosition: 27,
@@ -172,9 +176,11 @@ describe("buildNascarWeekendDriverContexts", () => {
     expect(drivers.find((driver) => driver.driverId === 10)).toMatchObject({
       practice: { position: 4, bestLapSpeed: 176.8 },
       qualifying: { sessionName: "Qualifying Round 2", position: 7, bestLapSpeed: 178.6 },
+      startingPosition: null,
     });
     expect(drivers.find((driver) => driver.driverId === 11)).toMatchObject({
       qualifying: { sessionName: "Qualifying Round 1", position: 18, bestLapSpeed: 176.2 },
+      startingPosition: null,
     });
   });
 });
@@ -196,7 +202,7 @@ describe("NASCAR fantasy scoring regression", () => {
       status: "Finished",
     });
 
-    // 95 base + 10 top-3 + 15 led-a-lap + 10 laps-led + 16 fastest-lap points.
-    expect(points).toBe(146);
+    // 95 base + 10 top-3 + 5 top-10 + 15 led-a-lap + 10 laps-led + 16 fast laps.
+    expect(points).toBe(151);
   });
 });
