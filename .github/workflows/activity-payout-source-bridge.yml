@@ -1,0 +1,49 @@
+name: Activity payout source bridge
+
+on:
+  pull_request_target:
+    types: [edited]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  patch:
+    if: >-
+      github.repository == 'michaelhmiv/Sportfolio' &&
+      github.event.pull_request.number == 477 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/activity-processed-payouts-source'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted same-repo PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/activity-processed-payouts-source
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Apply exact asserted source patch
+        run: python tasks/apply_activity_source_fix.py
+      - name: Remove one-shot tooling
+        run: |
+          rm -f .github/workflows/activity-payout-source-one-shot.yml
+          rm -f tasks/apply_activity_source_fix.py
+          rm -f tasks/activity-processed-payouts-source.md
+          git diff --check
+      - name: Validate focused source contract
+        run: |
+          npm ci
+          npx vitest run server/activity-feed.pending-payout.contract.test.ts
+          npm run check
+      - name: Commit source fix to PR branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Filter pending payouts from Activity source"
+          git push origin HEAD:fix/activity-processed-payouts-source
