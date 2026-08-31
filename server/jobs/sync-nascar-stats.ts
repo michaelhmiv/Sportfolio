@@ -310,7 +310,7 @@ export async function syncNascarStats(progressCallback?: ProgressCallback): Prom
 
   const now = new Date();
   const lookbackStart = new Date(now);
-  lookbackStart.setDate(now.getDate() - NASCAR_RESULTS_LOOKBACK_DAYS);
+  lookbackStart.setDate(lookbackStart.getDate() - NASCAR_RESULTS_LOOKBACK_DAYS);
 
   const recentRaces = schedule.filter((race) => {
     const raceDate = parseNascarEtDateTime(race.race_date);
