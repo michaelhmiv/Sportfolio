@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { PlayerModal } from "@/components/player-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,51 @@ interface DashboardShowcaseCardProps {
   onNavigate: (href: string) => void;
 }
 
+interface NascarSessionContext {
+  sessionName: string;
+  position: number | null;
+  bestLapSpeed: number | null;
+  bestLapTime: string | null;
+  bestLapNumber: number | null;
+}
+
+interface NascarPerformanceContext {
+  averageRunningPosition: number | null;
+  averageSpeed: number | null;
+  resultPosition: number | null;
+  resultDelta: number | null;
+  fastLapPct: number | null;
+  passesMade: number | null;
+  timesPassed: number | null;
+  passingDifferential: number | null;
+  qualityPasses: number | null;
+  top15Laps: number | null;
+  top15Pct: number | null;
+  driverRating: number | null;
+  averageRestartSpeed: number | null;
+}
+
+interface NascarDriverContext {
+  playerId: string;
+  driverId: number;
+  driverName: string;
+  practice: NascarSessionContext | null;
+  qualifying: NascarSessionContext | null;
+  startingPosition: number | null;
+  performance: NascarPerformanceContext | null;
+  performanceState: "live" | "final" | null;
+}
+
+interface NascarRaceContextResponse {
+  gameId: string;
+  raceId: number;
+  seriesId: number;
+  year: number;
+  trackName: string | null;
+  raceName: string | null;
+  drivers: NascarDriverContext[];
+}
+
 const stateValueFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
@@ -66,6 +112,58 @@ function formatStateValue(row: DashboardShowcaseExposureRow) {
 
   const suffix = row.valueKind === "avg" ? "avg" : "FP";
   return `${stateValueFormatter.format(row.value)} ${suffix}`;
+}
+
+function formatSignedMetric(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}`;
+}
+
+function formatNascarContextLines(context: NascarDriverContext | null | undefined) {
+  if (!context) return [];
+
+  const weekend: string[] = [];
+  if (context.practice?.position) {
+    weekend.push(
+      `P${context.practice.position}${
+        typeof context.practice.bestLapSpeed === "number"
+          ? ` ${context.practice.bestLapSpeed.toFixed(1)} mph`
+          : ""
+      }`,
+    );
+  }
+  if (context.qualifying?.position) {
+    weekend.push(
+      `Q${context.qualifying.position}${
+        typeof context.qualifying.bestLapSpeed === "number"
+          ? ` ${context.qualifying.bestLapSpeed.toFixed(1)} mph`
+          : ""
+      }`,
+    );
+  }
+  if (context.startingPosition) {
+    weekend.push(`Start P${context.startingPosition}`);
+  }
+
+  const performance: string[] = [];
+  if (typeof context.performance?.averageRunningPosition === "number") {
+    performance.push(`Avg ${context.performance.averageRunningPosition.toFixed(1)}`);
+  }
+  const resultDelta = formatSignedMetric(context.performance?.resultDelta);
+  if (resultDelta) performance.push(`Result Δ ${resultDelta}`);
+  if (typeof context.performance?.fastLapPct === "number") {
+    performance.push(`Fast ${context.performance.fastLapPct.toFixed(1)}%`);
+  }
+  const passDelta = formatSignedMetric(context.performance?.passingDifferential);
+  if (passDelta) performance.push(`Pass Δ ${passDelta}`);
+  if (typeof context.performance?.top15Pct === "number") {
+    performance.push(`Top15 ${context.performance.top15Pct.toFixed(0)}%`);
+  }
+  if (typeof context.performance?.driverRating === "number") {
+    performance.push(`Rating ${context.performance.driverRating.toFixed(1)}`);
+  }
+
+  return [weekend.join(" · "), performance.join(" · ")].filter(Boolean);
 }
 
 function MetricPill({ label, value }: { label: string; value: string }) {
@@ -108,10 +206,12 @@ function ExposureRow({
   row,
   mode,
   onOpenPlayer,
+  nascarContext,
 }: {
   row: DashboardShowcaseExposureRow;
   mode: DashboardShowcaseTab;
   onOpenPlayer: (playerId: string) => void;
+  nascarContext?: NascarDriverContext | null;
 }) {
   const badgeLabel =
     mode === "missing" ? "GAP" : mode === "top" ? "TOP" : row.isEarning ? "EARN" : "OWN";
@@ -121,6 +221,7 @@ function ExposureRow({
       : row.isEarning
         ? "text-emerald-500"
         : "text-muted-foreground";
+  const nascarContextLines = formatNascarContextLines(nascarContext);
 
   return (
     <button
@@ -134,6 +235,15 @@ function ExposureRow({
           {row.team} | {row.contextLabel} | {formatStartLabel(row.startTime, row.status)}
         </div>
         <div className="mt-0.5 truncate text-[9px] text-muted-foreground">{row.detail}</div>
+        {nascarContextLines.map((line) => (
+          <div
+            key={line}
+            className="mt-0.5 truncate font-mono text-[9px] text-foreground/80"
+            title={line}
+          >
+            {line}
+          </div>
+        ))}
       </div>
 
       <div className="shrink-0 text-right">
@@ -189,6 +299,46 @@ export function DashboardShowcaseCard({
   const [activeTab, setActiveTab] = useState<DashboardShowcaseTab>(defaultTab);
   const [playerModalOpen, setPlayerModalOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+
+  const contextRace = useMemo(() => {
+    if (!isNascar || races.length === 0) return null;
+    const priority: Record<DashboardShowcaseRace["status"], number> = {
+      inprogress: 0,
+      scheduled: 1,
+      completed: 2,
+    };
+    return [...races].sort((left, right) => {
+      const statusDelta = priority[left.status] - priority[right.status];
+      if (statusDelta !== 0) return statusDelta;
+      return new Date(left.raceDate).getTime() - new Date(right.raceDate).getTime();
+    })[0];
+  }, [isNascar, races]);
+
+  const { data: nascarRaceContext } = useQuery<NascarRaceContextResponse>({
+    queryKey: [
+      "/api/nascar/races/context",
+      contextRace?.raceId || null,
+      selectedDate.getFullYear(),
+    ],
+    enabled: isNascar && Boolean(contextRace?.raceId),
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/nascar/races/${encodeURIComponent(contextRace!.raceId)}/context?year=${selectedDate.getFullYear()}`,
+      );
+      if (!response.ok) {
+        throw new Error(`NASCAR context request failed: ${response.status}`);
+      }
+      return response.json();
+    },
+    staleTime: contextRace?.status === "inprogress" ? 15_000 : 120_000,
+    refetchInterval: contextRace?.status === "inprogress" ? 30_000 : false,
+    retry: 1,
+  });
+
+  const nascarContextByPlayerId = useMemo(
+    () => new Map((nascarRaceContext?.drivers || []).map((driver) => [driver.playerId, driver])),
+    [nascarRaceContext],
+  );
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -295,7 +445,13 @@ export function DashboardShowcaseCard({
         <div className="max-h-[24svh] space-y-1 overflow-y-auto pr-1 md:max-h-[240px]">
           {activeRows.length > 0 ? (
             activeRows.map((row) => (
-              <ExposureRow key={row.id} row={row} mode={activeTab} onOpenPlayer={openPlayerModal} />
+              <ExposureRow
+                key={row.id}
+                row={row}
+                mode={activeTab}
+                onOpenPlayer={openPlayerModal}
+                nascarContext={isNascar ? nascarContextByPlayerId.get(row.playerId) : null}
+              />
             ))
           ) : (
             <div className="rounded-sm border border-dashed border-border/70 bg-background/20 px-2 py-2 text-[11px] text-muted-foreground">
