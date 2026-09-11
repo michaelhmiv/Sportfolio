@@ -25,6 +25,52 @@ function requiredEnv(name) {
   return value;
 }
 
+function log(message) {
+  console.log(`[app-store-connect-submission-prep] ${message}`);
+}
+
+function validateSubmissionConfig() {
+  if (config.bundleId !== "com.sportfoliomarket.app") {
+    throw new Error("Submission config must target bundle id com.sportfoliomarket.app.");
+  }
+
+  const ageRating = config.ageRatingDeclaration;
+  if (!ageRating || ageRating.advertising !== true) {
+    throw new Error(
+      "ageRatingDeclaration.advertising must be true because the iOS app contains rewarded video advertising.",
+    );
+  }
+
+  if (ageRating.userGeneratedContent !== true) {
+    throw new Error(
+      "ageRatingDeclaration.userGeneratedContent must be true because public profiles contain user-selected usernames and profile images.",
+    );
+  }
+
+  if (ageRating.gambling !== false || ageRating.gamblingSimulated !== "NONE") {
+    throw new Error(
+      "The current virtual-currency build must declare gambling=false and gamblingSimulated=NONE.",
+    );
+  }
+
+  const manualAgeRatingReview = config.manualAgeRatingReview;
+  if (
+    manualAgeRatingReview?.socialMedia !== false ||
+    manualAgeRatingReview?.appStoreConnectApiAutomated !== false
+  ) {
+    throw new Error(
+      "manualAgeRatingReview must document Social Media=false as a manual App Store Connect check.",
+    );
+  }
+
+  log(
+    `Manual App Store age-rating confirmation required: Social Media=${manualAgeRatingReview.socialMedia}; Social Media disabled for users under 13=${manualAgeRatingReview.socialMediaDisabledForUsersUnder13}.`,
+  );
+  log(
+    "The current App Store Connect API ageRatingDeclaration schema does not automate the July 2026 Social Media questionnaire field; confirm it in App Store Connect before review.",
+  );
+}
+
 function base64Url(input) {
   return Buffer.from(input)
     .toString("base64")
@@ -95,10 +141,6 @@ async function apiRequest(method, endpoint, body = null) {
   }
 
   return payload;
-}
-
-function log(message) {
-  console.log(`[app-store-connect-submission-prep] ${message}`);
 }
 
 async function findAppByBundleId(bundleId) {
@@ -173,6 +215,7 @@ async function updateAgeRating(appId) {
 }
 
 async function main() {
+  validateSubmissionConfig();
   const bundleId = config.bundleId || requiredEnv("IOS_APP_IDENTIFIER");
   log(`Loading App Store Connect app for ${bundleId}`);
   const app = await findAppByBundleId(bundleId);

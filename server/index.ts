@@ -20,7 +20,8 @@ import { registerMobileRewardedScoutBoostRoutes } from "./routes/mobile-rewarded
 import { setupVite, serveStatic, log } from "./vite";
 import { jobScheduler } from "./jobs/scheduler.js";
 import { startAccountDeletionProcessor } from "./services/account-deletion";
-import { db } from "./db";
+import { db, pool } from "./db";
+import { ensureProfileSafetySchema } from "./profile/ensure-profile-safety-schema";
 import { botProfiles } from "@shared/schema";
 import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
@@ -228,6 +229,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  startupLog("SCHEMA", "Ensuring profile safety schema...");
+  await ensureProfileSafetySchema(pool);
+  startupLog("SCHEMA", "Profile safety schema ready");
+
   startupLog("ROUTES", "Registering routes...");
   const server = await registerRoutes(app);
   await registerMobilePushNotificationRoutes(app);

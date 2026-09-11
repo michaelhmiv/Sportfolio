@@ -40,7 +40,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Select Xcode 26 SDK toolchain
+      - name: Select current App Store Xcode toolchain
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
@@ -62,7 +62,7 @@ jobs:
           CAP_SERVER_URL: ${{ inputs.cap_server_url }}
         run: npm run mobile:sync:ios
 
-      - name: Run iOS guardrail doctor
+      - name: Run iOS and App Store readiness doctor
         run: npm run mobile:ios:doctor
 
       - name: Generate iOS app icon sizes

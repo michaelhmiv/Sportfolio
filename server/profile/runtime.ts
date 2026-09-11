@@ -3,7 +3,9 @@ import {
   PostgresPublicTrophyService,
   PostgresTrophyCaseEditorService,
 } from "./profile-service";
+import { ProfileSafetyPublicProfileService } from "./profile-safety-service";
 
 export const publicTrophyService = new PostgresPublicTrophyService();
-export const profileService = new PostgresPublicProfileService(publicTrophyService);
+const baseProfileService = new PostgresPublicProfileService(publicTrophyService);
+export const profileService = new ProfileSafetyPublicProfileService(baseProfileService);
 export const editorService = new PostgresTrophyCaseEditorService(publicTrophyService);

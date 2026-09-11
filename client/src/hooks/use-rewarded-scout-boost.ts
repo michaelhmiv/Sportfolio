@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { rememberRewardedAdReportContext } from "@/lib/ad-report";
 import {
   canShowNativeRewardedAd,
   getNativeRewardedAdsPlatform,
@@ -254,6 +255,13 @@ export function useRewardedScoutBoost({ userId }: { userId?: string | null }) {
         customData: session.customData,
         userId: userId || undefined,
         nonPersonalizedOnly: true,
+      });
+
+      rememberRewardedAdReportContext({
+        platform: result.platform,
+        shownAt: new Date().toISOString(),
+        adResponseId: result.adResponseId,
+        mediationAdapterClassName: result.mediationAdapterClassName,
       });
 
       if (!result.rewardEarned) {
